@@ -1,1 +1,1214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mes Cours - Prépa</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+/* VARIABLES (THEME SOMBRE PAR DÉFAUT) */
+:root {
+  --bg:#0c0c10; --s1:#141418; --s2:#1c1c22; --s3:#252530;
+  --bd:#2a2a3a; --acc:#5b8df7; --glow:rgba(91,141,247,.18);
+  --gold:#f0c060; --grn:#50d890; --red:#f06060; --pur:#b06af7;
+  --txt:#e4e4f0; --mut:#6a6a88;
+}
+
+/* THEME CLAIR */
+body.theme-light {
+  --bg:#f0f0f5; --s1:#ffffff; --s2:#e8e8ed; --s3:#dcdce2;
+  --bd:#c4c4d0; --txt:#1a1a24; --mut:#5a5a75;
+}
+
+/* MODE COMPACT */
+body.mode-compact .card { padding: 10px; }
+body.mode-compact .ctitle { font-size: 13px; margin-bottom: 4px; }
+body.mode-compact .cdesc { display: none; }
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;min-height:100vh;padding-bottom:90px;transition:background 0.3s, color 0.3s;}
+
+/* 🚨 LA CLASSE MANQUANTE QUI BLOQUAIT TOUT 🚨 */
+.hidden { display: none !important; }
+
+/* HEADER */
+.hdr{background:linear-gradient(150deg,#0e1628,#0c0c10);padding:20px 16px 14px;border-bottom:1px solid var(--bd);position:relative;overflow:hidden;}
+.hdr::after{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:radial-gradient(circle,var(--glow),transparent 70%);border-radius:50%;}
+.hdr h1{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#e4e4f0;}
+.hdr h1 span{color:var(--acc);}
+.hdr p{color:#6a6a88;font-size:11px;margin-top:2px;}
+
+/* STATS BAND */
+.stats-band{background:var(--s3);border-bottom:1px solid var(--bd);padding:8px 14px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;}
+.stats-band::-webkit-scrollbar{display:none;}
+.stats-band.hidden-ui { display: none !important; }
+.stc{display:flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--bd);border-radius:20px;padding:4px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* STICKY TOP CONTAINER */
+.sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+/* SEARCH BAR (STICKY) */
+.search-bar{background:var(--s2);border-bottom:1px solid var(--bd);padding:10px 14px;display:flex;gap:8px;align-items:center;}
+.search-bar.hidden-on-home { display: none; }
+.search-bar input{flex:1;background:var(--bg);border:1.5px solid var(--bd);border-radius:9px;padding:9px 12px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;}
+.search-bar input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--glow);}
+.sbtn{border:none;border-radius:9px;padding:9px 14px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .2s;}
+.sbtn-loc{background:var(--acc);color:#fff;}
+.sbtn-loc:hover{opacity:.85;}
+
+/* TABS */
+.tabs{display:flex;background:var(--s1);border-bottom:1px solid var(--bd);padding:0 10px;overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--mut);font-family:'Syne',sans-serif;font-size:12px;font-weight:700;padding:12px 14px;cursor:pointer;white-space:nowrap;transition:color .2s;margin-bottom:-1px;}
+.tab.on{color:var(--txt);border-bottom-color:var(--acc);}
+
+/* PANES */
+.pane{padding:14px;display:none;}
+.pane.on{display:block;}
+
+/* ═════ ACCUEIL / DASHBOARD ═════ */
+.home-hero { background: var(--s1); border: 1px solid var(--bd); border-radius: 16px; padding: 24px 16px; text-align: center; margin-bottom: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.home-hero h2 { font-family: 'Syne', sans-serif; font-size: 22px; margin-bottom: 8px; color: var(--txt); }
+.home-hero p { color: var(--mut); font-size: 13px; margin-bottom: 20px; }
+.home-search { flex:1; background: var(--bg); border: 2px solid var(--bd); border-radius: 12px; padding: 14px 16px; font-size: 16px; color: var(--txt); font-family: 'DM Sans', sans-serif; outline: none; transition: all 0.2s; text-align: center; width: 100%; }
+.home-search:focus { border-color: var(--acc); box-shadow: 0 0 0 4px var(--glow); }
+
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.dash-card { background: var(--s2); border: 1px solid var(--bd); border-radius: 12px; padding: 16px; text-align: center; transition: transform 0.2s; cursor: pointer;}
+.dash-card:active { transform: scale(0.95); }
+.dash-num { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: bold; margin-bottom: 4px; }
+.dash-lbl { font-size: 11px; color: var(--mut); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+.dash-red .dash-num { color: var(--red); text-shadow: 0 0 10px rgba(240,96,96,0.4); }
+.dash-acc .dash-num { color: var(--acc); }
+
+/* FILTERS */
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;}
+.fi{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;flex:1;min-width:100px;cursor:pointer;}
+.fi:focus{border-color:var(--acc);}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.chips.hidden-ui { display: none !important; }
+.chip{padding:4px 11px;border-radius:20px;border:1.5px solid var(--bd);background:transparent;color:var(--mut);font-size:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;transition:all .15s;}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff;}
+
+/* CARDS */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:10px;}
+.card{background:var(--s1);border:1px solid var(--bd);border-left:3px solid;border-radius:11px;padding:13px;transition:all .2s;position:relative; cursor:pointer;}
+.card:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(0,0,0,.3);}
+
+/* EFFET GLOW REVISION */
+.rev-dot { position: absolute; top: 12px; right: 12px; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+.rev-red { background: var(--red); box-shadow: 0 0 8px 2px rgba(240,96,96,0.6); }
+.rev-orange { background: var(--gold); box-shadow: 0 0 8px 2px rgba(240,192,96,0.6); }
+.rev-green { background: var(--grn); box-shadow: 0 0 8px 2px rgba(80,216,144,0.6); }
+
+.ctop{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:5px; padding-right: 20px;}
+.cbadges{display:flex;gap:4px;flex-wrap:wrap;flex:1;align-items:center;}
+.bm{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.8px;padding:2px 7px;border-radius:4px;}
+.badge-type { background: var(--s3); color: var(--txt); border: 1px solid var(--bd); font-family: 'Syne', sans-serif; font-weight: bold; }
+
+.uid-badge{font-family:'DM Mono',monospace;font-size:13px;letter-spacing:1px;padding:4px 8px;border-radius:6px;background:var(--s3);color:var(--txt);border:1px solid var(--bd);font-weight:500;margin-bottom:8px;display:inline-block;}
+
+.cacts{display:flex;gap:2px;flex-shrink:0; margin-top: 8px;}
+.cbt{background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:5px;font-size:14px;transition:background .15s;color:var(--txt); border: 1px solid var(--bd); margin-right: 4px;}
+.cbt:hover{background:var(--s2);}
+.ctitle{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px;line-height:1.3;}
+.clocs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px;}
+.cloc{font-size:11px;padding:2px 8px;border-radius:5px;}
+.cloc-a{background:rgba(91,141,247,.12);color:var(--acc);}
+.cloc-b{background:rgba(240,192,96,.12);color:var(--gold);}
+.mt{font-size:11px;color:var(--mut);background:var(--s2);border-radius:4px;padding:2px 6px;}
+.cdesc{font-size:12px;color:var(--mut);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:5px;}
+
+.qr-warn{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--red);background:rgba(240,96,96,.1);border:1px solid rgba(240,96,96,.3);border-radius:5px;padding:3px 8px;}
+.qr-scan-req{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--gold);background:rgba(240,192,96,.1);border:1px solid rgba(240,192,96,.3);border-radius:5px;padding:3px 8px;}
+.qr-ok{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--grn);background:rgba(80,216,144,.1);border:1px solid rgba(80,216,144,.3);border-radius:5px;padding:3px 8px;}
+
+/* PRINT PANE */
+.pbar{background:var(--s2);border:1px solid var(--bd);border-radius:11px;padding:13px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;}
+.pcard{background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:10px 8px;text-align:center;cursor:pointer;transition:all .15s;position:relative;}
+.pcard.sel{border-color:var(--acc);background:rgba(91,141,247,.06);}
+.pcard:hover{border-color:var(--acc);}
+.pc-check{position:absolute;top:6px;right:6px;font-size:12px;}
+.pc-qr{width:80px;height:80px;background:#fff;border-radius:6px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.pc-uid{font-family:'DM Mono',monospace;font-size:9px;color:var(--acc);margin-bottom:2px;word-break:break-all;}
+.pc-title{font-size:10px;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+/* CLASSEURS & MATIERES */
+.cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(275px,1fr));gap:11px;}
+.cl-card{background:var(--s1);border:1px solid var(--bd);border-radius:11px;overflow:hidden;}
+.cl-hdr{padding:12px 14px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:background .15s;}
+.cl-hdr:hover{background:var(--s2);}
+.cl-ico{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.cl-info{flex:1;}
+.cl-nm{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;}
+.cl-sb{font-size:11px;color:var(--mut);}
+.ilist{padding:6px 8px 9px;display:none;border-top:1px solid var(--bd);}
+.ilist.open{display:block;}
+.irow{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:6px;cursor:pointer;transition:background .15s;}
+.irow:hover{background:var(--s2);}
+.inum{width:24px;height:18px;background:var(--s3);border-radius:3px;font-family:'DM Mono',monospace;font-size:10px;display:flex;align-items:center;justify-content:center;color:var(--gold);flex-shrink:0;}
+.ilbl{font-size:12px;flex:1;}
+.icnt{font-size:11px;color:var(--mut);font-family:'DM Mono',monospace;}
+
+.mg{display:flex;flex-direction:column;gap:7px;}
+.mr{display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;}
+.mdot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.mlbl{font-family:'Syne',sans-serif;font-weight:700;font-size:13px;}
+.mnm{color:var(--mut);font-size:12px;flex:1;}
+.mcnt{color:var(--mut);font-size:11px;font-family:'DM Mono',monospace;}
+.mdel{background:none;border:none;cursor:pointer;color:var(--red);font-size:14px;padding:2px;}
+.nrow{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+.sws{display:flex;gap:4px;flex-wrap:wrap;}
+.sw{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s,border-color .15s;flex-shrink:0;}
+.sw.on,.sw:hover{transform:scale(1.2);border-color:#fff;}
+.sttl{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--mut);margin:16px 0 8px;}
+
+/* SETTINGS */
+.set-row{display:flex;justify-content:space-between;align-items:center;background:var(--s1);border:1px solid var(--bd);padding:14px;border-radius:10px;margin-bottom:10px;}
+.set-lbl{font-family:'Syne',sans-serif;font-size:14px;font-weight:bold;color:var(--txt);}
+.set-sub{font-size:11px;color:var(--mut);margin-top:4px;}
+.toggle-btn{background:var(--s3);border:1px solid var(--bd);color:var(--txt);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:bold;transition:background 0.2s;}
+.toggle-btn:hover{background:var(--bd);}
+.reset-btn{background:rgba(240,96,96,.1);border:1px solid var(--red);color:var(--red);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:bold;}
+
+/* MODALS & POPUPS */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(5px);z-index:400;display:flex;align-items:center;justify-content:center;padding:14px;}
+.modal{background:var(--s1);border:1px solid var(--bd);border-radius:16px;padding:20px;width:100%;max-width:420px;max-height:93vh;overflow-y:auto;}
+.modal h2{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;margin-bottom:14px;}
+.fg{margin-bottom:11px;}
+.fg label{display:block;font-size:11px;font-weight:500;color:var(--mut);margin-bottom:4px;text-transform:uppercase;}
+.fg input,.fg textarea,.fg select{width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:8px 11px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;}
+.fg input:focus,.fg textarea:focus,.fg select:focus{border-color:var(--acc);}
+.uidbox{background:var(--s3);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;font-family:'DM Mono',monospace;font-size:15px;letter-spacing:2px;color:var(--acc);text-align:center;margin-bottom:11px;}
+.uidbox small{color:var(--mut);font-size:11px;display:block;margin-top:3px;}
+.macts{display:flex;gap:7px;margin-top:13px;}
+.bp{flex:1;background:var(--acc);border:none;border-radius:8px;padding:10px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:opacity 0.2s;}
+.bp:hover{opacity:.85;}
+.bs{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 15px;color:var(--txt);font-family:'Syne',sans-serif;font-weight:600;font-size:13px;cursor:pointer;text-align:center;}
+
+/* LOCALISATION POPUP */
+.loc-popup{position:fixed;bottom:-500px;left:50%;transform:translateX(-50%);width:100%;max-width:440px;background:var(--s1);border:1px solid var(--bd);border-radius:24px 24px 0 0;padding:24px 20px 24px;z-index:300;transition:bottom .3s cubic-bezier(.2,.8,.4,1);box-shadow:0 -8px 30px rgba(0,0,0,.5);display:flex;flex-direction:column;align-items:stretch;}
+.loc-popup.open{bottom:0;}
+.loc-close-btn{align-self:center;width:44px;height:44px;border-radius:50%;background:var(--s3);color:var(--txt);border:1px solid var(--bd);font-size:18px;cursor:pointer;margin-top:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.2);transition:background 0.2s;}
+.loc-close-btn:hover{background:var(--bd);}
+.loc-code{font-family:'DM Mono',monospace;font-size:22px;letter-spacing:2px;color:var(--acc);margin-bottom:8px;text-align:center;font-weight:bold;}
+.loc-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:16px;text-align:center;}
+.loc-cards{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;justify-content:center;}
+.loc-c{padding:10px 14px;border-radius:9px;font-size:13px;font-weight:600;}
+.loc-desc{font-size:13px;color:var(--mut);margin-top:10px;text-align:center;padding:10px;background:var(--s2);border-radius:10px;}
+
+/* QR MODAL */
+.m-center{text-align:center;}
+.qr-box{display:inline-block;background:#fff;padding:10px;border-radius:9px;margin-bottom:10px;}
+.qr-lbl{font-family:'DM Mono',monospace;font-size:14px;color:var(--acc);margin-bottom:12px;}
+
+/* CAMERA */
+.cam-wrap{position:relative;width:100%;max-width:290px;margin:0 auto 10px;border-radius:11px;overflow:hidden;background:#000;aspect-ratio:1;border:2px solid var(--bd);}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block;}
+.cam-line{position:absolute;left:10%;right:10%;height:2px;background:var(--acc);animation:sc 2s ease-in-out infinite;}
+@keyframes sc{0%,100%{top:25%}50%{top:75%}}
+.cam-manual-box{margin-top:15px;padding-top:15px;border-top:1px solid var(--bd);text-align:left;}
+
+/* FAB */
+.fab-group{position:fixed;bottom:18px;right:16px;display:flex;flex-direction:column;align-items:center;gap:9px;z-index:200;}
+.fab{width:50px;height:50px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;transition:transform .2s;box-shadow:0 4px 14px rgba(0,0,0,.4);}
+.fab:hover{transform:scale(1.1);}
+.fab-add{background:var(--acc);color:#fff;}
+.fab-cam{background:var(--s2);border:1px solid var(--bd);color:var(--txt);}
+.fab-csv{background:var(--grn);color:#0c0c10;}
+.fab-print{background:var(--gold);color:#0c0c10;}
+
+.empty{text-align:center;padding:44px 20px;color:var(--mut);grid-column:1/-1;}
+
+/* ══ IMPRESSION STRICTE ET ROBUSTE ══ */
+@media print {
+  html, body { background: #ffffff !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body > * { display: none !important; }
+  #printZone { display: flex !important; flex-wrap: wrap; align-items: flex-start; align-content: flex-start; gap: 8mm; padding: 10mm; position: absolute; top: 0; left: 0; width: 100%; height: auto; }
+  #printZone * { display: block !important; }
+  .print-label { width: 38mm !important; height: auto !important; border: 1px solid #000000 !important; border-radius: 2mm; padding: 3mm; text-align: center; page-break-inside: avoid; break-inside: avoid; display: flex !important; flex-direction: column !important; align-items: center !important; }
+  .print-label img { width: 26mm !important; height: 26mm !important; margin: 0 auto 2mm auto !important; }
+  .pl-uid { font-family: 'DM Mono', monospace; font-size: 11px !important; font-weight: 800; color: #000 !important; }
+  .pl-title { font-family: 'Syne', sans-serif; font-size: 9px !important; font-weight: 700; color: #000 !important; margin-top: 1mm; line-height: 1.2; }
+  .pl-loc { font-size: 8px !important; color: #444 !important; margin-top: 1mm; }
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>📚 Mes <span>Cours</span></h1>
+  <p>Codes permanents · Méthode Prépa · QR Hors Ligne</p>
+</div>
+
+<div class="stats-band" id="statsBand"></div>
+
+<div class="sticky-top">
+  <div class="search-bar" id="topSearchBar">
+    <input type="text" id="mainSearch" placeholder="🔍 Rechercher ou entrer un code...">
+    <button class="sbtn sbtn-loc" id="btnLocate">📍 Localiser</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="home">🏠 Accueil</button>
+    <button class="tab" data-tab="cours">📋 Base Doc.</button>
+    <button class="tab" data-tab="print">🖨 Impression</button>
+    <button class="tab" data-tab="classeurs">🗂 Classeurs</button>
+    <button class="tab" data-tab="matieres">🏷 Matières</button>
+    <button class="tab" data-tab="settings">⚙️ Paramètres</button>
+  </div>
+</div>
+
+<div class="pane on" id="paneHome">
+  <div class="home-hero">
+    <h2>Que cherches-tu ?</h2>
+    <p>Tape un code direct (ex: PHYS-A1B2) ou des mots-clés</p>
+    <div style="display:flex; gap:10px; justify-content:center; max-width:400px; margin: 0 auto;">
+      <input type="text" id="homeSearch" class="home-search" placeholder="Code unique ou Titre...">
+      <button class="bp" id="btnHomeSearch" style="flex:0; padding:0 20px;">Aller</button>
+    </div>
+  </div>
+
+  <h3 style="font-family:'Syne'; margin-bottom:12px; margin-top:30px;">Statut des Révisions</h3>
+  <div class="dash-grid" id="dashRevGrid"></div>
+
+  <h3 style="font-family:'Syne'; margin-bottom:12px; margin-top:20px;">Vue d'ensemble</h3>
+  <div class="dash-grid" id="dashOverviewGrid"></div>
+</div>
+
+<div class="pane" id="paneCours">
+  <div class="filters">
+    <select class="fi" id="fltType">
+      <option value="">Tous les types</option>
+      <option value="COURS">📘 Cours</option>
+      <option value="TD">📗 TD</option>
+      <option value="DS">📕 DS</option>
+      <option value="FICHE">📙 Fiche</option>
+    </select>
+    <select class="fi" id="fltRev">
+      <option value="">Toutes maîtrises</option>
+      <option value="red">🔴 À revoir d'urgence</option>
+      <option value="orange">🟠 En cours d'acquisition</option>
+      <option value="green">🟢 Maîtrisé</option>
+    </select>
+    <select class="fi" id="fltMat"></select>
+    <select class="fi" id="fltCl"></select>
+    <select class="fi" id="fltQr">
+      <option value="">Tous les statuts QR</option>
+      <option value="pending">🔴 À imprimer</option>
+      <option value="printed">🟠 À scanner (Initialiser)</option>
+      <option value="active">🟢 Initialisé (Validé)</option>
+    </select>
+  </div>
+  <div class="chips" id="matChips"></div>
+  <div class="cgrid" id="coursGrid"></div>
+</div>
+
+<div class="pane" id="panePrint">
+  <div class="pbar">
+    <div>
+      <h3 style="font-family:'Syne';font-size:15px;margin-bottom:3px">Étiquettes QR</h3>
+      <p style="color:var(--mut);font-size:12px" id="pStats">0 sélectionné</p>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="bs" id="btnSelPending">Nouveaux</button>
+      <button class="bs" id="btnSelAll">Tous</button>
+      <button class="bs" id="btnDesel">Aucun</button>
+      <button class="bp" style="flex:0;padding:9px 14px" id="btnDoPrint">🖨 Imprimer</button>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--mut);margin-bottom:10px;">Les étiquettes imprimées passeront au statut "À scanner".</p>
+  <div class="pgrid" id="printGrid"></div>
+</div>
+
+<div class="pane" id="paneClasseurs">
+  <div class="cl-grid" id="clGrid"></div>
+</div>
+
+<div class="pane" id="paneMatieres">
+  <div class="mg" id="mgMat"></div>
+</div>
+
+<div class="pane" id="paneSettings">
+  <h3 style="font-family:'Syne';margin-bottom:15px;color:var(--txt);">Apparence de l'interface</h3>
+  
+  <div class="set-row">
+    <div>
+      <div class="set-lbl">Thème Sombre / Clair</div>
+      <div class="set-sub">Adapte les couleurs de l'application</div>
+    </div>
+    <button class="toggle-btn" id="btnThemeToggle">Changer</button>
+  </div>
+  
+  <div class="set-row">
+    <div>
+      <div class="set-lbl">Mode Compact</div>
+      <div class="set-sub">Réduit la taille des cartes dans la liste</div>
+    </div>
+    <button class="toggle-btn" id="btnCompactToggle">Désactivé</button>
+  </div>
+
+  <div class="set-row">
+    <div>
+      <div class="set-lbl">Bandeau de Statistiques</div>
+      <div class="set-sub">Affiche les stats rapides tout en haut de l'écran</div>
+    </div>
+    <button class="toggle-btn" id="btnStatsToggle">Affiché</button>
+  </div>
+
+  <div class="set-row">
+    <div>
+      <div class="set-lbl">Filtres rapides (Matières)</div>
+      <div class="set-sub">Affiche les boutons "bulles" sous la barre de recherche</div>
+    </div>
+    <button class="toggle-btn" id="btnChipsToggle">Affiché</button>
+  </div>
+
+  <h3 style="font-family:'Syne';margin-top:25px;margin-bottom:15px;color:var(--txt);">Système</h3>
+  <div class="set-row">
+    <div>
+      <div class="set-lbl" style="color:var(--red);">Réinitialiser les données</div>
+      <div class="set-sub">Restaure les cours de test initiaux. Attention, modifications perdues !</div>
+    </div>
+    <button class="reset-btn" id="btnResetData">Réinitialiser</button>
+  </div>
+</div>
+
+<div class="fab-group">
+  <button class="fab fab-print" id="fabPrint" title="Impression">🖨</button>
+  <button class="fab fab-csv" id="fabCsv" title="Export CSV">⬇</button>
+  <button class="fab fab-cam" id="fabCam" title="Caméra">📷</button>
+  <button class="fab fab-add" id="fabAdd" title="Ajouter un cours">＋</button>
+</div>
+
+<div class="loc-popup" id="locPopup">
+  <div id="locContent"></div>
+  <button class="loc-close-btn" onclick="window.closeLocPopup()">✕</button>
+</div>
+
+<div class="ov hidden" id="ovCours">
+  <div class="modal">
+    <h2 id="mTitle" style="margin-bottom:15px;">✏️ Ajouter un document</h2>
+    <div class="uidbox" id="uidBox">—<small>Code généré automatiquement</small></div>
+    
+    <div style="display:flex; gap:10px;">
+      <div class="fg" style="flex:1;"><label>Type *</label>
+        <select id="fType">
+          <option value="COURS">📘 Cours</option>
+          <option value="TD">📗 TD</option>
+          <option value="DS">📕 DS</option>
+          <option value="FICHE">📙 Fiche</option>
+        </select>
+      </div>
+      <div class="fg" style="flex:1;"><label>Maîtrise</label>
+        <select id="fRev">
+          <option value="red">🔴 À revoir d'urgence</option>
+          <option value="orange">🟠 En cours d'acquisition</option>
+          <option value="green">🟢 Maîtrisé</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="fg"><label>Titre *</label><input type="text" id="fTitle" placeholder="ex: Cinématique"></div>
+    <div class="fg"><label>Matière *</label><select id="fMat"></select></div>
+    
+    <div style="display:flex; gap:10px;">
+      <div class="fg" style="flex:1.5;"><label>Classeur *</label><select id="fCl"></select></div>
+      <div class="fg" style="flex:1;">
+        <label>Intercalaire *</label>
+        <select id="fInter">
+          <option value="">—</option>
+          <option value="01">01</option><option value="02">02</option>
+          <option value="03">03</option><option value="04">04</option>
+          <option value="05">05</option><option value="06">06</option>
+          <option value="07">07</option><option value="08">08</option>
+          <option value="09">09</option><option value="10">10</option>
+          <option value="11">11</option><option value="12">12</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="fg"><label>Description / Conseils</label><textarea id="fDesc" rows="2" placeholder="Résumé, astuces..."></textarea></div>
+    <div class="fg"><label>Date</label><input type="date" id="fDate"></div>
+    
+    <div class="macts" style="margin-top:20px;">
+      <button class="bs" onclick="window.closeModalCours()">Annuler</button>
+      <button class="bp" id="btnSaveCours">💾 Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovQR">
+  <div class="modal m-center">
+    <h2 id="qrTitle">📱 QR Code</h2>
+    <p id="qrSub" style="font-size:12px;color:var(--mut);margin-bottom:10px;"></p>
+    <div class="qr-box" id="qrBox"></div>
+    <div class="qr-lbl" id="qrLbl"></div>
+    <div class="macts" style="flex-direction:column; gap:8px; margin-top:20px;">
+      <button class="bs" id="btnMarkOnePrinted">✅ Marquer imprimé</button>
+      <button class="bs" id="btnDlQR">⬇ Télécharger PNG</button>
+      <button class="bs" onclick="window.closeQRModal()" style="border-color:var(--red);color:var(--red);">✕ Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovCam">
+  <div class="modal m-center">
+    <h2 style="margin-bottom:5px;">📷 Scanner QR</h2>
+    <p style="font-size:12px;color:var(--mut);margin-bottom:15px;">Pointe la caméra vers le QR imprimé pour le localiser ou l'initialiser.</p>
+    
+    <div class="cam-wrap">
+      <video id="camVideo" playsinline muted></video>
+      <div class="cam-line"></div>
+    </div>
+    <canvas id="camCanvas" style="display:none"></canvas>
+    <div class="cam-st" id="camSt" style="color:var(--gold); font-weight:bold;">Vérification de la caméra...</div>
+
+    <div class="cam-manual-box">
+      <label style="font-size:11px;color:var(--mut);display:block;margin-bottom:6px;text-transform:uppercase;">Caméra bloquée ? Saisie manuelle :</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="manualCamInput" class="fi" placeholder="Ex: PHYS-A1B2">
+        <button class="bp" id="btnManualCam" style="flex:0;padding:8px 16px;">Valider</button>
+      </div>
+    </div>
+    <button class="bs" onclick="window.stopCam()" style="width:100%; margin-top:20px; border-color:var(--red); color:var(--red);">✕ Fermer le scanner</button>
+  </div>
+</div>
+
+<div id="printZone"></div>
+
+<script>
+try {
+  // 1. GÉNÉRATEUR QR JS PUR (Génère des vraies images encodées)
+  var _QR = (function(){
+    var EXP=new Array(256), LOG=new Array(256);
+    (function(){ for(var i=0;i<8;i++)EXP[i]=1<<i; for(var i=8;i<256;i++)EXP[i]=EXP[i-4]^EXP[i-5]^EXP[i-6]^EXP[i-8]; for(var i=0;i<255;i++)LOG[EXP[i]]=i; })();
+    var RS={ glog:function(n){return LOG[n];}, gexp:function(n){while(n<0)n+=255;while(n>=256)n-=255;return EXP[n];}, mul:function(a,b){return(a===0||b===0)?0:EXP[(LOG[a]+LOG[b])%255];} };
+    function Poly(num,shift){ var o=0; while(o<num.length&&num[o]===0)o++; this.n=new Array(num.length-o+shift); for(var i=0;i<num.length-o;i++)this.n[i]=num[i+o]; }
+    Poly.prototype={ len:function(){return this.n.length;}, get:function(i){return this.n[i];},
+      mul:function(e){ var n=new Array(this.len()+e.len()-1); for(var i=0;i<this.len();i++)for(var j=0;j<e.len();j++)n[i+j]^=RS.mul(this.get(i),e.get(j)); return new Poly(n,0); },
+      mod:function(e){ if(this.len()-e.len()<0)return this; var r=RS.glog(this.get(0))-RS.glog(e.get(0)),n=this.n.slice(); for(var i=0;i<e.len();i++)n[i]^=RS.gexp(RS.glog(e.get(i))+r); return new Poly(n,0).mod(e); }
+    };
+    var RST=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13]];
+    function getRSB(t,e){ var row=RST[(t-1)*4+e],list=[]; for(var i=0;i<row.length;i+=3)for(var j=0;j<row[i];j++)list.push({tot:row[i+1],dat:row[i+2]}); return list; }
+    function getECP(ecl){ var a=new Poly([1],0); for(var i=0;i<ecl;i++)a=a.mul(new Poly([1,RS.gexp(i)],0)); return a; }
+    var PP=[[],[6,18],[6,22]];
+    var G15=(1<<10)|(1<<8)|(1<<5)|(1<<4)|(1<<2)|(1<<1)|(1<<0), G15M=(1<<14)|(1<<12)|(1<<10)|(1<<4)|(1<<1);
+    function bchd(d){var g=0;while(d!==0){g++;d>>>=1;}return g;}
+    function bchTI(d){var x=d<<10;while(bchd(x)-bchd(G15)>=0)x^=(G15<<(bchd(x)-bchd(G15)));return((d<<10)|x)^G15M;}
+    function maskFn(p){return function(i,j){return(i+j)%2===0;};}
+    function makeQR(text){
+      var ecLevel=0, t=2, rsb=getRSB(t,ecLevel);
+      var buf={bits:[],len:0,put:function(v,n){for(var i=0;i<n;i++)this.bits.push((v>>>(n-i-1))&1===1);this.len+=n;}};
+      buf.put(4,4); buf.put(text.length,8);
+      for(var i=0;i<text.length;i++)buf.put(text.charCodeAt(i),8);
+      var totalData=rsb.reduce(function(a,b){return a+b.dat;},0);
+      if(buf.len+4<=totalData*8)buf.put(0,4);
+      while(buf.len%8!==0)buf.bits.push(0),buf.len++;
+      while(buf.len<totalData*8){buf.put(0xEC,8);if(buf.len<totalData*8)buf.put(0x11,8);}
+      var bytes=[];for(var i=0;i<buf.bits.length;i+=8){var b=0;for(var j=0;j<8;j++)b=(b<<1)|(buf.bits[i+j]||0);bytes.push(b);}
+      var dcData=[],ecData=[],offset=0,maxDC=0,maxEC=0;
+      for(var r=0;r<rsb.length;r++){
+        var dc=rsb[r].dat,ec=rsb[r].tot-dc;
+        maxDC=Math.max(maxDC,dc);maxEC=Math.max(maxEC,ec);
+        dcData.push(bytes.slice(offset,offset+dc));offset+=dc;
+        var rsp=getECP(ec),raw=new Poly(dcData[r].concat(new Array(ec).fill(0)),0);
+        var mod=raw.mod(rsp);ecData.push([]);
+        for(var i=0;i<ec;i++){var mi=i+mod.len()-ec;ecData[r].push(mi>=0?mod.get(mi):0);}
+      }
+      var total=rsb.reduce(function(a,b){return a+b.tot;},0), data=new Array(total),idx=0;
+      for(var i=0;i<maxDC;i++)for(var r=0;r<rsb.length;r++){if(i<dcData[r].length)data[idx++]=dcData[r][i];}
+      for(var i=0;i<maxEC;i++)for(var r=0;r<rsb.length;r++){if(i<ecData[r].length)data[idx++]=ecData[r][i];}
+      var mc=t*4+17, M=[];for(var i=0;i<mc;i++){M.push(new Array(mc).fill(null));}
+      function setFP(row,col){for(var r=-1;r<=7;r++)for(var c=-1;c<=7;c++){if(row+r<0||mc<=row+r||col+c<0||mc<=col+c)continue;M[row+r][col+c]=((0<=r&&r<=6&&(c===0||c===6))||(0<=c&&c<=6&&(r===0||r===6))||(2<=r&&r<=4&&2<=c&&c<=4));}}
+      setFP(0,0);setFP(mc-7,0);setFP(0,mc-7);
+      var pp=PP[t-1]; for(var i=0;i<pp.length;i++)for(var j=0;j<pp.length;j++){var row=pp[i],col=pp[j];if(M[row][col]!==null)continue;for(var r=-2;r<=2;r++)for(var c=-2;c<=2;c++)M[row+r][col+c]=(r===-2||r===2||c===-2||c===2||(r===0&&c===0));}
+      for(var r=8;r<mc-8;r++){if(M[r][6]===null)M[r][6]=(r%2===0);}
+      for(var c=8;c<mc-8;c++){if(M[6][c]===null)M[6][c]=(c%2===0);}
+      var bits2=bchTI((ecLevel<<3)|0);
+      for(var i=0;i<15;i++){var mod=((bits2>>i)&1)===1;if(i<6)M[i][8]=mod;else if(i<8)M[i+1][8]=mod;else M[mc-15+i][8]=mod;if(i<8)M[8][mc-i-1]=mod;else if(i<9)M[8][15-i]=mod;else M[8][15-i-1]=mod;}
+      M[mc-8][8]=true;
+      var inc=-1,row2=mc-1,bi=7,by=0,mfn=maskFn(0);
+      for(var col=mc-1;col>0;col-=2){if(col===6)col--;while(true){for(var c=0;c<2;c++){if(M[row2][col-c]===null){var dark=(by<data.length)&&((data[by]>>>(bi))&1)===1;if(mfn(row2,col-c))dark=!dark;M[row2][col-c]=dark;bi--;if(bi<0){by++;bi=7;}}}row2+=inc;if(row2<0||mc<=row2){row2-=inc;inc=-inc;break;}}}
+      return {matrix:M, mc:mc};
+    }
+    return {
+      makeImageURL: function(text, size){
+        try{
+          var qr=makeQR(text), cv=document.createElement('canvas'); cv.width=size; cv.height=size;
+          var ctx=cv.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,size,size); ctx.fillStyle='#000000';
+          var cs=size/qr.mc;
+          for(var r=0;r<qr.mc;r++)for(var c=0;c<qr.mc;c++){if(qr.matrix[r][c])ctx.fillRect(Math.floor(c*cs),Math.floor(r*cs),Math.ceil(cs+.5),Math.ceil(cs+.5));}
+          return cv.toDataURL('image/png');
+        }catch(e){return '';}
+      }
+    };
+  })();
+
+  const IN = ['','Intro','Cours 1','Cours 2','Cours 3','Cours 4','Cours 5','Exercices','TD','TP','Fiches','Annales','Divers'];
+  const COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
+
+  const defaultData = {
+    settings: { theme: 'dark', compact: false, showStats: true, showChips: true },
+    matieres: [
+      {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
+      {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
+      {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+    ],
+    classeurs: [
+      {id:'A', name:'Classeur Physique A', icon:'📘', color:'#5b8df7'},
+      {id:'B', name:'Classeur Physique B', icon:'📘', color:'#b06af7'},
+      {id:'C', name:'Classeur Maths', icon:'📙', color:'#f0c060'},
+    ],
+    cours: [
+      {uid:'PHYS-TEST', title:'Chapitre 1 : Mécanique', mat:'PHYS', cl:'A', inter:'01', type:'COURS', rev:'green', desc:'Ce cours vient d\'être ajouté. Il faut l\'imprimer.', date:'2025-01-01', stat:'pending'},
+      {uid:'MATH-9A2B', title:'Fiche Récap : Intégrales', mat:'MATH', cl:'C', inter:'02', type:'FICHE', rev:'orange', desc:'L\'étiquette de ce cours est imprimée. Scanne-le pour valider !', date:'2025-01-02', stat:'printed'},
+      {uid:'CHIM-X7Y1', title:'TD Équilibres Chimiques', mat:'CHIM', cl:'A', inter:'03', type:'TD', rev:'red', desc:'Urgent à revoir pour le DS de la semaine pro.', date:'2025-01-03', stat:'active'},
+      {uid:'PHYS-LK2P', title:'DS n°3 Thermo', mat:'PHYS', cl:'B', inter:'11', type:'DS', rev:'orange', desc:'Moyenne classe : 8. Moi : 11.', date:'2025-02-15', stat:'active'}
+    ]
+  };
+
+  // 2. EXTRACTION ET VERIFICATION DES DONNÉES
+  let D;
+  try {
+    const rawData = localStorage.getItem('mc_v17');
+    D = rawData ? JSON.parse(rawData) : null;
+  } catch(e) { D = null; }
+  
+  if(!D || typeof D !== 'object' || !D.cours) {
+    D = JSON.parse(JSON.stringify(defaultData));
+  }
+  
+  if(!D.settings) D.settings = { theme: 'dark', compact: false, showStats: true, showChips: true };
+  if(D.settings.showStats === undefined) D.settings.showStats = true;
+  if(D.settings.showChips === undefined) D.settings.showChips = true;
+  if(!D.matieres) D.matieres = defaultData.matieres;
+  if(!D.classeurs) D.classeurs = defaultData.classeurs;
+
+  // Variables globales pures
+  let editUid = null;
+  let chipFilter = null;
+  let newColor = COLORS[0];
+  let printSel = new Set();
+  let camStream = null;
+  let camTick = null;
+  let curQRUid = null;
+
+  const $ = id => document.getElementById(id);
+  const save = function() { localStorage.setItem('mc_v17', JSON.stringify(D)); };
+  const fmtD = d => { if(!d) return ''; const [y,m,j] = d.split('-'); return j+'/'+m+'/'+y; };
+
+  // ══════════════════════════════════════════════
+  // FONCTIONS GLOBALES (Accessibles via onclick)
+  // ══════════════════════════════════════════════
+  window.stopCam = function() {
+    try {
+      if (camTick) { clearInterval(camTick); camTick = null; }
+      if (camStream && typeof camStream.getTracks === 'function') {
+        camStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
+      }
+      camStream = null;
+      const v = $('camVideo'); 
+      if (v) { v.srcObject = null; v.pause(); v.removeAttribute('src'); v.load(); }
+    } catch(e) {}
+    const ov = $('ovCam'); if(ov) ov.classList.add('hidden');
+  }
+  window.closeLocPopup = function() { const lp = $('locPopup'); if(lp) lp.classList.remove('open'); }
+  window.closeModalCours = function() { const ov = $('ovCours'); if(ov) ov.classList.add('hidden'); }
+  window.closeQRModal = function() { const ov = $('ovQR'); if(ov) ov.classList.add('hidden'); }
+
+  // ══════════════════════════════════════════════
+  // LOGIQUE DE L'APPLICATION
+  // ══════════════════════════════════════════════
+  function applySettings() {
+    if (D.settings.theme === 'light') document.body.classList.add('theme-light');
+    else document.body.classList.remove('theme-light');
+    
+    if (D.settings.compact) document.body.classList.add('mode-compact');
+    else document.body.classList.remove('mode-compact');
+
+    if (!D.settings.showStats && $('statsBand')) $('statsBand').classList.add('hidden-ui');
+    else if ($('statsBand')) $('statsBand').classList.remove('hidden-ui');
+
+    if (!D.settings.showChips && $('matChips')) $('matChips').classList.add('hidden-ui');
+    else if ($('matChips')) $('matChips').classList.remove('hidden-ui');
+    
+    if($('btnThemeToggle')) $('btnThemeToggle').textContent = D.settings.theme === 'light' ? 'Passer au Sombre' : 'Passer au Clair';
+    if($('btnCompactToggle')) $('btnCompactToggle').textContent = D.settings.compact ? 'Activé' : 'Désactivé';
+    if($('btnStatsToggle')) $('btnStatsToggle').textContent = D.settings.showStats ? 'Affiché' : 'Masqué';
+    if($('btnChipsToggle')) $('btnChipsToggle').textContent = D.settings.showChips ? 'Affiché' : 'Masqué';
+  }
+
+  function genUid(matId) {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let rnd = '';
+    for (let i = 0; i < 4; i++) rnd += chars[Math.floor(Math.random() * chars.length)];
+    return matId.slice(0,4) + '-' + rnd;
+  }
+
+  function doAutoFmtScan(inputEl) {
+    if(!inputEl) return;
+    const raw = inputEl.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    let s1='', s2=''; let i = 0;
+    while(i < raw.length && /[A-Z]/.test(raw[i]) && s1.length < 4) s1 += raw[i++];
+    while(i < raw.length && s2.length < 4) s2 += raw[i++];
+    let res = s1; if(s2) res += '-' + s2;
+    if(raw.length > 0 && raw.length <= 8 && /^[A-Z]{1,4}[A-Z0-9]{0,4}$/.test(raw)) {
+      if(inputEl.value !== res) { inputEl.value = res; inputEl.selectionStart = inputEl.selectionEnd = res.length; }
+    }
+  }
+
+  function renderDashboard() {
+    const redCount = D.cours.filter(c => c.rev === 'red').length;
+    const orangeCount = D.cours.filter(c => c.rev === 'orange').length;
+    const greenCount = D.cours.filter(c => c.rev === 'green').length;
+
+    if($('dashRevGrid')) $('dashRevGrid').innerHTML = `
+      <div class="dash-card dash-red" style="cursor:pointer;" onclick="switchTab('cours'); document.getElementById('fltRev').value='red'; renderCours();">
+        <div class="dash-num">${redCount}</div>
+        <div class="dash-lbl">À revoir urg.</div>
+      </div>
+      <div class="dash-card" style="cursor:pointer;" onclick="switchTab('cours'); document.getElementById('fltRev').value='orange'; renderCours();">
+        <div class="dash-num" style="color:var(--gold); text-shadow: 0 0 10px rgba(240,192,96,0.4);">${orangeCount}</div>
+        <div class="dash-lbl">En cours</div>
+      </div>
+      <div class="dash-card" style="cursor:pointer;" onclick="switchTab('cours'); document.getElementById('fltRev').value='green'; renderCours();">
+        <div class="dash-num" style="color:var(--grn); text-shadow: 0 0 10px rgba(80,216,144,0.4);">${greenCount}</div>
+        <div class="dash-lbl">Maîtrisés</div>
+      </div>
+    `;
+
+    if($('dashOverviewGrid')) $('dashOverviewGrid').innerHTML = `
+      <div class="dash-card dash-acc">
+        <div class="dash-num">${D.cours.length}</div>
+        <div class="dash-lbl">Docs Totaux</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-num">${D.cours.filter(c => c.type === 'FICHE').length}</div>
+        <div class="dash-lbl">Fiches</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-num">${D.cours.filter(c => c.type === 'DS').length}</div>
+        <div class="dash-lbl">Sujets DS</div>
+      </div>
+    `;
+  }
+
+  window.showLocPopup = function(uid) {
+    const c = D.cours.find(x => x.uid === uid);
+    if (!c) {
+      $('locContent').innerHTML =
+        '<div style="text-align:center;padding:10px 0">' +
+          '<div style="font-size:32px;margin-bottom:8px">❌</div>' +
+          '<div style="font-family:\'DM Mono\',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">' + uid + '</div>' +
+          '<div style="color:var(--mut);font-size:13px">Code introuvable dans la base.</div>' +
+        '</div>';
+      $('locPopup').classList.add('open');
+      return;
+    }
+    
+    let validationMsg = '';
+    if (c.stat === 'printed') {
+      c.stat = 'active'; save(); renderCours();
+      validationMsg = '<div style="background:rgba(80,216,144,.15);border:1px solid var(--grn);color:var(--grn);padding:10px;border-radius:10px;text-align:center;font-weight:bold;margin-bottom:15px;">✅ Document initialisé et classé !</div>';
+    }
+
+    const mo = D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
+    const co = D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📁'};
+    const interNum = parseInt(c.inter, 10);
+    
+    $('locContent').innerHTML = validationMsg +
+      '<div class="loc-code">' + c.uid + '</div>' +
+      '<div class="loc-title">' + c.title + '</div>' +
+      '<div class="loc-cards">' +
+        '<div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">' + co.icon + ' ' + co.name + '</div>' +
+        '<div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">📑 Intercalaire ' + c.inter + ' \u2014 ' + (IN[interNum]||'') + '</div>' +
+      '</div>' +
+      '<div style="text-align:center;margin-top:5px;font-size:12px;font-weight:bold;color:'+mo.color+'">' + c.type + '</div>' +
+      (c.desc ? '<div class="loc-desc">' + c.desc + '</div>' : '');
+
+    $('locPopup').classList.add('open');
+  }
+
+  window.switchTab = function(tab) {
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    const map = {home:'paneHome', cours:'paneCours', print:'panePrint', classeurs:'paneClasseurs', matieres:'paneMatieres', settings:'paneSettings'};
+    Object.values(map).forEach(id => { 
+      const el = document.getElementById(id);
+      if(el) { el.classList.remove('on'); el.classList.add('hidden'); }
+    });
+    const target = document.getElementById(map[tab]);
+    if(target) { target.classList.remove('hidden'); target.classList.add('on'); }
+    
+    if(tab === 'home') {
+      if($('topSearchBar')) $('topSearchBar').classList.add('hidden-on-home');
+      renderDashboard();
+    } else {
+      if($('topSearchBar')) $('topSearchBar').classList.remove('hidden-on-home');
+    }
+
+    if (tab === 'print') renderPrintGrid();
+    if (tab === 'classeurs') renderClasseurs();
+    if (tab === 'matieres') renderMatieres();
+    window.scrollTo(0,0);
+  }
+
+  function renderStats() {
+    const pending = D.cours.filter(c => c.stat === 'pending').length;
+    const printed = D.cours.filter(c => c.stat === 'printed').length;
+    if($('statsBand')) $('statsBand').innerHTML =
+      '<div class="stc"><span class="dot" style="background:#5b8df7"></span>' + D.cours.length + ' cours</div>' +
+      '<div class="stc"><span class="dot" style="background:#50d890"></span>' + D.classeurs.length + ' classeurs</div>' +
+      (pending ? '<div class="stc"><span class="dot" style="background:#f06060"></span>' + pending + ' À imprimer</div>' : '') +
+      (printed ? '<div class="stc"><span class="dot" style="background:#f0c060"></span>' + printed + ' À scanner</div>' : '');
+  }
+
+  window.renderCours = function() {
+    const allM = [...new Set(D.cours.map(c => c.mat))];
+    const allC = [...new Set(D.cours.map(c => c.cl))];
+    const ms = $('fltMat'), cs = $('fltCl');
+    
+    if(ms && cs) {
+      const mv = ms.value, cv = cs.value;
+      ms.innerHTML = '<option value="">Toutes matières</option>' + allM.map(m => { const mo = D.matieres.find(x => x.id===m)||{name:m}; return '<option value="'+m+'"'+(m===mv?' selected':'')+'>'+mo.name+'</option>'; }).join('');
+      cs.innerHTML = '<option value="">Tous classeurs</option>' + allC.map(c => { const co = D.classeurs.find(x => x.id===c)||{name:c}; return '<option value="'+c+'"'+(c===cv?' selected':'')+'>'+co.name+'</option>'; }).join('');
+    }
+    
+    if($('matChips')) {
+      $('matChips').innerHTML = '<button class="chip' + (chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
+        D.matieres.map(m => '<button class="chip' + (chipFilter===m.id?' on':'') + '" data-chip="' + m.id + '" style="' + (chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color) + '">' + m.label + '</button>').join('');
+      $('matChips').querySelectorAll('.chip').forEach(btn => { btn.addEventListener('click', () => { chipFilter = btn.dataset.chip==='null' ? null : btn.dataset.chip; renderCours(); }); });
+    }
+
+    const q = $('mainSearch') ? $('mainSearch').value.toLowerCase().trim() : '';
+    const qrf = $('fltQr') ? $('fltQr').value : '';
+    const fType = $('fltType') ? $('fltType').value : '';
+    const fRev = $('fltRev') ? $('fltRev').value : '';
+    
+    const list = D.cours.filter(c => {
+      const mo = D.matieres.find(x => x.id===c.mat)||{name:''};
+      return (!q || c.title.toLowerCase().includes(q) || c.uid.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
+        && (!ms || !ms.value || c.mat===ms.value)
+        && (!cs || !cs.value || c.cl===cs.value)
+        && (!chipFilter || c.mat===chipFilter)
+        && (!qrf || c.stat === qrf)
+        && (!fType || c.type === fType)
+        && (!fRev || c.rev === fRev);
+    });
+
+    const grid = $('coursGrid');
+    if(grid) {
+      if (!list.length) { grid.innerHTML = '<div class="empty"><h3>Aucun document trouvé</h3></div>'; renderStats(); return; }
+
+      grid.innerHTML = list.map(c => {
+        const mo = D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
+        const co = D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📁'};
+        
+        let warnHtml = '';
+        if (c.stat === 'pending') warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
+        else if (c.stat === 'printed') warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
+
+        return `
+        <div class="card" style="border-left-color:${mo.color}" data-uid="${c.uid}">
+          <div class="rev-dot rev-${c.rev}"></div>
+          <div class="uid-badge">${c.uid}</div>
+          <div class="ctop">
+            <div class="cbadges">
+              <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${mo.label}</span>
+              <span class="bm badge-type">${c.type}</span>
+            </div>
+          </div>
+          <div class="ctitle">${c.title}</div>
+          <div class="clocs">
+            <span class="cloc cloc-a">${co.icon} ${co.name}</span>
+            <span class="cloc cloc-b">📑 Inter. ${c.inter}</span>
+          </div>
+          ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
+          <div class="cacts">
+              <button class="cbt" data-action="loc" data-uid="${c.uid}" title="Détails">🔎 Détails</button>
+              <button class="cbt" data-action="qr" data-uid="${c.uid}" title="Voir QR">🔳</button>
+              <button class="cbt" data-action="edit" data-uid="${c.uid}" title="Modifier">✏️</button>
+              <button class="cbt" style="color:var(--red); border-color:var(--red);" data-action="del" data-uid="${c.uid}" title="Supprimer">🗑️</button>
+          </div>
+          ${warnHtml}
+        </div>`;
+      }).join('');
+
+      grid.querySelectorAll('.cbt').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const uid = btn.dataset.uid, act = btn.dataset.action;
+          if (act==='loc') showLocPopup(uid);
+          else if (act==='qr') showQR(uid); 
+          else if (act==='edit') editCours(uid); 
+          else if (act==='del') delCours(uid);
+        });
+      });
+      grid.querySelectorAll('.card').forEach(card => card.addEventListener('click', () => showLocPopup(card.dataset.uid)));
+    }
+    renderStats();
+  }
+
+  function delCours(uid) {
+    if (!confirm('Supprimer le document ' + uid + ' ?')) return;
+    D.cours = D.cours.filter(c => c.uid !== uid);
+    save(); renderCours(); renderDashboard();
+  }
+
+  function openModal() {
+    editUid = null;
+    if($('mTitle')) $('mTitle').textContent = '✨ Ajouter un document';
+    if($('fTitle')) $('fTitle').value = ''; 
+    if($('fDesc')) $('fDesc').value = ''; 
+    if($('fDate')) $('fDate').value = new Date().toISOString().split('T')[0];
+    if($('fMat')) $('fMat').innerHTML = '<option value="">— Choisir —</option>' + D.matieres.map(m => '<option value="'+m.id+'">'+m.label+' — '+m.name+'</option>').join('');
+    if($('fCl')) $('fCl').innerHTML = '<option value="">— Choisir —</option>' + D.classeurs.map(c => '<option value="'+c.id+'">'+c.icon+' '+c.name+'</option>').join('');
+    if($('fInter')) $('fInter').value = ''; 
+    if($('fType')) $('fType').value = 'COURS'; 
+    if($('fRev')) $('fRev').value = 'green';
+    if($('uidBox')) $('uidBox').innerHTML = '—<small>Généré automatiquement</small>';
+    if($('ovCours')) $('ovCours').classList.remove('hidden');
+  }
+
+  window.editCours = function(uid) {
+    const c = D.cours.find(x => x.uid===uid); if (!c) return;
+    editUid = uid;
+    if($('mTitle')) $('mTitle').textContent = '✏️ Modifier le document';
+    if($('fTitle')) $('fTitle').value = c.title; 
+    if($('fDesc')) $('fDesc').value = c.desc || ''; 
+    if($('fDate')) $('fDate').value = c.date || '';
+    if($('fType')) $('fType').value = c.type || 'COURS'; 
+    if($('fRev')) $('fRev').value = c.rev || 'green';
+    if($('fMat')) $('fMat').innerHTML = D.matieres.map(m => '<option value="'+m.id+'"'+(m.id===c.mat?' selected':'')+'>'+m.label+'</option>').join('');
+    if($('fCl')) $('fCl').innerHTML = D.classeurs.map(x => '<option value="'+x.id+'"'+(x.id===c.cl?' selected':'')+'>'+x.icon+' '+x.name+'</option>').join('');
+    if($('fInter')) $('fInter').value = c.inter;
+    if($('uidBox')) $('uidBox').innerHTML = c.uid + '<small>Code permanent</small>';
+    if($('ovCours')) $('ovCours').classList.remove('hidden');
+  }
+
+  if($('btnSaveCours')) {
+    $('btnSaveCours').addEventListener('click', () => {
+      const title = $('fTitle').value.trim(), mat = $('fMat').value, cl = $('fCl').value, inter = $('fInter').value;
+      const type = $('fType').value, rev = $('fRev').value;
+      if (!title || !mat || !cl || !inter) { alert('Remplis tous les champs obligatoires'); return; }
+
+      const obj = {title, type, rev, mat, cl, inter, desc: $('fDesc').value.trim(), date: $('fDate').value};
+      if (editUid) {
+        const idx = D.cours.findIndex(c => c.uid===editUid);
+        obj.uid = D.cours[idx].uid;
+        obj.stat = D.cours[idx].stat; 
+        D.cours[idx] = obj;
+      } else {
+        obj.uid = genUid(mat);
+        obj.stat = 'pending'; 
+        D.cours.unshift(obj);
+      }
+      save(); 
+      if($('ovCours')) $('ovCours').classList.add('hidden'); 
+      renderCours(); renderDashboard();
+    });
+  }
+
+  function renderClasseurs() {
+    const g = $('clGrid');
+    if(!g) return;
+    if (!D.classeurs.length) { g.innerHTML='<div class="empty"><h3>Aucun classeur</h3></div>'; return; }
+    g.innerHTML = D.classeurs.map(cl => {
+      const cc = D.cours.filter(c => c.cl===cl.id);
+      return '<div class="cl-card">' +
+        '<div class="cl-hdr" data-cl="'+cl.id+'"><div class="cl-ico" style="background:'+cl.color+'20">'+cl.icon+'</div>' +
+        '<div class="cl-info"><div class="cl-nm">'+cl.name+'</div><div class="cl-sb">'+cc.length+' documents</div></div></div>' +
+        '<div class="ilist" id="ili_'+cl.id+'">' +
+          Array.from({length:12},(_,i)=>i+1).map(n => {
+            const ns = String(n).padStart(2,'0');
+            const items = cc.filter(c => c.inter===ns);
+            return '<div class="irow" data-cl="'+cl.id+'" data-n="'+ns+'"><div class="inum">'+ns+'</div><div class="ilbl">Intercalaire '+ns+'</div><div class="icnt">'+(items.length?items.length+' docs':'—')+'</div></div>';
+          }).join('') +
+        '</div></div>';
+    }).join('');
+    g.querySelectorAll('.cl-hdr').forEach(h => { h.addEventListener('click', () => { $('ili_'+h.dataset.cl).classList.toggle('open'); }); });
+    g.querySelectorAll('.irow').forEach(r => { r.addEventListener('click', () => { switchTab('cours'); $('fltCl').value = r.dataset.cl; chipFilter = null; renderCours(); }); });
+  }
+
+  function renderMatieres() {
+    const el = $('mgMat');
+    if(!el) return;
+    el.innerHTML =
+      '<p class="sttl" style="margin-top:0">Matières — préfixe 4 lettres</p>' +
+      D.matieres.map(m => '<div class="mr"><div class="mdot" style="background:'+m.color+'"></div><div class="mlbl">'+m.label+'</div><div class="mnm">'+m.name+'</div><button class="mdel" data-id="'+m.id+'" data-type="mat">✕</button></div>').join('') +
+      '<div class="nrow"><input class="fi" type="text" id="nMlbl" placeholder="ABCD" maxlength="4" style="width:80px;"><input class="fi" type="text" id="nMname" placeholder="Nom complet"><div class="sws" id="swMat"></div><button class="bp" id="btnAddMat" style="flex:0;padding:8px 12px;">+ Matière</button></div>' +
+      '<p class="sttl">Classeurs — ID 1 lettre</p>' +
+      D.classeurs.map(cl => '<div class="mr"><div style="font-size:14px">'+cl.icon+'</div><div class="mlbl">['+cl.id+']</div><div class="mnm">'+cl.name+'</div><button class="mdel" data-id="'+cl.id+'" data-type="cl">✕</button></div>').join('') +
+      '<div class="nrow"><input class="fi" type="text" id="nClId" placeholder="A" maxlength="1" style="width:55px;"><input class="fi" type="text" id="nClNm" placeholder="Nom du classeur"><input class="fi" type="text" id="nClIc" placeholder="📁" style="width:42px;"><button class="bp" id="btnAddCl" style="flex:0;padding:8px 12px;">+ Classeur</button></div>';
+
+    $('swMat').innerHTML = COLORS.map(c => '<div class="sw'+(c===newColor?' on':'')+'" style="background:'+c+'" data-col="'+c+'"></div>').join('');
+    $('swMat').querySelectorAll('.sw').forEach(sw => { sw.addEventListener('click', () => { newColor = sw.dataset.col; renderMatieres(); }); });
+    el.querySelectorAll('.mdel').forEach(btn => { btn.addEventListener('click', () => { if (btn.dataset.type==='mat') delMat(btn.dataset.id); else delCl(btn.dataset.id); }); });
+    
+    $('btnAddMat').addEventListener('click', () => {
+      const lbl = $('nMlbl').value.trim().toUpperCase(), name = $('nMname').value.trim();
+      if(lbl.length!==4) return alert("Exactement 4 lettres pour la matière !");
+      if(D.matieres.find(m=>m.id===lbl)) return alert("Existe déjà");
+      D.matieres.push({id:lbl, label:lbl, name:name||lbl, color:newColor}); save(); renderMatieres(); renderCours();
+    });
+    $('btnAddCl').addEventListener('click', () => {
+      const id = $('nClId').value.trim().toUpperCase(), name = $('nClNm').value.trim(), icon = $('nClIc').value.trim() || '📁';
+      if(id.length!==1) return alert("Exactement 1 lettre !");
+      if(D.classeurs.find(c=>c.id===id)) return alert("Existe déjà");
+      if(!name) return alert("Nom obligatoire");
+      D.classeurs.push({id, name, icon, color:newColor}); save(); renderMatieres(); renderCours();
+    });
+  }
+  
+  function delMat(id) { if(!D.cours.filter(c=>c.mat===id).length || confirm('Supprimer ?')) { D.matieres = D.matieres.filter(m=>m.id!==id); save(); renderMatieres(); renderCours(); } }
+  function delCl(id) { if(!D.cours.filter(c=>c.cl===id).length || confirm('Supprimer ?')) { D.classeurs = D.classeurs.filter(c=>c.id!==id); save(); renderMatieres(); renderCours(); } }
+
+  window.showQR = function(uid) {
+    const c = D.cours.find(x => x.uid===uid); if (!c) return;
+    curQRUid = uid;
+    if($('qrLbl')) $('qrLbl').textContent = uid;
+    if($('qrBox')) $('qrBox').innerHTML = `<img src="${_QR.makeImageURL(uid, 180)}" style="border-radius:6px; margin:0 auto;">`;
+    
+    const btnMark = $('btnMarkOnePrinted');
+    if(btnMark) {
+      if(c.stat === 'pending') btnMark.textContent = '✅ Marquer Imprimé';
+      else if(c.stat === 'printed') btnMark.textContent = '🟢 Marquer Initialisé';
+      else btnMark.textContent = '↩️ Remettre à l\'état Imprimé';
+    }
+    if($('ovQR')) $('ovQR').classList.remove('hidden');
+  }
+
+  if($('btnMarkOnePrinted')) {
+    $('btnMarkOnePrinted').addEventListener('click', () => {
+      const c = D.cours.find(x => x.uid===curQRUid); if (!c) return;
+      if(c.stat === 'pending') c.stat = 'printed';
+      else if(c.stat === 'printed') c.stat = 'active';
+      else c.stat = 'printed';
+      save(); renderCours(); showQR(curQRUid); 
+    });
+  }
+
+  if($('btnDlQR')) {
+    $('btnDlQR').addEventListener('click', () => {
+      if(!curQRUid) return;
+      const a = document.createElement('a');
+      a.download = `QR_${curQRUid}.png`;
+      a.href = _QR.makeImageURL(curQRUid, 250);
+      a.click();
+    });
+  }
+
+  function renderPrintGrid() {
+    const grid = $('printGrid');
+    if(!grid) return;
+    grid.innerHTML = D.cours.map(c => `
+      <div class="pcard ${printSel.has(c.uid)?'sel':''}" data-uid="${c.uid}">
+        <div class="pc-check">${printSel.has(c.uid)?'✅':'⬜'}</div>
+        <div class="pc-qr"><img src="${_QR.makeImageURL(c.uid, 80)}" alt="qr"></div>
+        <div class="pc-uid">${c.uid}</div>
+        <div class="pc-title">${c.title}</div>
+      </div>
+    `).join('');
+    
+    if($('pStats')) $('pStats').textContent = printSel.size + ' sélectionné(s)';
+    grid.querySelectorAll('.pcard').forEach(card => card.addEventListener('click', () => {
+      const uid = card.dataset.uid;
+      printSel.has(uid) ? printSel.delete(uid) : printSel.add(uid);
+      renderPrintGrid();
+    }));
+  }
+
+  if($('btnSelPending')) $('btnSelPending').addEventListener('click', () => { printSel = new Set(D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); renderPrintGrid(); });
+  if($('btnSelAll')) $('btnSelAll').addEventListener('click', () => { printSel = new Set(D.cours.map(c=>c.uid)); renderPrintGrid(); });
+  if($('btnDesel')) $('btnDesel').addEventListener('click', () => { printSel.clear(); renderPrintGrid(); });
+
+  if($('btnDoPrint')) {
+    $('btnDoPrint').addEventListener('click', () => {
+      const sel = D.cours.filter(c => printSel.has(c.uid));
+      if (!sel.length) { alert('Sélectionne au moins un document !'); return; }
+      
+      const pz = $('printZone'); if(!pz) return;
+      pz.innerHTML = '';
+      sel.forEach(c => {
+        pz.innerHTML += `
+          <div class="print-label">
+            <img src="${_QR.makeImageURL(c.uid, 120)}">
+            <div class="pl-uid">${c.uid}</div>
+            <div class="pl-title">${c.title.substring(0,25)}</div>
+          </div>`;
+      });
+      
+      window.print();
+      
+      setTimeout(() => {
+        if (confirm('L\'impression a-t-elle réussi ?\n(Les étiquettes passeront en attente de scan pour validation)')) {
+          sel.forEach(c => { const x = D.cours.find(d=>d.uid===c.uid); if(x && x.stat==='pending') x.stat = 'printed'; });
+          save(); renderCours(); renderPrintGrid(); renderDashboard();
+        }
+      }, 1000);
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  // CAMERA SECURISÉE
+  // ══════════════════════════════════════════════
+  if($('fabCam')) {
+    $('fabCam').addEventListener('click', () => {
+      if($('manualCamInput')) $('manualCamInput').value = '';
+      if($('ovCam')) $('ovCam').classList.remove('hidden');
+      if($('camSt')) { $('camSt').style.color = 'var(--gold)'; $('camSt').textContent = 'Initialisation...'; }
+      
+      try {
+        if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+          if($('camSt')) { $('camSt').textContent = "⚠️ Caméra non autorisée ou inaccessible. Utilise la saisie manuelle."; $('camSt').style.color = 'var(--red)'; }
+          return;
+        }
+        
+        navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+          .then(stream => {
+            camStream = stream; const v = $('camVideo'); 
+            if(!v) return;
+            v.srcObject = stream;
+            // Activation manuelle pour éviter le bug autoplay iOS
+            v.play().catch(e=>{}); 
+            
+            if('BarcodeDetector' in window) {
+              if($('camSt')) $('camSt').textContent = '🔍 Scanner (API Native)...';
+              try {
+                const bd = new BarcodeDetector({formats:['qr_code']});
+                camTick = setInterval(async () => {
+                  try { const codes = await bd.detect(v); if(codes.length) processScan(codes[0].rawValue.trim().toUpperCase()); } catch(e){}
+                }, 300);
+                return;
+              } catch(e) {}
+            }
+            
+            if (typeof jsQR !== 'undefined') {
+              if($('camSt')) $('camSt').textContent = '🔍 Scanner (jsQR)...';
+              camTick = setInterval(() => {
+                if(v.readyState !== 4 || v.videoWidth === 0) return;
+                try {
+                  const cv = $('camCanvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
+                  const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v,0,0, cv.width, cv.height);
+                  const d = ctx.getImageData(0,0,cv.width,cv.height);
+                  const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'dontInvert'});
+                  if(code) processScan(code.data.trim().toUpperCase());
+                } catch(e){}
+              }, 300);
+            } else {
+              if($('camSt')) { $('camSt').textContent = '⚠️ Erreur scanner interne. Utilise la saisie.'; $('camSt').style.color = 'var(--red)'; }
+            }
+          }).catch(err => { 
+            if($('camSt')) { $('camSt').textContent = '❌ Caméra bloquée. Utilise la saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
+          });
+      } catch(e) {
+        if($('camSt')) { $('camSt').textContent = '❌ Erreur inattendue.'; $('camSt').style.color = 'var(--red)'; }
+      }
+    });
+  }
+
+  if($('btnManualCam')) {
+    $('btnManualCam').addEventListener('click', () => {
+      const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
+      if(v) processScan(v);
+    });
+  }
+
+  function processScan(uid) {
+    window.stopCam();
+    if($('mainSearch')) $('mainSearch').value = uid;
+    window.showLocPopup(uid);
+  }
+
+  // Clic extérieur pour fermer les Modals
+  document.querySelectorAll('.ov').forEach(ov => {
+    ov.addEventListener('click', function(e) {
+      if (e.target === this) {
+        if (this.id === 'ovCam') window.stopCam();
+        else if (this.id === 'ovQR') window.closeQRModal();
+        else if (this.id === 'ovCours') window.closeModalCours();
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════
+  // EXPORT CSV
+  // ══════════════════════════════════════════════
+  if($('fabCsv')) {
+    $('fabCsv').addEventListener('click', () => {
+      const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Date','Statut_QR'];
+      const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+      const rows = D.cours.map(c => {
+        const mo = D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
+        const co = D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
+        return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.date||'', c.stat].map(esc).join(',');
+      });
+      const csv = [hdr.join(','), ...rows].join('\n');
+      const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mes-cours-prepa.csv'; a.click();
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  // ATTACHEMENT DES EVENTS RESTANTS
+  // ══════════════════════════════════════════════
+  if($('btnThemeToggle')) $('btnThemeToggle').addEventListener('click', () => { D.settings.theme = D.settings.theme === 'light' ? 'dark' : 'light'; save(); applySettings(); });
+  if($('btnCompactToggle')) $('btnCompactToggle').addEventListener('click', () => { D.settings.compact = !D.settings.compact; save(); applySettings(); });
+  if($('btnStatsToggle')) $('btnStatsToggle').addEventListener('click', () => { D.settings.showStats = !D.settings.showStats; save(); applySettings(); });
+  if($('btnChipsToggle')) $('btnChipsToggle').addEventListener('click', () => { D.settings.showChips = !D.settings.showChips; save(); applySettings(); });
+
+  if($('homeSearch')) {
+    $('homeSearch').addEventListener('input', () => { doAutoFmtScan($('homeSearch')); });
+    $('homeSearch').addEventListener('keydown', e => { 
+      if (e.key==='Enter') {
+        const v = $('homeSearch').value.trim().toUpperCase();
+        if(v.includes('-') && v.length >= 8) { showLocPopup(v); } else { switchTab('cours'); if($('mainSearch')) $('mainSearch').value = v; renderCours(); }
+      }
+    });
+  }
+  if($('btnHomeSearch')) {
+    $('btnHomeSearch').addEventListener('click', () => {
+        const v = $('homeSearch') ? $('homeSearch').value.trim().toUpperCase() : '';
+        if(v.includes('-') && v.length >= 8) { showLocPopup(v); } else { switchTab('cours'); if($('mainSearch')) $('mainSearch').value = v; renderCours(); }
+    });
+  }
+
+  if($('mainSearch')) {
+    $('mainSearch').addEventListener('input', () => { doAutoFmtScan($('mainSearch')); renderCours(); });
+    $('mainSearch').addEventListener('keydown', e => { if (e.key==='Enter') { const v = $('mainSearch').value.trim().toUpperCase(); if(v) showLocPopup(v); } });
+  }
+  if($('btnLocate')) $('btnLocate').addEventListener('click', () => { const v = $('mainSearch') ? $('mainSearch').value.trim().toUpperCase() : ''; if(v) showLocPopup(v); });
+
+  if($('fabAdd')) $('fabAdd').addEventListener('click', openModal);
+  if($('fabPrint')) $('fabPrint').addEventListener('click', () => switchTab('print'));
+  
+  ['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { if($(id)) $(id).addEventListener('change', renderCours); });
+  document.querySelectorAll('.tab').forEach(btn => { btn.addEventListener('click', () => switchTab(btn.dataset.tab)); });
+
+  if($('btnResetData')) {
+    $('btnResetData').addEventListener('click', () => {
+      if(confirm("⚠ ATTENTION !\n\nCette action va effacer TOUS tes cours pour restaurer ceux de démonstration.\n\nContinuer ?")) {
+        D = JSON.parse(JSON.stringify(defaultData));
+        save(); applySettings(); renderCours(); renderClasseurs(); renderMatieres(); renderDashboard(); window.switchTab('home');
+        alert("Données réinitialisées.");
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  // DEMARRAGE DE L'APP
+  // ══════════════════════════════════════════════
+  applySettings();
+  renderDashboard();
+  window.switchTab('home'); // Affiche l'accueil par défaut
+
+} catch (globalError) {
+  document.body.innerHTML = `<div style="padding:40px;text-align:center;color:var(--red);font-family:sans-serif;background:var(--s1);min-height:100vh;"><h3>Erreur interne</h3><p>${globalError.message}</p></div>`;
+}
+</script>
+</body>
+</html>
 
