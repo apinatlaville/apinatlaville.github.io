@@ -892,7 +892,7 @@ function openCam() {
                 window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Scanner: " + e.message, source: 'app.js', lineno: 0 });
               }
             }
-          }, 300);
+          }, 100);
         } else {
           if($('camSt')) { $('camSt').textContent = '⚠️ Hors Ligne: jsQR non chargé. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
         }
