@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mes Cours - PC* Edition</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+
+<style>
+/* =========================================
+   1. VARIABLES ET THÈMES DE BASE
+   ========================================= */
+:root {
+  --bg:#0c0c10; --s1:#141418; --s2:#1c1c22; --s3:#252530;
+  --bd:#2a2a3a; --acc:#5b8df7; --glow:rgba(91,141,247,.18);
+  --gold:#f0c060; --grn:#50d890; --red:#f06060; --pur:#b06af7;
+  --txt:#e4e4f0; --mut:#6a6a88;
+}
+
+body.theme-light {
+  --bg:#f0f0f5; --s1:#ffffff; --s2:#e8e8ed; --s3:#dcdce2;
+  --bd:#c4c4d0; --txt:#1a1a24; --mut:#5a5a75;
+}
+
+/* =========================================
+   2. TEMPLATES UI (Glassmorphism & Neobrutalism)
+   ========================================= */
+
+/* TEMPLATE 1 : GLASSMORPHISM (DÉFAUT - Effet Verre Flouté) */
+body.tmpl-glass {
+  --bg: linear-gradient(135deg, #0e1320, #18182b, #0c0c10);
+  background-attachment: fixed;
+  --s1: rgba(255, 255, 255, 0.03); --s2: rgba(255, 255, 255, 0.05); --s3: rgba(255, 255, 255, 0.08);
+  --bd: rgba(255, 255, 255, 0.15); --glow: rgba(91,141,247,.3);
+}
+body.tmpl-glass.theme-light {
+  --bg: linear-gradient(135deg, #e0e5ff, #f3f4ff, #eef0ff);
+  --s1: rgba(255, 255, 255, 0.4); --s2: rgba(255, 255, 255, 0.6); --s3: rgba(255, 255, 255, 0.8);
+  --bd: rgba(0, 0, 0, 0.1);
+}
+/* Application du filtre sur les conteneurs */
+body.tmpl-glass .card, body.tmpl-glass .pcard, body.tmpl-glass .cl-card, 
+body.tmpl-glass .home-hero, body.tmpl-glass .search-bar, body.tmpl-glass .sticky-top,
+body.tmpl-glass .pbar, body.tmpl-glass .modal, body.tmpl-glass .loc-popup,
+body.tmpl-glass .pomo-widget, body.tmpl-glass .set-row {
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  border: 1px solid var(--bd); background: var(--s1);
+}
+
+/* TEMPLATE 2 : NEOBRUTALISM (Ombres dures, lignes épaisses) */
+body.tmpl-neo {
+  --bg: #e6e4d5; --s1: #ffffff; --s2: #f4f3ec; --s3: #e6e4d5;
+  --bd: #111111; --txt: #111111; --mut: #444444; --acc: #5b8df7;
+}
+body.tmpl-neo.theme-dark {
+  --bg: #1c1b18; --s1: #252420; --s2: #2e2c28; --s3: #3b3834;
+  --bd: #e4e4e4; --txt: #e4e4e4; --mut: #aaaaaa;
+}
+/* Override de la police et des bordures */
+body.tmpl-neo, body.tmpl-neo * { font-family: 'DM Mono', monospace !important; }
+body.tmpl-neo .hdr h1, body.tmpl-neo h2, body.tmpl-neo h3 { font-weight: 800; text-transform: uppercase; letter-spacing: -1px; }
+body.tmpl-neo .card, body.tmpl-neo .home-hero, body.tmpl-neo .cbt, body.tmpl-neo .bp, 
+body.tmpl-neo .bs, body.tmpl-neo .pomo-widget, body.tmpl-neo .modal, body.tmpl-neo .loc-popup,
+body.tmpl-neo .cl-card, body.tmpl-neo .fi, body.tmpl-neo .search-bar input, body.tmpl-neo .fab-mini, body.tmpl-neo .fab-main {
+  border: 3px solid var(--bd) !important;
+  border-radius: 4px;
+  box-shadow: 4px 4px 0 var(--bd) !important;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+body.tmpl-neo .card:hover, body.tmpl-neo .cbt:hover, body.tmpl-neo .bp:hover, body.tmpl-neo .bs:hover, body.tmpl-neo .fab-mini:hover {
+  transform: translate(3px, 3px) !important;
+  box-shadow: 1px 1px 0 var(--bd) !important;
+}
+
+/* =========================================
+   3. RESET ET GLOBALS (SCROLL FIX iOS)
+   ========================================= */
+html, body {
+  /* Empeche le "scroll dans le vide" élastique sur iOS */
+  overscroll-behavior-y: none; 
+}
+body.mode-compact .card { padding: 8px 12px; }
+body.mode-compact .cdesc { display: none; }
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif; min-height:100dvh; padding-bottom:110px; overflow-x:hidden; transition:background 0.3s, color 0.3s;}
+.hidden { display: none !important; }
+
+/* =========================================
+   4. INTERFACE UTILISATEUR (UI) BASE
+   ========================================= */
+/* HEADER */
+.hdr{background:linear-gradient(150deg,#0e1628,#0c0c10);padding:20px 16px;border-bottom:1px solid var(--bd);position:relative;overflow:hidden;}
+.hdr::after{content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;background:radial-gradient(circle,var(--glow),transparent 70%);border-radius:50%;}
+.hdr-content { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 10; }
+.hdr h1{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#e4e4f0;}
+.hdr h1 span{color:var(--acc);}
+.hdr p{color:#6a6a88;font-size:11px;margin-top:2px;}
+.btn-settings { background: rgba(255,255,255,0.05); border: 1px solid var(--bd); border-radius: 50%; width: 40px; height: 40px; font-size: 18px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; color: var(--txt); }
+.btn-settings:hover { background: rgba(255,255,255,0.1); transform: rotate(45deg); }
+
+/* STATS BAND */
+.stats-band{background:var(--s3);border-bottom:1px solid var(--bd);padding:8px 14px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;}
+.stats-band::-webkit-scrollbar{display:none;}
+.stats-band.hidden-ui { display: none !important; }
+.stc{display:flex;align-items:center;gap:5px;background:var(--s2);border:1px solid var(--bd);border-radius:20px;padding:4px 10px;font-size:11px;white-space:nowrap;flex-shrink:0;}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+
+/* NAVIGATION & RECHERCHE (STICKY) */
+.sticky-top { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--bd); width: 100%; }
+.search-bar{background:var(--s2);padding:10px 14px;display:flex;gap:8px;align-items:center; border-bottom: 1px solid var(--bd);}
+.search-bar.hidden-on-home { display: none; }
+.search-bar input{flex:1;background:var(--bg);border:1.5px solid var(--bd);border-radius:10px;padding:9px 12px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;}
+.search-bar input:focus{border-color:var(--acc);box-shadow:0 0 0 3px var(--glow);}
+.sbtn{border:none;border-radius:9px;padding:9px 14px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:opacity .2s;}
+.sbtn-loc{background:var(--acc);color:#fff;}
+
+/* TABS */
+.tabs{display:flex;background:var(--s1);overflow-x:auto;scrollbar-width:none;padding:0 10px; -webkit-overflow-scrolling: touch;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{background:none;border:none;border-bottom:3px solid transparent;color:var(--mut);font-family:'Syne',sans-serif;font-size:13px;font-weight:700;padding:14px 16px;cursor:pointer;white-space:nowrap;transition:0.2s;}
+.tab.on{color:var(--txt);border-bottom-color:var(--acc);}
+
+/* PANES */
+.pane{padding:14px;display:none; animation: fadeIn 0.3s ease;}
+.pane.on{display:block;}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* POMODORO WIDGET */
+.pomo-widget { position: fixed; bottom: 20px; left: 16px; background: var(--s1); border: 2px solid var(--bd); border-radius: 20px; padding: 10px 15px; display: flex; align-items: center; gap: 10px; z-index: 500; box-shadow: 0 5px 15px rgba(0,0,0,0.5); transition: border-color 0.3s; }
+.pomo-widget.work { border-color: var(--acc); box-shadow: 0 0 15px rgba(91,141,247,0.3); }
+.pomo-widget.break { border-color: var(--grn); box-shadow: 0 0 15px rgba(80,216,144,0.3); }
+.pomo-time { font-family: 'DM Mono', monospace; font-size: 18px; font-weight: bold; width: 60px; text-align: center; }
+.pomo-btn { background: var(--s2); border: none; color: var(--txt); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+.pomo-btn:hover { background: var(--s3); }
+
+/* ACCUEIL / DASHBOARD */
+.home-welcome { margin-bottom: 20px; padding: 10px 0; }
+.home-welcome h2 { font-family: 'Syne', sans-serif; font-size: 26px; margin-bottom: 4px; }
+.home-welcome p { color: var(--mut); font-size: 13px; font-weight: 500; text-transform: capitalize; }
+.home-hero { background: var(--s1); border: 1px solid var(--bd); border-radius: 16px; padding: 24px 16px; text-align: center; margin-bottom: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+.home-hero h3 { font-family: 'Syne', sans-serif; font-size: 18px; margin-bottom: 8px; color: var(--txt); }
+.home-search { width: 100%; max-width: 400px; background: var(--bg); border: 2px solid var(--bd); border-radius: 12px; padding: 14px 16px; font-size: 16px; color: var(--txt); font-family: 'DM Sans', sans-serif; outline: none; transition: all 0.2s; text-align: center; margin-bottom: 15px; }
+.home-search:focus { border-color: var(--acc); box-shadow: 0 0 0 4px var(--glow); }
+
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.dash-card { background: var(--s2); border: 1px solid var(--bd); border-radius: 12px; padding: 16px; text-align: center; transition: transform 0.2s; cursor: pointer;}
+.dash-card:active { transform: scale(0.95); }
+.dash-num { font-family: 'DM Mono', monospace; font-size: 28px; font-weight: bold; margin-bottom: 4px; }
+.dash-lbl { font-size: 11px; color: var(--mut); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500; }
+.dash-red .dash-num { color: var(--red); text-shadow: 0 0 10px rgba(240,96,96,0.4); }
+.dash-acc .dash-num { color: var(--acc); }
+
+/* TO-DO LIST (PROGRAMME AUTO) */
+.todo-item { background: var(--s2); border-left: 4px solid var(--red); padding: 12px; border-radius: 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
+.todo-item:hover { background: var(--s3); }
+.todo-tit { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: bold; }
+.todo-sub { font-size: 11px; color: var(--mut); margin-top: 4px; }
+
+/* NOTES CHART */
+.chart-container { background: var(--s1); border: 1px solid var(--bd); border-radius: 16px; padding: 20px; margin-top: 20px; overflow-x: auto; white-space: nowrap; }
+.chart-wrapper { display: inline-flex; align-items: flex-end; gap: 15px; height: 200px; padding-top: 20px; border-bottom: 1px solid var(--bd); min-width: 100%; }
+.chart-bar-group { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 40px; cursor: pointer; }
+.chart-bar { width: 30px; background: linear-gradient(to top, rgba(91,141,247,0.2), var(--acc)); border-radius: 6px 6px 0 0; position: relative; transition: height 0.5s ease; }
+.chart-val { font-family: 'DM Mono'; font-size: 11px; font-weight: bold; color: var(--acc); position: absolute; top: -18px; left: 50%; transform: translateX(-50%); }
+.chart-lbl { font-size: 10px; color: var(--mut); text-align: center; max-width: 50px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* FLASHCARDS BÊTA */
+.fc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+.fc-card { background: transparent; width: 100%; height: 200px; perspective: 1000px; cursor: pointer; }
+.fc-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; }
+.fc-card.flipped .fc-inner { transform: rotateY(180deg); }
+.fc-front, .fc-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 2px solid var(--bd); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+.fc-front { background: var(--s2); color: var(--txt); }
+.fc-back { background: var(--acc); color: #fff; transform: rotateY(180deg); border-color: var(--acc); }
+.fc-mat { font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; opacity: 0.8; }
+.fc-text { font-family: 'Syne', sans-serif; font-size: 18px; line-height: 1.3; }
+.fc-ans { font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 500; line-height: 1.4; }
+
+/* FILTRES & CARDS COURS */
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px; align-items:center;}
+.fi{background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:8px 10px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;flex:1;min-width:100px;cursor:pointer;}
+.fi:focus{border-color:var(--acc);}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;}
+.chips.hidden-ui { display: none !important; }
+.chip{padding:4px 11px;border-radius:20px;border:1.5px solid var(--bd);background:transparent;color:var(--mut);font-size:12px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;transition:all .15s;}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#fff;}
+
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;}
+.card{background:var(--s1);border:1px solid var(--bd);border-left:4px solid var(--acc);border-radius:12px;padding:15px;position:relative;transition:all .2s;cursor:pointer;}
+.card:hover{transform:translateY(-2px);box-shadow:0 5px 18px rgba(0,0,0,.3);}
+.rev-dot { position: absolute; top: 12px; right: 12px; width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2); }
+.rev-red { background: var(--red); box-shadow: 0 0 8px 2px rgba(240,96,96,0.6); }
+.rev-orange { background: var(--gold); box-shadow: 0 0 8px 2px rgba(240,192,96,0.6); }
+.rev-green { background: var(--grn); box-shadow: 0 0 8px 2px rgba(80,216,144,0.6); }
+
+.uid-badge{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:1px;padding:4px 8px;border-radius:6px;background:var(--s3);color:var(--acc);border:1px solid var(--bd);font-weight:500;margin-bottom:8px;display:inline-block;}
+.ctitle{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px;line-height:1.3; padding-right:15px;}
+.badge-type { background: var(--s3); color: var(--txt); border: 1px solid var(--bd); font-family: 'Syne', sans-serif; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:bold; margin-left:6px; vertical-align:middle;}
+.clocs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
+.cloc{font-size:11px;padding:2px 8px;border-radius:5px;}
+.cloc-a{background:rgba(91,141,247,.12);color:var(--acc);}
+.cloc-b{background:rgba(240,192,96,.12);color:var(--gold);}
+.cdesc{font-size:12px;color:var(--mut);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:10px;}
+.cnote{font-family:'DM Mono'; font-weight:bold; color:var(--acc); font-size:12px; margin-top:5px;}
+
+.cacts{border-top:1px solid var(--bd); padding-top:10px; display:flex; gap:5px; flex-wrap:wrap;}
+.cbt{background:var(--s2);border:1px solid var(--bd);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:13px;transition:background .15s;color:var(--txt); font-weight:600;}
+.cbt:hover{background:var(--s3);}
+
+.qr-warn{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--red);background:rgba(240,96,96,.1);border:1px solid rgba(240,96,96,.3);border-radius:5px;padding:4px 8px;}
+.qr-scan-req{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--gold);background:rgba(240,192,96,.1);border:1px solid rgba(240,192,96,.3);border-radius:5px;padding:4px 8px;}
+.qr-ok{display:flex;align-items:center;gap:5px;margin-top:6px;font-size:11px;color:var(--grn);background:rgba(80,216,144,.1);border:1px solid rgba(80,216,144,.3);border-radius:5px;padding:4px 8px;}
+
+/* PRINT PANE */
+.pbar{background:var(--s2);border:1px solid var(--bd);border-radius:11px;padding:13px;margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+.pcard{background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:10px 8px;text-align:center;cursor:pointer;transition:all .15s;position:relative;}
+.pcard.sel{border-color:var(--acc);background:rgba(91,141,247,.06);}
+.pcard:hover{border-color:var(--acc);}
+.pc-check{position:absolute;top:6px;right:6px;font-size:12px;}
+.pc-qr{width:80px;height:80px;background:#fff;border-radius:6px;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.pc-uid{font-family:'DM Mono',monospace;font-size:9px;color:var(--acc);margin-bottom:2px;word-break:break-all;}
+.pc-title{font-size:10px;color:var(--mut);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+/* CLASSEURS & MATIERES */
+.cl-card{background:var(--s1);border:1px solid var(--bd);border-radius:11px;margin-bottom:10px;overflow:hidden;}
+.cl-hdr{padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:background .15s;}
+.cl-hdr:hover{background:var(--s2);}
+.cl-ico{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.cl-nm{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;}
+.cl-sb{font-size:12px;color:var(--mut);}
+.ilist{padding:5px 0;display:none;border-top:1px solid var(--bd);background:var(--bg);}
+.ilist.open{display:block;}
+.irow{display:flex;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--bd);font-size:13px;cursor:pointer;transition:background .15s;}
+.irow:hover{background:var(--s2);}
+.inum{font-family:'DM Mono',monospace;font-weight:bold;color:var(--gold);}
+
+.mg{display:flex;flex-direction:column;gap:7px;}
+.mr{display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:8px;}
+.mdot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.mlbl{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;}
+.mnm{color:var(--mut);font-size:13px;flex:1;}
+.mdel{background:rgba(240,96,96,.1);border:1px solid rgba(240,96,96,.3);border-radius:6px;cursor:pointer;color:var(--red);font-size:14px;padding:4px 8px;}
+
+/* SETTINGS */
+.set-row{display:flex;justify-content:space-between;align-items:center;background:var(--s1);border:1px solid var(--bd);padding:14px;border-radius:10px;margin-bottom:10px;}
+.set-lbl{font-family:'Syne',sans-serif;font-size:14px;font-weight:bold;color:var(--txt);}
+.set-sub{font-size:11px;color:var(--mut);margin-top:4px;}
+.toggle-btn{background:var(--s3);border:1px solid var(--bd);color:var(--txt);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:bold;transition:background 0.2s;}
+
+/* MODALS & POPUPS */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(5px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:14px;}
+.modal{background:var(--s1);border:1px solid var(--bd);border-radius:16px;padding:24px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;}
+.modal h2{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:16px;text-align:center;}
+.fg{margin-bottom:12px;}
+.fg label{display:block;font-size:11px;font-weight:700;color:var(--mut);margin-bottom:6px;text-transform:uppercase;}
+.fg input,.fg textarea,.fg select{width:100%;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;color:var(--txt);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;}
+.fg input:focus,.fg textarea:focus,.fg select:focus{border-color:var(--acc);}
+.uidbox{background:var(--s3);border:1px solid var(--bd);border-radius:8px;padding:12px;font-family:'DM Mono',monospace;font-size:16px;letter-spacing:2px;color:var(--acc);text-align:center;margin-bottom:15px; font-weight:bold;}
+.macts{display:flex;gap:10px;margin-top:20px;}
+.bp{flex:1;background:var(--acc);border:none;border-radius:8px;padding:12px;color:#fff;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;text-align:center;}
+.bs{flex:1;background:var(--s2);border:1px solid var(--bd);border-radius:8px;padding:12px;color:var(--txt);font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;text-align:center;}
+
+.loc-popup{position:fixed;bottom:-500px;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--s1);border:1px solid var(--bd);border-radius:24px 24px 0 0;padding:24px;z-index:2000;transition:bottom .4s cubic-bezier(.2,.8,.4,1);box-shadow:0 -10px 40px rgba(0,0,0,.6);display:flex;flex-direction:column;align-items:stretch;}
+.loc-popup.open{bottom:0;}
+.loc-close-btn{align-self:center;width:48px;height:48px;border-radius:50%;background:var(--s3);color:var(--txt);border:1px solid var(--bd);font-size:20px;cursor:pointer;margin-top:20px;display:flex;align-items:center;justify-content:center;}
+.loc-code{font-family:'DM Mono',monospace;font-size:24px;letter-spacing:2px;color:var(--acc);margin-bottom:10px;text-align:center;font-weight:bold;}
+.loc-title{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:16px;text-align:center; line-height:1.2;}
+.loc-cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px;justify-content:center;}
+.loc-c{padding:10px 16px;border-radius:9px;font-size:14px;font-weight:700;}
+.loc-desc{font-size:13px;color:var(--mut);margin-top:10px;text-align:center;padding:10px;background:var(--s2);border-radius:10px;}
+
+/* QR MODAL */
+.m-center{text-align:center;}
+.qr-box{display:inline-block;background:#fff;padding:10px;border-radius:9px;margin-bottom:10px;}
+.qr-lbl{font-family:'DM Mono',monospace;font-size:14px;color:var(--acc);margin-bottom:12px;}
+
+/* CAMERA / SCANNER */
+.cam-wrap{position:relative;width:100%;max-width:300px;margin:0 auto 15px;border-radius:15px;overflow:hidden;background:#000;aspect-ratio:1;border:2px solid var(--acc);}
+#camVideo{width:100%;height:100%;object-fit:cover;display:block;}
+.cam-line{position:absolute;left:10%;right:10%;height:2px;background:var(--acc);box-shadow:0 0 10px var(--acc);animation:sc 2s ease-in-out infinite;}
+@keyframes sc{0%,100%{top:20%}50%{top:80%}}
+.cam-manual-box{margin-top:15px;padding-top:15px;border-top:1px solid var(--bd);text-align:left;}
+
+/* NOUVEAU: MENU FAB DÉPLIABLE (Floating Action Button Menu) */
+.fab-wrapper { position: fixed; bottom: 20px; right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 500; }
+.fab-menu { display: flex; flex-direction: column; gap: 10px; opacity: 0; visibility: hidden; transform: translateY(20px) scale(0.8); transition: all 0.3s cubic-bezier(0.2, 0.8, 0.4, 1); pointer-events: none; transform-origin: bottom center; }
+.fab-wrapper.open .fab-menu { opacity: 1; visibility: visible; transform: translateY(0) scale(1); pointer-events: auto; }
+.fab-main { width: 56px; height: 56px; background: var(--acc); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: none; cursor: pointer; transition: transform 0.3s; z-index: 501; outline:none; }
+.fab-wrapper.open .fab-main { transform: rotate(45deg); background: var(--red); }
+.fab-mini { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--s2); border: 1px solid var(--bd); color: var(--txt); display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; transition: transform 0.2s; outline:none; }
+.fab-mini:hover { transform: scale(1.1); background: var(--s3); }
+
+/* ══ IMPRESSION STRICTE ET ROBUSTE POUR ORDINATEUR ══ */
+@media screen { #printZone { display: none !important; } }
+@media print {
+  html, body { background: #ffffff !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: visible !important;}
+  body > *:not(#printZone) { display: none !important; }
+  
+  #printZone { 
+    display: flex !important; flex-wrap: wrap !important; justify-content: flex-start !important; align-content: flex-start !important; gap: 8mm !important; padding: 10mm !important; 
+    position: absolute !important; top: 0 !important; left: 0 !important; width: 100% !important; background: #ffffff !important; z-index: 99999 !important; 
+  }
+  #printZone * { display: block !important; visibility: visible !important; opacity: 1 !important; }
+  
+  .print-label { 
+    width: 40mm !important; height: 55mm !important; border: 1px solid #000000 !important; border-radius: 3mm; padding: 4mm; 
+    text-align: center; page-break-inside: avoid; break-inside: avoid; display: flex !important; flex-direction: column !important; align-items: center !important; background: #fff !important; 
+  }
+  .print-label img { width: 30mm !important; height: 30mm !important; margin: 0 auto 2mm auto !important; }
+  .pl-uid { font-family: 'DM Mono', monospace !important; font-size: 11pt !important; font-weight: bold !important; color: #000 !important; margin-bottom: 2mm !important; }
+  .pl-title { font-family: 'Syne', sans-serif !important; font-size: 8pt !important; font-weight: bold !important; color: #000 !important; line-height: 1.2; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width:100%;}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-content">
+    <div>
+      <h1>📚 Mes <span>Cours</span></h1>
+      <p>Méthode PC* · Pomodoro · Flashcards</p>
+    </div>
+    <button class="btn-settings" id="btnOpenSettings" title="Paramètres">⚙️</button>
+  </div>
+</div>
+
+<div class="stats-band" id="statsBand"></div>
+
+<div class="sticky-top">
+  <div class="search-bar" id="topSearchBar">
+    <input type="text" id="mainSearch" placeholder="🔍 Rechercher un code ou titre...">
+    <button class="sbtn sbtn-loc" id="btnLocate">📍</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" onclick="window.switchTab('home')" data-tab="home">🏠 Accueil</button>
+    <button class="tab" onclick="window.switchTab('cours')" data-tab="cours">📋 Base Doc.</button>
+    <button class="tab" onclick="window.switchTab('notes')" data-tab="notes">📈 Notes</button>
+    <button class="tab" onclick="window.switchTab('flashcards')" data-tab="flashcards">🃏 Bêta (PC*)</button>
+    <button class="tab" onclick="window.switchTab('print')" data-tab="print">🖨 Impression</button>
+    <button class="tab" onclick="window.switchTab('classeurs')" data-tab="classeurs">🗂 Classeurs</button>
+    <button class="tab" onclick="window.switchTab('matieres')" data-tab="matieres">🏷 Matières</button>
+  </div>
+</div>
+
+<div class="pomo-widget work" id="pomoWidget">
+  <div style="font-size:16px;">⏱️</div>
+  <div class="pomo-time" id="pomoTime">25:00</div>
+  <button class="pomo-btn" id="btnPomoToggle">▶</button>
+  <button class="pomo-btn" id="btnPomoReset">🔄</button>
+</div>
+
+<div class="pane on" id="paneHome">
+  <div class="home-welcome">
+    <h2 id="greeting">Bonjour !</h2>
+    <p id="dateTimeDisp">Chargement de la date...</p>
+  </div>
+
+  <div class="home-hero" id="dashHeroArea">
+    <h3>Recherche & Khôlle</h3>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:15px;">
+      <input type="text" id="homeSearch" class="home-search" placeholder="Ex: PHYS-MEC1 ou 'Mécanique'">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+        <button class="bp" id="btnHomeSearch" style="padding:12px 25px;">Chercher</button>
+        <button class="bs" id="btnHomeCam">📷 Scanner</button>
+      </div>
+      <button class="bp" id="btnKholleDraw" style="background:var(--red); width:100%; max-width:400px; margin-top:10px; font-size:15px;">
+        🎲 Khôlle : Tirer un cours au sort
+      </button>
+    </div>
+  </div>
+
+  <div id="dashRevArea">
+    <h3 style="font-family:'Syne'; margin-bottom:12px; margin-top:30px;">Statut des Révisions</h3>
+    <div class="dash-grid" id="dashRevGrid"></div>
+  </div>
+
+  <h3 style="font-family:'Syne'; margin-bottom:12px; margin-top:30px; display:flex; align-items:center; gap:10px;">
+    📅 À faire cette semaine 
+    <span style="font-size:10px; background:var(--red); padding:2px 6px; border-radius:10px;">Priorités</span>
+  </h3>
+  <div id="todoList"></div>
+
+  <div id="dashOverviewArea">
+    <h3 style="font-family:'Syne'; margin-bottom:12px; margin-top:30px;">Vue d'ensemble</h3>
+    <div class="dash-grid" id="dashOverviewGrid"></div>
+  </div>
+</div>
+
+<div class="pane" id="paneCours">
+  <div class="filters">
+    <select class="fi" id="fltType">
+      <option value="">Tous les types</option>
+      <option value="COURS">📘 Cours</option>
+      <option value="TD">📗 TD</option>
+      <option value="DS">📕 DS</option>
+      <option value="KHOLLE">🗣️ Khôlle</option>
+      <option value="FICHE">📙 Fiche</option>
+    </select>
+    <select class="fi" id="fltRev">
+      <option value="">Toutes maîtrises</option>
+      <option value="red">🔴 À revoir d'urgence</option>
+      <option value="orange">🟠 En cours d'acquisition</option>
+      <option value="green">🟢 Maîtrisé</option>
+    </select>
+    <select class="fi" id="fltMat"></select>
+    <select class="fi" id="fltCl"></select>
+    <select class="fi" id="fltQr">
+      <option value="">Statut QR</option>
+      <option value="pending">🔴 À imprimer</option>
+      <option value="printed">🟠 À scanner</option>
+      <option value="active">🟢 Initialisé</option>
+    </select>
+    <button class="cbt" id="btnResetFilters" style="color:var(--red); border-color:var(--red);">✕ Effacer filtres</button>
+  </div>
+  <div class="chips" id="matChips"></div>
+  <div class="cgrid" id="coursGrid"></div>
+</div>
+
+<div class="pane" id="paneNotes">
+  <div class="home-hero" style="text-align:left;">
+    <h2>Suivi des Notes</h2>
+    <p>Ce graphique affiche les notes attribuées à tes documents de type "DS" ou "Khôlle". Rentre une note lors de la création d'un document pour la voir apparaître ici.</p>
+    <div class="chart-container">
+      <div class="chart-wrapper" id="chartWrapper"></div>
+    </div>
+  </div>
+</div>
+
+<div class="pane" id="paneFlashcards">
+  <h2 style="font-family:'Syne'; margin-bottom:10px;">Cartes de révision PC*</h2>
+  <p style="color:var(--mut); font-size:13px; margin-bottom:20px;">Clique sur une carte pour révéler la réponse.</p>
+  <div class="fc-grid" id="fcGrid"></div>
+</div>
+
+<div class="pane" id="panePrint">
+  <div class="pbar">
+    <div>
+      <h3 style="font-family:'Syne';font-size:16px;margin-bottom:4px">Étiquettes QR</h3>
+      <p style="color:var(--mut);font-size:12px" id="pStats">0 sélectionné</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="cbt" id="btnSelPending">Nouveaux</button>
+      <button class="cbt" id="btnSelAll">Tous</button>
+      <button class="cbt" id="btnDesel">Vider</button>
+      <button class="bp" style="flex:0;padding:10px 16px;background:var(--grn);color:#000;" id="btnDoPrint">🖨 Lancer l'impression</button>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--mut);margin-bottom:15px;background:var(--s2);padding:10px;border-radius:8px;">💡 Sélectionne les étiquettes à imprimer. Après impression, confirme pour les passer en "À scanner".</p>
+  <div class="cgrid" style="grid-template-columns:repeat(auto-fill,minmax(100px,1fr)); gap:10px;" id="printGrid"></div>
+</div>
+
+<div class="pane" id="paneClasseurs">
+  <div class="cl-grid" id="clGrid"></div>
+  <h3 style="font-family:'Syne'; margin-top:30px; margin-bottom:15px; border-top:1px solid var(--bd); padding-top:20px;">Créer un nouveau classeur</h3>
+  <div style="background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
+    <div class="fg"><label>Identifiant (1 Lettre)</label><input type="text" id="nClId" placeholder="A" maxlength="1"></div>
+    <div class="fg"><label>Nom complet</label><input type="text" id="nClNm" placeholder="Nom du classeur"></div>
+    <div class="fg"><label>Icône</label><input type="text" id="nClIc" placeholder="📁" value="📁"></div>
+    <button class="bp" onclick="window.addCl()" style="width:100%; margin-top:10px;" id="btnAddCl">+ Ajouter le classeur</button>
+  </div>
+</div>
+
+<div class="pane" id="paneMatieres">
+  <div class="mg" id="mgMat"></div>
+  <h3 style="font-family:'Syne'; margin-top:30px; margin-bottom:15px; border-top:1px solid var(--bd); padding-top:20px;">Créer une nouvelle matière</h3>
+  <div style="background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
+    <div class="fg"><label>Code (4 Lettres exact.)</label><input type="text" id="nMlbl" placeholder="MATH" maxlength="4"></div>
+    <div class="fg"><label>Nom complet</label><input type="text" id="nMname" placeholder="Mathématiques"></div>
+    <div class="fg"><label>Couleur</label>
+      <div class="sws" id="swMat" style="display:flex; gap:8px; margin-top:5px; flex-wrap:wrap;"></div>
+    </div>
+    <button class="bp" onclick="window.addMat()" style="width:100%; margin-top:15px;" id="btnAddMat">+ Ajouter la matière</button>
+  </div>
+</div>
+
+<div class="pane" id="paneSettings">
+  <h2 style="font-family:'Syne'; margin-bottom:20px;">Paramètres</h2>
+  
+  <h3 style="font-family:'Syne'; margin-bottom:15px; color:var(--txt); font-size:15px;">Profil & Accueil</h3>
+  <div class="set-row">
+    <div><div class="set-lbl">Ton Prénom</div><div class="set-sub">Affiché sur l'écran d'accueil</div></div>
+    <input type="text" id="setUserName" placeholder="Prénom" style="width:120px; background:var(--s3); border:1px solid var(--bd); color:var(--txt); padding:8px; border-radius:8px; outline:none; text-align:center;">
+  </div>
+  <div class="set-row"><div><div class="set-lbl">Recherche Accueil</div><div class="set-sub">Gros bloc de recherche</div></div><button class="toggle-btn" id="btnDashHeroToggle">Oui</button></div>
+  <div class="set-row"><div><div class="set-lbl">Statut des révisions</div><div class="set-sub">Feux tricolores (Accueil)</div></div><button class="toggle-btn" id="btnDashRevToggle">Oui</button></div>
+  <div class="set-row"><div><div class="set-lbl">Vue d'ensemble</div><div class="set-sub">Comptage (Accueil)</div></div><button class="toggle-btn" id="btnDashOverToggle">Oui</button></div>
+
+  <h3 style="font-family:'Syne'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Interface & Thèmes</h3>
+  <div class="set-row">
+    <div><div class="set-lbl">Style de l'application</div><div class="set-sub">Change complètement le design</div></div>
+    <select id="setTemplate" class="fi" style="width:140px; padding:6px; font-weight:bold;">
+      <option value="glass">Glassmorphism (Défaut)</option>
+      <option value="default">Minimal (Classique)</option>
+      <option value="neo">Neobrutalism (Rétro/Brut)</option>
+    </select>
+  </div>
+  <div class="set-row"><div><div class="set-lbl">Thème Sombre / Clair</div></div><button class="toggle-btn" id="btnThemeToggle">Changer</button></div>
+  <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
+  <div class="set-row"><div><div class="set-lbl">Filtres rapides (Bulles)</div><div class="set-sub">Affiche les boutons matières</div></div><button class="toggle-btn" id="btnChipsToggle">Affiché</button></div>
+
+  <h3 style="font-family:'Syne'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Réglages Pomodoro</h3>
+  <div class="set-row"><div><div class="set-lbl">Widget Pomodoro</div><div class="set-sub">Afficher le minuteur (en bas à gauche)</div></div><button class="toggle-btn" id="btnPomoVisToggle">Affiché</button></div>
+  <div class="set-row">
+    <div><div class="set-lbl">Temps de Travail</div><div class="set-sub">En minutes</div></div>
+    <input type="number" id="setPomoWork" min="1" max="120" style="width:60px; background:var(--s3); border:1px solid var(--bd); color:var(--txt); padding:8px; border-radius:8px; outline:none; text-align:center;">
+  </div>
+  <div class="set-row">
+    <div><div class="set-lbl">Temps de Pause</div><div class="set-sub">En minutes</div></div>
+    <input type="number" id="setPomoBreak" min="1" max="60" style="width:60px; background:var(--s3); border:1px solid var(--bd); color:var(--txt); padding:8px; border-radius:8px; outline:none; text-align:center;">
+  </div>
+
+  <h3 style="font-family:'Syne'; margin-top:30px; margin-bottom:15px; color:var(--acc); font-size:15px;">Mode Démonstration</h3>
+  <div style="background:rgba(91,141,247,.05); border:1px solid rgba(91,141,247,.3); padding:15px; border-radius:12px; text-align:center;">
+    <p style="font-size:12px; color:var(--mut); margin-bottom:15px;">Idéal pour tester l'appli. Cela remplace tes données par les 10 cours de test.</p>
+    <button class="bp" onclick="window.loadDemo()" style="background:var(--acc); color:#fff; width:100%;" id="btnLoadDemo">Activer les tests</button>
+  </div>
+
+  <h3 style="font-family:'Syne'; margin-top:30px; margin-bottom:15px; color:var(--red); font-size:15px;">Danger Zone</h3>
+  <div style="background:rgba(240,96,96,.05); border:1px solid rgba(240,96,96,.3); padding:15px; border-radius:12px; text-align:center;">
+    <p style="font-size:12px; color:var(--mut); margin-bottom:15px;">Réinitialiser l'application effacera toutes tes données pour repartir de zéro (app vide).</p>
+    <button class="bp" onclick="window.resetData()" style="background:var(--red); color:#fff; width:100%;" id="btnResetData">Vider et réinitialiser</button>
+  </div>
+</div>
+
+<div class="fab-wrapper" id="fabWrapper">
+  <div class="fab-menu" id="fabMenu">
+    <button class="fab-mini" id="fabPrint" title="Impression">🖨</button>
+    <button class="fab-mini" id="fabCsv" title="Export CSV">⬇</button>
+    <button class="fab-mini" id="fabCam" title="Scanner QR">📷</button>
+    <button class="fab-mini" style="background:var(--acc);color:#fff;border:none;" id="fabAdd" title="Ajouter un document">＋</button>
+  </div>
+  <button class="fab-main" onclick="window.toggleFab()" id="btnFabMain">⚡</button>
+</div>
+
+<div class="loc-popup" id="locPopup">
+  <div id="locContent"></div>
+  <button class="loc-close-btn" id="btnCloseLocPopup">✕</button>
+</div>
+
+<div class="ov hidden" id="ovCours">
+  <div class="modal">
+    <h2 id="mTitle" style="margin-bottom:15px;">✏️ Document</h2>
+    <div class="uidbox" id="uidBox">—<small>Code généré automatiquement</small></div>
+    
+    <div style="display:flex; gap:10px;">
+      <div class="fg" style="flex:1;"><label>Type *</label>
+        <select id="fType">
+          <option value="COURS">📘 Cours</option>
+          <option value="TD">📗 TD</option>
+          <option value="DS">📕 DS</option>
+          <option value="KHOLLE">🗣️ Khôlle</option>
+          <option value="FICHE">📙 Fiche</option>
+        </select>
+      </div>
+      <div class="fg" style="flex:1;"><label>Maîtrise</label>
+        <select id="fRev">
+          <option value="red">🔴 À revoir (Urg.)</option>
+          <option value="orange">🟠 En cours</option>
+          <option value="green">🟢 Maîtrisé</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="fg" id="fgNote" style="display:none; background:rgba(91,141,247,.1); padding:10px; border-radius:8px; border:1px solid var(--acc);">
+      <label style="color:var(--acc);">Note obtenue (Optionnel)</label>
+      <input type="number" id="fNote" placeholder="Ex: 14.5" min="0" max="20" step="0.5" style="border-color:var(--acc);">
+    </div>
+
+    <div class="fg"><label>Titre *</label><input type="text" id="fTitle" placeholder="ex: Mécanique Quantique"></div>
+    <div class="fg"><label>Matière *</label><select id="fMat"></select></div>
+    
+    <div style="display:flex; gap:10px;">
+      <div class="fg" style="flex:1.5;"><label>Classeur *</label><select id="fCl"></select></div>
+      <div class="fg" style="flex:1;"><label>Intercalaire *</label>
+        <select id="fInter">
+          <option value="">—</option>
+          <option value="01">01</option><option value="02">02</option>
+          <option value="03">03</option><option value="04">04</option>
+          <option value="05">05</option><option value="06">06</option>
+          <option value="07">07</option><option value="08">08</option>
+          <option value="09">09</option><option value="10">10</option>
+          <option value="11">11</option><option value="12">12</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="fg"><label>Notes / Infos</label><textarea id="fDesc" rows="2" placeholder="Astuces de résolution..."></textarea></div>
+    
+    <div class="macts">
+      <button class="bs" id="btnCancelCours">Annuler</button>
+      <button class="bp" onclick="window.saveCours()" id="btnSaveCours">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovQR">
+  <div class="modal m-center">
+    <h2 id="qrTitle">📱 QR Code</h2>
+    <p id="qrSub" style="font-size:12px;color:var(--mut);margin-bottom:10px;"></p>
+    <div class="qr-box" id="qrBox"></div>
+    <div class="qr-lbl" id="qrLbl" style="font-size:18px; font-weight:bold; margin-bottom:20px;"></div>
+    <div class="macts" style="flex-direction:column; gap:10px;">
+      <button class="bs" id="btnMarkOnePrinted">Changer Statut Impression</button>
+      <button class="bs" id="btnDlQR">⬇ Télécharger PNG</button>
+      <button class="bs" id="btnCloseQR" style="background:var(--red); border:none; color:#fff;">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovCam">
+  <div class="modal m-center">
+    <h2 style="margin-bottom:15px;">📷 Scanner</h2>
+    <div class="cam-wrap">
+      <video id="camVideo" playsinline muted></video>
+      <div class="cam-line"></div>
+    </div>
+    <canvas id="camCanvas" style="display:none"></canvas>
+    <div class="cam-st" id="camSt" style="color:var(--gold); font-weight:bold; margin-bottom:20px;">Vérification...</div>
+
+    <div style="text-align:left; background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
+      <label style="font-size:11px;color:var(--mut);display:block;margin-bottom:6px;text-transform:uppercase;">Saisie manuelle (Secours) :</label>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="manualCamInput" class="fi" placeholder="Ex: PHYS-MEC1">
+        <button class="bp" onclick="window.manualScan()" id="btnManualCam" style="flex:0;padding:8px 16px;">OK</button>
+      </div>
+    </div>
+    <button class="bs" onclick="window.stopCam()" id="btnStopCam" style="width:100%; margin-top:20px; border-color:var(--red); color:var(--red);">✕ Fermer le scanner</button>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovPrintConfirm">
+  <div class="modal m-center">
+    <h2 style="color:var(--grn); font-size:40px; margin-bottom:10px;">🖨️</h2>
+    <h2>Impression lancée</h2>
+    <p style="color:var(--mut); font-size:13px; margin-bottom:25px; line-height:1.5;">L'impression s'est-elle bien déroulée sur ton ordinateur ?<br>Si oui, les documents seront marqués comme "À scanner".</p>
+    <div class="macts" style="flex-direction:column; gap:10px;">
+      <button class="bp" id="btnConfirmPrintYes" style="background:var(--grn); color:#000;">Oui, c'est imprimé !</button>
+      <button class="bs" id="btnConfirmPrintNo">Non / Annuler</button>
+    </div>
+  </div>
+</div>
+
+<div id="printZone"></div>
+
+<script>
+
+// UTILITAIRES DOM (SÉCURISÉS ET DE CLASSE MONDIALE)
+const $ = id => document.getElementById(id);
+const bindClick = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
+const bindInput = (id, fn) => { const el = $(id); if(el) el.addEventListener('input', fn); };
+const bindChange = (id, fn) => { const el = $(id); if(el) el.addEventListener('change', fn); };
+const bindKey = (id, key, fn) => { const el = $(id); if(el) el.addEventListener('keydown', e => { if(e.key === key) fn(e); }); };
+
+// 1. GÉNÉRATEUR QR CODE NATIVE JS (Zéro Dépendance)
+var _QR = (function(){
+  var EXP=new Array(256), LOG=new Array(256);
+  (function(){ for(var i=0;i<8;i++)EXP[i]=1<<i; for(var i=8;i<256;i++)EXP[i]=EXP[i-4]^EXP[i-5]^EXP[i-6]^EXP[i-8]; for(var i=0;i<255;i++)LOG[EXP[i]]=i; })();
+  var RS={ glog:function(n){return LOG[n];}, gexp:function(n){while(n<0)n+=255;while(n>=256)n-=255;return EXP[n];}, mul:function(a,b){return(a===0||b===0)?0:EXP[(LOG[a]+LOG[b])%255];} };
+  function Poly(num,shift){ var o=0; while(o<num.length&&num[o]===0)o++; this.n=new Array(num.length-o+shift); for(var i=0;i<num.length-o;i++)this.n[i]=num[i+o]; }
+  Poly.prototype={ len:function(){return this.n.length;}, get:function(i){return this.n[i];},
+    mul:function(e){ var n=new Array(this.len()+e.len()-1); for(var i=0;i<this.len();i++)for(var j=0;j<e.len();j++)n[i+j]^=RS.mul(this.get(i),e.get(j)); return new Poly(n,0); },
+    mod:function(e){ if(this.len()-e.len()<0)return this; var r=RS.glog(this.get(0))-RS.glog(e.get(0)),n=this.n.slice(); for(var i=0;i<e.len();i++)n[i]^=RS.gexp(RS.glog(e.get(i))+r); return new Poly(n,0).mod(e); }
+  };
+  var RST=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13]];
+  function getRSB(t,e){ var row=RST[(t-1)*4+e],list=[]; for(var i=0;i<row.length;i+=3)for(var j=0;j<row[i];j++)list.push({tot:row[i+1],dat:row[i+2]}); return list; }
+  function getECP(ecl){ var a=new Poly([1],0); for(var i=0;i<ecl;i++)a=a.mul(new Poly([1,RS.gexp(i)],0)); return a; }
+  var PP=[[],[6,18],[6,22]];
+  var G15=(1<<10)|(1<<8)|(1<<5)|(1<<4)|(1<<2)|(1<<1)|(1<<0), G15M=(1<<14)|(1<<12)|(1<<10)|(1<<4)|(1<<1);
+  function bchd(d){var g=0;while(d!==0){g++;d>>>=1;}return g;}
+  function bchTI(d){var x=d<<10;while(bchd(x)-bchd(G15)>=0)x^=(G15<<(bchd(x)-bchd(G15)));return((d<<10)|x)^G15M;}
+  function maskFn(p){return function(i,j){return(i+j)%2===0;};}
+  function makeQR(text){
+    var ecLevel=0, t=2, rsb=getRSB(t,ecLevel);
+    var buf={bits:[],len:0,put:function(v,n){for(var i=0;i<n;i++)this.bits.push((v>>>(n-i-1))&1===1);this.len+=n;}};
+    buf.put(4,4); buf.put(text.length,8);
+    for(var i=0;i<text.length;i++)buf.put(text.charCodeAt(i),8);
+    var totalData=rsb.reduce(function(a,b){return a+b.dat;},0);
+    if(buf.len+4<=totalData*8)buf.put(0,4);
+    while(buf.len%8!==0)buf.bits.push(0),buf.len++;
+    while(buf.len<totalData*8){buf.put(0xEC,8);if(buf.len<totalData*8)buf.put(0x11,8);}
+    var bytes=[];for(var i=0;i<buf.bits.length;i+=8){var b=0;for(var j=0;j<8;j++)b=(b<<1)|(buf.bits[i+j]||0);bytes.push(b);}
+    var dcData=[],ecData=[],offset=0,maxDC=0,maxEC=0;
+    for(var r=0;r<rsb.length;r++){
+      var dc=rsb[r].dat,ec=rsb[r].tot-dc;
+      maxDC=Math.max(maxDC,dc);maxEC=Math.max(maxEC,ec);
+      dcData.push(bytes.slice(offset,offset+dc));offset+=dc;
+      var rsp=getECP(ec),raw=new Poly(dcData[r].concat(new Array(ec).fill(0)),0);
+      var mod=raw.mod(rsp);ecData.push([]);
+      for(var i=0;i<ec;i++){var mi=i+mod.len()-ec;ecData[r].push(mi>=0?mod.get(mi):0);}
+    }
+    var total=rsb.reduce(function(a,b){return a+b.tot;},0), data=new Array(total),idx=0;
+    for(var i=0;i<maxDC;i++)for(var r=0;r<rsb.length;r++){if(i<dcData[r].length)data[idx++]=dcData[r][i];}
+    for(var i=0;i<maxEC;i++)for(var r=0;r<rsb.length;r++){if(i<ecData[r].length)data[idx++]=ecData[r][i];}
+    var mc=t*4+17, M=[];for(var i=0;i<mc;i++){M.push(new Array(mc).fill(null));}
+    function setFP(row,col){for(var r=-1;r<=7;r++)for(var c=-1;c<=7;c++){if(row+r<0||mc<=row+r||col+c<0||mc<=col+c)continue;M[row+r][col+c]=((0<=r&&r<=6&&(c===0||c===6))||(0<=c&&c<=6&&(r===0||r===6))||(2<=r&&r<=4&&2<=c&&c<=4));}}
+    setFP(0,0);setFP(mc-7,0);setFP(0,mc-7);
+    var pp=PP[t-1]; for(var i=0;i<pp.length;i++)for(var j=0;j<pp.length;j++){var row=pp[i],col=pp[j];if(M[row][col]!==null)continue;for(var r=-2;r<=2;r++)for(var c=-2;c<=2;c++)M[row+r][col+c]=(r===-2||r===2||c===-2||c===2||(r===0&&c===0));}
+    for(var r=8;r<mc-8;r++){if(M[r][6]===null)M[r][6]=(r%2===0);}
+    for(var c=8;c<mc-8;c++){if(M[6][c]===null)M[6][c]=(c%2===0);}
+    var bits2=bchTI((ecLevel<<3)|0);
+    for(var i=0;i<15;i++){var mod=((bits2>>i)&1)===1;if(i<6)M[i][8]=mod;else if(i<8)M[i+1][8]=mod;else M[mc-15+i][8]=mod;if(i<8)M[8][mc-i-1]=mod;else if(i<9)M[8][15-i]=mod;else M[8][15-i-1]=mod;}
+    M[mc-8][8]=true;
+    var inc=-1,row2=mc-1,bi=7,by=0,mfn=maskFn(0);
+    for(var col=mc-1;col>0;col-=2){if(col===6)col--;while(true){for(var c=0;c<2;c++){if(M[row2][col-c]===null){var dark=(by<data.length)&&((data[by]>>>(bi))&1)===1;if(mfn(row2,col-c))dark=!dark;M[row2][col-c]=dark;bi--;if(bi<0){by++;bi=7;}}}row2+=inc;if(row2<0||mc<=row2){row2-=inc;inc=-inc;break;}}}
+    return {matrix:M, mc:mc};
+  }
+  return {
+    makeImageURL: function(text, size){
+      try{
+        var qr=makeQR(text), cv=document.createElement('canvas'); cv.width=size; cv.height=size;
+        var ctx=cv.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,size,size); ctx.fillStyle='#000000';
+        var cs=size/qr.mc;
+        for(var r=0;r<qr.mc;r++)for(var c=0;c<qr.mc;c++){if(qr.matrix[r][c])ctx.fillRect(Math.floor(c*cs),Math.floor(r*cs),Math.ceil(cs+.5),Math.ceil(cs+.5));}
+        return cv.toDataURL('image/png');
+      }catch(e){return '';}
+    }
+  };
+})();
+
+// ---------------------------------------------------------
+// MODULE : DONNÉES PAR DÉFAUT & DONNÉES DE DÉMONSTRATION
+// ---------------------------------------------------------
+const IN = ['','Intro','Cours 1','Cours 2','Cours 3','Cours 4','Cours 5','Exercices','TD','TP','Fiches','Annales','Divers'];
+const COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
+
+// FLASHCARDS PC* (Fonctionnalité Bêta)
+const PC_FLASHCARDS = [
+  { mat: 'Physique', q: 'Loi de Fourier (Conduction thermique)', a: 'jQ = - λ . grad(T)' },
+  { mat: 'Physique', q: 'Équation de Maxwell-Faraday', a: 'rot(E) = - ∂B / ∂t' },
+  { mat: 'Physique', q: 'Équation de Maxwell-Ampère', a: 'rot(B) = μ0.j + μ0.ε0.(∂E/∂t)' },
+  { mat: 'Chimie', q: 'Rendement du cycle de Carnot', a: 'η = 1 - (Tf / Tc)' },
+  { mat: 'Chimie Orga', q: 'Oxydation douce d\'un alcool primaire', a: 'Donne un Aldéhyde (puis Acide carboxylique si oxydant en excès)' },
+  { mat: 'Chimie Orga', q: 'Règle de Markovnikov (Add. électrophile)', a: 'Le proton s\'additionne sur le carbone le plus hydrogéné de la double liaison.' }
+];
+
+// DATA VIDE : Modèle de base vierge pour initialisation
+const emptyData = {
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
+  matieres: [
+    {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
+    {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
+    {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+  ],
+  classeurs: [
+    {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7'},
+    {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060'},
+    {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890'},
+  ],
+  cours: [] 
+};
+
+// LES 10 DONNÉES DE DÉMONSTRATION (FONCTIONNALITÉ TESTS) - INTERDICTION ABSOLUE DE LES RETIRER
+const DEMO_COURS = [
+  {uid:'PHYS-MEC1', title:'Mécanique du Point C1', mat:'PHYS', cl:'A', inter:'01', type:'COURS', rev:'green', desc:'À imprimer pour le classeur physique.', date:'2026-04-01', stat:'pending', note:''},
+  {uid:'MATH-INT1', title:'Fiche Intégrales', mat:'MATH', cl:'B', inter:'10', type:'FICHE', rev:'orange', desc:'Imprimé, reste à le valider par scan.', date:'2026-04-02', stat:'printed', note:''},
+  {uid:'CHIM-KINE', title:'TD Cinétique Chimique', mat:'CHIM', cl:'C', inter:'08', type:'TD', rev:'red', desc:'Exercices 1, 2 et 5 à refaire urgemment.', date:'2026-04-03', stat:'active', note:''},
+  {uid:'PHYS-THM3', title:'DS n°3 Thermodynamique', mat:'PHYS', cl:'A', inter:'11', type:'DS', rev:'red', desc:'Gros crash sur la partie machine thermique.', date:'2026-02-15', stat:'active', note:'7.5'},
+  {uid:'MATH-ALG2', title:'Khôlle Algèbre Linéaire', mat:'MATH', cl:'B', inter:'12', type:'KHOLLE', rev:'green', desc:'Démonstrations bien maîtrisées.', date:'2026-03-10', stat:'active', note:'16'},
+  {uid:'CHIM-ORG1', title:'Cours Chimie Orga C1', mat:'CHIM', cl:'C', inter:'01', type:'COURS', rev:'orange', desc:'Mécanismes SN1/SN2 un peu flous.', date:'2026-03-20', stat:'active', note:''},
+  {uid:'PHYS-ELM1', title:'Fiche Électromagnétisme', mat:'PHYS', cl:'A', inter:'10', type:'FICHE', rev:'green', desc:'Équations de Maxwell apprises par cœur.', date:'2026-04-05', stat:'pending', note:''},
+  {uid:'MATH-PROB', title:'TD Probabilités', mat:'MATH', cl:'B', inter:'08', type:'TD', rev:'orange', desc:'Variables aléatoires continues à revoir.', date:'2026-04-06', stat:'printed', note:''},
+  {uid:'CHIM-SOL2', title:'DS Solutions Aqueuses', mat:'CHIM', cl:'C', inter:'11', type:'DS', rev:'orange', desc:'Moyenne classe à 10.', date:'2026-03-01', stat:'active', note:'10.5'},
+  {uid:'PHYS-OND1', title:'Khôlle Ondes', mat:'PHYS', cl:'A', inter:'12', type:'KHOLLE', rev:'green', desc:'Interférences très bien gérées.', date:'2026-03-25', stat:'active', note:'15.5'}
+];
+
+const demoData = JSON.parse(JSON.stringify(emptyData));
+demoData.cours = DEMO_COURS;
+
+// ---------------------------------------------------------
+// MODULE : LECTURE DU LOCALSTORAGE & INITIALISATION
+// ---------------------------------------------------------
+let D;
+try {
+  const rawData = localStorage.getItem('mc_v28');
+  D = rawData ? JSON.parse(rawData) : null;
+} catch(e) { D = null; }
+
+// Sécurisation stricte en cas de données corrompues ou manquantes
+if(!D) D = JSON.parse(JSON.stringify(emptyData));
+if(!D.cours) D.cours = [];
+if(!D.classeurs) D.classeurs = JSON.parse(JSON.stringify(emptyData.classeurs));
+if(!D.matieres) D.matieres = JSON.parse(JSON.stringify(emptyData.matieres));
+if(!D.settings) D.settings = JSON.parse(JSON.stringify(emptyData.settings));
+if(D.settings.showPomo === undefined) D.settings.showPomo = true;
+if(D.settings.pomoWork === undefined) D.settings.pomoWork = 25;
+if(D.settings.pomoBreak === undefined) D.settings.pomoBreak = 5;
+if(D.settings.template === undefined) D.settings.template = 'glass';
+
+// Variables Globales Application
+let editUid = null; let chipFilter = null; let newColor = COLORS[0];
+let printSel = new Set(); let camStream = null; let camTick = null; let curQRUid = null;
+let pomoInterval = null; let pomoTimeLeft = D.settings.pomoWork * 60; let pomoRunning = false; let pomoMode = 'work'; 
+
+const save = function() { localStorage.setItem('mc_v28', JSON.stringify(D)); };
+const fmtD = d => { if(!d) return ''; const [y,m,j] = d.split('-'); return j+'/'+m+'/'+y; };
+
+// ---------------------------------------------------------
+// MODULE : HORLOGE & FONCTIONS GLOBALES (HAPTICS)
+// ---------------------------------------------------------
+
+// V33: Fonction Vibrations pour confirmer les actions de recherche
+function triggerHaptic() {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(50); } catch(e) {}
+  }
+}
+
+function updateClock() {
+  const now = new Date();
+  const options = { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' };
+  let dtStr = now.toLocaleDateString('fr-FR', options);
+  dtStr = dtStr.charAt(0).toUpperCase() + dtStr.slice(1);
+  if($('dateTimeDisp')) $('dateTimeDisp').textContent = dtStr;
+}
+setInterval(updateClock, 60000);
+updateClock();
+
+function stopCam() {
+  try {
+    if (camTick) { clearInterval(camTick); camTick = null; }
+    if (camStream && typeof camStream.getTracks === 'function') {
+      camStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
+    }
+    camStream = null;
+    const v = $('camVideo'); 
+    if (v) { v.srcObject = null; v.pause(); v.removeAttribute('src'); v.load(); }
+  } catch(e) {}
+  const ov = $('ovCam'); if(ov) ov.classList.add('hidden');
+}
+
+function closeLocPopup() { const lp = $('locPopup'); if(lp) lp.classList.remove('open'); }
+function closeModalCours() { const ov = $('ovCours'); if(ov) ov.classList.add('hidden'); }
+function closeQRModal() { const ov = $('ovQR'); if(ov) ov.classList.add('hidden'); }
+function closePrintConfirm() { const ov = $('ovPrintConfirm'); if(ov) ov.classList.add('hidden'); }
+
+// Fermeture des modales et du menu FAB au clic en dehors
+document.addEventListener('click', function(e) {
+  // Modales d'overlay
+  document.querySelectorAll('.ov').forEach(ov => {
+    if (e.target === ov) {
+      if (ov.id === 'ovCam') stopCam();
+      else if (ov.id === 'ovQR') closeQRModal();
+      else if (ov.id === 'ovCours') closeModalCours();
+      else if (ov.id === 'ovPrintConfirm') closePrintConfirm();
+    }
+  });
+  // Fermeture Menu FAB
+  const w = $('fabWrapper');
+  if (w && w.classList.contains('open') && !w.contains(e.target)) {
+    w.classList.remove('open');
+  }
+});
+
+// GESTION DU MENU FLOTTANT (FAB) V33
+function toggleFab() { const w = $('fabWrapper'); if(w) w.classList.toggle('open'); }
+function closeFab() { const w = $('fabWrapper'); if(w) w.classList.remove('open'); }
+
+// ---------------------------------------------------------
+// MODULE : SETTINGS & DATA MANAGEMENT (Test/Reset)
+// ---------------------------------------------------------
+function applySettings() {
+  // Thème Light/Dark
+  if (D.settings.theme === 'light') document.body.classList.add('theme-light'); 
+  else document.body.classList.remove('theme-light');
+  
+  // Templates (Styles UI)
+  document.body.classList.remove('tmpl-default', 'tmpl-glass', 'tmpl-neo');
+  document.body.classList.add('tmpl-' + D.settings.template);
+
+  if (D.settings.compact) document.body.classList.add('mode-compact'); else document.body.classList.remove('mode-compact');
+
+  if($('statsBand')) $('statsBand').classList.toggle('hidden-ui', !D.settings.showStats);
+  if($('matChips')) $('matChips').classList.toggle('hidden-ui', !D.settings.showChips);
+  if($('dashHeroArea')) $('dashHeroArea').style.display = D.settings.showDashHero ? 'block' : 'none';
+  if($('dashRevArea')) $('dashRevArea').style.display = D.settings.showDashRev ? 'block' : 'none';
+  if($('dashOverviewArea')) $('dashOverviewArea').style.display = D.settings.showDashOver ? 'block' : 'none';
+  if($('pomoWidget')) $('pomoWidget').style.display = D.settings.showPomo ? 'flex' : 'none';
+  
+  if($('btnThemeToggle')) $('btnThemeToggle').textContent = D.settings.theme === 'light' ? 'Passer Sombre' : 'Passer Clair';
+  if($('btnCompactToggle')) $('btnCompactToggle').textContent = D.settings.compact ? 'Activé' : 'Désactivé';
+  if($('btnStatsToggle')) $('btnStatsToggle').textContent = D.settings.showStats ? 'Affiché' : 'Masqué';
+  if($('btnChipsToggle')) $('btnChipsToggle').textContent = D.settings.showChips ? 'Affiché' : 'Masqué';
+  if($('btnDashHeroToggle')) $('btnDashHeroToggle').textContent = D.settings.showDashHero ? 'Oui' : 'Non';
+  if($('btnDashRevToggle')) $('btnDashRevToggle').textContent = D.settings.showDashRev ? 'Oui' : 'Non';
+  if($('btnDashOverToggle')) $('btnDashOverToggle').textContent = D.settings.showDashOver ? 'Oui' : 'Non';
+  if($('btnPomoVisToggle')) $('btnPomoVisToggle').textContent = D.settings.showPomo ? 'Affiché' : 'Masqué';
+  
+  if($('setUserName')) $('setUserName').value = D.settings.userName;
+  if($('setTemplate')) $('setTemplate').value = D.settings.template;
+  if($('setPomoWork')) $('setPomoWork').value = D.settings.pomoWork;
+  if($('setPomoBreak')) $('setPomoBreak').value = D.settings.pomoBreak;
+  if($('greeting')) $('greeting').textContent = `Bonjour, ${D.settings.userName}`;
+}
+
+// Fonction: Activer les données de démonstration (TESTS)
+function loadDemo() {
+  if(confirm("Activer les tests va remplacer tes données actuelles par les 10 cours de démonstration.\n\nContinuer ?")) {
+    D = JSON.parse(JSON.stringify(demoData)); save(); location.reload();
+  }
+}
+
+// Fonction: Vider l'application pour de bon
+function resetData() {
+  if(confirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?")) {
+    D = JSON.parse(JSON.stringify(emptyData)); save(); location.reload();
+  }
+}
+
+// ---------------------------------------------------------
+// MODULE : POMODORO TIMER CUSTOMIZABLE
+// ---------------------------------------------------------
+function formatTime(s) {
+  const m = Math.floor(s / 60); const sc = s % 60;
+  return `${m.toString().padStart(2,'0')}:${sc.toString().padStart(2,'0')}`;
+}
+function updatePomoUI() {
+  if($('pomoTime')) $('pomoTime').textContent = formatTime(pomoTimeLeft);
+  if($('btnPomoToggle')) $('btnPomoToggle').textContent = pomoRunning ? '⏸' : '▶';
+  if($('pomoWidget')) $('pomoWidget').className = `pomo-widget ${pomoMode}`;
+}
+function pomoToggle() {
+  if(pomoRunning) { clearInterval(pomoInterval); pomoRunning = false; } 
+  else {
+    pomoRunning = true;
+    pomoInterval = setInterval(() => {
+      pomoTimeLeft--;
+      if(pomoTimeLeft <= 0) {
+        clearInterval(pomoInterval); pomoRunning = false;
+        triggerHaptic(); // Vibration à la fin du chrono
+        if(pomoMode === 'work') { 
+          pomoMode = 'break'; 
+          pomoTimeLeft = D.settings.pomoBreak * 60; 
+          alert("⏳ Fin du temps de travail ! Prends ta pause."); 
+        } else { 
+          pomoMode = 'work'; 
+          pomoTimeLeft = D.settings.pomoWork * 60; 
+          alert("⏳ Fin de la pause ! Au boulot."); 
+        }
+      }
+      updatePomoUI();
+    }, 1000);
+  }
+  updatePomoUI();
+}
+function pomoReset() {
+  clearInterval(pomoInterval); pomoRunning = false;
+  pomoMode = 'work'; pomoTimeLeft = D.settings.pomoWork * 60; updatePomoUI();
+}
+
+// ---------------------------------------------------------
+// MODULE : UTILITAIRES DE CHAINES & RECHERCHE
+// ---------------------------------------------------------
+function genUid(matId) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let rnd = '';
+  for (let i = 0; i < 4; i++) rnd += chars[Math.floor(Math.random() * chars.length)];
+  return matId.slice(0,4) + '-' + rnd;
+}
+
+function doAutoFmtScan(inputEl) {
+  if(!inputEl) return;
+  const raw = inputEl.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  let s1='', s2=''; let i = 0;
+  while(i < raw.length && /[A-Z]/.test(raw[i]) && s1.length < 4) s1 += raw[i++];
+  while(i < raw.length && s2.length < 4) s2 += raw[i++];
+  let res = s1; if(s2) res += '-' + s2;
+  if(raw.length > 0 && raw.length <= 8 && /^[A-Z]{1,4}[A-Z0-9]{0,4}$/.test(raw)) {
+    if(inputEl.value !== res) { inputEl.value = res; inputEl.selectionStart = inputEl.selectionEnd = res.length; }
+  }
+}
+
+// ---------------------------------------------------------
+// MODULE : MOTEUR DE RENDU UI (ONGELETS ET LISTES)
+// ---------------------------------------------------------
+function switchTab(tab, overrideResetFilters = false) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  const map = {home:'paneHome', cours:'paneCours', notes:'paneNotes', flashcards:'paneFlashcards', print:'panePrint', classeurs:'paneClasseurs', matieres:'paneMatieres', settings:'paneSettings'};
+  Object.values(map).forEach(id => { 
+    const el = $(id); if(el) { el.classList.remove('on'); el.classList.add('hidden'); }
+  });
+  const target = $(map[tab]);
+  if(target) { target.classList.remove('hidden'); target.classList.add('on'); }
+  
+  if(tab === 'home') { if($('topSearchBar')) $('topSearchBar').classList.add('hidden-on-home'); renderDashboard(); } 
+  else { if($('topSearchBar')) $('topSearchBar').classList.remove('hidden-on-home'); }
+
+  if (tab === 'cours') { if(overrideResetFilters) resetFilters(); else renderCours(); }
+  if (tab === 'notes') renderNotes();
+  if (tab === 'flashcards') renderFlashcards();
+  if (tab === 'print') renderPrintGrid();
+  if (tab === 'classeurs') renderClasseurs();
+  if (tab === 'matieres') renderMatieres();
+  window.scrollTo(0,0);
+}
+
+function renderDashboard() {
+  const redCount = D.cours.filter(c => c.rev === 'red').length;
+  const orangeCount = D.cours.filter(c => c.rev === 'orange').length;
+  const greenCount = D.cours.filter(c => c.rev === 'green').length;
+
+  if($('dashRevGrid')) $('dashRevGrid').innerHTML = `
+    <div class="dash-card dash-red" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='red'; window.renderCours();">
+      <div class="dash-num">${redCount}</div><div class="dash-lbl">À revoir urg.</div>
+    </div>
+    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='orange'; window.renderCours();">
+      <div class="dash-num" style="color:var(--gold); text-shadow: 0 0 10px rgba(240,192,96,0.4);">${orangeCount}</div><div class="dash-lbl">En cours</div>
+    </div>
+    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='green'; window.renderCours();">
+      <div class="dash-num" style="color:var(--grn); text-shadow: 0 0 10px rgba(80,216,144,0.4);">${greenCount}</div><div class="dash-lbl">Maîtrisés</div>
+    </div>
+  `;
+
+  if($('dashOverviewGrid')) $('dashOverviewGrid').innerHTML = `
+    <div class="dash-card dash-acc" onclick="window.switchTab('cours', true);">
+      <div class="dash-num">${D.cours.length}</div><div class="dash-lbl">Docs Totaux</div>
+    </div>
+    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='FICHE'; window.renderCours();">
+      <div class="dash-num">${D.cours.filter(c => c.type === 'FICHE').length}</div><div class="dash-lbl">Fiches</div>
+    </div>
+    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='DS'; window.renderCours();">
+      <div class="dash-num">${D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">Sujets DS</div>
+    </div>
+  `;
+
+  const todos = D.cours.filter(c => c.rev === 'red' || c.rev === 'orange')
+                       .sort((a,b) => {
+                          if(a.rev === 'red' && b.rev !== 'red') return -1;
+                          if(a.rev !== 'red' && b.rev === 'red') return 1;
+                          return new Date(a.date) - new Date(b.date);
+                       }).slice(0, 5);
+  
+  if($('todoList')) {
+    if(!todos.length) {
+      $('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">🎉 Rien d\'urgent ! Tout est maîtrisé.</div>';
+    } else {
+      $('todoList').innerHTML = todos.map(c => `
+        <div class="todo-item" onclick="window.doLocate('${c.uid}')" style="border-left-color: ${c.rev === 'red' ? 'var(--red)' : 'var(--gold)'};">
+          <div>
+            <div class="todo-tit">${c.title}</div>
+            <div class="todo-sub">${c.mat} • ${c.type}</div>
+          </div>
+          <button class="cbt">Go ➔</button>
+        </div>
+      `).join('');
+    }
+  }
+}
+
+function drawKholle() {
+  const toReview = D.cours.filter(c => c.rev === 'red' || c.rev === 'orange');
+  if(!toReview.length) return alert("Bravo ! Aucun document urgent à réviser.");
+  const winner = toReview[Math.floor(Math.random() * toReview.length)];
+  doLocate(winner.uid);
+}
+
+// 9. SUIVI DES NOTES (CHART)
+function renderNotes() {
+  const notesDocs = D.cours.filter(c => (c.type === 'DS' || c.type === 'KHOLLE') && c.note !== '' && c.note !== undefined);
+  notesDocs.sort((a,b) => new Date(a.date) - new Date(b.date));
+  
+  const wrapper = $('chartWrapper');
+  if(!wrapper) return;
+
+  if(!notesDocs.length) {
+    wrapper.innerHTML = `<div style="color:var(--mut); font-size:13px; width:100%; text-align:center; padding-bottom:20px;">Aucune note enregistrée pour le moment.<br>Ajoute un DS ou une Khôlle avec une note pour voir le graphique.</div>`;
+    return;
+  }
+
+  let html = '';
+  notesDocs.forEach(c => {
+    const noteNum = parseFloat(c.note);
+    const heightPct = (noteNum / 20) * 100;
+    let colorClass = noteNum >= 10 ? 'var(--acc)' : 'var(--red)';
+    if(noteNum >= 15) colorClass = 'var(--grn)';
+
+    html += `
+      <div class="chart-bar-group" onclick="window.doLocate('${c.uid}')" title="${c.title} : ${c.note}/20">
+        <div class="chart-bar" style="height: ${Math.max(5, heightPct)}%; background: linear-gradient(to top, transparent, ${colorClass}); border-top: 2px solid ${colorClass};">
+          <span class="chart-val" style="color:${colorClass}">${c.note}</span>
+        </div>
+        <div class="chart-lbl">${c.mat}</div>
+      </div>
+    `;
+  });
+  wrapper.innerHTML = html;
+}
+
+// 10. FLASHCARDS PC*
+function renderFlashcards() {
+  const grid = $('fcGrid');
+  if(!grid) return;
+  grid.innerHTML = PC_FLASHCARDS.map((fc) => `
+    <div class="fc-card" onclick="this.classList.toggle('flipped')">
+      <div class="fc-inner">
+        <div class="fc-front">
+          <div class="fc-mat">${fc.mat}</div>
+          <div class="fc-text">${fc.q}</div>
+        </div>
+        <div class="fc-back">
+          <div class="fc-ans">${fc.a}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// 11. INVENTAIRE COURS ET FILTRES
+function renderStats() {
+  const pending = D.cours.filter(c => c.stat === 'pending').length;
+  const printed = D.cours.filter(c => c.stat === 'printed').length;
+  if($('statsBand')) $('statsBand').innerHTML =
+    '<div class="stc"><span class="dot" style="background:#5b8df7"></span>' + D.cours.length + ' cours</div>' +
+    '<div class="stc"><span class="dot" style="background:#50d890"></span>' + D.classeurs.length + ' classeurs</div>' +
+    (pending ? '<div class="stc"><span class="dot" style="background:#f06060"></span>' + pending + ' À impr.</div>' : '') +
+    (printed ? '<div class="stc"><span class="dot" style="background:#f0c060"></span>' + printed + ' À scanner</div>' : '');
+}
+
+function resetFilters() {
+  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearch'].forEach(id => { if($(id)) $(id).value = ''; });
+  chipFilter = null;
+  renderCours();
+}
+
+function renderCours() {
+  const allM = [...new Set(D.cours.map(c => c.mat))];
+  const allC = [...new Set(D.cours.map(c => c.cl))];
+  const ms = $('fltMat'), cs = $('fltCl');
+  
+  if(ms && cs) {
+    const mv = ms.value, cv = cs.value;
+    ms.innerHTML = '<option value="">Toutes matières</option>' + allM.map(m => { const mo = D.matieres.find(x => x.id===m)||{name:m}; return `<option value="${m}" ${m===mv?'selected':''}>${mo.name}</option>`; }).join('');
+    cs.innerHTML = '<option value="">Tous classeurs</option>' + allC.map(c => { const co = D.classeurs.find(x => x.id===c)||{name:c}; return `<option value="${c}" ${c===cv?'selected':''}>${co.name}</option>`; }).join('');
+  }
+  
+  if($('matChips')) {
+    $('matChips').innerHTML = '<button class="chip' + (chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
+      D.matieres.map(m => `<button class="chip${chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${m.label}</button>`).join('');
+    $('matChips').querySelectorAll('.chip').forEach(btn => { btn.addEventListener('click', () => { chipFilter = btn.dataset.chip==='null' ? null : btn.dataset.chip; renderCours(); }); });
+  }
+
+  const q = $('mainSearch') ? $('mainSearch').value.toLowerCase().trim() : '';
+  const qrf = $('fltQr') ? $('fltQr').value : '';
+  const fType = $('fltType') ? $('fltType').value : '';
+  const fRev = $('fltRev') ? $('fltRev').value : '';
+  
+  const list = D.cours.filter(c => {
+    const mo = D.matieres.find(x => x.id===c.mat)||{name:''};
+    return (!q || c.title.toLowerCase().includes(q) || c.uid.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
+      && (!ms || !ms.value || c.mat===ms.value)
+      && (!cs || !cs.value || c.cl===cs.value)
+      && (!chipFilter || c.mat===chipFilter)
+      && (!qrf || c.stat === qrf)
+      && (!fType || c.type === fType)
+      && (!fRev || c.rev === fRev);
+  });
+
+  list.sort((a,b) => {
+    if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
+    if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
+    return a.inter.localeCompare(b.inter);
+  });
+
+  const grid = $('coursGrid');
+  if(grid) {
+    if (!list.length) { grid.innerHTML = '<div class="empty"><h3>Aucun document trouvé</h3></div>'; renderStats(); return; }
+
+    let html = '';
+    let currentMat = '';
+
+    list.forEach(c => {
+      const mo = D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
+      const co = D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📁'};
+      
+      if (c.mat !== currentMat) {
+        html += `<div style="grid-column: 1/-1; margin-top: 15px; border-bottom: 2px solid ${mo.color}; padding-bottom: 5px;"><h3 style="font-family: 'Syne'; color: ${mo.color};">${mo.name}</h3></div>`;
+        currentMat = c.mat;
+      }
+
+      let warnHtml = '';
+      if (c.stat === 'pending') warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
+      else if (c.stat === 'printed') warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
+
+      html += `
+      <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${c.uid}')">
+        <div class="rev-dot rev-${c.rev}"></div>
+        <div class="uid-badge">${c.uid}</div>
+        <div class="ctop">
+          <div class="cbadges">
+            <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${mo.label}</span>
+            <span class="bm badge-type">${c.type}</span>
+          </div>
+        </div>
+        <div class="ctitle">${c.title}</div>
+        <div class="clocs">
+          <span class="cloc cloc-a">${co.icon} ${co.name}</span>
+          <span class="cloc cloc-b">📑 Inter. ${c.inter}</span>
+        </div>
+        ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
+        ${c.note ? `<div class="cnote">Note : ${c.note}/20</div>` : ''}
+        <div class="cacts" onclick="event.stopPropagation();">
+            <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir QR">🔳</button>
+            <button class="cbt" onclick="window.editCours('${c.uid}')" title="Modifier">✏️</button>
+            <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${c.uid}')" title="Supprimer">🗑️</button>
+        </div>
+        ${warnHtml}
+      </div>`;
+    });
+    grid.innerHTML = html;
+  }
+  renderStats();
+}
+
+// ---------------------------------------------------------
+// MODULE : ACTIONS DOCUMENT (AJOUT/MODIFICATION/LOCALISATION)
+// ---------------------------------------------------------
+function doLocate(uid) {
+  const c = D.cours.find(x => x.uid === uid);
+  if (!c) {
+    if($('locContent')) $('locContent').innerHTML = `
+      <div style="text-align:center;padding:10px 0">
+        <div style="font-size:32px;margin-bottom:8px">❌</div>
+        <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${uid}</div>
+        <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
+      </div>`;
+    if($('locPopup')) $('locPopup').classList.add('open');
+    return;
+  }
+  
+  // Vibration pour confirmer la recherche réussie
+  triggerHaptic();
+
+  let validationMsg = '';
+  if (c.stat === 'printed') {
+    c.stat = 'active'; save(); renderCours(); renderDashboard();
+    validationMsg = '<div style="background:rgba(80,216,144,.15);border:1px solid var(--grn);color:var(--grn);padding:10px;border-radius:10px;text-align:center;font-weight:bold;margin-bottom:15px;">✅ Document initialisé et classé !</div>';
+  }
+
+  const mo = D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
+  const co = D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📁'};
+  const interNum = parseInt(c.inter, 10);
+  
+  if($('locContent')) $('locContent').innerHTML = validationMsg + `
+    <div class="loc-code">${c.uid}</div>
+    <div class="loc-title">${c.title}</div>
+    <div class="loc-cards">
+      <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">${co.icon} ${co.name}</div>
+      <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">📑 Intercalaire ${c.inter} \u2014 ${IN[interNum]||''}</div>
+    </div>
+    <div style="text-align:center;margin-top:5px;font-size:12px;font-weight:bold;color:${mo.color}">${c.type}</div>
+    ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
+    ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
+  `;
+  if($('locPopup')) $('locPopup').classList.add('open');
+}
+
+function delCours(uid) {
+  if (!confirm('Supprimer le document ' + uid + ' ?')) return;
+  D.cours = D.cours.filter(c => c.uid !== uid);
+  save(); renderCours(); renderDashboard(); renderNotes();
+}
+
+function toggleNoteField() {
+  const t = $('fType') ? $('fType').value : '';
+  if($('fgNote')) {
+    if(t === 'DS' || t === 'KHOLLE') { $('fgNote').style.display = 'block'; }
+    else { $('fgNote').style.display = 'none'; if($('fNote')) $('fNote').value = ''; }
+  }
+}
+
+function openModalCours() {
+  editUid = null;
+  if($('mTitle')) $('mTitle').textContent = '✨ Ajouter un document';
+  if($('fTitle')) $('fTitle').value = ''; 
+  if($('fDesc')) $('fDesc').value = ''; 
+  if($('fMat')) $('fMat').innerHTML = '<option value="">— Choisir —</option>' + D.matieres.map(m => `<option value="${m.id}">${m.label} — ${m.name}</option>`).join('');
+  if($('fCl')) $('fCl').innerHTML = '<option value="">— Choisir —</option>' + D.classeurs.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  if($('fInter')) $('fInter').value = ''; 
+  if($('fType')) $('fType').value = 'COURS'; 
+  if($('fRev')) $('fRev').value = 'green';
+  if($('fNote')) $('fNote').value = '';
+  toggleNoteField();
+  if($('uidBox')) $('uidBox').innerHTML = '—<small>Généré automatiquement</small>';
+  if($('ovCours')) $('ovCours').classList.remove('hidden');
+}
+
+function editCours(uid) {
+  const c = D.cours.find(x => x.uid===uid); if (!c) return;
+  editUid = uid;
+  if($('mTitle')) $('mTitle').textContent = '✏️ Modifier le document';
+  if($('fTitle')) $('fTitle').value = c.title; 
+  if($('fDesc')) $('fDesc').value = c.desc || ''; 
+  if($('fType')) $('fType').value = c.type || 'COURS'; 
+  if($('fRev')) $('fRev').value = c.rev || 'green';
+  if($('fNote')) $('fNote').value = c.note || '';
+  toggleNoteField();
+  if($('fMat')) $('fMat').innerHTML = D.matieres.map(m => `<option value="${m.id}" ${m.id===c.mat?'selected':''}>${m.label}</option>`).join('');
+  if($('fCl')) $('fCl').innerHTML = D.classeurs.map(x => `<option value="${x.id}" ${x.id===c.cl?'selected':''}>${x.icon} ${x.name}</option>`).join('');
+  if($('fInter')) $('fInter').value = c.inter;
+  if($('uidBox')) $('uidBox').innerHTML = c.uid + '<small>Code permanent</small>';
+  if($('ovCours')) $('ovCours').classList.remove('hidden');
+}
+
+function saveCours() {
+  const title = $('fTitle')?$('fTitle').value.trim():'', mat = $('fMat')?$('fMat').value:'', cl = $('fCl')?$('fCl').value:'', inter = $('fInter')?$('fInter').value:'';
+  const type = $('fType')?$('fType').value:'', rev = $('fRev')?$('fRev').value:'', note = $('fNote')?$('fNote').value:'';
+  if (!title || !mat || !cl || !inter) { alert('Remplis tous les champs obligatoires'); return; }
+
+  const obj = {title, type, rev, mat, cl, inter, note, desc: $('fDesc')?$('fDesc').value.trim():''};
+  if(!obj.date) obj.date = new Date().toISOString().split('T')[0];
+
+  if (editUid) {
+    const idx = D.cours.findIndex(c => c.uid===editUid);
+    if(idx > -1) {
+      obj.uid = D.cours[idx].uid;
+      obj.stat = D.cours[idx].stat; 
+      if(D.cours[idx].date) obj.date = D.cours[idx].date;
+      D.cours[idx] = obj;
+    }
+  } else {
+    obj.uid = genUid(mat);
+    obj.stat = 'pending'; 
+    D.cours.unshift(obj);
+  }
+  save(); 
+  closeModalCours(); 
+  renderCours(); renderDashboard(); renderNotes();
+}
+
+// ---------------------------------------------------------
+// MODULE : GESTION DES CLASSEURS & MATIÈRES
+// ---------------------------------------------------------
+function renderClasseurs() {
+  const g = $('clGrid'); if(!g) return;
+  if (!D.classeurs.length) { g.innerHTML='<div class="empty"><h3>Aucun classeur</h3></div>'; return; }
+  g.innerHTML = D.classeurs.map(cl => {
+    const cc = D.cours.filter(c => c.cl===cl.id);
+    return `
+      <div class="cl-card">
+        <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
+          <div class="cl-ico" style="background:${cl.color}20">${cl.icon}</div>
+          <div class="cl-info"><div class="cl-nm">${cl.name}</div><div class="cl-sb">${cc.length} documents</div></div>
+          <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
+        </div>
+        <div class="ilist" id="ili_${cl.id}">
+          ${Array.from({length:12},(_,i)=>i+1).map(n => {
+            const ns = String(n).padStart(2,'0');
+            const items = cc.filter(c => c.inter===ns);
+            return `<div class="irow" onclick="window.switchTab('cours'); document.getElementById('fltCl').value='${cl.id}'; chipFilter=null; window.renderCours();">
+              <div class="inum">${ns}</div><div class="ilbl">Intercalaire ${ns}</div><div class="icnt">${items.length?items.length+' docs':'—'}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderMatieres() {
+  const el = $('mgMat'); if(!el) return;
+  el.innerHTML = D.matieres.map(m => `
+    <div class="mr">
+      <div class="mdot" style="background:${m.color}"></div>
+      <div class="mlbl">${m.label}</div><div class="mnm">${m.name}</div>
+      <button class="mdel" onclick="window.delMat('${m.id}')">✕</button>
+    </div>`).join('');
+  
+  if($('swMat')) $('swMat').innerHTML = COLORS.map(c => `<div class="sw${c===newColor?' on':''}" style="background:${c}" onclick="window.setNewColor('${c}')"></div>`).join('');
+}
+
+function setNewColor(col) { newColor = col; renderMatieres(); }
+
+function addCl() {
+  const id = $('nClId').value.trim().toUpperCase(), name = $('nClNm').value.trim(), icon = $('nClIc').value.trim() || '📁';
+  if(id.length!==1) return alert("Identifiant : 1 seule lettre !");
+  if(D.classeurs.find(c=>c.id===id)) return alert("Ce classeur existe déjà !");
+  if(!name) return alert("Le nom est obligatoire");
+  D.classeurs.push({id, name, icon, color:newColor}); save(); renderClasseurs(); renderCours();
+  $('nClId').value=''; $('nClNm').value='';
+  alert("Classeur ajouté avec succès !");
+}
+
+function addMat() {
+  const lbl = $('nMlbl').value.trim().toUpperCase(), name = $('nMname').value.trim();
+  if(lbl.length!==4) return alert("Code matière : exactement 4 lettres !");
+  if(D.matieres.find(m=>m.id===lbl)) return alert("Cette matière existe déjà !");
+  D.matieres.push({id:lbl, label:lbl, name:name||lbl, color:newColor}); save(); renderMatieres(); renderCours();
+  $('nMlbl').value=''; $('nMname').value='';
+  alert("Matière ajoutée avec succès !");
+}
+
+function delMat(id) { if(!D.cours.filter(c=>c.mat===id).length || confirm('Cette matière contient des cours. Supprimer quand même ?')) { D.matieres = D.matieres.filter(m=>m.id!==id); save(); renderMatieres(); renderCours(); } }
+function delCl(id) { if(!D.cours.filter(c=>c.cl===id).length || confirm('Ce classeur contient des cours. Supprimer quand même ?')) { D.classeurs = D.classeurs.filter(c=>c.id!==id); save(); renderClasseurs(); renderCours(); } }
+
+// ---------------------------------------------------------
+// MODULE : SYSTÈME QR CODE ET IMPRESSION (Génération d'étiquettes)
+// ---------------------------------------------------------
+function showQR(uid) {
+  const c = D.cours.find(x => x.uid===uid); if (!c) return;
+  curQRUid = uid;
+  if($('qrLbl')) $('qrLbl').textContent = uid;
+  if($('qrBox')) $('qrBox').innerHTML = `<img src="${_QR.makeImageURL(uid, 180)}" style="border-radius:6px; margin:0 auto;">`;
+  
+  if($('btnMarkOnePrinted')) {
+    if(c.stat === 'pending') $('btnMarkOnePrinted').textContent = '✅ Marquer Imprimé';
+    else if(c.stat === 'printed') $('btnMarkOnePrinted').textContent = '🟢 Marquer Initialisé';
+    else $('btnMarkOnePrinted').textContent = '↩️ Remettre à l\'état Imprimé';
+  }
+  if($('ovQR')) $('ovQR').classList.remove('hidden');
+}
+
+function markOnePrinted() {
+  const c = D.cours.find(x => x.uid===curQRUid); if (!c) return;
+  if(c.stat === 'pending') c.stat = 'printed';
+  else if(c.stat === 'printed') c.stat = 'active';
+  else c.stat = 'printed';
+  save(); renderCours(); showQR(curQRUid); 
+}
+
+function dlQR() {
+  if(!curQRUid) return;
+  const a = document.createElement('a'); a.download = `QR_${curQRUid}.png`; a.href = _QR.makeImageURL(curQRUid, 250); a.click();
+}
+
+function renderPrintGrid() {
+  const grid = $('printGrid'); if(!grid) return;
+  grid.innerHTML = D.cours.map(c => `
+    <div class="pcard ${printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${c.uid}')">
+      <div class="pc-check">${printSel.has(c.uid)?'✅':'⬜'}</div>
+      <div class="pc-qr"><img src="${_QR.makeImageURL(c.uid, 80)}" alt="qr"></div>
+      <div class="pc-uid">${c.uid}</div>
+      <div class="pc-title">${c.title}</div>
+    </div>
+  `).join('');
+  if($('pStats')) $('pStats').textContent = printSel.size + ' sélectionné(s)';
+}
+
+function toggleSel(uid) { printSel.has(uid) ? printSel.delete(uid) : printSel.add(uid); renderPrintGrid(); }
+function selPending() { printSel = new Set(D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); renderPrintGrid(); }
+function selAll() { printSel = new Set(D.cours.map(c=>c.uid)); renderPrintGrid(); }
+function selNone() { printSel.clear(); renderPrintGrid(); }
+
+function executePrint() {
+  const sel = D.cours.filter(c => printSel.has(c.uid));
+  if (!sel.length) { alert('Sélectionne au moins un document !'); return; }
+  
+  const pz = $('printZone'); if(!pz) return;
+  pz.innerHTML = '';
+  sel.forEach(c => {
+    pz.innerHTML += `
+      <div class="print-label">
+        <img src="${_QR.makeImageURL(c.uid, 150)}">
+        <div class="pl-uid">${c.uid}</div>
+        <div class="pl-title">${c.title.substring(0,35)}</div>
+      </div>`;
+  });
+  
+  setTimeout(() => {
+    window.print();
+    setTimeout(() => { pz.innerHTML = ''; if($('ovPrintConfirm')) $('ovPrintConfirm').classList.remove('hidden'); }, 500);
+  }, 800);
+}
+
+function confirmPrintSuccess(success) {
+  closePrintConfirm();
+  if(success) {
+    printSel.forEach(uid => { const x = D.cours.find(d=>d.uid===uid); if(x && x.stat==='pending') x.stat = 'printed'; });
+    save(); printSel.clear(); renderCours(); renderPrintGrid(); renderDashboard();
+  }
+}
+
+// ---------------------------------------------------------
+// MODULE : CAMÉRA ET SCANNER (Gère l'API native + Fallback jsQR)
+// ---------------------------------------------------------
+function openCam() {
+  if($('manualCamInput')) $('manualCamInput').value = '';
+  if($('ovCam')) $('ovCam').classList.remove('hidden');
+  if($('camSt')) { $('camSt').style.color = 'var(--gold)'; $('camSt').textContent = 'Initialisation...'; }
+  
+  try {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      if($('camSt')) { $('camSt').textContent = "⚠️ Hors-ligne / Caméra bloquée. Saisie manuelle requise."; $('camSt').style.color = 'var(--red)'; }
+      return;
+    }
+    
+    // Demande accès caméra arrière
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+      .then(stream => {
+        camStream = stream; const v = $('camVideo'); 
+        if(!v) return;
+        v.srcObject = stream; v.play().catch(e=>{}); 
+        
+        // 1. Tente d'utiliser l'API Native super rapide (BarcodeDetector)
+        if('BarcodeDetector' in window) {
+          if($('camSt')) $('camSt').textContent = '🔍 Scanner (API Native)...';
+          try {
+            const bd = new BarcodeDetector({formats:['qr_code']});
+            camTick = setInterval(async () => {
+              try { const codes = await bd.detect(v); if(codes.length) processScan(codes[0].rawValue.trim().toUpperCase()); } catch(e){}
+            }, 300);
+            return;
+          } catch(e) {}
+        }
+        
+        // 2. Si pas d'API native, fallback sur jsQR (mis en cache PWA)
+        if (typeof jsQR !== 'undefined') {
+          if($('camSt')) $('camSt').textContent = '🔍 Scanner (jsQR)...';
+          camTick = setInterval(() => {
+            if(v.readyState !== 4 || v.videoWidth === 0) return;
+            try {
+              const cv = $('camCanvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
+              const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v,0,0, cv.width, cv.height);
+              const d = ctx.getImageData(0,0,cv.width,cv.height);
+              const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'dontInvert'});
+              if(code) processScan(code.data.trim().toUpperCase());
+            } catch(e){}
+          }, 300);
+        } else {
+          // 3. Fallback total si réseau coupé et pas de cache
+          if($('camSt')) { $('camSt').textContent = '⚠️ Hors Ligne: jsQR non chargé. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
+        }
+      }).catch(err => { 
+        if($('camSt')) { $('camSt').textContent = '❌ Caméra bloquée. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
+      });
+  } catch(e) {
+    if($('camSt')) { $('camSt').textContent = '❌ Erreur interne.'; $('camSt').style.color = 'var(--red)'; }
+  }
+}
+
+function manualScan() {
+  const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
+  if(v) processScan(v);
+}
+
+function processScan(uid) {
+  stopCam();
+  if($('mainSearch')) $('mainSearch').value = uid;
+  doLocate(uid);
+}
+
+// ---------------------------------------------------------
+// MODULE : EXPORT DONNÉES (CSV)
+// ---------------------------------------------------------
+function exportCsv() {
+  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
+  const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  const rows = D.cours.map(c => {
+    const mo = D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
+    const co = D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
+    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.date||'', c.stat].map(esc).join(',');
+  });
+  const csv = [hdr.join(','), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mes-cours-prepa.csv'; a.click();
+}
+
+function homeGo() {
+  const v = $('homeSearch') ? $('homeSearch').value.trim().toUpperCase() : '';
+  if(v.includes('-') && v.length >= 8) { doLocate(v); } 
+  else { 
+    switchTab('cours'); 
+    if($('mainSearch')) $('mainSearch').value = v; 
+    renderCours(); 
+    triggerHaptic(); // Vibration lors d'une recherche depuis l'accueil
+  }
+}
+
+// ========================================================================
+// 🛑  EXPOSITION DES FONCTIONS GLOBALES (CRITIQUE POUR IOS)
+// Sans cela, aucun des attributs `onclick="..."` du HTML ne fonctionnera sur iPhone.
+// ========================================================================
+window.switchTab = switchTab;
+window.renderCours = renderCours;
+window.doLocate = doLocate;
+window.showQR = showQR;
+window.editCours = editCours;
+window.delCours = delCours;
+window.delCl = delCl;
+window.delMat = delMat;
+window.setNewColor = setNewColor;
+window.toggleSel = toggleSel;
+window.addCl = addCl;
+window.addMat = addMat;
+window.manualScan = manualScan;
+window.stopCam = stopCam;
+window.saveCours = saveCours;
+window.loadDemo = loadDemo;
+window.resetData = resetData;
+window.toggleFab = toggleFab;
+window.closeFab = closeFab;
+window.triggerHaptic = triggerHaptic;
+
+// ========================================================================
+// 🛑  ATTACHEMENT DYNAMIQUE DES ÉVÉNEMENTS 
+// ========================================================================
+bindClick('btnOpenSettings', () => switchTab('settings'));
+bindClick('btnThemeToggle', () => { D.settings.theme = D.settings.theme === 'light' ? 'dark' : 'light'; save(); applySettings(); });
+bindClick('btnCompactToggle', () => { D.settings.compact = !D.settings.compact; save(); applySettings(); });
+bindClick('btnStatsToggle', () => { D.settings.showStats = !D.settings.showStats; save(); applySettings(); });
+bindClick('btnChipsToggle', () => { D.settings.showChips = !D.settings.showChips; save(); applySettings(); });
+bindClick('btnDashHeroToggle', () => { D.settings.showDashHero = !D.settings.showDashHero; save(); applySettings(); });
+bindClick('btnDashRevToggle', () => { D.settings.showDashRev = !D.settings.showDashRev; save(); applySettings(); });
+bindClick('btnDashOverToggle', () => { D.settings.showDashOver = !D.settings.showDashOver; save(); applySettings(); });
+bindClick('btnPomoVisToggle', () => { D.settings.showPomo = !D.settings.showPomo; save(); applySettings(); });
+
+// Attachement des fonctions V32/V33 (Templates et Pomodoro Custom)
+bindChange('setTemplate', (e) => { D.settings.template = e.target.value; save(); applySettings(); });
+bindInput('setPomoWork', (e) => { D.settings.pomoWork = parseInt(e.target.value) || 25; save(); pomoReset(); });
+bindInput('setPomoBreak', (e) => { D.settings.pomoBreak = parseInt(e.target.value) || 5; save(); pomoReset(); });
+bindInput('setUserName', (e) => { D.settings.userName = e.target.value.trim() || "Étudiant"; save(); applySettings(); });
+
+bindClick('btnPomoToggle', pomoToggle);
+bindClick('btnPomoReset', pomoReset);
+bindInput('homeSearch', () => { doAutoFmtScan($('homeSearch')); });
+bindKey('homeSearch', 'Enter', homeGo);
+bindClick('btnHomeSearch', homeGo);
+bindClick('btnHomeCam', openCam);
+bindClick('btnKholleDraw', drawKholle);
+
+bindInput('mainSearch', () => { doAutoFmtScan($('mainSearch')); renderCours(); });
+bindKey('mainSearch', 'Enter', () => { 
+  const v = $('mainSearch').value.trim().toUpperCase(); 
+  if(v) doLocate(v); 
+});
+bindClick('btnLocate', () => { const v = $('mainSearch') ? $('mainSearch').value.trim().toUpperCase() : ''; if(v) doLocate(v); });
+
+// Menu FAB
+bindClick('fabAdd', () => { closeFab(); openModalCours(); });
+bindClick('fabCam', () => { closeFab(); openCam(); });
+bindClick('fabCsv', () => { closeFab(); exportCsv(); });
+bindClick('fabPrint', () => { closeFab(); switchTab('print'); });
+
+bindClick('btnCancelCours', closeModalCours);
+bindChange('fType', toggleNoteField);
+
+['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, renderCours); });
+bindClick('btnResetFilters', resetFilters);
+
+bindClick('btnSelPending', selPending);
+bindClick('btnSelAll', selAll);
+bindClick('btnDesel', selNone);
+bindClick('btnDoPrint', executePrint);
+bindClick('btnConfirmPrintYes', () => confirmPrintSuccess(true));
+bindClick('btnConfirmPrintNo', () => confirmPrintSuccess(false));
+
+bindClick('btnCloseLocPopup', closeLocPopup);
+bindClick('btnMarkOnePrinted', markOnePrinted);
+bindClick('btnCloseQR', closeQRModal);
+bindClick('btnDlQR', dlQR);
+
+// INITIALISATION DU DÉMARRAGE DE L'APPLICATION
+applySettings();
+switchTab('home');
+
+</script>
+</body>
+</html>
