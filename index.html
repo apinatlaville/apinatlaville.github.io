@@ -9,8 +9,34 @@
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <link rel="stylesheet" href="style.css">
+
+<script>
+  window.appErrors = []; // Historique global des erreurs
+  window.onerror = function(message, source, lineno, colno, error) {
+    const time = new Date().toLocaleTimeString();
+    const shortSource = source ? source.split('/').pop() : 'Inconnu';
+    window.appErrors.push({ time: time, msg: message, source: shortSource, lineno: lineno });
+    
+    // Affichage de l'alerte flottante
+    const toast = document.getElementById('errorToast');
+    const toastMsg = document.getElementById('errorToastMsg');
+    if(toast && toastMsg) { 
+      toastMsg.textContent = "Erreur : " + message; 
+      toast.classList.remove('hidden'); 
+    }
+    // Mise à jour de l'onglet Logs si la fonction existe déjà
+    if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
+    return false; // Laisse l'erreur apparaître dans la console classique aussi
+  };
+</script>
 </head>
 <body>
+
+<div id="errorToast" class="hidden" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--s1); border:2px solid var(--red); border-radius:12px; padding:12px 20px; z-index:9999; box-shadow:0 10px 30px rgba(240,96,96,0.3); display:flex; align-items:center; gap:15px; width:90%; max-width:400px;">
+  <div style="font-size:24px;">⚠️</div>
+  <div id="errorToastMsg" style="flex:1; font-size:12px; font-family:'DM Mono', monospace; color:var(--txt); word-break:break-word;">Une erreur est survenue.</div>
+  <button onclick="document.getElementById('errorToast').classList.add('hidden')" style="background:none; border:none; color:var(--mut); font-size:18px; cursor:pointer;">✕</button>
+</div>
 
 <div class="hdr">
   <div class="hdr-content">
@@ -41,10 +67,11 @@
     <button class="tab on" onclick="window.switchTab('home')" data-tab="home">🏠 Accueil</button>
     <button class="tab" onclick="window.switchTab('cours')" data-tab="cours">📋 Base Doc.</button>
     <button class="tab" onclick="window.switchTab('notes')" data-tab="notes">📈 Notes</button>
-    <button class="tab" onclick="window.switchTab('flashcards')" data-tab="flashcards">🃏 Bêta (PC*)</button>
+    <button class="tab" onclick="window.switchTab('flashcards')" data-tab="flashcards">🃏 Bêta</button>
     <button class="tab" onclick="window.switchTab('print')" data-tab="print">🖨 Impression</button>
     <button class="tab" onclick="window.switchTab('classeurs')" data-tab="classeurs">🗂 Classeurs</button>
     <button class="tab" onclick="window.switchTab('matieres')" data-tab="matieres">🏷 Matières</button>
+    <button class="tab" onclick="window.switchTab('logs')" data-tab="logs" style="color:var(--red);">🐛 Logs</button>
   </div>
 </div>
 
@@ -228,6 +255,17 @@
   </div>
 </div>
 
+<div class="pane" id="paneLogs">
+  <h2 style="font-family:'Syne'; margin-bottom:10px; color:var(--red);">🐛 Journal des Erreurs</h2>
+  <p style="color:var(--mut); font-size:13px; margin-bottom:20px;">Cet écran capture automatiquement les erreurs système ou de réseau. Si l'application a un comportement étrange, regarde ici !</p>
+  <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+    <button class="bs" onclick="window.clearErrorLogs()" style="padding:8px 12px; font-size:12px;">🗑️ Vider le journal</button>
+  </div>
+  <div id="errorLogContainer" style="background:var(--s2); border:1px solid var(--bd); border-radius:12px; padding:15px; min-height:200px; display:flex; flex-direction:column; gap:10px;">
+    <div style="text-align:center; color:var(--mut); margin-top:50px;">Aucune erreur détectée. Tout va bien ! 🎉</div>
+  </div>
+</div>
+
 <div class="fab-wrapper" id="fabWrapper">
   <div class="fab-menu" id="fabMenu">
     <button class="fab-mini" onclick="window.closeFab(); window.switchTab('print')" title="Impression">🖨</button>
@@ -354,7 +392,6 @@
 <div id="printZone"></div>
 
 <script src="qr-generator.js"></script>
-
 <script type="module" src="app.js"></script>
 
 </body>
