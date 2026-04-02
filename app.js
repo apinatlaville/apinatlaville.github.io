@@ -4,41 +4,35 @@
  * =========================================================================================
  * NOM DU PROJET : Mes Cours - PC* Edition
  * TYPE : Module métier Javascript (app.js)
- * * 🏗️ RÔLE DE CE FICHIER DANS L'ARCHITECTURE :
- * Ce fichier est LE CERVEAU de l'application. Avant, il était noyé à la fin du index.html.
- * Aujourd'hui, il est séparé pour faciliter sa maintenance. Il est appelé via :
- * `<script type="module" src="app.js"></script>` dans l'index.html.
- * * 🚀 LISTE DES FONCTIONNALITÉS GÉRÉES ICI :
- * 1. Base de données Cloud (Firebase) : Initialisation et synchronisation Firestore (save() / initApp()).
- * -> Si le réseau échoue, l'appli bascule en mode LocalStorage de façon invisible.
- * 2. Horloge dynamique : Actualisée chaque seconde pour le Dashboard.
- * 3. Pomodoro Timer : Gestion de l'intervalle (Travail/Pause) et vibration mobile (Haptics).
- * 4. Moteur de Rendu UI (renderCours, renderClasseurs, etc.) : Injecte le HTML dynamique dans l'index.
- * 5. Moteur de Recherche : Fonction de formatage automatique (doAutoFmtScan) et filtrage par tags.
- * 6. Gestion des Modales : Ouverture/Fermeture (Ajout de cours avec gestion du QR Auto vs Manuel).
- * 7. Scanner Caméra : Utilise navigator.mediaDevices, l'API BarcodeDetector native OU le fallback jsQR.
- * 8. Export CSV : Génération et téléchargement d'un tableau récapitulatif des cours.
- * * 🛑 DIRECTIVES STRICTES DE L'UTILISATEUR :
- * - NE JAMAIS SUPPRIMER LA VARIABLE GLOBALE `D`. C'est le coeur du state de l'application.
- * - TOUTES LES FONCTIONS de rendu ou appelées par un "onclick" dans le HTML doivent 
- * obligatoirement être exposées à la fin du fichier via `window.nomFonction = nomFonction;`.
- * C'est impératif sinon le HTML ne les trouvera pas (car app.js est un module).
- * - NE PAS modifier la logique de suppression/ajout (ex: si on demande d'ajouter un bouton, 
- * ne refais pas toute la fonction renderCours pour "l'optimiser", ajoute juste le bouton).
- * - Ne jamais supprimer de fonctionnalités. L'utilisateur veut les garder pour ses tests.
- * * 🤖 REMARQUES DE L'IA (DÉVELOPPEUR ACTUEL) :
- * - Choix d'architecture : L'application n'utilise ni React ni Vue. Elle fait des manipulations 
- * DOM directes via `innerHTML` et `document.getElementById` (raccourci en `$`).
- * - Firebase : La connexion se fait sans authentification pour l'instant (Règles Firestore en mode "Test").
- * - Scanner : La logique d'arrêt de la caméra (`stopCam()`) est critique pour ne pas vider 
- * la batterie du téléphone en arrière-plan. Ne pas retirer le `camStream.getTracks().stop()`.
+ * * 🛡️ GESTIONNAIRE D'ERREURS (WATCHDOG) INTÉGRÉ :
+ * Ce fichier écoute les évènements `unhandledrejection` (erreurs réseau/Firebase).
+ * Il possède les fonctions `renderErrorLogs()` et `clearErrorLogs()` pour afficher
+ * toutes les anomalies stockées par le script Watchdog (situé dans index.html) 
+ * dans le nouvel onglet "🐛 Logs".
+ * * RÈGLES POUR L'IA :
+ * - NE JAMAIS SUPPRIMER LA VARIABLE `D` ni modifier sa structure.
+ * - Ajouter uniquement.
+ * - Exposer toutes les fonctions interactives à `window`.
  * =========================================================================================
  */
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
-// CONFIGURATION FIREBASE CLOUD FIRESTORE
+// 🛡️ INTERCEPTEUR DES ERREURS ASYNCHRONES (Firebase, Réseau, Promesses)
+window.addEventListener('unhandledrejection', function(event) {
+  const time = new Date().toLocaleTimeString();
+  const errorMsg = event.reason ? event.reason.message || event.reason : "Erreur asynchrone inconnue";
+  
+  if(!window.appErrors) window.appErrors = [];
+  window.appErrors.push({ time: time, msg: errorMsg, source: 'Firebase/Network', lineno: 0 });
+  
+  const toast = document.getElementById('errorToast');
+  const toastMsg = document.getElementById('errorToastMsg');
+  if(toast && toastMsg) { toastMsg.textContent = "Erreur Réseau : " + errorMsg; toast.classList.remove('hidden'); }
+  if(typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
+});
+
 const firebaseConfig = {
   apiKey: "AIzaSyD4pMz1ydaWgNWLX0C4HTauRE7eHkrcAfA",
   authDomain: "cours-pc-application.firebaseapp.com",
@@ -53,14 +47,12 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const docRef = doc(db, "app_data", "my_cours"); 
 
-// UTILITAIRES DOM (SÉCURISÉS)
 const $ = id => document.getElementById(id);
 const bindClick = (id, fn) => { const el = $(id); if(el) el.addEventListener('click', fn); };
 const bindInput = (id, fn) => { const el = $(id); if(el) el.addEventListener('input', fn); };
 const bindChange = (id, fn) => { const el = $(id); if(el) el.addEventListener('change', fn); };
 const bindKey = (id, key, fn) => { const el = $(id); if(el) el.addEventListener('keydown', e => { if(e.key === key) fn(e); }); };
 
-// DONNÉES PAR DÉFAUT & DONNÉES DE DÉMONSTRATION
 const IN = ['','Intro','Cours 1','Cours 2','Cours 3','Cours 4','Cours 5','Exercices','TD','TP','Fiches','Annales','Divers'];
 const COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
 
@@ -104,7 +96,6 @@ const DEMO_COURS = [
 const demoData = JSON.parse(JSON.stringify(emptyData));
 demoData.cours = DEMO_COURS;
 
-// VARIABLES GLOBALES (ÉTAT DE L'APPLICATION)
 let D = null; 
 let cloudConnected = false; 
 
@@ -136,7 +127,6 @@ function updateCloudIndicator() {
   }
 }
 
-// FONCTION SAUVEGARDE PRINCIPALE (DUAL SYNC: CLOUD + LOCAL)
 const save = async function() { 
   localStorage.setItem('mc_v28', JSON.stringify(D)); 
   try {
@@ -150,7 +140,6 @@ const save = async function() {
 
 const fmtD = d => { if(!d) return ''; const [y,m,j] = d.split('-'); return j+'/'+m+'/'+y; };
 
-// HORLOGE & FONCTIONS GLOBALES (HAPTICS)
 function triggerHaptic() {
   if (navigator.vibrate) {
     try { navigator.vibrate(50); } catch(e) {}
@@ -204,7 +193,6 @@ document.addEventListener('click', function(e) {
 function toggleFab() { const w = $('fabWrapper'); if(w) w.classList.toggle('open'); }
 function closeFab() { const w = $('fabWrapper'); if(w) w.classList.remove('open'); }
 
-// SETTINGS & DATA MANAGEMENT
 function applySettings() {
   if (D.settings.theme === 'light') document.body.classList.add('theme-light'); 
   else document.body.classList.remove('theme-light');
@@ -250,7 +238,6 @@ function resetData() {
   }
 }
 
-// POMODORO TIMER CUSTOMIZABLE
 function formatTime(s) {
   const m = Math.floor(s / 60); 
   const sc = s % 60;
@@ -290,7 +277,6 @@ function pomoReset() {
   pomoMode = 'work'; pomoTimeLeft = D.settings.pomoWork * 60; updatePomoUI();
 }
 
-// UTILITAIRES DE CHAINES & RECHERCHE
 function genUid(matId) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let rnd = '';
   for (let i = 0; i < 4; i++) rnd += chars[Math.floor(Math.random() * chars.length)];
@@ -309,10 +295,12 @@ function doAutoFmtScan(inputEl) {
   }
 }
 
-// MOTEUR DE RENDU UI (ONGELETS ET LISTES)
 function switchTab(tab, overrideResetFilters = false) {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  const map = {home:'paneHome', cours:'paneCours', notes:'paneNotes', flashcards:'paneFlashcards', print:'panePrint', classeurs:'paneClasseurs', matieres:'paneMatieres', settings:'paneSettings'};
+  
+  // 🛑 NOUVEAU ONGLET AJOUTÉ ICI ('logs':'paneLogs')
+  const map = {home:'paneHome', cours:'paneCours', notes:'paneNotes', flashcards:'paneFlashcards', print:'panePrint', classeurs:'paneClasseurs', matieres:'paneMatieres', settings:'paneSettings', logs:'paneLogs'};
+  
   Object.values(map).forEach(id => { 
     const el = $(id); if(el) { el.classList.remove('on'); el.classList.add('hidden'); }
   });
@@ -328,6 +316,10 @@ function switchTab(tab, overrideResetFilters = false) {
   if (tab === 'print') renderPrintGrid();
   if (tab === 'classeurs') renderClasseurs();
   if (tab === 'matieres') renderMatieres();
+  
+  // 🛑 ACTUALISATION DE L'ÉCRAN DES LOGS
+  if (tab === 'logs') renderErrorLogs();
+  
   window.scrollTo(0,0);
 }
 
@@ -545,7 +537,6 @@ function renderCours() {
   renderStats();
 }
 
-// ACTIONS DOCUMENT (AJOUT/MODIFICATION/LOCALISATION)
 function doLocate(uid) {
   const c = D.cours.find(x => x.uid === uid);
   if (!c) {
@@ -700,7 +691,6 @@ function saveCours() {
   renderCours(); renderDashboard(); renderNotes();
 }
 
-// GESTION DES CLASSEURS & MATIÈRES
 function renderClasseurs() {
   const g = $('clGrid'); if(!g) return;
   if (!D.classeurs.length) { g.innerHTML='<div class="empty"><h3>Aucun classeur</h3></div>'; return; }
@@ -777,7 +767,6 @@ function addMat() {
 function delMat(id) { if(!D.cours.filter(c=>c.mat===id).length || confirm('Cette matière contient des cours. Supprimer quand même ?')) { D.matieres = D.matieres.filter(m=>m.id!==id); save(); renderMatieres(); renderCours(); } }
 function delCl(id) { if(!D.cours.filter(c=>c.cl===id).length || confirm('Ce classeur contient des cours. Supprimer quand même ?')) { D.classeurs = D.classeurs.filter(c=>c.id!==id); save(); renderClasseurs(); renderCours(); } }
 
-// SYSTÈME QR CODE ET IMPRESSION 
 function showQR(uid) {
   const c = D.cours.find(x => x.uid===uid); if (!c) return;
   curQRUid = uid;
@@ -852,5 +841,232 @@ function confirmPrintSuccess(success) {
   }
 }
 
-// CAMÉRA ET SCANNER
-function open
+function openCam() {
+  if($('manualCamInput')) $('manualCamInput').value = '';
+  if($('ovCam')) $('ovCam').classList.remove('hidden');
+  if($('camSt')) { $('camSt').style.color = 'var(--gold)'; $('camSt').textContent = 'Initialisation...'; }
+  
+  try {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+      if($('camSt')) { $('camSt').textContent = "⚠️ Hors-ligne / Caméra bloquée. Saisie manuelle requise."; $('camSt').style.color = 'var(--red)'; }
+      return;
+    }
+    
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+      .then(stream => {
+        camStream = stream; const v = $('camVideo'); 
+        if(!v) return;
+        v.srcObject = stream; v.play().catch(e=>{}); 
+        
+        if('BarcodeDetector' in window) {
+          if($('camSt')) $('camSt').textContent = '🔍 Scanner (API Native)...';
+          try {
+            const bd = new BarcodeDetector({formats:['qr_code']});
+            camTick = setInterval(async () => {
+              try { const codes = await bd.detect(v); if(codes.length) processScan(codes[0].rawValue.trim().toUpperCase()); } catch(e){}
+            }, 300);
+            return;
+          } catch(e) {}
+        }
+        
+        if (typeof jsQR !== 'undefined') {
+          if($('camSt')) $('camSt').textContent = '🔍 Scanner (jsQR)...';
+          camTick = setInterval(() => {
+            if(v.readyState !== 4 || v.videoWidth === 0) return;
+            try {
+              const cv = $('camCanvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
+              const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v,0,0, cv.width, cv.height);
+              const d = ctx.getImageData(0,0,cv.width,cv.height);
+              const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'dontInvert'});
+              if(code) processScan(code.data.trim().toUpperCase());
+            } catch(e){}
+          }, 300);
+        } else {
+          if($('camSt')) { $('camSt').textContent = '⚠️ Hors Ligne: jsQR non chargé. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
+        }
+      }).catch(err => { 
+        if($('camSt')) { $('camSt').textContent = '❌ Caméra bloquée. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
+      });
+  } catch(e) {
+    if($('camSt')) { $('camSt').textContent = '❌ Erreur interne.'; $('camSt').style.color = 'var(--red)'; }
+  }
+}
+
+function manualScan() {
+  const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
+  if(v) processScan(v);
+}
+
+function processScan(uid) {
+  stopCam();
+  if($('mainSearch')) $('mainSearch').value = uid;
+  doLocate(uid);
+}
+
+function exportCsv() {
+  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
+  const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  const rows = D.cours.map(c => {
+    const mo = D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
+    const co = D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
+    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.date||'', c.stat].map(esc).join(',');
+  });
+  const csv = [hdr.join(','), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mes-cours-prepa.csv'; a.click();
+}
+
+function homeGo() {
+  const v = $('homeSearch') ? $('homeSearch').value.trim().toUpperCase() : '';
+  if(v.includes('-') && v.length >= 8) { doLocate(v); } 
+  else { 
+    switchTab('cours'); 
+    if($('mainSearch')) $('mainSearch').value = v; 
+    renderCours(); 
+    triggerHaptic(); 
+  }
+}
+
+// 🛑 NOUVELLES FONCTIONS POUR L'ONGLET DES LOGS
+function renderErrorLogs() {
+  const container = $('errorLogContainer');
+  if(!container) return;
+  
+  if(!window.appErrors || window.appErrors.length === 0) {
+    container.innerHTML = '<div style="text-align:center; color:var(--mut); margin-top:50px;">Aucune erreur détectée. Tout va bien ! 🎉</div>';
+    return;
+  }
+  
+  container.innerHTML = window.appErrors.map(e => `
+    <div style="background:rgba(240,96,96,.1); border-left:4px solid var(--red); padding:10px; border-radius:4px;">
+      <div style="font-size:11px; color:var(--mut);">${e.time} — Source: ${e.source}</div>
+      <div style="font-family:'DM Mono', monospace; font-size:13px; color:var(--red); margin-top:4px;">${e.msg}</div>
+    </div>
+  `).reverse().join(''); // Reverse pour avoir les erreurs récentes en haut
+}
+
+function clearErrorLogs() {
+  if(!confirm("Vider l'historique des erreurs ?")) return;
+  window.appErrors = [];
+  renderErrorLogs();
+}
+
+// EXPOSITION DES FONCTIONS GLOBALES (Pour les onclick HTML)
+window.switchTab = switchTab;
+window.renderCours = renderCours;
+window.doLocate = doLocate;
+window.showQR = showQR;
+window.editCours = editCours;
+window.delCours = delCours;
+window.delCl = delCl;
+window.delMat = delMat;
+window.setNewColor = setNewColor;
+window.toggleSel = toggleSel;
+window.addCl = addCl;
+window.addMat = addMat;
+window.manualScan = manualScan;
+window.stopCam = stopCam;
+window.saveCours = saveCours;
+window.loadDemo = loadDemo;
+window.resetData = resetData;
+window.toggleFab = toggleFab;
+window.closeFab = closeFab;
+window.triggerHaptic = triggerHaptic;
+window.exportCsv = exportCsv;
+window.openModalCours = openModalCours;
+window.openCam = openCam;
+window.toggleManualUid = toggleManualUid; 
+
+// EXPOSITION DES NOUVELLES FONCTIONS D'ERREUR
+window.renderErrorLogs = renderErrorLogs;
+window.clearErrorLogs = clearErrorLogs;
+
+// ATTACHEMENT DYNAMIQUE DES ÉVÉNEMENTS
+bindClick('btnOpenSettings', () => switchTab('settings'));
+bindClick('btnRefresh', () => location.reload());
+bindClick('btnThemeToggle', () => { D.settings.theme = D.settings.theme === 'light' ? 'dark' : 'light'; save(); applySettings(); });
+bindClick('btnCompactToggle', () => { D.settings.compact = !D.settings.compact; save(); applySettings(); });
+bindClick('btnStatsToggle', () => { D.settings.showStats = !D.settings.showStats; save(); applySettings(); });
+bindClick('btnChipsToggle', () => { D.settings.showChips = !D.settings.showChips; save(); applySettings(); });
+bindClick('btnDashHeroToggle', () => { D.settings.showDashHero = !D.settings.showDashHero; save(); applySettings(); });
+bindClick('btnDashRevToggle', () => { D.settings.showDashRev = !D.settings.showDashRev; save(); applySettings(); });
+bindClick('btnDashOverToggle', () => { D.settings.showDashOver = !D.settings.showDashOver; save(); applySettings(); });
+bindClick('btnPomoVisToggle', () => { D.settings.showPomo = !D.settings.showPomo; save(); applySettings(); });
+
+bindChange('setTemplate', (e) => { D.settings.template = e.target.value; save(); applySettings(); });
+bindInput('setPomoWork', (e) => { D.settings.pomoWork = parseInt(e.target.value) || 25; save(); pomoReset(); });
+bindInput('setPomoBreak', (e) => { D.settings.pomoBreak = parseInt(e.target.value) || 5; save(); pomoReset(); });
+bindInput('setUserName', (e) => { D.settings.userName = e.target.value.trim() || "Étudiant"; save(); applySettings(); });
+
+bindClick('btnPomoToggle', pomoToggle);
+bindClick('btnPomoReset', pomoReset);
+bindInput('homeSearch', () => { doAutoFmtScan($('homeSearch')); });
+bindKey('homeSearch', 'Enter', homeGo);
+bindClick('btnHomeSearch', homeGo);
+bindClick('btnHomeCam', openCam);
+bindClick('btnKholleDraw', drawKholle);
+
+bindInput('mainSearch', () => { doAutoFmtScan($('mainSearch')); renderCours(); });
+bindKey('mainSearch', 'Enter', () => { 
+  const v = $('mainSearch').value.trim().toUpperCase(); 
+  if(v) doLocate(v); 
+});
+bindClick('btnLocate', () => { const v = $('mainSearch') ? $('mainSearch').value.trim().toUpperCase() : ''; if(v) doLocate(v); });
+
+bindClick('btnCancelCours', closeModalCours);
+bindChange('fType', toggleNoteField);
+
+bindClick('btnAddCl', addCl);
+bindClick('btnAddMat', addMat);
+
+['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, renderCours); });
+bindClick('btnResetFilters', resetFilters);
+
+bindClick('btnSelPending', selPending);
+bindClick('btnSelAll', selAll);
+bindClick('btnDesel', selNone);
+bindClick('btnDoPrint', executePrint);
+bindClick('btnConfirmPrintYes', () => confirmPrintSuccess(true));
+bindClick('btnConfirmPrintNo', () => confirmPrintSuccess(false));
+
+bindClick('btnCloseLocPopup', closeLocPopup);
+bindClick('btnMarkOnePrinted', markOnePrinted);
+bindClick('btnCloseQR', closeQRModal);
+bindClick('btnDlQR', dlQR);
+
+// LANCEMENT DE L'APPLICATION AVEC RÉCUPÉRATION FIRESTORE
+async function initApp() {
+  try {
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      D = docSnap.data();
+      cloudConnected = true;
+    } else {
+      const rawData = localStorage.getItem('mc_v28');
+      D = rawData ? JSON.parse(rawData) : null;
+      cloudConnected = true;
+    }
+  } catch (e) {
+    // Si ça plante ici, ça partira automatiquement dans le gestionnaire d'erreurs (Logs) !
+    const rawData = localStorage.getItem('mc_v28');
+    D = rawData ? JSON.parse(rawData) : null;
+    cloudConnected = false;
+  }
+
+  updateCloudIndicator();
+
+  if(!D) D = JSON.parse(JSON.stringify(emptyData));
+  if(!D.cours) D.cours = [];
+  if(!D.classeurs) D.classeurs = JSON.parse(JSON.stringify(emptyData.classeurs));
+  if(!D.matieres) D.matieres = JSON.parse(JSON.stringify(emptyData.matieres));
+  if(!D.settings) D.settings = JSON.parse(JSON.stringify(emptyData.settings));
+  if(D.settings.showPomo === undefined) D.settings.showPomo = true;
+  if(D.settings.pomoWork === undefined) D.settings.pomoWork = 25;
+  if(D.settings.pomoBreak === undefined) D.settings.pomoBreak = 5;
+  if(D.settings.template === undefined) D.settings.template = 'glass';
+
+  applySettings();
+  switchTab('home');
+}
+
+initApp();
