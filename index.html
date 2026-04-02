@@ -7,8 +7,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
-<script src="jsQR.js?v=3"></script>
-<dlink rel="stylesheet?v=3" href="style.css">
+
+<script>
+  (function(){
+    var v = new Date().getTime(); // Génère l'heure en millisecondes
+    document.write('<link rel="stylesheet" href="style.css?v=' + v + '">');
+    document.write('<script src="jsQR.js?v=' + v + '"><\/script>');
+  })();
+</script>
 
 <script>
   window.appErrors = []; // Historique global des erreurs
@@ -17,16 +23,14 @@
     const shortSource = source ? source.split('/').pop() : 'Inconnu';
     window.appErrors.push({ time: time, msg: message, source: shortSource, lineno: lineno });
     
-    // Affichage de l'alerte flottante
     const toast = document.getElementById('errorToast');
     const toastMsg = document.getElementById('errorToastMsg');
     if(toast && toastMsg) { 
       toastMsg.textContent = "Erreur : " + message; 
       toast.classList.remove('hidden'); 
     }
-    // Mise à jour de l'onglet Logs si la fonction existe déjà
     if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
-    return false; // Laisse l'erreur apparaître dans la console classique aussi
+    return false; 
   };
 </script>
 </head>
@@ -391,8 +395,16 @@
 
 <div id="printZone"></div>
 
-<script src="qr-generator.js?v=2"></script>
-<script type="module" src="app.js?v=2"></script>
+<script>
+  (function(){
+    var v = new Date().getTime();
+    document.write('<script src="qr-generator.js?v=' + v + '"><\/script>');
+    document.write('<script type="module" src="app.js?v=' + v + '"><\/script>');
+  })();
+</script>
 
 </body>
 </html>
+
+
+
