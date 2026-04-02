@@ -1,4 +1,28 @@
-// qr-generator.js - Moteur statique de génération de QR Codes hors-ligne
+/**
+ * =========================================================================================
+ * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
+ * =========================================================================================
+ * NOM DU PROJET : Mes Cours - PC* Edition
+ * TYPE : Module utilitaire global (qr-generator.js)
+ * * 🏗️ RÔLE DE CE FICHIER DANS L'ARCHITECTURE :
+ * Ce fichier a été isolé de l'index.html principal pour ne pas polluer la vue.
+ * Il contient le moteur mathématique permettant de générer des codes QR
+ * 100 % HORS-LIGNE sans faire d'appel à une API externe payante ou instable.
+ * * 🚀 FONCTIONNEMENT :
+ * Il utilise l'algorithme de correction d'erreurs Reed-Solomon et les polynômes
+ * pour transformer une chaîne de caractères (l'UID d'un cours) en une matrice 
+ * dessinable sur un Canvas HTML5. Il exporte ensuite le résultat en image (Base64).
+ * * 🛑 DIRECTIVES STRICTES DE L'UTILISATEUR :
+ * - Le code contenu ici est ultra-spécifique, minifié et optimisé mathématiquement. 
+ * - Ne cherche JAMAIS à le modifier, le reformater ou l'optimiser pour gagner des lignes.
+ * - Ne JAMAIS supprimer ce fichier, l'application entière repose dessus pour l'impression.
+ * * 🤖 REMARQUES DE L'IA (DÉVELOPPEUR ACTUEL) :
+ * - L'objet principal `_QR` est exposé globalement via `window._QR`. 
+ * Il expose la fonction `makeImageURL(text, size)` qui retourne un DataURL en PNG.
+ * - Ce fichier est chargé statiquement dans `<head>` ou à la fin du `<body>` via 
+ * une balise `<script src="qr-generator.js"></script>`.
+ * =========================================================================================
+ */
 
 window._QR = (function(){
   var EXP = new Array(256);
