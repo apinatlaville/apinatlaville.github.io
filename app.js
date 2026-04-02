@@ -874,12 +874,24 @@ function openCam() {
           camTick = setInterval(() => {
             if(v.readyState !== 4 || v.videoWidth === 0) return;
             try {
-              const cv = $('camCanvas'); cv.width = v.videoWidth; cv.height = v.videoHeight;
-              const ctx = cv.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v,0,0, cv.width, cv.height);
+              const cv = $('camCanvas'); 
+              cv.width = v.videoWidth; 
+              cv.height = v.videoHeight;
+              
+              // CORRECTION 1 : On enlève le paramètre qui fait planter Safari en silence
+              const ctx = cv.getContext('2d'); 
+              ctx.drawImage(v,0,0, cv.width, cv.height);
               const d = ctx.getImageData(0,0,cv.width,cv.height);
-              const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'dontInvert'});
-              if(code) processScan(code.data.trim().toUpperCase());
-            } catch(e){}
+              
+              // CORRECTION 2 : "attemptBoth" force jsQR à analyser plus fort (vital pour les écrans)
+              const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'attemptBoth'});
+              if(code && code.data) processScan(code.data.trim().toUpperCase());
+            } catch(e){
+              // CORRECTION 3 : Si ça plante, ça part direct dans ton onglet Logs !
+              if(window.appErrors) {
+                window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Scanner: " + e.message, source: 'app.js', lineno: 0 });
+              }
+            }
           }, 300);
         } else {
           if($('camSt')) { $('camSt').textContent = '⚠️ Hors Ligne: jsQR non chargé. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
@@ -891,6 +903,7 @@ function openCam() {
     if($('camSt')) { $('camSt').textContent = '❌ Erreur interne.'; $('camSt').style.color = 'var(--red)'; }
   }
 }
+
 
 function manualScan() {
   const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
