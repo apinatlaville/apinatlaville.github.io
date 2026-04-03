@@ -10,27 +10,30 @@
 
 <script>
   (function(){
-    var v = new Date().getTime(); // Anti-cache
+    var v = new Date().getTime(); // Génère l'heure en millisecondes pour forcer le téléchargement
     document.write('<link rel="stylesheet" href="style.css?v=' + v + '">');
-    // 🆕 ON APPELLE LE NOUVEAU SCANNER ICI
+    // ON APPELLE LE NOUVEAU SCANNER ICI
     document.write('<script src="html5-qrcode.js?v=' + v + '"><\/script>');
   })();
 </script>
 
 <script>
-  window.appErrors = [];
+  window.appErrors = []; // Historique global des erreurs
   window.onerror = function(message, source, lineno, colno, error) {
     const time = new Date().toLocaleTimeString();
     const shortSource = source ? source.split('/').pop() : 'Inconnu';
     window.appErrors.push({ time: time, msg: message, source: shortSource, lineno: lineno });
+    
+    // Affichage de l'alerte flottante
     const toast = document.getElementById('errorToast');
     const toastMsg = document.getElementById('errorToastMsg');
     if(toast && toastMsg) { 
       toastMsg.textContent = "Erreur : " + message; 
       toast.classList.remove('hidden'); 
     }
+    // Mise à jour de l'onglet Logs si la fonction existe déjà
     if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
-    return false;
+    return false; // Laisse l'erreur apparaître dans la console classique aussi
   };
 </script>
 </head>
@@ -415,4 +418,6 @@
 </script>
 
 </body>
+</html>
+
 </html>
