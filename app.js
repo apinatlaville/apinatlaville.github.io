@@ -706,19 +706,20 @@ function saveCours() {
 function renderClasseurs() {
   const g = $('clGrid'); if(!g) return;
 
-  // Bouton d'édition en haut
   let html = '<div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="bs" onclick="window.toggleEditCl()" style="padding:6px 12px; font-size:12px; border-color:var(--bd);">' + (isEditingCl ? '✅ Terminer' : '✏️ Modifier') + '</button></div>';
 
   if (!D.classeurs.length) { g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>'; return; }
   
   html += D.classeurs.map(cl => {
     const cc = D.cours.filter(c => c.cl===cl.id);
-    cc.sort((a,b) => a.inter.localeCompare(b.inter)); // Trie les cours par intercalaire
+    cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
 
-    // Le bouton de suppression n'apparaît que si le mode édition est actif
-    let delBtn = isEditingCl ? `<button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:10px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>` : '';
+    // Les boutons apparaissent si on est en mode édition
+    let editBtns = isEditingCl ? `
+      <button class="cbt" style="padding:4px 8px; margin-left:10px;" onclick="event.stopPropagation(); window.renameCl('${cl.id}')">✏️ Nom</button>
+      <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
+    ` : '';
 
-    // Menu accordéon avec le VRAI nom des cours
     let coursesList = cc.length ? cc.map(c => `
       <div class="irow" onclick="window.doLocate('${c.uid}')">
         <div>
@@ -734,7 +735,7 @@ function renderClasseurs() {
         <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
           <div class="cl-ico" style="background:${cl.color}20">${cl.icon}</div>
           <div class="cl-info" style="flex:1;"><div class="cl-nm">${cl.name}</div><div class="cl-sb">${cc.length} documents</div></div>
-          ${delBtn}
+          ${editBtns}
           <div style="color:var(--mut); font-size:12px; margin-left:8px;">▼</div>
         </div>
         <div class="ilist" id="ili_${cl.id}">
@@ -884,11 +885,17 @@ function confirmPrintSuccess(success) {
 function openCam() {
   if($('manualCamInput')) $('manualCamInput').value = '';
   if($('ovCam')) $('ovCam').classList.remove('hidden');
-  if($('camSt')) { $('camSt').style.color = 'var(--gold)'; $('camSt').textContent = 'Initialisation...'; }
+  
+  let frameCount = 0; // On va compter les images pour voir si ça freeze
+
+  if($('camSt')) { 
+    $('camSt').style.color = 'var(--gold)'; 
+    $('camSt').innerHTML = 'Initialisation de la caméra...'; 
+  }
   
   try {
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-      if($('camSt')) { $('camSt').textContent = "⚠️ Hors-ligne / Caméra bloquée. Saisie manuelle requise."; $('camSt').style.color = 'var(--red)'; }
+      if($('camSt')) $('camSt').innerHTML = "⚠️ API Caméra bloquée par le navigateur.";
       return;
     }
     
@@ -898,48 +905,58 @@ function openCam() {
         if(!v) return;
         v.srcObject = stream; v.play().catch(e=>{}); 
         
-        if('BarcodeDetector' in window) {
-          if($('camSt')) $('camSt').textContent = '🔍 Scanner (API Native)...';
-          try {
-            const bd = new BarcodeDetector({formats:['qr_code']});
-            camTick = setInterval(async () => {
-              try { const codes = await bd.detect(v); if(codes.length) processScan(codes[0].rawValue.trim().toUpperCase()); } catch(e){}
-            }, 100);
-            return;
-          } catch(e) {}
-        }
+        // On vérifie d'abord si jsQR est bien là
+        const jsqrStatus = typeof jsQR !== 'undefined' ? '✅ Actif' : '❌ Non trouvé';
         
-        if (typeof jsQR !== 'undefined') {
-          if($('camSt')) $('camSt').textContent = '🔍 Scanner (jsQR)...';
-          camTick = setInterval(() => {
-            if(v.readyState !== 4 || v.videoWidth === 0) return;
-            try {
-              const cv = $('camCanvas'); 
-              cv.width = v.videoWidth; 
-              cv.height = v.videoHeight;
-              
-              const ctx = cv.getContext('2d'); 
-              ctx.drawImage(v,0,0, cv.width, cv.height);
-              const d = ctx.getImageData(0,0,cv.width,cv.height);
-              
+        camTick = setInterval(() => {
+          if(v.readyState !== 4 || v.videoWidth === 0) {
+             if($('camSt')) $('camSt').innerHTML = `⏳ Chargement vidéo... (jsQR: ${jsqrStatus})`;
+             return;
+          }
+          
+          frameCount++;
+          
+          // AFFICHAGE DU RADAR POUR "MES YEUX" 👀
+          if($('camSt')) {
+            $('camSt').innerHTML = `
+              <div style="font-size:11px; text-align:left; background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; color:#fff;">
+                <b>jsQR:</b> ${jsqrStatus}<br>
+                <b>Résolution:</b> ${v.videoWidth} x ${v.videoHeight}<br>
+                <b>Frames analysées:</b> ${frameCount}<br>
+                <b>État:</b> Recherche de QR...
+              </div>
+            `;
+          }
+
+          try {
+            const cv = $('camCanvas'); 
+            cv.width = v.videoWidth; 
+            cv.height = v.videoHeight;
+            
+            const ctx = cv.getContext('2d'); 
+            ctx.drawImage(v, 0, 0, cv.width, cv.height);
+            const d = ctx.getImageData(0, 0, cv.width, cv.height);
+            
+            if(typeof jsQR !== 'undefined') {
               const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'attemptBoth'});
-              if(code && code.data) processScan(code.data.trim().toUpperCase());
-            } catch(e){
-              if(window.appErrors) {
-                window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Scanner: " + e.message, source: 'app.js', lineno: 0 });
+              if(code && code.data) {
+                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé ! Traitement...";
+                processScan(code.data.trim().toUpperCase());
               }
             }
-          }, 300);
-        } else {
-          if($('camSt')) { $('camSt').textContent = '⚠️ Hors Ligne: jsQR non chargé. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
-        }
+          } catch(e) {
+            if($('camSt')) $('camSt').innerHTML += `<br><span style="color:red">Erreur: ${e.message}</span>`;
+          }
+        }, 150); 
+        
       }).catch(err => { 
-        if($('camSt')) { $('camSt').textContent = '❌ Caméra bloquée. Saisie manuelle.'; $('camSt').style.color = 'var(--red)'; }
+        if($('camSt')) $('camSt').innerHTML = `❌ Erreur caméra: ${err.message}`; 
       });
   } catch(e) {
-    if($('camSt')) { $('camSt').textContent = '❌ Erreur interne.'; $('camSt').style.color = 'var(--red)'; }
+    if($('camSt')) $('camSt').innerHTML = `❌ Crash: ${e.message}`; 
   }
 }
+
 
 function manualScan() {
   const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
@@ -951,6 +968,20 @@ function processScan(uid) {
   if($('mainSearch')) $('mainSearch').value = uid;
   doLocate(uid);
 }
+
+window.renameCl = function(id) {
+  const cl = D.classeurs.find(c => c.id === id);
+  if(!cl) return;
+  const newName = prompt(`Nouveau nom pour le classeur (Code ${id}) :`, cl.name);
+  if(newName && newName.trim() !== '') {
+    cl.name = newName.trim();
+    save();
+    renderClasseurs();
+    renderCours();
+  }
+};
+
+
 
 function exportCsv() {
   const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
