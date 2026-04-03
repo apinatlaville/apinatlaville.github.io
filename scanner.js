@@ -5,35 +5,9 @@
  * NOM DU PROJET : Mes Cours - PC* Edition
  * FICHIER ACTUEL : scanner.js (Caméra, Code-barres 1D et Impression)
  * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
- * L'application est divisée en plusieurs fichiers pour sécuriser les modifications :
  * 1. app.js      : Cœur (Firebase, État global window.D, Navigation, Paramètres).
  * 2. data.js     : Gestion des données (Cours, Classeurs, Matières) et grilles HTML.
  * 3. scanner.js  : [CE FICHIER] Scanner de codes-barres 1D et logique d'impression.
- * * 👉 RÈGLE POUR L'IA : Si l'utilisateur demande une modification sur le scanner (Html5Qrcode),
- * sur le rendu des codes-barres (JsBarcode) ou sur la liste d'impression, TOUT se trouve ici.
- * * 🎯 RÔLE DE CE FICHIER :
- * - `getBarcodeURL` : Génère l'image PNG du code 128 avec JsBarcode.
- * - `openCam` / `stopCam` : Gère le moteur brut de `Html5Qrcode` (sans UI).
- * - `executePrint` : Prépare la file d'attente et lance window.print().
- * * ⚠️ RÈGLES STRICTES DE MODIFICATION :
- * - NE JAMAIS SUPPRIMER cette documentation.
- * - Ne rien enlever, ajouter uniquement.
- * - L'état global est stocké dans `window.D`.
- * =========================================================================================
- */
-
-/**
- * =========================================================================================
- * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
- * =========================================================================================
- * NOM DU PROJET : Mes Cours - PC* Edition
- * FICHIER ACTUEL : scanner.js (Caméra, Code-barres 1D et Impression)
- * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
- * 1. app.js      : Cœur (Firebase, État global window.D, Navigation, Paramètres).
- * 2. data.js     : Gestion des données (Cours, Classeurs, Matières) et grilles HTML.
- * 3. scanner.js  : [CE FICHIER] Scanner de codes-barres 1D et logique d'impression.
- * * 👉 RÈGLE POUR L'IA : Si l'utilisateur demande une modification sur le scanner (Html5Qrcode),
- * sur le rendu des codes-barres (JsBarcode) ou sur la liste d'impression, TOUT se trouve ici.
  * =========================================================================================
  */
 
@@ -70,9 +44,7 @@ window.showQR = function(uid) {
   if(window.$('qrLbl')) window.$('qrLbl').textContent = uid;
   
   if(window.$('qrBox')) {
-    window.$('qrBox').innerHTML = `
-      <img src="${window.getBarcodeURL(uid)}" style="border-radius:6px; margin:0 auto; width:100%; max-width:250px;">
-    `;
+    window.$('qrBox').innerHTML = `<img src="${window.getBarcodeURL(uid)}" style="border-radius:6px; margin:0 auto; width:100%; max-width:250px;">`;
   }
   
   if(window.$('btnMarkOnePrinted')) {
@@ -124,28 +96,14 @@ window.renderPrintGrid = function() {
 };
 
 window.toggleSel = function(uid) {
-  if (window.printSel.has(uid)) {
-    window.printSel.delete(uid);
-  } else {
-    window.printSel.add(uid);
-  }
+  if (window.printSel.has(uid)) window.printSel.delete(uid);
+  else window.printSel.add(uid);
   window.renderPrintGrid();
 };
 
-window.selPending = function() { 
-  window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); 
-  window.renderPrintGrid(); 
-};
-
-window.selAll = function() { 
-  window.printSel = new Set(window.D.cours.map(c=>c.uid)); 
-  window.renderPrintGrid(); 
-};
-
-window.selNone = function() { 
-  window.printSel.clear(); 
-  window.renderPrintGrid(); 
-};
+window.selPending = function() { window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); window.renderPrintGrid(); };
+window.selAll = function() { window.printSel = new Set(window.D.cours.map(c=>c.uid)); window.renderPrintGrid(); };
+window.selNone = function() { window.printSel.clear(); window.renderPrintGrid(); };
 
 window.executePrint = function() {
   const sel = window.D.cours.filter(c => window.printSel.has(c.uid));
@@ -161,22 +119,38 @@ window.executePrint = function() {
   sel.forEach(c => {
     pz.innerHTML += `
       <div class="print-label">
-        <img src="${window.getBarcodeURL(c.uid)}" style="width:90%; height:60px; object-fit:contain;">
+        <img src="${window.getBarcodeURL(c.uid)}">
         <div class="pl-uid">${c.uid}</div>
         <div class="pl-title">${c.title.substring(0,35)}</div>
       </div>`;
   });
   
+  // 1 seconde de délai pour s'assurer que Safari a le temps de dessiner l'image
   setTimeout(() => {
     window.print();
     setTimeout(() => {
       pz.innerHTML = '';
       if(window.$('ovPrintConfirm')) window.$('ovPrintConfirm').classList.remove('hidden');
     }, 500);
-  }, 800);
+  }, 1000);
 };
 
-// 🆕 LE NOUVEAU SCANNER "HTML5-QRCODE" (MOTEUR PUR SANS INTERFACE)
+// 🚨 LA FONCTION QUI MANQUAIT EST ICI 🚨
+window.confirmPrintSuccess = function(success) {
+  window.closePrintConfirm();
+  if(success) {
+    window.printSel.forEach(uid => {
+      const x = window.D.cours.find(d=>d.uid===uid);
+      if(x && x.stat==='pending') x.stat = 'printed';
+    });
+    window.save(); 
+    window.printSel.clear(); 
+    window.renderCours(); 
+    window.renderPrintGrid(); 
+    window.renderDashboard();
+  }
+};
+
 window.openCam = function() {
   if(window.$('manualCamInput')) window.$('manualCamInput').value = '';
   if(window.$('ovCam')) window.$('ovCam').classList.remove('hidden');
@@ -186,13 +160,10 @@ window.openCam = function() {
     window.$('camSt').innerHTML = 'Démarrage de la caméra arrière...';
   }
 
-  if (window.html5QrCode) {
-    try { window.html5QrCode.clear(); } catch(e) {}
-  }
+  if (window.html5QrCode) { try { window.html5QrCode.clear(); } catch(e) {} }
 
   try {
     window.html5QrCode = new window.Html5Qrcode("reader");
-
     const config = { fps: 15 };
 
     window.html5QrCode.start(
