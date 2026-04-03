@@ -22,6 +22,23 @@
  * =========================================================================================
  */
 
+/**
+ * =========================================================================================
+ * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
+ * =========================================================================================
+ * NOM DU PROJET : Mes Cours - PC* Edition
+ * FICHIER ACTUEL : app.js (Cœur et Orchestrateur)
+ * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
+ * L'application est divisée en plusieurs fichiers pour sécuriser les modifications :
+ * 1. app.js      : [CE FICHIER] Base de données Firebase, État global (window.D), 
+ * Navigation (Onglets), Pomodoro et Watchdog.
+ * 2. data.js     : Gestion des données (Cours, Classeurs, Matières) et grilles HTML.
+ * 3. scanner.js  : Scanner de codes-barres 1D et logique d'impression.
+ * * 👉 RÈGLE POUR L'IA : Ce fichier contient uniquement les initialisations, les boutons
+ * globaux et Firebase. TOUTE LA LOGIQUE MÉTIER est dans les autres fichiers.
+ * =========================================================================================
+ */
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
@@ -35,8 +52,13 @@ window.addEventListener('unhandledrejection', function(event) {
   
   const toast = document.getElementById('errorToast');
   const toastMsg = document.getElementById('errorToastMsg');
-  if(toast && toastMsg) { toastMsg.textContent = "Erreur Réseau : " + errorMsg; toast.classList.remove('hidden'); }
-  if(typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
+  if(toast && toastMsg) {
+    toastMsg.textContent = "Erreur Réseau : " + errorMsg;
+    toast.classList.remove('hidden');
+  }
+  if(typeof window.renderErrorLogs === 'function') {
+    window.renderErrorLogs();
+  }
 });
 
 const firebaseConfig = {
@@ -59,23 +81,6 @@ const bindInput = (id, fn) => { const el = window.$(id); if(el) el.addEventListe
 const bindChange = (id, fn) => { const el = window.$(id); if(el) el.addEventListener('change', fn); };
 const bindKey = (id, key, fn) => { const el = window.$(id); if(el) el.addEventListener('keydown', e => { if(e.key === key) fn(e); }); };
 
-window.PC_FLASHCARDS = [
-  { mat: 'Physique', q: 'Loi de Fourier (Conduction thermique)', a: 'jQ = - λ . grad(T)' },
-  { mat: 'Physique', q: 'Équation de Maxwell-Faraday', a: 'rot(E) = - ∂B / ∂t' },
-  { mat: 'Physique', q: 'Équation de Maxwell-Ampère', a: 'rot(B) = μ0.j + μ0.ε0.(∂E/∂t)' }
-];
-
-window.emptyData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
-  matieres: [
-    {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'}
-  ],
-  classeurs: [
-    {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter: 12, interNames: {}}
-  ],
-  cours: [] 
-};
-
 window.D = null; 
 window.cloudConnected = false; 
 window.pomoInterval = null; 
@@ -84,12 +89,18 @@ window.pomoRunning = false;
 window.pomoMode = 'work'; 
 
 window.updateCloudIndicator = function() {
-  const d = window.$('cDot'); const t = window.$('cTxt');
+  const d = window.$('cDot');
+  const t = window.$('cTxt');
   if(!d || !t) return;
+  
   if(window.cloudConnected) {
-    d.style.background = 'var(--grn)'; d.style.boxShadow = '0 0 8px var(--grn)'; t.textContent = 'En ligne';
+    d.style.background = 'var(--grn)';
+    d.style.boxShadow = '0 0 8px var(--grn)';
+    t.textContent = 'En ligne';
   } else {
-    d.style.background = 'var(--red)'; d.style.boxShadow = '0 0 8px var(--red)'; t.textContent = 'Local';
+    d.style.background = 'var(--red)';
+    d.style.boxShadow = '0 0 8px var(--red)';
+    t.textContent = 'Local';
   }
 };
 
@@ -97,13 +108,23 @@ window.save = async function() {
   localStorage.setItem('mc_v28', JSON.stringify(window.D)); 
   try {
     await setDoc(window.docRef, window.D);
-    if(!window.cloudConnected) { window.cloudConnected = true; window.updateCloudIndicator(); }
+    if(!window.cloudConnected) {
+      window.cloudConnected = true;
+      window.updateCloudIndicator();
+    }
   } catch(e) {
-    if(window.cloudConnected) { window.cloudConnected = false; window.updateCloudIndicator(); }
+    if(window.cloudConnected) {
+      window.cloudConnected = false;
+      window.updateCloudIndicator();
+    }
   }
 };
 
-window.triggerHaptic = function() { if (navigator.vibrate) { try { navigator.vibrate(50); } catch(e) {} } };
+window.triggerHaptic = function() {
+  if (navigator.vibrate) {
+    try { navigator.vibrate(50); } catch(e) {}
+  }
+};
 
 window.updateClock = function() {
   const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
@@ -111,7 +132,8 @@ window.updateClock = function() {
   const el = window.$('dateTimeDisp');
   if(el) el.textContent = dtStr.charAt(0).toUpperCase() + dtStr.slice(1);
 };
-setInterval(window.updateClock, 1000); window.updateClock();
+setInterval(window.updateClock, 1000); 
+window.updateClock();
 
 window.closeLocPopup = function() { const lp = window.$('locPopup'); if(lp) lp.classList.remove('open'); };
 window.closeModalCours = function() { const ov = window.$('ovCours'); if(ov) ov.classList.add('hidden'); };
@@ -129,19 +151,36 @@ document.addEventListener('click', function(e) {
     }
   });
   const w = window.$('fabWrapper');
-  if (w && w.classList.contains('open') && !w.contains(e.target)) w.classList.remove('open');
+  if (w && w.classList.contains('open') && !w.contains(e.target)) {
+    w.classList.remove('open');
+  }
 });
 
-window.toggleFab = function() { const w = window.$('fabWrapper'); if(w) w.classList.toggle('open'); };
-window.closeFab = function() { const w = window.$('fabWrapper'); if(w) w.classList.remove('open'); };
+window.toggleFab = function() {
+  const w = window.$('fabWrapper');
+  if(w) w.classList.toggle('open');
+};
+
+window.closeFab = function() {
+  const w = window.$('fabWrapper');
+  if(w) w.classList.remove('open');
+};
 
 window.applySettings = function() {
-  if (window.D.settings.theme === 'light') document.body.classList.add('theme-light'); 
-  else document.body.classList.remove('theme-light');
+  if (window.D.settings.theme === 'light') {
+    document.body.classList.add('theme-light'); 
+  } else {
+    document.body.classList.remove('theme-light');
+  }
+  
   document.body.classList.remove('tmpl-default', 'tmpl-glass', 'tmpl-neo');
   document.body.classList.add('tmpl-' + window.D.settings.template);
-  if (window.D.settings.compact) document.body.classList.add('mode-compact'); 
-  else document.body.classList.remove('mode-compact');
+
+  if (window.D.settings.compact) {
+    document.body.classList.add('mode-compact'); 
+  } else {
+    document.body.classList.remove('mode-compact');
+  }
 
   if(window.$('statsBand')) window.$('statsBand').classList.toggle('hidden-ui', !window.D.settings.showStats);
   if(window.$('matChips')) window.$('matChips').classList.toggle('hidden-ui', !window.D.settings.showChips);
@@ -152,23 +191,41 @@ window.applySettings = function() {
   
   if(window.$('btnThemeToggle')) window.$('btnThemeToggle').textContent = window.D.settings.theme === 'light' ? 'Passer Sombre' : 'Passer Clair';
   if(window.$('btnCompactToggle')) window.$('btnCompactToggle').textContent = window.D.settings.compact ? 'Activé' : 'Désactivé';
+  if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
+  if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
+  if(window.$('btnDashHeroToggle')) window.$('btnDashHeroToggle').textContent = window.D.settings.showDashHero ? 'Oui' : 'Non';
+  if(window.$('btnDashRevToggle')) window.$('btnDashRevToggle').textContent = window.D.settings.showDashRev ? 'Oui' : 'Non';
+  if(window.$('btnDashOverToggle')) window.$('btnDashOverToggle').textContent = window.D.settings.showDashOver ? 'Oui' : 'Non';
+  if(window.$('btnPomoVisToggle')) window.$('btnPomoVisToggle').textContent = window.D.settings.showPomo ? 'Affiché' : 'Masqué';
+  
   if(window.$('setUserName')) window.$('setUserName').value = window.D.settings.userName;
+  if(window.$('setTemplate')) window.$('setTemplate').value = window.D.settings.template;
+  if(window.$('setPomoWork')) window.$('setPomoWork').value = window.D.settings.pomoWork;
+  if(window.$('setPomoBreak')) window.$('setPomoBreak').value = window.D.settings.pomoBreak;
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
 };
 
 window.loadDemo = function() {
   if(confirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?")) {
-    window.D = JSON.parse(JSON.stringify(window.emptyData)); window.save(); location.reload();
+    window.D = JSON.parse(JSON.stringify(window.emptyData)); 
+    window.save(); 
+    location.reload();
   }
 };
 
 window.resetData = function() {
   if(confirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?")) {
-    window.D = JSON.parse(JSON.stringify(window.emptyData)); window.save(); location.reload();
+    window.D = JSON.parse(JSON.stringify(window.emptyData)); 
+    window.save(); 
+    location.reload();
   }
 };
 
-window.formatTime = function(s) { const m = Math.floor(s / 60); const sc = s % 60; return `${m.toString().padStart(2,'0')}:${sc.toString().padStart(2,'0')}`; };
+window.formatTime = function(s) {
+  const m = Math.floor(s / 60); 
+  const sc = s % 60;
+  return `${m.toString().padStart(2,'0')}:${sc.toString().padStart(2,'0')}`;
+};
 
 window.updatePomoUI = function() {
   if(window.$('pomoTime')) window.$('pomoTime').textContent = window.formatTime(window.pomoTimeLeft);
@@ -178,15 +235,25 @@ window.updatePomoUI = function() {
 
 window.pomoToggle = function() {
   if(window.pomoRunning) {
-    clearInterval(window.pomoInterval); window.pomoRunning = false;
+    clearInterval(window.pomoInterval);
+    window.pomoRunning = false;
   } else {
     window.pomoRunning = true;
     window.pomoInterval = setInterval(() => {
       window.pomoTimeLeft--;
       if(window.pomoTimeLeft <= 0) {
-        clearInterval(window.pomoInterval); window.pomoRunning = false; window.triggerHaptic(); 
-        if(window.pomoMode === 'work') { window.pomoMode = 'break'; window.pomoTimeLeft = window.D.settings.pomoBreak * 60; alert("⏳ Fin du travail ! Pause."); } 
-        else { window.pomoMode = 'work'; window.pomoTimeLeft = window.D.settings.pomoWork * 60; alert("⏳ Fin de la pause !"); }
+        clearInterval(window.pomoInterval);
+        window.pomoRunning = false;
+        window.triggerHaptic(); 
+        if(window.pomoMode === 'work') { 
+          window.pomoMode = 'break'; 
+          window.pomoTimeLeft = window.D.settings.pomoBreak * 60; 
+          alert("⏳ Fin du temps de travail ! Prends ta pause."); 
+        } else { 
+          window.pomoMode = 'work'; 
+          window.pomoTimeLeft = window.D.settings.pomoWork * 60; 
+          alert("⏳ Fin de la pause ! Au boulot."); 
+        }
       }
       window.updatePomoUI();
     }, 1000);
@@ -194,40 +261,100 @@ window.pomoToggle = function() {
   window.updatePomoUI();
 };
 
-window.pomoReset = function() { clearInterval(window.pomoInterval); window.pomoRunning = false; window.pomoMode = 'work'; window.pomoTimeLeft = window.D.settings.pomoWork * 60; window.updatePomoUI(); };
+window.pomoReset = function() {
+  clearInterval(window.pomoInterval);
+  window.pomoRunning = false;
+  window.pomoMode = 'work';
+  window.pomoTimeLeft = window.D.settings.pomoWork * 60;
+  window.updatePomoUI();
+};
 
 window.genUid = function(matId) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let rnd = '';
-  for (let i = 0; i < 4; i++) rnd += chars[Math.floor(Math.random() * chars.length)];
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let rnd = '';
+  for (let i = 0; i < 4; i++) {
+    rnd += chars[Math.floor(Math.random() * chars.length)];
+  }
   return matId.slice(0,4) + '-' + rnd;
 };
 
 window.doAutoFmtScan = function(inputEl) {
   if(!inputEl) return;
   const raw = inputEl.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
-  let s1='', s2='', i = 0;
-  while(i < raw.length && /[A-Z]/.test(raw[i]) && s1.length < 4) s1 += raw[i++];
-  while(i < raw.length && s2.length < 4) s2 += raw[i++];
-  let res = s1; if(s2) res += '-' + s2;
+  let s1='', s2='';
+  let i = 0;
+  while(i < raw.length && /[A-Z]/.test(raw[i]) && s1.length < 4) {
+    s1 += raw[i++];
+  }
+  while(i < raw.length && s2.length < 4) {
+    s2 += raw[i++];
+  }
+  let res = s1;
+  if(s2) res += '-' + s2;
+  
   if(raw.length > 0 && raw.length <= 8 && /^[A-Z]{1,4}[A-Z0-9]{0,4}$/.test(raw)) {
-    if(inputEl.value !== res) { inputEl.value = res; inputEl.selectionStart = inputEl.selectionEnd = res.length; }
+    if(inputEl.value !== res) {
+      inputEl.value = res;
+      inputEl.selectionStart = inputEl.selectionEnd = res.length;
+    }
   }
 };
 
 window.switchTab = function(tab, overrideResetFilters = false) {
-  document.querySelectorAll('.tab').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); });
-  const map = { home:'paneHome', cours:'paneCours', notes:'paneNotes', flashcards:'paneFlashcards', print:'panePrint', classeurs:'paneClasseurs', matieres:'paneMatieres', settings:'paneSettings', logs:'paneLogs' };
-  Object.values(map).forEach(id => { const el = window.$(id); if(el) { el.classList.remove('on'); el.classList.add('hidden'); } });
-  const target = window.$(map[tab]); if(target) { target.classList.remove('hidden'); target.classList.add('on'); }
-  if(tab === 'home') { if(window.$('topSearchBar')) window.$('topSearchBar').classList.add('hidden-on-home'); window.renderDashboard(); } 
-  else { if(window.$('topSearchBar')) window.$('topSearchBar').classList.remove('hidden-on-home'); }
-  if (tab === 'cours') { if(overrideResetFilters) window.resetFilters(); else window.renderCours(); }
+  document.querySelectorAll('.tab').forEach(b => {
+    b.classList.toggle('on', b.dataset.tab === tab);
+  });
+  
+  const map = {
+    home:'paneHome',
+    cours:'paneCours',
+    notes:'paneNotes',
+    flashcards:'paneFlashcards',
+    print:'panePrint',
+    classeurs:'paneClasseurs',
+    matieres:'paneMatieres',
+    settings:'paneSettings',
+    logs:'paneLogs'
+  };
+  
+  Object.values(map).forEach(id => { 
+    const el = window.$(id);
+    if(el) {
+      el.classList.remove('on');
+      el.classList.add('hidden');
+    }
+  });
+  
+  const target = window.$(map[tab]);
+  if(target) {
+    target.classList.remove('hidden');
+    target.classList.add('on');
+  }
+  
+  if(tab === 'home') {
+    if(window.$('topSearchBar')) window.$('topSearchBar').classList.add('hidden-on-home');
+    window.renderDashboard();
+  } else {
+    if(window.$('topSearchBar')) window.$('topSearchBar').classList.remove('hidden-on-home');
+  }
+
+  if (tab === 'cours') {
+    if(overrideResetFilters) window.resetFilters();
+    else window.renderCours();
+  }
   if (tab === 'notes') window.renderNotes();
   if (tab === 'flashcards') window.renderFlashcards();
   if (tab === 'print') window.renderPrintGrid();
-  if (tab === 'classeurs') { window.isEditingCl = false; window.renderClasseurs(); }
-  if (tab === 'matieres') { window.isEditingMat = false; window.renderMatieres(); }
+  if (tab === 'classeurs') {
+    window.isEditingCl = false;
+    window.renderClasseurs();
+  }
+  if (tab === 'matieres') {
+    window.isEditingMat = false;
+    window.renderMatieres();
+  }
   if (tab === 'logs') window.renderErrorLogs();
+  
   window.scrollTo(0,0);
 };
 
@@ -235,77 +362,181 @@ window.renderDashboard = function() {
   const redCount = window.D.cours.filter(c => c.rev === 'red').length;
   const orangeCount = window.D.cours.filter(c => c.rev === 'orange').length;
   const greenCount = window.D.cours.filter(c => c.rev === 'green').length;
+
   if(window.$('dashRevGrid')) {
     window.$('dashRevGrid').innerHTML = `
-      <div class="dash-card dash-red" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='red'; window.renderCours();"><div class="dash-num">${redCount}</div><div class="dash-lbl">À revoir urg.</div></div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='orange'; window.renderCours();"><div class="dash-num" style="color:var(--gold);">${orangeCount}</div><div class="dash-lbl">En cours</div></div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='green'; window.renderCours();"><div class="dash-num" style="color:var(--grn);">${greenCount}</div><div class="dash-lbl">Maîtrisés</div></div>`;
+      <div class="dash-card dash-red" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='red'; window.renderCours();">
+        <div class="dash-num">${redCount}</div><div class="dash-lbl">À revoir urg.</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='orange'; window.renderCours();">
+        <div class="dash-num" style="color:var(--gold); text-shadow: 0 0 10px rgba(240,192,96,0.4);">${orangeCount}</div><div class="dash-lbl">En cours</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='green'; window.renderCours();">
+        <div class="dash-num" style="color:var(--grn); text-shadow: 0 0 10px rgba(80,216,144,0.4);">${greenCount}</div><div class="dash-lbl">Maîtrisés</div>
+      </div>
+    `;
   }
+
   if(window.$('dashOverviewGrid')) {
     window.$('dashOverviewGrid').innerHTML = `
-      <div class="dash-card dash-acc" onclick="window.switchTab('cours', true);"><div class="dash-num">${window.D.cours.length}</div><div class="dash-lbl">Docs Totaux</div></div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='FICHE'; window.renderCours();"><div class="dash-num">${window.D.cours.filter(c => c.type === 'FICHE').length}</div><div class="dash-lbl">Fiches</div></div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='DS'; window.renderCours();"><div class="dash-num">${window.D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">Sujets DS</div></div>`;
+      <div class="dash-card dash-acc" onclick="window.switchTab('cours', true);">
+        <div class="dash-num">${window.D.cours.length}</div><div class="dash-lbl">Docs Totaux</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='FICHE'; window.renderCours();">
+        <div class="dash-num">${window.D.cours.filter(c => c.type === 'FICHE').length}</div><div class="dash-lbl">Fiches</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='DS'; window.renderCours();">
+        <div class="dash-num">${window.D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">Sujets DS</div>
+      </div>
+    `;
   }
-  const todos = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange').sort((a,b) => {
-    if(a.rev === 'red' && b.rev !== 'red') return -1; if(a.rev !== 'red' && b.rev === 'red') return 1; return new Date(a.date) - new Date(b.date);
-  }).slice(0, 5);
+
+  const todos = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange')
+                       .sort((a,b) => {
+                          if(a.rev === 'red' && b.rev !== 'red') return -1;
+                          if(a.rev !== 'red' && b.rev === 'red') return 1;
+                          return new Date(a.date) - new Date(b.date);
+                       }).slice(0, 5);
   
   if(window.$('todoList')) {
-    if(!todos.length) window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">🎉 Rien d\'urgent !</div>';
-    else window.$('todoList').innerHTML = todos.map(c => `<div class="todo-item" onclick="window.doLocate('${c.uid}')" style="border-left-color: ${c.rev === 'red' ? 'var(--red)' : 'var(--gold)'};"><div><div class="todo-tit">${c.title}</div><div class="todo-sub">${c.mat} • ${c.type}</div></div><button class="cbt">Go ➔</button></div>`).join('');
+    if(!todos.length) {
+      window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">🎉 Rien d\'urgent ! Tout est maîtrisé.</div>';
+    } else {
+      window.$('todoList').innerHTML = todos.map(c => `
+        <div class="todo-item" onclick="window.doLocate('${c.uid}')" style="border-left-color: ${c.rev === 'red' ? 'var(--red)' : 'var(--gold)'};">
+          <div>
+            <div class="todo-tit">${c.title}</div>
+            <div class="todo-sub">${c.mat} • ${c.type}</div>
+          </div>
+          <button class="cbt">Go ➔</button>
+        </div>
+      `).join('');
+    }
   }
 };
 
 window.drawKholle = function() {
   const toReview = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange');
   if(!toReview.length) return alert("Bravo ! Aucun document urgent à réviser.");
-  window.doLocate(toReview[Math.floor(Math.random() * toReview.length)].uid);
+  const winner = toReview[Math.floor(Math.random() * toReview.length)];
+  window.doLocate(winner.uid);
 };
 
 window.renderNotes = function() {
   const notesDocs = window.D.cours.filter(c => (c.type === 'DS' || c.type === 'KHOLLE') && c.note !== '' && c.note !== undefined);
   notesDocs.sort((a,b) => new Date(a.date) - new Date(b.date));
-  const wrapper = window.$('chartWrapper'); if(!wrapper) return;
-  if(!notesDocs.length) { wrapper.innerHTML = `<div style="color:var(--mut); font-size:13px; text-align:center;">Aucune note enregistrée.</div>`; return; }
+  
+  const wrapper = window.$('chartWrapper');
+  if(!wrapper) return;
+
+  if(!notesDocs.length) {
+    wrapper.innerHTML = `<div style="color:var(--mut); font-size:13px; width:100%; text-align:center; padding-bottom:20px;">Aucune note enregistrée pour le moment.<br>Ajoute un DS ou une Khôlle avec une note pour voir le graphique.</div>`;
+    return;
+  }
 
   let html = '';
   notesDocs.forEach(c => {
-    const noteNum = parseFloat(c.note); const heightPct = (noteNum / 20) * 100;
-    let colorClass = noteNum >= 10 ? 'var(--acc)' : 'var(--red)'; if(noteNum >= 15) colorClass = 'var(--grn)';
-    html += `<div class="chart-bar-group" onclick="window.doLocate('${c.uid}')" title="${c.title} : ${c.note}/20"><div class="chart-bar" style="height: ${Math.max(5, heightPct)}%; background: linear-gradient(to top, transparent, ${colorClass}); border-top: 2px solid ${colorClass};"><span class="chart-val" style="color:${colorClass}">${c.note}</span></div><div class="chart-lbl">${c.mat}</div></div>`;
+    const noteNum = parseFloat(c.note);
+    const heightPct = (noteNum / 20) * 100;
+    let colorClass = noteNum >= 10 ? 'var(--acc)' : 'var(--red)';
+    if(noteNum >= 15) colorClass = 'var(--grn)';
+
+    html += `
+      <div class="chart-bar-group" onclick="window.doLocate('${c.uid}')" title="${c.title} : ${c.note}/20">
+        <div class="chart-bar" style="height: ${Math.max(5, heightPct)}%; background: linear-gradient(to top, transparent, ${colorClass}); border-top: 2px solid ${colorClass};">
+          <span class="chart-val" style="color:${colorClass}">${c.note}</span>
+        </div>
+        <div class="chart-lbl">${c.mat}</div>
+      </div>
+    `;
   });
   wrapper.innerHTML = html;
 };
 
 window.renderFlashcards = function() {
-  const grid = window.$('fcGrid'); if(!grid) return;
-  grid.innerHTML = window.PC_FLASHCARDS.map((fc) => `<div class="fc-card" onclick="this.classList.toggle('flipped')"><div class="fc-inner"><div class="fc-front"><div class="fc-mat">${fc.mat}</div><div class="fc-text">${fc.q}</div></div><div class="fc-back"><div class="fc-ans">${fc.a}</div></div></div></div>`).join('');
+  const grid = window.$('fcGrid');
+  if(!grid) return;
+  grid.innerHTML = window.PC_FLASHCARDS.map((fc) => `
+    <div class="fc-card" onclick="this.classList.toggle('flipped')">
+      <div class="fc-inner">
+        <div class="fc-front">
+          <div class="fc-mat">${fc.mat}</div>
+          <div class="fc-text">${fc.q}</div>
+        </div>
+        <div class="fc-back">
+          <div class="fc-ans">${fc.a}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
 };
 
 window.renderStats = function() {
   const pending = window.D.cours.filter(c => c.stat === 'pending').length;
   const printed = window.D.cours.filter(c => c.stat === 'printed').length;
   if(window.$('statsBand')) {
-    window.$('statsBand').innerHTML = '<div class="stc"><span class="dot" style="background:#5b8df7"></span>' + window.D.cours.length + ' cours</div><div class="stc"><span class="dot" style="background:#50d890"></span>' + window.D.classeurs.length + ' classeurs</div>' + (pending ? '<div class="stc"><span class="dot" style="background:#f06060"></span>' + pending + ' À impr.</div>' : '');
+    window.$('statsBand').innerHTML =
+      '<div class="stc"><span class="dot" style="background:#5b8df7"></span>' + window.D.cours.length + ' cours</div>' +
+      '<div class="stc"><span class="dot" style="background:#50d890"></span>' + window.D.classeurs.length + ' classeurs</div>' +
+      (pending ? '<div class="stc"><span class="dot" style="background:#f06060"></span>' + pending + ' À impr.</div>' : '') +
+      (printed ? '<div class="stc"><span class="dot" style="background:#f0c060"></span>' + printed + ' À scanner</div>' : '');
   }
+};
+
+window.exportCsv = function() {
+  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
+  const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  
+  const rows = window.D.cours.map(c => {
+    const mo = window.D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
+    const co = window.D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
+    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.date||'', c.stat].map(esc).join(',');
+  });
+  
+  const csv = [hdr.join(','), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='mes-cours-prepa.csv';
+  a.click();
 };
 
 window.homeGo = function() {
   const v = window.$('homeSearch') ? window.$('homeSearch').value.trim().toUpperCase() : '';
-  if(v.includes('-') && v.length >= 8) { window.doLocate(v); } 
-  else { window.switchTab('cours'); if(window.$('mainSearch')) window.$('mainSearch').value = v; window.renderCours(); window.triggerHaptic(); }
+  if(v.includes('-') && v.length >= 8) {
+    window.doLocate(v);
+  } else {
+    window.switchTab('cours');
+    if(window.$('mainSearch')) window.$('mainSearch').value = v;
+    window.renderCours();
+    window.triggerHaptic();
+  }
 };
 
 window.renderErrorLogs = function() {
-  const container = window.$('errorLogContainer'); if(!container) return;
-  if(!window.appErrors || window.appErrors.length === 0) { container.innerHTML = '<div style="text-align:center; color:var(--mut); margin-top:50px;">Aucune erreur détectée ! 🎉</div>'; return; }
-  container.innerHTML = window.appErrors.map(e => `<div style="background:rgba(240,96,96,.1); border-left:4px solid var(--red); padding:10px; border-radius:4px;"><div style="font-size:11px; color:var(--mut);">${e.time} — Source: ${e.source}</div><div style="font-family:'DM Mono', monospace; font-size:13px; color:var(--red); margin-top:4px;">${e.msg}</div></div>`).reverse().join(''); 
+  const container = window.$('errorLogContainer');
+  if(!container) return;
+  
+  if(!window.appErrors || window.appErrors.length === 0) {
+    container.innerHTML = '<div style="text-align:center; color:var(--mut); margin-top:50px;">Aucune erreur détectée ! 🎉</div>';
+    return;
+  }
+  
+  container.innerHTML = window.appErrors.map(e => `
+    <div style="background:rgba(240,96,96,.1); border-left:4px solid var(--red); padding:10px; border-radius:4px;">
+      <div style="font-size:11px; color:var(--mut);">${e.time} — Source: ${e.source}</div>
+      <div style="font-family:'DM Mono', monospace; font-size:13px; color:var(--red); margin-top:4px;">${e.msg}</div>
+    </div>
+  `).reverse().join(''); 
 };
 
-window.clearErrorLogs = function() { if(!confirm("Vider l'historique des erreurs ?")) return; window.appErrors = []; window.renderErrorLogs(); };
+window.clearErrorLogs = function() {
+  if(!confirm("Vider l'historique des erreurs ?")) return;
+  window.appErrors = [];
+  window.renderErrorLogs();
+};
 
-// BINDINGS HTML
+// ATTACHEMENT DYNAMIQUE DES ÉVÉNEMENTS
 bindClick('btnOpenSettings', () => window.switchTab('settings'));
 bindClick('btnRefresh', () => location.reload());
 bindClick('btnThemeToggle', () => { window.D.settings.theme = window.D.settings.theme === 'light' ? 'dark' : 'light'; window.save(); window.applySettings(); });
@@ -322,26 +553,26 @@ bindInput('setPomoWork', (e) => { window.D.settings.pomoWork = parseInt(e.target
 bindInput('setPomoBreak', (e) => { window.D.settings.pomoBreak = parseInt(e.target.value) || 5; window.save(); window.pomoReset(); });
 bindInput('setUserName', (e) => { window.D.settings.userName = e.target.value.trim() || "Étudiant"; window.save(); window.applySettings(); });
 
-bindClick('btnPomoToggle', window.pomoToggle);
-bindClick('btnPomoReset', window.pomoReset);
+bindClick('btnPomoToggle', () => window.pomoToggle());
+bindClick('btnPomoReset', () => window.pomoReset());
 bindInput('homeSearch', () => { window.doAutoFmtScan(window.$('homeSearch')); });
-bindKey('homeSearch', 'Enter', window.homeGo);
-bindClick('btnHomeSearch', window.homeGo);
+bindKey('homeSearch', 'Enter', () => window.homeGo());
+bindClick('btnHomeSearch', () => window.homeGo());
 bindClick('btnHomeCam', () => window.openCam());
-bindClick('btnKholleDraw', window.drawKholle);
+bindClick('btnKholleDraw', () => window.drawKholle());
 
 bindInput('mainSearch', () => { window.doAutoFmtScan(window.$('mainSearch')); window.renderCours(); });
 bindKey('mainSearch', 'Enter', () => { const v = window.$('mainSearch').value.trim().toUpperCase(); if(v) window.doLocate(v); });
 bindClick('btnLocate', () => { const v = window.$('mainSearch') ? window.$('mainSearch').value.trim().toUpperCase() : ''; if(v) window.doLocate(v); });
 
-bindClick('btnCancelCours', window.closeModalCours);
-bindChange('fType', window.toggleNoteField);
+bindClick('btnCancelCours', () => window.closeModalCours());
+bindChange('fType', () => window.toggleNoteField());
 
 bindClick('btnAddCl', () => window.addCl());
 bindClick('btnAddMat', () => window.addMat());
 
-['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, window.renderCours); });
-bindClick('btnResetFilters', window.resetFilters);
+['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, () => window.renderCours()); });
+bindClick('btnResetFilters', () => window.resetFilters());
 
 bindClick('btnSelPending', () => window.selPending());
 bindClick('btnSelAll', () => window.selAll());
@@ -350,25 +581,29 @@ bindClick('btnDoPrint', () => window.executePrint());
 bindClick('btnConfirmPrintYes', () => window.confirmPrintSuccess(true));
 bindClick('btnConfirmPrintNo', () => window.confirmPrintSuccess(false));
 
-bindClick('btnCloseLocPopup', window.closeLocPopup);
+bindClick('btnCloseLocPopup', () => window.closeLocPopup());
 bindClick('btnMarkOnePrinted', () => window.markOnePrinted());
-bindClick('btnCloseQR', window.closeQRModal);
+bindClick('btnCloseQR', () => window.closeQRModal());
 bindClick('btnDlQR', () => window.dlQR());
 
 bindChange('fCl', () => window.updateIntercalairesDropdown());
 
+// LANCEMENT DE L'APPLICATION AVEC RÉCUPÉRATION FIRESTORE
 async function initApp() {
   try {
     const docSnap = await getDoc(window.docRef);
     if (docSnap.exists()) {
-      window.D = docSnap.data(); window.cloudConnected = true;
+      window.D = docSnap.data();
+      window.cloudConnected = true;
     } else {
       const rawData = localStorage.getItem('mc_v28');
-      window.D = rawData ? JSON.parse(rawData) : null; window.cloudConnected = true;
+      window.D = rawData ? JSON.parse(rawData) : null;
+      window.cloudConnected = true;
     }
   } catch (e) {
     const rawData = localStorage.getItem('mc_v28');
-    window.D = rawData ? JSON.parse(rawData) : null; window.cloudConnected = false;
+    window.D = rawData ? JSON.parse(rawData) : null;
+    window.cloudConnected = false;
   }
 
   window.updateCloudIndicator();
