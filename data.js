@@ -1,0 +1,539 @@
+/**
+ * =========================================================================================
+ * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
+ * =========================================================================================
+ * NOM DU PROJET : Mes Cours - PC* Edition
+ * FICHIER ACTUEL : data.js (Logique métier et CRUD)
+ * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
+ * L'application est divisée en plusieurs fichiers pour sécuriser les modifications :
+ * 1. app.js      : Cœur (Firebase, État global window.D, Navigation, Paramètres, Watchdog).
+ * 2. data.js     : [CE FICHIER] Gestion des données (Cours, Classeurs, Matières) et grilles HTML.
+ * 3. scanner.js  : Scanner de codes-barres 1D et logique d'impression.
+ * * 👉 RÈGLE POUR L'IA : Si l'utilisateur demande de modifier l'ajout d'un cours, l'édition 
+ * d'un classeur ou le filtrage, TOUT se trouve ici. N'essaie pas d'inventer des fonctions 
+ * qui sont dans app.js ou scanner.js. Demande-lui le bon fichier si nécessaire.
+ * * 🎯 RÔLE DE CE FICHIER :
+ * - Contient les fonctions `renderCours`, `renderClasseurs`, `renderMatieres`.
+ * - Gère l'édition Inline des classeurs (`editClasseur`, `saveClEdit`).
+ * - Gère l'ajout/suppression des documents (`saveCours`, `delCours`, `doLocate`).
+ * * ⚠️ RÈGLES STRICTES DE MODIFICATION :
+ * - NE JAMAIS SUPPRIMER cette documentation.
+ * - Ne rien enlever, ajouter uniquement.
+ * - L'état global est `window.D`. La sauvegarde est `window.save()`.
+ * =========================================================================================
+ */
+
+window.$ = window.$ || (id => document.getElementById(id));
+window.COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
+
+window.isEditingMat = false;
+window.isEditingCl = false;
+window.currentEditClId = null;
+window.chipFilter = null;
+window.newColor = window.COLORS[0];
+window.editUid = null;
+
+// 🗂️ UTILITAIRE : Récupère le nom personnalisé d'un intercalaire
+window.getInterName = function(cl, ns) {
+  if (cl && cl.interNames && cl.interNames[ns]) {
+    return cl.interNames[ns];
+  }
+  return `Intercalaire ${ns}`;
+};
+
+window.toggleEditMat = function() {
+  window.isEditingMat = !window.isEditingMat;
+  window.renderMatieres();
+};
+
+window.toggleEditCl = function() {
+  window.isEditingCl = !window.isEditingCl;
+  window.renderClasseurs();
+};
+
+window.resetFilters = function() {
+  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearch'].forEach(id => {
+    if(window.$(id)) window.$(id).value = '';
+  });
+  window.chipFilter = null;
+  window.renderCours();
+};
+
+window.renderCours = function() {
+  try {
+    const allM = [...new Set(window.D.cours.map(c => c.mat))];
+    const allC = [...new Set(window.D.cours.map(c => c.cl))];
+    const ms = window.$('fltMat');
+    const cs = window.$('fltCl');
+    
+    if(ms && cs) {
+      const mv = ms.value, cv = cs.value;
+      ms.innerHTML = '<option value="">Toutes matières</option>' + allM.map(m => {
+        const mo = window.D.matieres.find(x => x.id===m) || {name:m};
+        return `<option value="${m}" ${m===mv?'selected':''}>${mo.name}</option>`;
+      }).join('');
+      cs.innerHTML = '<option value="">Tous classeurs</option>' + allC.map(c => {
+        const co = window.D.classeurs.find(x => x.id===c) || {name:c};
+        return `<option value="${c}" ${c===cv?'selected':''}>${co.name}</option>`;
+      }).join('');
+    }
+    
+    if(window.$('matChips')) {
+      window.$('matChips').innerHTML = '<button class="chip' + (window.chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
+        window.D.matieres.map(m => `
+          <button class="chip${window.chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${window.chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${m.label}</button>
+        `).join('');
+        
+      window.$('matChips').querySelectorAll('.chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          window.chipFilter = btn.dataset.chip==='null' ? null : btn.dataset.chip;
+          window.renderCours();
+        });
+      });
+    }
+
+    const q = window.$('mainSearch') ? window.$('mainSearch').value.toLowerCase().trim() : '';
+    const qrf = window.$('fltQr') ? window.$('fltQr').value : '';
+    const fType = window.$('fltType') ? window.$('fltType').value : '';
+    const fRev = window.$('fltRev') ? window.$('fltRev').value : '';
+    
+    const list = window.D.cours.filter(c => {
+      const mo = window.D.matieres.find(x => x.id===c.mat) || {name:''};
+      return (!q || c.title.toLowerCase().includes(q) || c.uid.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
+        && (!ms || !ms.value || c.mat===ms.value)
+        && (!cs || !cs.value || c.cl===cs.value)
+        && (!window.chipFilter || c.mat===window.chipFilter)
+        && (!qrf || c.stat === qrf)
+        && (!fType || c.type === fType)
+        && (!fRev || c.rev === fRev);
+    });
+
+    list.sort((a,b) => {
+      if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
+      if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
+      return a.inter.localeCompare(b.inter);
+    });
+
+    const grid = window.$('coursGrid');
+    if(grid) {
+      if (!list.length) {
+        grid.innerHTML = '<div class="empty"><h3>Aucun document trouvé</h3></div>';
+        window.renderStats();
+        return;
+      }
+
+      let html = '';
+      let currentMat = '';
+
+      list.forEach(c => {
+        const mo = window.D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
+        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📁'};
+        
+        const interNameDisplay = window.getInterName(co, c.inter);
+
+        if (c.mat !== currentMat) {
+          html += `<div style="grid-column: 1/-1; margin-top: 15px; border-bottom: 2px solid ${mo.color}; padding-bottom: 5px;"><h3 style="font-family: 'Syne'; color: ${mo.color};">${mo.name}</h3></div>`;
+          currentMat = c.mat;
+        }
+
+        let warnHtml = '';
+        if (c.stat === 'pending') warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
+        else if (c.stat === 'printed') warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
+
+        html += `
+        <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${c.uid}')">
+          <div class="rev-dot rev-${c.rev}"></div>
+          <div class="uid-badge">${c.uid}</div>
+          <div class="ctop">
+            <div class="cbadges">
+              <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${mo.label}</span>
+              <span class="bm badge-type">${c.type}</span>
+            </div>
+          </div>
+          <div class="ctitle">${c.title}</div>
+          <div class="clocs">
+            <span class="cloc cloc-a">${co.icon} ${co.name}</span>
+            <span class="cloc cloc-b">📑 ${interNameDisplay}</span>
+          </div>
+          ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
+          ${c.note ? `<div class="cnote">Note : ${c.note}/20</div>` : ''}
+          <div class="cacts" onclick="event.stopPropagation();">
+              <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir Code-Barres">🔳</button>
+              <button class="cbt" onclick="window.editCours('${c.uid}')" title="Modifier">✏️</button>
+              <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${c.uid}')" title="Supprimer">🗑️</button>
+          </div>
+          ${warnHtml}
+        </div>`;
+      });
+      grid.innerHTML = html;
+    }
+    window.renderStats();
+  } catch(e) {
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Crash renderCours: " + e.message, source: 'data.js', lineno: 0 });
+  }
+};
+
+window.doLocate = function(uid) {
+  const c = window.D.cours.find(x => x.uid === uid);
+  if (!c) {
+    if(window.$('locContent')) {
+      window.$('locContent').innerHTML = `
+        <div style="text-align:center;padding:10px 0">
+          <div style="font-size:32px;margin-bottom:8px">❌</div>
+          <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${uid}</div>
+          <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
+        </div>`;
+    }
+    if(window.$('locPopup')) window.$('locPopup').classList.add('open');
+    return;
+  }
+  
+  window.triggerHaptic();
+
+  let validationMsg = '';
+  if (c.stat === 'printed') {
+    c.stat = 'active';
+    window.save();
+    window.renderCours();
+    window.renderDashboard();
+    validationMsg = '<div style="background:rgba(80,216,144,.15);border:1px solid var(--grn);color:var(--grn);padding:10px;border-radius:10px;text-align:center;font-weight:bold;margin-bottom:15px;">✅ Document initialisé et classé !</div>';
+  }
+
+  const mo = window.D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📁'};
+  const interNameDisplay = window.getInterName(co, c.inter);
+  
+  if(window.$('locContent')) {
+    window.$('locContent').innerHTML = validationMsg + `
+      <div class="loc-code">${c.uid}</div>
+      <div class="loc-title">${c.title}</div>
+      <div class="loc-cards">
+        <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">${co.icon} ${co.name}</div>
+        <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">📑 ${interNameDisplay}</div>
+      </div>
+      <div style="text-align:center;margin-top:5px;font-size:12px;font-weight:bold;color:${mo.color}">${c.type}</div>
+      ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
+      ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
+    `;
+  }
+  if(window.$('locPopup')) window.$('locPopup').classList.add('open');
+};
+
+window.delCours = function(uid) {
+  if (!confirm('Supprimer le document ' + uid + ' ?')) return;
+  window.D.cours = window.D.cours.filter(c => c.uid !== uid);
+  window.save();
+  window.renderCours();
+  window.renderDashboard();
+  window.renderNotes();
+  window.renderClasseurs();
+};
+
+window.toggleNoteField = function() {
+  const t = window.$('fType') ? window.$('fType').value : '';
+  if(window.$('fgNote')) {
+    if(t === 'DS' || t === 'KHOLLE') { window.$('fgNote').style.display = 'block'; } 
+    else { window.$('fgNote').style.display = 'none'; if(window.$('fNote')) window.$('fNote').value = ''; }
+  }
+};
+
+window.toggleManualUid = function() {
+  const isManual = window.$('fManualUidToggle').checked;
+  if (isManual) {
+    window.$('uidBox').style.display = 'none'; window.$('fUidInput').style.display = 'block'; window.$('fUidInput').focus();
+  } else {
+    window.$('uidBox').style.display = 'block'; window.$('fUidInput').style.display = 'none';
+  }
+};
+
+window.updateIntercalairesDropdown = function() {
+  const clId = window.$('fCl') ? window.$('fCl').value : '';
+  const cl = window.D.classeurs.find(c => c.id === clId);
+  const maxI = cl ? (cl.maxInter || 12) : 12;
+  
+  if(window.$('fInter')) {
+    window.$('fInter').innerHTML = '<option value="">—</option>' + 
+      Array.from({length: maxI}, (_, i) => {
+        const val = String(i + 1).padStart(2, '0');
+        const customName = window.getInterName(cl, val);
+        return `<option value="${val}">${val} - ${customName}</option>`;
+      }).join('');
+  }
+};
+
+window.openModalCours = function() {
+  window.editUid = null;
+  if(window.$('mTitle')) window.$('mTitle').textContent = '✨ Ajouter un document';
+  if(window.$('fTitle')) window.$('fTitle').value = ''; 
+  if(window.$('fDesc')) window.$('fDesc').value = ''; 
+  if(window.$('fMat')) window.$('fMat').innerHTML = '<option value="">— Choisir —</option>' + window.D.matieres.map(m => `<option value="${m.id}">${m.label} — ${m.name}</option>`).join('');
+  if(window.$('fCl')) window.$('fCl').innerHTML = '<option value="">— Choisir —</option>' + window.D.classeurs.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  window.updateIntercalairesDropdown(); 
+  if(window.$('fInter')) window.$('fInter').value = ''; 
+  if(window.$('fType')) window.$('fType').value = 'COURS'; 
+  if(window.$('fRev')) window.$('fRev').value = 'green';
+  if(window.$('fNote')) window.$('fNote').value = '';
+  window.toggleNoteField();
+  
+  if(window.$('fManualUidToggle')) { window.$('fManualUidToggle').checked = false; window.$('lblManualUid').style.display = 'flex'; }
+  if(window.$('fUidInput')) { window.$('fUidInput').value = ''; window.$('fUidInput').style.display = 'none'; }
+  if(window.$('uidBox')) { window.$('uidBox').style.display = 'block'; window.$('uidBox').innerHTML = '—<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code-barres généré automatiquement</small>'; }
+  
+  if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
+};
+
+window.editCours = function(uid) {
+  const c = window.D.cours.find(x => x.uid===uid);
+  if (!c) return;
+  window.editUid = uid;
+  if(window.$('mTitle')) window.$('mTitle').textContent = '✏️ Modifier le document';
+  if(window.$('fTitle')) window.$('fTitle').value = c.title; 
+  if(window.$('fDesc')) window.$('fDesc').value = c.desc || ''; 
+  if(window.$('fType')) window.$('fType').value = c.type || 'COURS'; 
+  if(window.$('fRev')) window.$('fRev').value = c.rev || 'green';
+  if(window.$('fNote')) window.$('fNote').value = c.note || '';
+  window.toggleNoteField();
+  if(window.$('fMat')) window.$('fMat').innerHTML = window.D.matieres.map(m => `<option value="${m.id}" ${m.id===c.mat?'selected':''}>${m.label}</option>`).join('');
+  if(window.$('fCl')) window.$('fCl').innerHTML = window.D.classeurs.map(x => `<option value="${x.id}" ${x.id===c.cl?'selected':''}>${x.icon} ${x.name}</option>`).join('');
+  window.updateIntercalairesDropdown();
+  if(window.$('fInter')) window.$('fInter').value = c.inter;
+  
+  if(window.$('lblManualUid')) window.$('lblManualUid').style.display = 'none';
+  if(window.$('fUidInput')) window.$('fUidInput').style.display = 'none';
+  if(window.$('uidBox')) { window.$('uidBox').style.display = 'block'; window.$('uidBox').innerHTML = c.uid + '<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code permanent</small>'; }
+  
+  if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
+};
+
+window.saveCours = function() {
+  const title = window.$('fTitle')?window.$('fTitle').value.trim():'';
+  const mat = window.$('fMat')?window.$('fMat').value:'';
+  const cl = window.$('fCl')?window.$('fCl').value:'';
+  const inter = window.$('fInter')?window.$('fInter').value:'';
+  
+  if (!title || !mat || !cl || !inter) { alert('Remplis tous les champs obligatoires'); return; }
+  
+  const obj = { title, type:window.$('fType')?window.$('fType').value:'', rev:window.$('fRev')?window.$('fRev').value:'', mat, cl, inter, note:window.$('fNote')?window.$('fNote').value:'', desc: window.$('fDesc')?window.$('fDesc').value.trim():'' };
+  if(!obj.date) obj.date = new Date().toISOString().split('T')[0];
+
+  if (window.editUid) {
+    const idx = window.D.cours.findIndex(c => c.uid===window.editUid);
+    if(idx > -1) {
+      obj.uid = window.D.cours[idx].uid;
+      obj.stat = window.D.cours[idx].stat; 
+      if(window.D.cours[idx].date) obj.date = window.D.cours[idx].date;
+      window.D.cours[idx] = obj;
+    }
+  } else {
+    let newUid = '';
+    if (window.$('fManualUidToggle') && window.$('fManualUidToggle').checked) {
+      newUid = window.$('fUidInput').value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+      if (!newUid) { alert("Veuillez saisir un identifiant valide."); return; }
+      if (window.D.cours.find(c => c.uid === newUid)) { alert("Code déjà utilisé !"); return; }
+    } else {
+      newUid = window.genUid(mat);
+    }
+    obj.uid = newUid;
+    obj.stat = 'pending'; 
+    window.D.cours.unshift(obj);
+  }
+  
+  window.save(); window.closeModalCours(); window.renderCours(); window.renderDashboard(); window.renderClasseurs();
+};
+
+window.renderClasseurs = function() {
+  try {
+    const g = window.$('clGrid');
+    if(!g) return;
+
+    let html = '<div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="bs" onclick="window.toggleEditCl()" style="padding:6px 12px; font-size:12px; border-color:var(--bd);">' + (window.isEditingCl ? '✅ Terminer' : '✏️ Modifier') + '</button></div>';
+
+    if (!window.D.classeurs.length) {
+      g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>';
+      return;
+    }
+    
+    html += window.D.classeurs.map(cl => {
+      const cc = window.D.cours.filter(c => c.cl===cl.id);
+      cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
+
+      let editBtns = window.isEditingCl ? `
+        <button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">✏️ Éditer</button>
+        <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
+      ` : '';
+
+      let coursesList = cc.length ? cc.map(c => {
+        const interNameDisplay = window.getInterName(cl, c.inter);
+        return `
+        <div class="irow" onclick="window.doLocate('${c.uid}')">
+          <div>
+            <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
+            <div style="font-size:11px; color:var(--mut);">[${interNameDisplay}] • ${c.type}</div>
+          </div>
+          <div style="color:var(--acc); font-size:18px;">➔</div>
+        </div>
+      `}).join('') : '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
+
+      return `
+        <div class="cl-card">
+          <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
+            <div class="cl-ico" style="background:${cl.color}20">${cl.icon}</div>
+            <div class="cl-info" style="flex:1;"><div class="cl-nm">${cl.name}</div><div class="cl-sb">${cl.maxInter || 12} inter. max</div></div>
+            ${editBtns}
+            <div style="color:var(--mut); font-size:12px; margin-left:8px;">▼</div>
+          </div>
+          <div class="ilist" id="ili_${cl.id}">
+            ${coursesList}
+          </div>
+        </div>`;
+    }).join('');
+
+    g.innerHTML = html;
+  } catch(e) {
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Crash renderClasseurs: " + e.message, source: 'data.js', lineno: 0 });
+  }
+};
+
+window.editClasseur = function(id) {
+  const cl = window.D.classeurs.find(c => c.id === id);
+  if(!cl) return;
+  window.currentEditClId = id;
+  
+  if(window.$('eClNm')) window.$('eClNm').value = cl.name;
+  if(window.$('eClIc')) window.$('eClIc').value = cl.icon;
+  if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
+  
+  window.renderEditClInters(); 
+  if(window.$('ovEditCl')) window.$('ovEditCl').classList.remove('hidden');
+};
+
+window.renderEditClInters = function() {
+  const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
+  const container = window.$('eClInterList');
+  const max = parseInt(window.$('eClMax').value) || 12;
+  if(!cl || !container) return;
+  
+  let html = '';
+  for(let i=1; i<=max; i++) {
+    const val = String(i).padStart(2, '0');
+    const existingName = (cl.interNames && cl.interNames[val]) ? cl.interNames[val] : '';
+    html += `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="font-family:'DM Mono', monospace; font-size:12px; color:var(--gold); font-weight:bold;">${val}</div>
+        <input type="text" id="eClInter_${val}" placeholder="Ex: Thermodynamique" value="${existingName}" style="flex:1; background:var(--bg); border:1px solid var(--bd); padding:8px 10px; border-radius:6px; color:var(--txt); font-size:12px; outline:none;">
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+};
+
+window.saveClEdit = function() {
+  const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
+  if(!cl) return;
+  
+  cl.name = window.$('eClNm').value.trim() || cl.name;
+  cl.icon = window.$('eClIc').value.trim() || cl.icon;
+  cl.maxInter = parseInt(window.$('eClMax').value) || 12;
+  
+  if(!cl.interNames) cl.interNames = {};
+  for(let i=1; i<=cl.maxInter; i++) {
+    const val = String(i).padStart(2, '0');
+    const input = window.$(`eClInter_${val}`);
+    if(input && input.value.trim() !== '') {
+      cl.interNames[val] = input.value.trim();
+    } else {
+      delete cl.interNames[val];
+    }
+  }
+  
+  window.save(); 
+  if(window.$('ovEditCl')) window.$('ovEditCl').classList.add('hidden');
+  window.renderClasseurs(); window.renderCours();
+};
+
+window.renderMatieres = function() {
+  const el = window.$('mgMat');
+  if(!el) return;
+
+  let html = '<div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="bs" onclick="window.toggleEditMat()" style="padding:6px 12px; font-size:12px; border-color:var(--bd);">' + (window.isEditingMat ? '✅ Terminer' : '✏️ Modifier') + '</button></div>';
+
+  html += window.D.matieres.map(m => {
+    let delBtn = window.isEditingMat ? `<button class="mdel" onclick="window.delMat('${m.id}')">✕</button>` : '';
+    return `
+    <div class="mr">
+      <div class="mdot" style="background:${m.color}"></div>
+      <div class="mlbl">${m.label}</div><div class="mnm" style="flex:1;">${m.name}</div>
+      ${delBtn}
+    </div>`
+  }).join('');
+  
+  el.innerHTML = html;
+  
+  if(window.$('swMat')) {
+    window.$('swMat').innerHTML = window.COLORS.map(c => `
+      <div class="sw${c===window.newColor?' on':''}" style="background:${c}" onclick="window.setNewColor('${c}')"></div>
+    `).join('');
+  }
+};
+
+window.setNewColor = function(col) { window.newColor = col; window.renderMatieres(); };
+
+window.addCl = function() {
+  const id = window.$('nClId').value.trim().toUpperCase();
+  const name = window.$('nClNm').value.trim();
+  const icon = window.$('nClIc').value.trim() || '📁';
+  
+  if(id.length !== 1) { alert("Identifiant : 1 seule lettre !"); return; }
+  if(window.D.classeurs.find(c=>c.id===id)) { alert("Ce classeur existe déjà !"); return; }
+  if(!name) { alert("Le nom est obligatoire"); return; }
+  
+  window.D.classeurs.push({id, name, icon, color:window.newColor, maxInter: 12, interNames: {}}); 
+  window.save(); window.renderClasseurs(); window.renderCours();
+  
+  window.$('nClId').value=''; window.$('nClNm').value=''; alert("Classeur ajouté avec succès !");
+};
+
+window.addMat = function() {
+  const lbl = window.$('nMlbl').value.trim().toUpperCase();
+  const name = window.$('nMname').value.trim();
+  
+  if(lbl.length !== 4) { alert("Code matière : exactement 4 lettres !"); return; }
+  if(window.D.matieres.find(m=>m.id===lbl)) { alert("Cette matière existe déjà !"); return; }
+  
+  window.D.matieres.push({id:lbl, label:lbl, name:name||lbl, color:window.newColor}); 
+  window.save(); window.renderMatieres(); window.renderCours();
+  
+  window.$('nMlbl').value=''; window.$('nMname').value=''; alert("Matière ajoutée avec succès !");
+};
+
+window.delMat = function(id) {
+  if(!window.D.cours.filter(c=>c.mat===id).length || confirm('Cette matière contient des cours. Supprimer quand même ?')) {
+    window.D.matieres = window.D.matieres.filter(m=>m.id!==id);
+    window.save(); window.renderMatieres(); window.renderCours();
+  }
+};
+
+window.delCl = function(id) {
+  if(!window.D.cours.filter(c=>c.cl===id).length || confirm('Ce classeur contient des cours. Supprimer quand même ?')) {
+    window.D.classeurs = window.D.classeurs.filter(c=>c.id!==id);
+    window.save(); window.renderClasseurs(); window.renderCours();
+  }
+};
+
+window.exportCsv = function() {
+  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
+  const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  
+  const rows = window.D.cours.map(c => {
+    const mo = window.D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
+    const co = window.D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
+    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.date||'', c.stat].map(esc).join(',');
+  });
+  
+  const csv = [hdr.join(','), ...rows].join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='mes-cours-prepa.csv';
+  a.click();
+};
