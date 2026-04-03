@@ -1252,6 +1252,7 @@ function confirmPrintSuccess(success) {
 
 // 📸 LE SCANNER DE DIAGNOSTIC AVANCÉ (ANTI-BUG IOS)
 // 📸 LE SCANNER HYBRIDE (API NATIVE APPLE + JSQR)
+// 📸 LE SCANNER "SNIPER" (Recadrage central pour jsQR)
 function openCam() {
   if($('manualCamInput')) $('manualCamInput').value = '';
   if($('ovCam')) $('ovCam').classList.remove('hidden');
@@ -1259,7 +1260,7 @@ function openCam() {
   let frameCount = 0;
   if($('camSt')) {
     $('camSt').style.color = 'var(--gold)';
-    $('camSt').innerHTML = 'Initialisation du scanner hybride...';
+    $('camSt').innerHTML = 'Initialisation du mode Sniper...';
   }
 
   try {
@@ -1268,12 +1269,11 @@ function openCam() {
       return;
     }
 
-    // On demande la caméra arrière avec autofocus
     const constraints = {
       video: {
         facingMode: 'environment',
-        width: { ideal: 1080 },
-        height: { ideal: 1080 },
+        width: { ideal: 720 },
+        height: { ideal: 720 },
         advanced: [{ focusMode: "continuous" }]
       }
     };
@@ -1285,81 +1285,63 @@ function openCam() {
         if(!v) return;
 
         v.srcObject = stream;
-        v.setAttribute("playsinline", true); 
-        v.play().catch(e => {
-            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Video Play: " + e.message, source: 'app.js', lineno: 0 });
-        });
-
-        // 🍎 1. INITIALISATION DE L'API NATIVE D'APPLE (Si disponible)
-        const hasNativeAPI = ('BarcodeDetector' in window);
-        let nativeScanner = null;
-        if (hasNativeAPI) {
-          try { nativeScanner = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e){}
-        }
+        v.setAttribute("playsinline", true);
+        v.play().catch(e => {});
 
         const jsqrStatus = typeof jsQR !== 'undefined' ? '✅ Actif' : '❌ Non trouvé';
 
-        // 🎨 On garde la miniature pour le diagnostic
+        // 🎨 La miniature devient VERTE et Carrée (Mode Sniper)
         const cv = $('camCanvas');
-        cv.style.display = 'block'; 
-        cv.style.width = '100px';
-        cv.style.height = 'auto';
-        cv.style.border = '2px solid red';
+        cv.style.display = 'block';
+        cv.style.width = '150px';
+        cv.style.height = '150px';
+        cv.style.border = '3px solid var(--grn)';
         cv.style.margin = '0 auto 10px auto';
         cv.style.borderRadius = '8px';
+        cv.style.objectFit = 'cover';
 
         camTick = setInterval(async () => {
           if(v.readyState !== 4 || v.videoWidth === 0 || v.videoHeight === 0) return;
           frameCount++;
 
-          // --- 🚀 TENTATIVE 1 : LE SCANNER NATIF APPLE (ÉCLAIR) ---
-          if (nativeScanner) {
-            try {
-              const codes = await nativeScanner.detect(v);
-              if (codes.length > 0) {
-                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé (Moteur Apple) !";
-                processScan(codes[0].rawValue.trim().toUpperCase());
-                return; // On arrête tout, on a trouvé !
-              }
-            } catch(e) {}
-          }
+          // 🎯 LE MODE SNIPER : On calcule un carré au centre de la vidéo (65% de la taille)
+          const size = Math.min(v.videoWidth, v.videoHeight) * 0.65; 
+          const startX = (v.videoWidth - size) / 2;
+          const startY = (v.videoHeight - size) / 2;
 
-          // --- 🐢 TENTATIVE 2 : LE SCANNER JSQR (PLAN B) ---
-          cv.width = v.videoWidth;
-          cv.height = v.videoHeight;
+          cv.width = size;
+          cv.height = size;
           const ctx = cv.getContext('2d', { willReadFrequently: true });
-          ctx.drawImage(v, 0, 0, cv.width, cv.height);
+          
+          // On "rogne" l'image pour ne dessiner QUE le centre sur notre toile
+          ctx.drawImage(v, startX, startY, size, size, 0, 0, size, size);
 
           let imgData;
           try {
               imgData = ctx.getImageData(0, 0, cv.width, cv.height);
-          } catch(e) {
-              return;
-          }
+          } catch(e) { return; }
 
           if($('camSt')) {
             $('camSt').innerHTML = `
               <div style="font-size:11px; text-align:left; background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; color:#fff;">
-                <b>Moteur Apple:</b> ${hasNativeAPI ? '✅ Actif' : '❌ Inactif'}<br>
                 <b>Moteur jsQR:</b> ${jsqrStatus}<br>
-                <b>Frames analysées:</b> ${frameCount}<br>
-                <b>État:</b> Scan Hybride en cours...
+                <b>Taille du Scan:</b> ${Math.round(size)}x${Math.round(size)}<br>
+                <b>Frames:</b> ${frameCount}<br>
+                <b>État:</b> Place le QR pile au centre !
               </div>`;
           }
 
           try {
             if(typeof jsQR !== 'undefined') {
-              // attemptBoth : Il lit l'image normalement, et en mode couleurs inversées
-              const code = jsQR(imgData.data, imgData.width, imgData.height, {inversionAttempts:'attemptBoth'});
+              // On utilise dontInvert pour le papier (c'est plus rapide)
+              const code = jsQR(imgData.data, imgData.width, imgData.height, {inversionAttempts:'dontInvert'});
               if(code && code.data) {
-                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé (Moteur jsQR) !";
+                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé (Sniper) !";
                 processScan(code.data.trim().toUpperCase());
               }
             }
-          } catch(e) {
-            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "jsQR crash: " + e.message, source: 'app.js', lineno: 0 });
-          }
-        }, 200); 
+          } catch(e) {}
+        }, 150);
 
       }).catch(err => {
         if($('camSt')) $('camSt').innerHTML = `❌ Erreur caméra: ${err.message}`;
@@ -1368,6 +1350,7 @@ function openCam() {
     if($('camSt')) $('camSt').innerHTML = `❌ Crash: ${e.message}`;
   }
 }
+
 
 
 function manualScan() {
