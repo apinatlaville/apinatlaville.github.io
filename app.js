@@ -620,6 +620,7 @@ async function initApp() {
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
   window.applySettings();
+  window.renderStats();
   window.switchTab('home');
 }
 
