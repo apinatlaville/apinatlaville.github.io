@@ -4,17 +4,25 @@
  * =========================================================================================
  * NOM DU PROJET : Mes Cours - PC* Edition
  * TYPE : Module métier Javascript (app.js)
- * * 🛡️ GESTIONNAIRE D'ERREURS (WATCHDOG) INTÉGRÉ :
+ * * * 🛡️ GESTIONNAIRE D'ERREURS (WATCHDOG) INTÉGRÉ :
  * Ce fichier écoute les évènements `unhandledrejection` (erreurs réseau/Firebase).
  * Il possède les fonctions `renderErrorLogs()` et `clearErrorLogs()` pour afficher
  * toutes les anomalies stockées par le script Watchdog (situé dans index.html).
- * * 🔒 MODE ÉDITION (SÉCURITÉ UX) :
+ * * * 🔒 MODE ÉDITION (SÉCURITÉ UX) :
  * Les listes de Matières et de Classeurs possèdent un mode "Édition" (isEditingMat / isEditingCl)
  * pour cacher les boutons de suppression par défaut et éviter les clics accidentels.
- * * RÈGLES POUR L'IA :
- * - NE JAMAIS SUPPRIMER LA VARIABLE `D` ni modifier sa structure.
- * - Ajouter uniquement.
- * - Exposer toutes les fonctions interactives à `window`.
+ * * * 📷 SCANNER HAUTE DÉFINITION (SPÉCIAL PAPIER) :
+ * Retrait du mode "Anti-Bruit" (qui floutait et détruisait la lecture sur papier).
+ * Le flux vidéo est maintenant forcé en HD (`ideal: 1280x720`). jsQR utilise
+ * l'option `dontInvert` pour une lecture ultra-rapide du vrai papier (noir sur blanc).
+ * * * 🗂️ BASE DE DONNÉES RELATIONNELLE (NOMS D'INTERCALAIRES) :
+ * Les classeurs (D.classeurs) possèdent maintenant une propriété `interNames` (Objet).
+ * Clé : le numéro (ex: "01"), Valeur : le nom custom (ex: "Mécanique").
+ * La fonction utilitaire `getInterName(cl, ns)` gère le rendu dynamique partout.
+ * * * ✏️ ÉDITION INLINE (SANS PROMPT NAVIGATEUR) :
+ * Abandon des `prompt()` inesthétiques. L'édition d'un classeur déclenche la modale 
+ * `ovEditCl` pour modifier le nom, l'icône, le nombre MAX d'intercalaires, ET le nom 
+ * de chaque intercalaire individuellement de manière dynamique.
  * =========================================================================================
  */
 
@@ -31,8 +39,13 @@ window.addEventListener('unhandledrejection', function(event) {
   
   const toast = document.getElementById('errorToast');
   const toastMsg = document.getElementById('errorToastMsg');
-  if(toast && toastMsg) { toastMsg.textContent = "Erreur Réseau : " + errorMsg; toast.classList.remove('hidden'); }
-  if(typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
+  if(toast && toastMsg) {
+    toastMsg.textContent = "Erreur Réseau : " + errorMsg;
+    toast.classList.remove('hidden');
+  }
+  if(typeof window.renderErrorLogs === 'function') {
+    window.renderErrorLogs();
+  }
 });
 
 const firebaseConfig = {
@@ -55,7 +68,6 @@ const bindInput = (id, fn) => { const el = $(id); if(el) el.addEventListener('in
 const bindChange = (id, fn) => { const el = $(id); if(el) el.addEventListener('change', fn); };
 const bindKey = (id, key, fn) => { const el = $(id); if(el) el.addEventListener('keydown', e => { if(e.key === key) fn(e); }); };
 
-const IN = ['','Intro','Cours 1','Cours 2','Cours 3','Cours 4','Cours 5','Exercices','TD','TP','Fiches','Annales','Divers'];
 const COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
 
 const PC_FLASHCARDS = [
@@ -75,28 +87,12 @@ const emptyData = {
     {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
   ],
   classeurs: [
-    {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7'},
-    {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060'},
-    {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890'},
+    {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter: 12, interNames: {}},
+    {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {}},
+    {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {}},
   ],
   cours: [] 
 };
-
-const DEMO_COURS = [
-  {uid:'PHYS-MEC1', title:'Mécanique du Point C1', mat:'PHYS', cl:'A', inter:'01', type:'COURS', rev:'green', desc:'À imprimer pour le classeur physique.', date:'2026-04-01', stat:'pending', note:''},
-  {uid:'MATH-INT1', title:'Fiche Intégrales', mat:'MATH', cl:'B', inter:'10', type:'FICHE', rev:'orange', desc:'Imprimé, reste à le valider par scan.', date:'2026-04-02', stat:'printed', note:''},
-  {uid:'CHIM-KINE', title:'TD Cinétique Chimique', mat:'CHIM', cl:'C', inter:'08', type:'TD', rev:'red', desc:'Exercices 1, 2 et 5 à refaire urgemment.', date:'2026-04-03', stat:'active', note:''},
-  {uid:'PHYS-THM3', title:'DS n°3 Thermodynamique', mat:'PHYS', cl:'A', inter:'11', type:'DS', rev:'red', desc:'Gros crash sur la partie machine thermique.', date:'2026-02-15', stat:'active', note:'7.5'},
-  {uid:'MATH-ALG2', title:'Khôlle Algèbre Linéaire', mat:'MATH', cl:'B', inter:'12', type:'KHOLLE', rev:'green', desc:'Démonstrations bien maîtrisées.', date:'2026-03-10', stat:'active', note:'16'},
-  {uid:'CHIM-ORG1', title:'Cours Chimie Orga C1', mat:'CHIM', cl:'C', inter:'01', type:'COURS', rev:'orange', desc:'Mécanismes SN1/SN2 un peu flous.', date:'2026-03-20', stat:'active', note:''},
-  {uid:'PHYS-ELM1', title:'Fiche Électromagnétisme', mat:'PHYS', cl:'A', inter:'10', type:'FICHE', rev:'green', desc:'Équations de Maxwell apprises par cœur.', date:'2026-04-05', stat:'pending', note:''},
-  {uid:'MATH-PROB', title:'TD Probabilités', mat:'MATH', cl:'B', inter:'08', type:'TD', rev:'orange', desc:'Variables aléatoires continues à revoir.', date:'2026-04-06', stat:'printed', note:''},
-  {uid:'CHIM-SOL2', title:'DS Solutions Aqueuses', mat:'CHIM', cl:'C', inter:'11', type:'DS', rev:'orange', desc:'Moyenne classe à 10.', date:'2026-03-01', stat:'active', note:'10.5'},
-  {uid:'PHYS-OND1', title:'Khôlle Ondes', mat:'PHYS', cl:'A', inter:'12', type:'KHOLLE', rev:'green', desc:'Interférences très bien gérées.', date:'2026-03-25', stat:'active', note:'15.5'}
-];
-
-const demoData = JSON.parse(JSON.stringify(emptyData));
-demoData.cours = DEMO_COURS;
 
 let D = null; 
 let cloudConnected = false; 
@@ -113,9 +109,19 @@ let pomoTimeLeft = 25 * 60;
 let pomoRunning = false; 
 let pomoMode = 'work'; 
 
-// ÉTATS DES MODES ÉDITION
 let isEditingMat = false;
 let isEditingCl = false;
+
+// VARIABLES GLOBALES POUR L'ÉDITION DE CLASSEUR
+let currentEditClId = null;
+
+// 🗂️ UTILITAIRE : Récupère le nom personnalisé d'un intercalaire
+function getInterName(cl, ns) {
+  if (cl && cl.interNames && cl.interNames[ns]) {
+    return cl.interNames[ns];
+  }
+  return `Intercalaire ${ns}`;
+}
 
 function toggleEditMat() {
   isEditingMat = !isEditingMat;
@@ -128,8 +134,10 @@ function toggleEditCl() {
 }
 
 function updateCloudIndicator() {
-  const d = $('cDot'); const t = $('cTxt');
+  const d = $('cDot');
+  const t = $('cTxt');
   if(!d || !t) return;
+  
   if(cloudConnected) {
     d.style.background = 'var(--grn)';
     d.style.boxShadow = '0 0 8px var(--grn)';
@@ -147,14 +155,24 @@ const save = async function() {
   localStorage.setItem('mc_v28', JSON.stringify(D)); 
   try {
     await setDoc(docRef, D);
-    if(!cloudConnected) { cloudConnected = true; updateCloudIndicator(); }
+    if(!cloudConnected) {
+      cloudConnected = true;
+      updateCloudIndicator();
+    }
   } catch(e) {
     console.error("Erreur de sauvegarde Firebase :", e);
-    if(cloudConnected) { cloudConnected = false; updateCloudIndicator(); }
+    if(cloudConnected) {
+      cloudConnected = false;
+      updateCloudIndicator();
+    }
   }
 };
 
-const fmtD = d => { if(!d) return ''; const [y,m,j] = d.split('-'); return j+'/'+m+'/'+y; };
+const fmtD = d => {
+  if(!d) return '';
+  const [y,m,j] = d.split('-');
+  return j+'/'+m+'/'+y;
+};
 
 function triggerHaptic() {
   if (navigator.vibrate) {
@@ -175,21 +193,45 @@ updateClock();
 
 function stopCam() {
   try {
-    if (camTick) { clearInterval(camTick); camTick = null; }
+    if (camTick) {
+      clearInterval(camTick);
+      camTick = null;
+    }
     if (camStream && typeof camStream.getTracks === 'function') {
       camStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
     }
     camStream = null;
     const v = $('camVideo'); 
-    if (v) { v.srcObject = null; v.pause(); v.removeAttribute('src'); v.load(); }
+    if (v) {
+      v.srcObject = null;
+      v.pause();
+      v.removeAttribute('src');
+      v.load();
+    }
   } catch(e) {}
-  const ov = $('ovCam'); if(ov) ov.classList.add('hidden');
+  const ov = $('ovCam');
+  if(ov) ov.classList.add('hidden');
 }
 
-function closeLocPopup() { const lp = $('locPopup'); if(lp) lp.classList.remove('open'); }
-function closeModalCours() { const ov = $('ovCours'); if(ov) ov.classList.add('hidden'); }
-function closeQRModal() { const ov = $('ovQR'); if(ov) ov.classList.add('hidden'); }
-function closePrintConfirm() { const ov = $('ovPrintConfirm'); if(ov) ov.classList.add('hidden'); }
+function closeLocPopup() {
+  const lp = $('locPopup');
+  if(lp) lp.classList.remove('open');
+}
+
+function closeModalCours() {
+  const ov = $('ovCours');
+  if(ov) ov.classList.add('hidden');
+}
+
+function closeQRModal() {
+  const ov = $('ovQR');
+  if(ov) ov.classList.add('hidden');
+}
+
+function closePrintConfirm() {
+  const ov = $('ovPrintConfirm');
+  if(ov) ov.classList.add('hidden');
+}
 
 document.addEventListener('click', function(e) {
   document.querySelectorAll('.ov').forEach(ov => {
@@ -198,6 +240,7 @@ document.addEventListener('click', function(e) {
       else if (ov.id === 'ovQR') closeQRModal();
       else if (ov.id === 'ovCours') closeModalCours();
       else if (ov.id === 'ovPrintConfirm') closePrintConfirm();
+      else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
     }
   });
   const w = $('fabWrapper');
@@ -206,18 +249,31 @@ document.addEventListener('click', function(e) {
   }
 });
 
-function toggleFab() { const w = $('fabWrapper'); if(w) w.classList.toggle('open'); }
-function closeFab() { const w = $('fabWrapper'); if(w) w.classList.remove('open'); }
+function toggleFab() {
+  const w = $('fabWrapper');
+  if(w) w.classList.toggle('open');
+}
+
+function closeFab() {
+  const w = $('fabWrapper');
+  if(w) w.classList.remove('open');
+}
 
 function applySettings() {
-  if (D.settings.theme === 'light') document.body.classList.add('theme-light'); 
-  else document.body.classList.remove('theme-light');
+  if (D.settings.theme === 'light') {
+    document.body.classList.add('theme-light'); 
+  } else {
+    document.body.classList.remove('theme-light');
+  }
   
   document.body.classList.remove('tmpl-default', 'tmpl-glass', 'tmpl-neo');
   document.body.classList.add('tmpl-' + D.settings.template);
 
-  if (D.settings.compact) document.body.classList.add('mode-compact'); 
-  else document.body.classList.remove('mode-compact');
+  if (D.settings.compact) {
+    document.body.classList.add('mode-compact'); 
+  } else {
+    document.body.classList.remove('mode-compact');
+  }
 
   if($('statsBand')) $('statsBand').classList.toggle('hidden-ui', !D.settings.showStats);
   if($('matChips')) $('matChips').classList.toggle('hidden-ui', !D.settings.showChips);
@@ -243,14 +299,19 @@ function applySettings() {
 }
 
 function loadDemo() {
-  if(confirm("Activer les tests va remplacer tes données actuelles par les 10 cours de démonstration.\n\nContinuer ?")) {
-    D = JSON.parse(JSON.stringify(demoData)); save(); location.reload();
+  if(confirm("Activer les tests va remplacer tes données actuelles par les cours de démonstration.\n\nContinuer ?")) {
+    D = JSON.parse(JSON.stringify(emptyData)); 
+    D.cours = DEMO_COURS;
+    save(); 
+    location.reload();
   }
 }
 
 function resetData() {
   if(confirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?")) {
-    D = JSON.parse(JSON.stringify(emptyData)); save(); location.reload();
+    D = JSON.parse(JSON.stringify(emptyData)); 
+    save(); 
+    location.reload();
   }
 }
 
@@ -259,19 +320,24 @@ function formatTime(s) {
   const sc = s % 60;
   return `${m.toString().padStart(2,'0')}:${sc.toString().padStart(2,'0')}`;
 }
+
 function updatePomoUI() {
   if($('pomoTime')) $('pomoTime').textContent = formatTime(pomoTimeLeft);
   if($('btnPomoToggle')) $('btnPomoToggle').textContent = pomoRunning ? '⏸' : '▶';
   if($('pomoWidget')) $('pomoWidget').className = `pomo-widget ${pomoMode}`;
 }
+
 function pomoToggle() {
-  if(pomoRunning) { clearInterval(pomoInterval); pomoRunning = false; } 
-  else {
+  if(pomoRunning) {
+    clearInterval(pomoInterval);
+    pomoRunning = false;
+  } else {
     pomoRunning = true;
     pomoInterval = setInterval(() => {
       pomoTimeLeft--;
       if(pomoTimeLeft <= 0) {
-        clearInterval(pomoInterval); pomoRunning = false;
+        clearInterval(pomoInterval);
+        pomoRunning = false;
         triggerHaptic(); 
         if(pomoMode === 'work') { 
           pomoMode = 'break'; 
@@ -288,48 +354,99 @@ function pomoToggle() {
   }
   updatePomoUI();
 }
+
 function pomoReset() {
-  clearInterval(pomoInterval); pomoRunning = false;
-  pomoMode = 'work'; pomoTimeLeft = D.settings.pomoWork * 60; updatePomoUI();
+  clearInterval(pomoInterval);
+  pomoRunning = false;
+  pomoMode = 'work';
+  pomoTimeLeft = D.settings.pomoWork * 60;
+  updatePomoUI();
 }
 
 function genUid(matId) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let rnd = '';
-  for (let i = 0; i < 4; i++) rnd += chars[Math.floor(Math.random() * chars.length)];
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let rnd = '';
+  for (let i = 0; i < 4; i++) {
+    rnd += chars[Math.floor(Math.random() * chars.length)];
+  }
   return matId.slice(0,4) + '-' + rnd;
 }
 
 function doAutoFmtScan(inputEl) {
   if(!inputEl) return;
   const raw = inputEl.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
-  let s1='', s2=''; let i = 0;
-  while(i < raw.length && /[A-Z]/.test(raw[i]) && s1.length < 4) s1 += raw[i++];
-  while(i < raw.length && s2.length < 4) s2 += raw[i++];
-  let res = s1; if(s2) res += '-' + s2;
+  let s1='', s2='';
+  let i = 0;
+  while(i < raw.length && /[A-Z]/.test(raw[i]) && s1.length < 4) {
+    s1 += raw[i++];
+  }
+  while(i < raw.length && s2.length < 4) {
+    s2 += raw[i++];
+  }
+  let res = s1;
+  if(s2) res += '-' + s2;
+  
   if(raw.length > 0 && raw.length <= 8 && /^[A-Z]{1,4}[A-Z0-9]{0,4}$/.test(raw)) {
-    if(inputEl.value !== res) { inputEl.value = res; inputEl.selectionStart = inputEl.selectionEnd = res.length; }
+    if(inputEl.value !== res) {
+      inputEl.value = res;
+      inputEl.selectionStart = inputEl.selectionEnd = res.length;
+    }
   }
 }
 
 function switchTab(tab, overrideResetFilters = false) {
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  const map = {home:'paneHome', cours:'paneCours', notes:'paneNotes', flashcards:'paneFlashcards', print:'panePrint', classeurs:'paneClasseurs', matieres:'paneMatieres', settings:'paneSettings', logs:'paneLogs'};
+  document.querySelectorAll('.tab').forEach(b => {
+    b.classList.toggle('on', b.dataset.tab === tab);
+  });
+  
+  const map = {
+    home:'paneHome',
+    cours:'paneCours',
+    notes:'paneNotes',
+    flashcards:'paneFlashcards',
+    print:'panePrint',
+    classeurs:'paneClasseurs',
+    matieres:'paneMatieres',
+    settings:'paneSettings',
+    logs:'paneLogs'
+  };
   
   Object.values(map).forEach(id => { 
-    const el = $(id); if(el) { el.classList.remove('on'); el.classList.add('hidden'); }
+    const el = $(id);
+    if(el) {
+      el.classList.remove('on');
+      el.classList.add('hidden');
+    }
   });
-  const target = $(map[tab]);
-  if(target) { target.classList.remove('hidden'); target.classList.add('on'); }
   
-  if(tab === 'home') { if($('topSearchBar')) $('topSearchBar').classList.add('hidden-on-home'); renderDashboard(); } 
-  else { if($('topSearchBar')) $('topSearchBar').classList.remove('hidden-on-home'); }
+  const target = $(map[tab]);
+  if(target) {
+    target.classList.remove('hidden');
+    target.classList.add('on');
+  }
+  
+  if(tab === 'home') {
+    if($('topSearchBar')) $('topSearchBar').classList.add('hidden-on-home');
+    renderDashboard();
+  } else {
+    if($('topSearchBar')) $('topSearchBar').classList.remove('hidden-on-home');
+  }
 
-  if (tab === 'cours') { if(overrideResetFilters) resetFilters(); else renderCours(); }
+  if (tab === 'cours') {
+    if(overrideResetFilters) resetFilters();
+    else renderCours();
+  }
   if (tab === 'notes') renderNotes();
   if (tab === 'flashcards') renderFlashcards();
   if (tab === 'print') renderPrintGrid();
-  if (tab === 'classeurs') { isEditingCl = false; renderClasseurs(); } // Reset l'édition quand on change d'onglet
-  if (tab === 'matieres') { isEditingMat = false; renderMatieres(); }
+  if (tab === 'classeurs') {
+    isEditingCl = false;
+    renderClasseurs();
+  }
+  if (tab === 'matieres') {
+    isEditingMat = false;
+    renderMatieres();
+  }
   if (tab === 'logs') renderErrorLogs();
   
   window.scrollTo(0,0);
@@ -340,29 +457,33 @@ function renderDashboard() {
   const orangeCount = D.cours.filter(c => c.rev === 'orange').length;
   const greenCount = D.cours.filter(c => c.rev === 'green').length;
 
-  if($('dashRevGrid')) $('dashRevGrid').innerHTML = `
-    <div class="dash-card dash-red" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='red'; window.renderCours();">
-      <div class="dash-num">${redCount}</div><div class="dash-lbl">À revoir urg.</div>
-    </div>
-    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='orange'; window.renderCours();">
-      <div class="dash-num" style="color:var(--gold); text-shadow: 0 0 10px rgba(240,192,96,0.4);">${orangeCount}</div><div class="dash-lbl">En cours</div>
-    </div>
-    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='green'; window.renderCours();">
-      <div class="dash-num" style="color:var(--grn); text-shadow: 0 0 10px rgba(80,216,144,0.4);">${greenCount}</div><div class="dash-lbl">Maîtrisés</div>
-    </div>
-  `;
+  if($('dashRevGrid')) {
+    $('dashRevGrid').innerHTML = `
+      <div class="dash-card dash-red" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='red'; window.renderCours();">
+        <div class="dash-num">${redCount}</div><div class="dash-lbl">À revoir urg.</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='orange'; window.renderCours();">
+        <div class="dash-num" style="color:var(--gold); text-shadow: 0 0 10px rgba(240,192,96,0.4);">${orangeCount}</div><div class="dash-lbl">En cours</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='green'; window.renderCours();">
+        <div class="dash-num" style="color:var(--grn); text-shadow: 0 0 10px rgba(80,216,144,0.4);">${greenCount}</div><div class="dash-lbl">Maîtrisés</div>
+      </div>
+    `;
+  }
 
-  if($('dashOverviewGrid')) $('dashOverviewGrid').innerHTML = `
-    <div class="dash-card dash-acc" onclick="window.switchTab('cours', true);">
-      <div class="dash-num">${D.cours.length}</div><div class="dash-lbl">Docs Totaux</div>
-    </div>
-    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='FICHE'; window.renderCours();">
-      <div class="dash-num">${D.cours.filter(c => c.type === 'FICHE').length}</div><div class="dash-lbl">Fiches</div>
-    </div>
-    <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='DS'; window.renderCours();">
-      <div class="dash-num">${D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">Sujets DS</div>
-    </div>
-  `;
+  if($('dashOverviewGrid')) {
+    $('dashOverviewGrid').innerHTML = `
+      <div class="dash-card dash-acc" onclick="window.switchTab('cours', true);">
+        <div class="dash-num">${D.cours.length}</div><div class="dash-lbl">Docs Totaux</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='FICHE'; window.renderCours();">
+        <div class="dash-num">${D.cours.filter(c => c.type === 'FICHE').length}</div><div class="dash-lbl">Fiches</div>
+      </div>
+      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='DS'; window.renderCours();">
+        <div class="dash-num">${D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">Sujets DS</div>
+      </div>
+    `;
+  }
 
   const todos = D.cours.filter(c => c.rev === 'red' || c.rev === 'orange')
                        .sort((a,b) => {
@@ -447,117 +568,151 @@ function renderFlashcards() {
 function renderStats() {
   const pending = D.cours.filter(c => c.stat === 'pending').length;
   const printed = D.cours.filter(c => c.stat === 'printed').length;
-  if($('statsBand')) $('statsBand').innerHTML =
-    '<div class="stc"><span class="dot" style="background:#5b8df7"></span>' + D.cours.length + ' cours</div>' +
-    '<div class="stc"><span class="dot" style="background:#50d890"></span>' + D.classeurs.length + ' classeurs</div>' +
-    (pending ? '<div class="stc"><span class="dot" style="background:#f06060"></span>' + pending + ' À impr.</div>' : '') +
-    (printed ? '<div class="stc"><span class="dot" style="background:#f0c060"></span>' + printed + ' À scanner</div>' : '');
+  if($('statsBand')) {
+    $('statsBand').innerHTML =
+      '<div class="stc"><span class="dot" style="background:#5b8df7"></span>' + D.cours.length + ' cours</div>' +
+      '<div class="stc"><span class="dot" style="background:#50d890"></span>' + D.classeurs.length + ' classeurs</div>' +
+      (pending ? '<div class="stc"><span class="dot" style="background:#f06060"></span>' + pending + ' À impr.</div>' : '') +
+      (printed ? '<div class="stc"><span class="dot" style="background:#f0c060"></span>' + printed + ' À scanner</div>' : '');
+  }
 }
 
 function resetFilters() {
-  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearch'].forEach(id => { if($(id)) $(id).value = ''; });
+  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearch'].forEach(id => {
+    if($(id)) $(id).value = '';
+  });
   chipFilter = null;
   renderCours();
 }
 
 function renderCours() {
-  const allM = [...new Set(D.cours.map(c => c.mat))];
-  const allC = [...new Set(D.cours.map(c => c.cl))];
-  const ms = $('fltMat'), cs = $('fltCl');
-  
-  if(ms && cs) {
-    const mv = ms.value, cv = cs.value;
-    ms.innerHTML = '<option value="">Toutes matières</option>' + allM.map(m => { const mo = D.matieres.find(x => x.id===m)||{name:m}; return `<option value="${m}" ${m===mv?'selected':''}>${mo.name}</option>`; }).join('');
-    cs.innerHTML = '<option value="">Tous classeurs</option>' + allC.map(c => { const co = D.classeurs.find(x => x.id===c)||{name:c}; return `<option value="${c}" ${c===cv?'selected':''}>${co.name}</option>`; }).join('');
-  }
-  
-  if($('matChips')) {
-    $('matChips').innerHTML = '<button class="chip' + (chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
-      D.matieres.map(m => `<button class="chip${chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${m.label}</button>`).join('');
-    $('matChips').querySelectorAll('.chip').forEach(btn => { btn.addEventListener('click', () => { chipFilter = btn.dataset.chip==='null' ? null : btn.dataset.chip; renderCours(); }); });
-  }
+  try {
+    const allM = [...new Set(D.cours.map(c => c.mat))];
+    const allC = [...new Set(D.cours.map(c => c.cl))];
+    const ms = $('fltMat');
+    const cs = $('fltCl');
+    
+    if(ms && cs) {
+      const mv = ms.value, cv = cs.value;
+      ms.innerHTML = '<option value="">Toutes matières</option>' + allM.map(m => {
+        const mo = D.matieres.find(x => x.id===m) || {name:m};
+        return `<option value="${m}" ${m===mv?'selected':''}>${mo.name}</option>`;
+      }).join('');
+      cs.innerHTML = '<option value="">Tous classeurs</option>' + allC.map(c => {
+        const co = D.classeurs.find(x => x.id===c) || {name:c};
+        return `<option value="${c}" ${c===cv?'selected':''}>${co.name}</option>`;
+      }).join('');
+    }
+    
+    if($('matChips')) {
+      $('matChips').innerHTML = '<button class="chip' + (chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
+        D.matieres.map(m => `
+          <button class="chip${chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${m.label}</button>
+        `).join('');
+        
+      $('matChips').querySelectorAll('.chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          chipFilter = btn.dataset.chip==='null' ? null : btn.dataset.chip;
+          renderCours();
+        });
+      });
+    }
 
-  const q = $('mainSearch') ? $('mainSearch').value.toLowerCase().trim() : '';
-  const qrf = $('fltQr') ? $('fltQr').value : '';
-  const fType = $('fltType') ? $('fltType').value : '';
-  const fRev = $('fltRev') ? $('fltRev').value : '';
-  
-  const list = D.cours.filter(c => {
-    const mo = D.matieres.find(x => x.id===c.mat)||{name:''};
-    return (!q || c.title.toLowerCase().includes(q) || c.uid.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
-      && (!ms || !ms.value || c.mat===ms.value)
-      && (!cs || !cs.value || c.cl===cs.value)
-      && (!chipFilter || c.mat===chipFilter)
-      && (!qrf || c.stat === qrf)
-      && (!fType || c.type === fType)
-      && (!fRev || c.rev === fRev);
-  });
+    const q = $('mainSearch') ? $('mainSearch').value.toLowerCase().trim() : '';
+    const qrf = $('fltQr') ? $('fltQr').value : '';
+    const fType = $('fltType') ? $('fltType').value : '';
+    const fRev = $('fltRev') ? $('fltRev').value : '';
+    
+    const list = D.cours.filter(c => {
+      const mo = D.matieres.find(x => x.id===c.mat) || {name:''};
+      return (!q || c.title.toLowerCase().includes(q) || c.uid.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
+        && (!ms || !ms.value || c.mat===ms.value)
+        && (!cs || !cs.value || c.cl===cs.value)
+        && (!chipFilter || c.mat===chipFilter)
+        && (!qrf || c.stat === qrf)
+        && (!fType || c.type === fType)
+        && (!fRev || c.rev === fRev);
+    });
 
-  list.sort((a,b) => {
-    if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
-    if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
-    return a.inter.localeCompare(b.inter);
-  });
+    list.sort((a,b) => {
+      if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
+      if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
+      return a.inter.localeCompare(b.inter);
+    });
 
-  const grid = $('coursGrid');
-  if(grid) {
-    if (!list.length) { grid.innerHTML = '<div class="empty"><h3>Aucun document trouvé</h3></div>'; renderStats(); return; }
-
-    let html = '';
-    let currentMat = '';
-
-    list.forEach(c => {
-      const mo = D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
-      const co = D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📁'};
-      
-      if (c.mat !== currentMat) {
-        html += `<div style="grid-column: 1/-1; margin-top: 15px; border-bottom: 2px solid ${mo.color}; padding-bottom: 5px;"><h3 style="font-family: 'Syne'; color: ${mo.color};">${mo.name}</h3></div>`;
-        currentMat = c.mat;
+    const grid = $('coursGrid');
+    if(grid) {
+      if (!list.length) {
+        grid.innerHTML = '<div class="empty"><h3>Aucun document trouvé</h3></div>';
+        renderStats();
+        return;
       }
 
-      let warnHtml = '';
-      if (c.stat === 'pending') warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
-      else if (c.stat === 'printed') warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
+      let html = '';
+      let currentMat = '';
 
-      html += `
-      <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${c.uid}')">
-        <div class="rev-dot rev-${c.rev}"></div>
-        <div class="uid-badge">${c.uid}</div>
-        <div class="ctop">
-          <div class="cbadges">
-            <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${mo.label}</span>
-            <span class="bm badge-type">${c.type}</span>
+      list.forEach(c => {
+        const mo = D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
+        const co = D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📁'};
+        
+        // 🗂️ AFFICHAGE DU NOM D'INTERCALAIRE PERSONNALISÉ SUR LA CARTE
+        const interNameDisplay = getInterName(co, c.inter);
+
+        if (c.mat !== currentMat) {
+          html += `<div style="grid-column: 1/-1; margin-top: 15px; border-bottom: 2px solid ${mo.color}; padding-bottom: 5px;"><h3 style="font-family: 'Syne'; color: ${mo.color};">${mo.name}</h3></div>`;
+          currentMat = c.mat;
+        }
+
+        let warnHtml = '';
+        if (c.stat === 'pending') warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
+        else if (c.stat === 'printed') warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
+
+        html += `
+        <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${c.uid}')">
+          <div class="rev-dot rev-${c.rev}"></div>
+          <div class="uid-badge">${c.uid}</div>
+          <div class="ctop">
+            <div class="cbadges">
+              <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${mo.label}</span>
+              <span class="bm badge-type">${c.type}</span>
+            </div>
           </div>
-        </div>
-        <div class="ctitle">${c.title}</div>
-        <div class="clocs">
-          <span class="cloc cloc-a">${co.icon} ${co.name}</span>
-          <span class="cloc cloc-b">📑 Inter. ${c.inter}</span>
-        </div>
-        ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
-        ${c.note ? `<div class="cnote">Note : ${c.note}/20</div>` : ''}
-        <div class="cacts" onclick="event.stopPropagation();">
-            <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir QR">🔳</button>
-            <button class="cbt" onclick="window.editCours('${c.uid}')" title="Modifier">✏️</button>
-            <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${c.uid}')" title="Supprimer">🗑️</button>
-        </div>
-        ${warnHtml}
-      </div>`;
-    });
-    grid.innerHTML = html;
+          <div class="ctitle">${c.title}</div>
+          <div class="clocs">
+            <span class="cloc cloc-a">${co.icon} ${co.name}</span>
+            <span class="cloc cloc-b">📑 ${interNameDisplay}</span>
+          </div>
+          ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
+          ${c.note ? `<div class="cnote">Note : ${c.note}/20</div>` : ''}
+          <div class="cacts" onclick="event.stopPropagation();">
+              <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir QR">🔳</button>
+              <button class="cbt" onclick="window.editCours('${c.uid}')" title="Modifier">✏️</button>
+              <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${c.uid}')" title="Supprimer">🗑️</button>
+          </div>
+          ${warnHtml}
+        </div>`;
+      });
+      grid.innerHTML = html;
+    }
+    renderStats();
+  } catch(e) {
+    if(window.appErrors) {
+      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Crash renderCours: " + e.message, source: 'app.js', lineno: 0 });
+    }
   }
-  renderStats();
 }
 
 function doLocate(uid) {
   const c = D.cours.find(x => x.uid === uid);
   if (!c) {
-    if($('locContent')) $('locContent').innerHTML = `
-      <div style="text-align:center;padding:10px 0">
-        <div style="font-size:32px;margin-bottom:8px">❌</div>
-        <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${uid}</div>
-        <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
-      </div>`;
+    if($('locContent')) {
+      $('locContent').innerHTML = `
+        <div style="text-align:center;padding:10px 0">
+          <div style="font-size:32px;margin-bottom:8px">❌</div>
+          <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${uid}</div>
+          <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
+        </div>`;
+    }
     if($('locPopup')) $('locPopup').classList.add('open');
     return;
   }
@@ -566,39 +721,54 @@ function doLocate(uid) {
 
   let validationMsg = '';
   if (c.stat === 'printed') {
-    c.stat = 'active'; save(); renderCours(); renderDashboard();
+    c.stat = 'active';
+    save();
+    renderCours();
+    renderDashboard();
     validationMsg = '<div style="background:rgba(80,216,144,.15);border:1px solid var(--grn);color:var(--grn);padding:10px;border-radius:10px;text-align:center;font-weight:bold;margin-bottom:15px;">✅ Document initialisé et classé !</div>';
   }
 
   const mo = D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
   const co = D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📁'};
-  const interNum = parseInt(c.inter, 10);
   
-  if($('locContent')) $('locContent').innerHTML = validationMsg + `
-    <div class="loc-code">${c.uid}</div>
-    <div class="loc-title">${c.title}</div>
-    <div class="loc-cards">
-      <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">${co.icon} ${co.name}</div>
-      <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">📑 Intercalaire ${c.inter} \u2014 ${IN[interNum]||''}</div>
-    </div>
-    <div style="text-align:center;margin-top:5px;font-size:12px;font-weight:bold;color:${mo.color}">${c.type}</div>
-    ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
-    ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
-  `;
+  // 🗂️ AFFICHAGE DU NOM D'INTERCALAIRE PERSONNALISÉ
+  const interNameDisplay = getInterName(co, c.inter);
+  
+  if($('locContent')) {
+    $('locContent').innerHTML = validationMsg + `
+      <div class="loc-code">${c.uid}</div>
+      <div class="loc-title">${c.title}</div>
+      <div class="loc-cards">
+        <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">${co.icon} ${co.name}</div>
+        <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">📑 ${interNameDisplay}</div>
+      </div>
+      <div style="text-align:center;margin-top:5px;font-size:12px;font-weight:bold;color:${mo.color}">${c.type}</div>
+      ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
+      ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
+    `;
+  }
   if($('locPopup')) $('locPopup').classList.add('open');
 }
 
 function delCours(uid) {
   if (!confirm('Supprimer le document ' + uid + ' ?')) return;
   D.cours = D.cours.filter(c => c.uid !== uid);
-  save(); renderCours(); renderDashboard(); renderNotes(); renderClasseurs();
+  save();
+  renderCours();
+  renderDashboard();
+  renderNotes();
+  renderClasseurs();
 }
 
 function toggleNoteField() {
   const t = $('fType') ? $('fType').value : '';
   if($('fgNote')) {
-    if(t === 'DS' || t === 'KHOLLE') { $('fgNote').style.display = 'block'; }
-    else { $('fgNote').style.display = 'none'; if($('fNote')) $('fNote').value = ''; }
+    if(t === 'DS' || t === 'KHOLLE') {
+      $('fgNote').style.display = 'block';
+    } else {
+      $('fgNote').style.display = 'none';
+      if($('fNote')) $('fNote').value = '';
+    }
   }
 }
 
@@ -614,6 +784,22 @@ function toggleManualUid() {
   }
 }
 
+// 🗂️ MISE À JOUR DYNAMIQUE DES INTERCALAIRES LORS DE L'AJOUT
+function updateIntercalairesDropdown() {
+  const clId = $('fCl') ? $('fCl').value : '';
+  const cl = D.classeurs.find(c => c.id === clId);
+  const maxI = cl ? (cl.maxInter || 12) : 12;
+  
+  if($('fInter')) {
+    $('fInter').innerHTML = '<option value="">—</option>' + 
+      Array.from({length: maxI}, (_, i) => {
+        const val = String(i + 1).padStart(2, '0');
+        const customName = getInterName(cl, val);
+        return `<option value="${val}">${val} - ${customName}</option>`;
+      }).join('');
+  }
+}
+
 function openModalCours() {
   editUid = null;
   if($('mTitle')) $('mTitle').textContent = '✨ Ajouter un document';
@@ -621,6 +807,7 @@ function openModalCours() {
   if($('fDesc')) $('fDesc').value = ''; 
   if($('fMat')) $('fMat').innerHTML = '<option value="">— Choisir —</option>' + D.matieres.map(m => `<option value="${m.id}">${m.label} — ${m.name}</option>`).join('');
   if($('fCl')) $('fCl').innerHTML = '<option value="">— Choisir —</option>' + D.classeurs.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('');
+  updateIntercalairesDropdown(); 
   if($('fInter')) $('fInter').value = ''; 
   if($('fType')) $('fType').value = 'COURS'; 
   if($('fRev')) $('fRev').value = 'green';
@@ -644,7 +831,8 @@ function openModalCours() {
 }
 
 function editCours(uid) {
-  const c = D.cours.find(x => x.uid===uid); if (!c) return;
+  const c = D.cours.find(x => x.uid===uid);
+  if (!c) return;
   editUid = uid;
   if($('mTitle')) $('mTitle').textContent = '✏️ Modifier le document';
   if($('fTitle')) $('fTitle').value = c.title; 
@@ -655,6 +843,7 @@ function editCours(uid) {
   toggleNoteField();
   if($('fMat')) $('fMat').innerHTML = D.matieres.map(m => `<option value="${m.id}" ${m.id===c.mat?'selected':''}>${m.label}</option>`).join('');
   if($('fCl')) $('fCl').innerHTML = D.classeurs.map(x => `<option value="${x.id}" ${x.id===c.cl?'selected':''}>${x.icon} ${x.name}</option>`).join('');
+  updateIntercalairesDropdown();
   if($('fInter')) $('fInter').value = c.inter;
   
   if($('lblManualUid')) $('lblManualUid').style.display = 'none';
@@ -668,11 +857,27 @@ function editCours(uid) {
 }
 
 function saveCours() {
-  const title = $('fTitle')?$('fTitle').value.trim():'', mat = $('fMat')?$('fMat').value:'', cl = $('fCl')?$('fCl').value:'', inter = $('fInter')?$('fInter').value:'';
-  const type = $('fType')?$('fType').value:'', rev = $('fRev')?$('fRev').value:'', note = $('fNote')?$('fNote').value:'';
-  if (!title || !mat || !cl || !inter) { alert('Remplis tous les champs obligatoires'); return; }
-
-  const obj = {title, type, rev, mat, cl, inter, note, desc: $('fDesc')?$('fDesc').value.trim():''};
+  const title = $('fTitle')?$('fTitle').value.trim():'';
+  const mat = $('fMat')?$('fMat').value:'';
+  const cl = $('fCl')?$('fCl').value:'';
+  const inter = $('fInter')?$('fInter').value:'';
+  
+  if (!title || !mat || !cl || !inter) {
+    alert('Remplis tous les champs obligatoires');
+    return;
+  }
+  
+  const obj = {
+    title, 
+    type:$('fType')?$('fType').value:'', 
+    rev:$('fRev')?$('fRev').value:'', 
+    mat, 
+    cl, 
+    inter, 
+    note:$('fNote')?$('fNote').value:'', 
+    desc: $('fDesc')?$('fDesc').value.trim():''
+  };
+  
   if(!obj.date) obj.date = new Date().toISOString().split('T')[0];
 
   if (editUid) {
@@ -687,74 +892,154 @@ function saveCours() {
     let newUid = '';
     if ($('fManualUidToggle') && $('fManualUidToggle').checked) {
       newUid = $('fUidInput').value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
-      if (!newUid) return alert("Veuillez saisir un identifiant manuel valide (ou décochez la case).");
-      if (D.cours.find(c => c.uid === newUid)) return alert("Ce code est déjà utilisé par un autre document !");
+      if (!newUid) {
+        alert("Veuillez saisir un identifiant valide.");
+        return;
+      }
+      if (D.cours.find(c => c.uid === newUid)) {
+        alert("Code déjà utilisé !");
+        return;
+      }
     } else {
       newUid = genUid(mat);
     }
-    
     obj.uid = newUid;
     obj.stat = 'pending'; 
     D.cours.unshift(obj);
   }
   
-  save(); 
-  closeModalCours(); 
-  renderCours(); renderDashboard(); renderNotes(); renderClasseurs();
+  save();
+  closeModalCours();
+  renderCours();
+  renderDashboard();
+  renderClasseurs();
 }
 
 function renderClasseurs() {
-  const g = $('clGrid'); if(!g) return;
+  try {
+    const g = $('clGrid');
+    if(!g) return;
 
-  let html = '<div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="bs" onclick="window.toggleEditCl()" style="padding:6px 12px; font-size:12px; border-color:var(--bd);">' + (isEditingCl ? '✅ Terminer' : '✏️ Modifier') + '</button></div>';
+    let html = '<div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="bs" onclick="window.toggleEditCl()" style="padding:6px 12px; font-size:12px; border-color:var(--bd);">' + (isEditingCl ? '✅ Terminer' : '✏️ Modifier') + '</button></div>';
 
-  if (!D.classeurs.length) { g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>'; return; }
-  
-  html += D.classeurs.map(cl => {
-    const cc = D.cours.filter(c => c.cl===cl.id);
-    cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
+    if (!D.classeurs.length) {
+      g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>';
+      return;
+    }
+    
+    html += D.classeurs.map(cl => {
+      const cc = D.cours.filter(c => c.cl===cl.id);
+      cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
 
-    // Les boutons apparaissent si on est en mode édition
-    let editBtns = isEditingCl ? `
-      <button class="cbt" style="padding:4px 8px; margin-left:10px;" onclick="event.stopPropagation(); window.renameCl('${cl.id}')">✏️ Nom</button>
-      <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
-    ` : '';
+      let editBtns = isEditingCl ? `
+        <button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">✏️ Éditer</button>
+        <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
+      ` : '';
 
-    let coursesList = cc.length ? cc.map(c => `
-      <div class="irow" onclick="window.doLocate('${c.uid}')">
-        <div>
-          <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
-          <div style="font-size:11px; color:var(--mut);">Intercalaire ${c.inter} • ${c.type}</div>
+      let coursesList = cc.length ? cc.map(c => {
+        // 🗂️ AFFICHAGE DU NOM D'INTERCALAIRE PERSONNALISÉ DANS LA LISTE
+        const interNameDisplay = getInterName(cl, c.inter);
+        return `
+        <div class="irow" onclick="window.doLocate('${c.uid}')">
+          <div>
+            <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
+            <div style="font-size:11px; color:var(--mut);">[${interNameDisplay}] • ${c.type}</div>
+          </div>
+          <div style="color:var(--acc); font-size:18px;">➔</div>
         </div>
-        <div style="color:var(--acc); font-size:18px;">➔</div>
-      </div>
-    `).join('') : '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
+      `}).join('') : '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
 
-    return `
-      <div class="cl-card">
-        <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
-          <div class="cl-ico" style="background:${cl.color}20">${cl.icon}</div>
-          <div class="cl-info" style="flex:1;"><div class="cl-nm">${cl.name}</div><div class="cl-sb">${cc.length} documents</div></div>
-          ${editBtns}
-          <div style="color:var(--mut); font-size:12px; margin-left:8px;">▼</div>
-        </div>
-        <div class="ilist" id="ili_${cl.id}">
-          ${coursesList}
-        </div>
-      </div>`;
-  }).join('');
+      return `
+        <div class="cl-card">
+          <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
+            <div class="cl-ico" style="background:${cl.color}20">${cl.icon}</div>
+            <div class="cl-info" style="flex:1;"><div class="cl-nm">${cl.name}</div><div class="cl-sb">${cl.maxInter || 12} inter. max</div></div>
+            ${editBtns}
+            <div style="color:var(--mut); font-size:12px; margin-left:8px;">▼</div>
+          </div>
+          <div class="ilist" id="ili_${cl.id}">
+            ${coursesList}
+          </div>
+        </div>`;
+    }).join('');
 
-  g.innerHTML = html;
+    g.innerHTML = html;
+  } catch(e) {
+    if(window.appErrors) {
+      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Crash renderClasseurs: " + e.message, source: 'app.js', lineno: 0 });
+    }
+  }
 }
 
-function renderMatieres() {
-  const el = $('mgMat'); if(!el) return;
+// ✏️ SYSTÈME D'ÉDITION INLINE DES CLASSEURS ET INTERCALAIRES
+window.editClasseur = function(id) {
+  const cl = D.classeurs.find(c => c.id === id);
+  if(!cl) return;
+  currentEditClId = id;
+  
+  if($('eClNm')) $('eClNm').value = cl.name;
+  if($('eClIc')) $('eClIc').value = cl.icon;
+  if($('eClMax')) $('eClMax').value = cl.maxInter || 12;
+  
+  window.renderEditClInters(); // Dessine la liste des inputs
+  
+  if($('ovEditCl')) $('ovEditCl').classList.remove('hidden');
+};
 
-  // Bouton d'édition en haut
+window.renderEditClInters = function() {
+  const cl = D.classeurs.find(c => c.id === currentEditClId);
+  const container = $('eClInterList');
+  const max = parseInt($('eClMax').value) || 12;
+  
+  if(!cl || !container) return;
+  
+  let html = '';
+  for(let i=1; i<=max; i++) {
+    const val = String(i).padStart(2, '0');
+    const existingName = (cl.interNames && cl.interNames[val]) ? cl.interNames[val] : '';
+    html += `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <div style="font-family:'DM Mono', monospace; font-size:12px; color:var(--gold); font-weight:bold;">${val}</div>
+        <input type="text" id="eClInter_${val}" placeholder="Ex: Thermodynamique" value="${existingName}" style="flex:1; background:var(--bg); border:1px solid var(--bd); padding:8px 10px; border-radius:6px; color:var(--txt); font-size:12px; outline:none;">
+      </div>
+    `;
+  }
+  container.innerHTML = html;
+};
+
+window.saveClEdit = function() {
+  const cl = D.classeurs.find(c => c.id === currentEditClId);
+  if(!cl) return;
+  
+  cl.name = $('eClNm').value.trim() || cl.name;
+  cl.icon = $('eClIc').value.trim() || cl.icon;
+  cl.maxInter = parseInt($('eClMax').value) || 12;
+  
+  // Sauvegarde dynamique des noms d'intercalaires
+  if(!cl.interNames) cl.interNames = {};
+  for(let i=1; i<=cl.maxInter; i++) {
+    const val = String(i).padStart(2, '0');
+    const input = $(`eClInter_${val}`);
+    if(input && input.value.trim() !== '') {
+      cl.interNames[val] = input.value.trim();
+    } else {
+      delete cl.interNames[val];
+    }
+  }
+  
+  save(); 
+  if($('ovEditCl')) $('ovEditCl').classList.add('hidden');
+  renderClasseurs(); 
+  renderCours();
+};
+
+function renderMatieres() {
+  const el = $('mgMat');
+  if(!el) return;
+
   let html = '<div style="display:flex; justify-content:flex-end; margin-bottom:10px;"><button class="bs" onclick="window.toggleEditMat()" style="padding:6px 12px; font-size:12px; border-color:var(--bd);">' + (isEditingMat ? '✅ Terminer' : '✏️ Modifier') + '</button></div>';
 
   html += D.matieres.map(m => {
-    // Le bouton de suppression n'apparaît que si le mode édition est actif
     let delBtn = isEditingMat ? `<button class="mdel" onclick="window.delMat('${m.id}')">✕</button>` : '';
     return `
     <div class="mr">
@@ -766,20 +1051,37 @@ function renderMatieres() {
   
   el.innerHTML = html;
   
-  if($('swMat')) $('swMat').innerHTML = COLORS.map(c => `<div class="sw${c===newColor?' on':''}" style="background:${c}" onclick="window.setNewColor('${c}')"></div>`).join('');
+  if($('swMat')) {
+    $('swMat').innerHTML = COLORS.map(c => `
+      <div class="sw${c===newColor?' on':''}" style="background:${c}" onclick="window.setNewColor('${c}')"></div>
+    `).join('');
+  }
 }
 
-function setNewColor(col) { newColor = col; renderMatieres(); }
+function setNewColor(col) {
+  newColor = col;
+  renderMatieres();
+}
 
 function addCl() {
   const id = $('nClId').value.trim().toUpperCase();
   const name = $('nClNm').value.trim();
   const icon = $('nClIc').value.trim() || '📁';
-  if(id.length !== 1) return alert("Identifiant : 1 seule lettre !");
-  if(D.classeurs.find(c=>c.id===id)) return alert("Ce classeur existe déjà !");
-  if(!name) return alert("Le nom est obligatoire");
   
-  D.classeurs.push({id, name, icon, color:newColor}); 
+  if(id.length !== 1) {
+    alert("Identifiant : 1 seule lettre !");
+    return;
+  }
+  if(D.classeurs.find(c=>c.id===id)) {
+    alert("Ce classeur existe déjà !");
+    return;
+  }
+  if(!name) {
+    alert("Le nom est obligatoire");
+    return;
+  }
+  
+  D.classeurs.push({id, name, icon, color:newColor, maxInter: 12, interNames: {}}); 
   save(); 
   renderClasseurs(); 
   renderCours();
@@ -792,8 +1094,15 @@ function addCl() {
 function addMat() {
   const lbl = $('nMlbl').value.trim().toUpperCase();
   const name = $('nMname').value.trim();
-  if(lbl.length !== 4) return alert("Code matière : exactement 4 lettres !");
-  if(D.matieres.find(m=>m.id===lbl)) return alert("Cette matière existe déjà !");
+  
+  if(lbl.length !== 4) {
+    alert("Code matière : exactement 4 lettres !");
+    return;
+  }
+  if(D.matieres.find(m=>m.id===lbl)) {
+    alert("Cette matière existe déjà !");
+    return;
+  }
   
   D.matieres.push({id:lbl, label:lbl, name:name||lbl, color:newColor}); 
   save(); 
@@ -805,11 +1114,27 @@ function addMat() {
   alert("Matière ajoutée avec succès !");
 }
 
-function delMat(id) { if(!D.cours.filter(c=>c.mat===id).length || confirm('Cette matière contient des cours. Supprimer quand même ?')) { D.matieres = D.matieres.filter(m=>m.id!==id); save(); renderMatieres(); renderCours(); } }
-function delCl(id) { if(!D.cours.filter(c=>c.cl===id).length || confirm('Ce classeur contient des cours. Supprimer quand même ?')) { D.classeurs = D.classeurs.filter(c=>c.id!==id); save(); renderClasseurs(); renderCours(); } }
+function delMat(id) {
+  if(!D.cours.filter(c=>c.mat===id).length || confirm('Cette matière contient des cours. Supprimer quand même ?')) {
+    D.matieres = D.matieres.filter(m=>m.id!==id);
+    save();
+    renderMatieres();
+    renderCours();
+  }
+}
+
+function delCl(id) {
+  if(!D.cours.filter(c=>c.cl===id).length || confirm('Ce classeur contient des cours. Supprimer quand même ?')) {
+    D.classeurs = D.classeurs.filter(c=>c.id!==id);
+    save();
+    renderClasseurs();
+    renderCours();
+  }
+}
 
 function showQR(uid) {
-  const c = D.cours.find(x => x.uid===uid); if (!c) return;
+  const c = D.cours.find(x => x.uid===uid);
+  if (!c) return;
   curQRUid = uid;
   if($('qrLbl')) $('qrLbl').textContent = uid;
   if($('qrBox')) $('qrBox').innerHTML = `<img src="${window._QR.makeImageURL(uid, 180)}" style="border-radius:6px; margin:0 auto;">`;
@@ -819,24 +1144,35 @@ function showQR(uid) {
     else if(c.stat === 'printed') $('btnMarkOnePrinted').textContent = '🟢 Marquer Initialisé';
     else $('btnMarkOnePrinted').textContent = '↩️ Remettre à l\'état Imprimé';
   }
+  
   if($('ovQR')) $('ovQR').classList.remove('hidden');
 }
 
 function markOnePrinted() {
-  const c = D.cours.find(x => x.uid===curQRUid); if (!c) return;
+  const c = D.cours.find(x => x.uid===curQRUid);
+  if (!c) return;
+  
   if(c.stat === 'pending') c.stat = 'printed';
   else if(c.stat === 'printed') c.stat = 'active';
   else c.stat = 'printed';
-  save(); renderCours(); showQR(curQRUid); 
+  
+  save();
+  renderCours();
+  showQR(curQRUid); 
 }
 
 function dlQR() {
   if(!curQRUid) return;
-  const a = document.createElement('a'); a.download = `QR_${curQRUid}.png`; a.href = window._QR.makeImageURL(curQRUid, 250); a.click();
+  const a = document.createElement('a');
+  a.download = `QR_${curQRUid}.png`;
+  a.href = window._QR.makeImageURL(curQRUid, 250);
+  a.click();
 }
 
 function renderPrintGrid() {
-  const grid = $('printGrid'); if(!grid) return;
+  const grid = $('printGrid');
+  if(!grid) return;
+  
   grid.innerHTML = D.cours.map(c => `
     <div class="pcard ${printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${c.uid}')">
       <div class="pc-check">${printSel.has(c.uid)?'✅':'⬜'}</div>
@@ -845,19 +1181,41 @@ function renderPrintGrid() {
       <div class="pc-title">${c.title}</div>
     </div>
   `).join('');
+  
   if($('pStats')) $('pStats').textContent = printSel.size + ' sélectionné(s)';
 }
 
-function toggleSel(uid) { printSel.has(uid) ? printSel.delete(uid) : printSel.add(uid); renderPrintGrid(); }
-function selPending() { printSel = new Set(D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); renderPrintGrid(); }
-function selAll() { printSel = new Set(D.cours.map(c=>c.uid)); renderPrintGrid(); }
-function selNone() { printSel.clear(); renderPrintGrid(); }
+function toggleSel(uid) {
+  if (printSel.has(uid)) printSel.delete(uid);
+  else printSel.add(uid);
+  renderPrintGrid();
+}
+
+function selPending() {
+  printSel = new Set(D.cours.filter(c=>c.stat==='pending').map(c=>c.uid));
+  renderPrintGrid();
+}
+
+function selAll() {
+  printSel = new Set(D.cours.map(c=>c.uid));
+  renderPrintGrid();
+}
+
+function selNone() {
+  printSel.clear();
+  renderPrintGrid();
+}
 
 function executePrint() {
   const sel = D.cours.filter(c => printSel.has(c.uid));
-  if (!sel.length) { alert('Sélectionne au moins un document !'); return; }
+  if (!sel.length) {
+    alert('Sélectionne au moins un document !');
+    return;
+  }
   
-  const pz = $('printZone'); if(!pz) return;
+  const pz = $('printZone');
+  if(!pz) return;
+  
   pz.innerHTML = '';
   sel.forEach(c => {
     pz.innerHTML += `
@@ -870,66 +1228,75 @@ function executePrint() {
   
   setTimeout(() => {
     window.print();
-    setTimeout(() => { pz.innerHTML = ''; if($('ovPrintConfirm')) $('ovPrintConfirm').classList.remove('hidden'); }, 500);
+    setTimeout(() => {
+      pz.innerHTML = '';
+      if($('ovPrintConfirm')) $('ovPrintConfirm').classList.remove('hidden');
+    }, 500);
   }, 800);
 }
 
 function confirmPrintSuccess(success) {
   closePrintConfirm();
   if(success) {
-    printSel.forEach(uid => { const x = D.cours.find(d=>d.uid===uid); if(x && x.stat==='pending') x.stat = 'printed'; });
-    save(); printSel.clear(); renderCours(); renderPrintGrid(); renderDashboard();
+    printSel.forEach(uid => {
+      const x = D.cours.find(d=>d.uid===uid);
+      if(x && x.stat==='pending') x.stat = 'printed';
+    });
+    save();
+    printSel.clear();
+    renderCours();
+    renderPrintGrid();
+    renderDashboard();
   }
 }
 
+// 📸 LE NOUVEAU SCANNER HAUTE DÉFINITION (Spécial Papier)
 function openCam() {
   if($('manualCamInput')) $('manualCamInput').value = '';
   if($('ovCam')) $('ovCam').classList.remove('hidden');
   
-  let frameCount = 0; // On va compter les images pour voir si ça freeze
-
-  if($('camSt')) { 
-    $('camSt').style.color = 'var(--gold)'; 
-    $('camSt').innerHTML = 'Initialisation de la caméra...'; 
+  let frameCount = 0;
+  if($('camSt')) {
+    $('camSt').style.color = 'var(--gold)';
+    $('camSt').innerHTML = 'Initialisation HD...';
   }
   
   try {
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-      if($('camSt')) $('camSt').innerHTML = "⚠️ API Caméra bloquée par le navigateur.";
+      if($('camSt')) $('camSt').innerHTML = "⚠️ Caméra bloquée. Saisie manuelle requise.";
       return;
     }
     
-    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})
+    // ON FORCE LE TÉLÉPHONE EN HAUTE RÉSOLUTION (Idéal pour le papier)
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } })
       .then(stream => {
-        camStream = stream; const v = $('camVideo'); 
+        camStream = stream;
+        const v = $('camVideo'); 
         if(!v) return;
-        v.srcObject = stream; v.play().catch(e=>{}); 
         
-        // On vérifie d'abord si jsQR est bien là
+        v.srcObject = stream;
+        v.play().catch(e=>{}); 
+        
         const jsqrStatus = typeof jsQR !== 'undefined' ? '✅ Actif' : '❌ Non trouvé';
         
         camTick = setInterval(() => {
-          if(v.readyState !== 4 || v.videoWidth === 0) {
-             if($('camSt')) $('camSt').innerHTML = `⏳ Chargement vidéo... (jsQR: ${jsqrStatus})`;
-             return;
-          }
-          
+          if(v.readyState !== 4 || v.videoWidth === 0) return;
           frameCount++;
           
-          // AFFICHAGE DU RADAR POUR "MES YEUX" 👀
           if($('camSt')) {
             $('camSt').innerHTML = `
               <div style="font-size:11px; text-align:left; background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; color:#fff;">
                 <b>jsQR:</b> ${jsqrStatus}<br>
                 <b>Résolution:</b> ${v.videoWidth} x ${v.videoHeight}<br>
                 <b>Frames analysées:</b> ${frameCount}<br>
-                <b>État:</b> Recherche de QR...
-              </div>
-            `;
+                <b>État:</b> Scan HD natif en cours...
+              </div>`;
           }
 
           try {
             const cv = $('camCanvas'); 
+            
+            // Résolution 100% Native sans flou !
             cv.width = v.videoWidth; 
             cv.height = v.videoHeight;
             
@@ -938,25 +1305,27 @@ function openCam() {
             const d = ctx.getImageData(0, 0, cv.width, cv.height);
             
             if(typeof jsQR !== 'undefined') {
-              const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'attemptBoth'});
+              // "dontInvert" est ultra-rapide et conçu pour le papier normal
+              const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'dontInvert'});
               if(code && code.data) {
-                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé ! Traitement...";
+                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé !";
                 processScan(code.data.trim().toUpperCase());
               }
             }
           } catch(e) {
-            if($('camSt')) $('camSt').innerHTML += `<br><span style="color:red">Erreur: ${e.message}</span>`;
+            if(window.appErrors) {
+              window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Scanner: " + e.message, source: 'app.js', lineno: 0 });
+            }
           }
-        }, 150); 
+        }, 100); // Analyse ultra-rapide (10 fois par seconde)
         
-      }).catch(err => { 
-        if($('camSt')) $('camSt').innerHTML = `❌ Erreur caméra: ${err.message}`; 
+      }).catch(err => {
+        if($('camSt')) $('camSt').innerHTML = `❌ Erreur caméra: ${err.message}`;
       });
   } catch(e) {
-    if($('camSt')) $('camSt').innerHTML = `❌ Crash: ${e.message}`; 
+    if($('camSt')) $('camSt').innerHTML = `❌ Crash: ${e.message}`;
   }
 }
-
 
 function manualScan() {
   const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
@@ -969,41 +1338,33 @@ function processScan(uid) {
   doLocate(uid);
 }
 
-window.renameCl = function(id) {
-  const cl = D.classeurs.find(c => c.id === id);
-  if(!cl) return;
-  const newName = prompt(`Nouveau nom pour le classeur (Code ${id}) :`, cl.name);
-  if(newName && newName.trim() !== '') {
-    cl.name = newName.trim();
-    save();
-    renderClasseurs();
-    renderCours();
-  }
-};
-
-
-
 function exportCsv() {
   const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
+  
   const rows = D.cours.map(c => {
     const mo = D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
     const co = D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
     return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.date||'', c.stat].map(esc).join(',');
   });
+  
   const csv = [hdr.join(','), ...rows].join('\n');
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mes-cours-prepa.csv'; a.click();
+  const a = document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='mes-cours-prepa.csv';
+  a.click();
 }
 
 function homeGo() {
   const v = $('homeSearch') ? $('homeSearch').value.trim().toUpperCase() : '';
-  if(v.includes('-') && v.length >= 8) { doLocate(v); } 
-  else { 
-    switchTab('cours'); 
-    if($('mainSearch')) $('mainSearch').value = v; 
-    renderCours(); 
-    triggerHaptic(); 
+  if(v.includes('-') && v.length >= 8) {
+    doLocate(v);
+  } else {
+    switchTab('cours');
+    if($('mainSearch')) $('mainSearch').value = v;
+    renderCours();
+    triggerHaptic();
   }
 }
 
@@ -1012,7 +1373,7 @@ function renderErrorLogs() {
   if(!container) return;
   
   if(!window.appErrors || window.appErrors.length === 0) {
-    container.innerHTML = '<div style="text-align:center; color:var(--mut); margin-top:50px;">Aucune erreur détectée. Tout va bien ! 🎉</div>';
+    container.innerHTML = '<div style="text-align:center; color:var(--mut); margin-top:50px;">Aucune erreur détectée ! 🎉</div>';
     return;
   }
   
@@ -1057,8 +1418,11 @@ window.openCam = openCam;
 window.toggleManualUid = toggleManualUid; 
 window.renderErrorLogs = renderErrorLogs;
 window.clearErrorLogs = clearErrorLogs;
-window.toggleEditMat = toggleEditMat; // NOUVEAU: Exposition du bouton édition
-window.toggleEditCl = toggleEditCl;   // NOUVEAU: Exposition du bouton édition
+window.toggleEditMat = toggleEditMat; 
+window.toggleEditCl = toggleEditCl;   
+window.editClasseur = editClasseur;   
+window.renderEditClInters = renderEditClInters; 
+window.saveClEdit = saveClEdit; 
 
 // ATTACHEMENT DYNAMIQUE DES ÉVÉNEMENTS
 bindClick('btnOpenSettings', () => switchTab('settings'));
@@ -1086,10 +1450,7 @@ bindClick('btnHomeCam', openCam);
 bindClick('btnKholleDraw', drawKholle);
 
 bindInput('mainSearch', () => { doAutoFmtScan($('mainSearch')); renderCours(); });
-bindKey('mainSearch', 'Enter', () => { 
-  const v = $('mainSearch').value.trim().toUpperCase(); 
-  if(v) doLocate(v); 
-});
+bindKey('mainSearch', 'Enter', () => { const v = $('mainSearch').value.trim().toUpperCase(); if(v) doLocate(v); });
 bindClick('btnLocate', () => { const v = $('mainSearch') ? $('mainSearch').value.trim().toUpperCase() : ''; if(v) doLocate(v); });
 
 bindClick('btnCancelCours', closeModalCours);
@@ -1112,6 +1473,9 @@ bindClick('btnCloseLocPopup', closeLocPopup);
 bindClick('btnMarkOnePrinted', markOnePrinted);
 bindClick('btnCloseQR', closeQRModal);
 bindClick('btnDlQR', dlQR);
+
+// MISE À JOUR DYNAMIQUE DES INTERCALAIRES LORS DU CHOIX D'UN CLASSEUR
+bindChange('fCl', updateIntercalairesDropdown);
 
 // LANCEMENT DE L'APPLICATION AVEC RÉCUPÉRATION FIRESTORE
 async function initApp() {
@@ -1136,13 +1500,16 @@ async function initApp() {
   if(!D) D = JSON.parse(JSON.stringify(emptyData));
   if(!D.cours) D.cours = [];
   if(!D.classeurs) D.classeurs = JSON.parse(JSON.stringify(emptyData.classeurs));
+  
+  // 🗂️ MIGRATION BDD : On s'assure que les anciens classeurs ont bien la propriété "interNames"
+  D.classeurs.forEach(cl => {
+    if(!cl.interNames) cl.interNames = {};
+    if(!cl.maxInter) cl.maxInter = 12;
+  });
+  
   if(!D.matieres) D.matieres = JSON.parse(JSON.stringify(emptyData.matieres));
   if(!D.settings) D.settings = JSON.parse(JSON.stringify(emptyData.settings));
-  if(D.settings.showPomo === undefined) D.settings.showPomo = true;
-  if(D.settings.pomoWork === undefined) D.settings.pomoWork = 25;
-  if(D.settings.pomoBreak === undefined) D.settings.pomoBreak = 5;
-  if(D.settings.template === undefined) D.settings.template = 'glass';
-
+  
   applySettings();
   switchTab('home');
 }
