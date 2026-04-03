@@ -11,18 +11,18 @@
  * * * 🔒 MODE ÉDITION (SÉCURITÉ UX) :
  * Les listes de Matières et de Classeurs possèdent un mode "Édition" (isEditingMat / isEditingCl)
  * pour cacher les boutons de suppression par défaut et éviter les clics accidentels.
- * * * 📷 SCANNER HAUTE DÉFINITION (SPÉCIAL PAPIER) :
- * Retrait du mode "Anti-Bruit" (qui floutait et détruisait la lecture sur papier).
- * Le flux vidéo est maintenant forcé en HD (`ideal: 1280x720`). jsQR utilise
- * l'option `dontInvert` pour une lecture ultra-rapide du vrai papier (noir sur blanc).
+ * * * 📷 SCANNER DE DIAGNOSTIC AVANCÉ (ANTI-BUG IOS) :
+ * Le scanner affiche désormais le `<canvas>` (miniature bordée de rouge) pour s'assurer
+ * que Safari iOS ne passe pas un flux vidéo vide/transparent (Bug Canvas Fantôme).
+ * Des trackings d'erreurs stricts sont rajoutés sur `getImageData`.
+ * L'autofocus est forcé via `advanced: [{ focusMode: "continuous" }]`.
  * * * 🗂️ BASE DE DONNÉES RELATIONNELLE (NOMS D'INTERCALAIRES) :
  * Les classeurs (D.classeurs) possèdent maintenant une propriété `interNames` (Objet).
  * Clé : le numéro (ex: "01"), Valeur : le nom custom (ex: "Mécanique").
  * La fonction utilitaire `getInterName(cl, ns)` gère le rendu dynamique partout.
  * * * ✏️ ÉDITION INLINE (SANS PROMPT NAVIGATEUR) :
- * Abandon des `prompt()` inesthétiques. L'édition d'un classeur déclenche la modale 
- * `ovEditCl` pour modifier le nom, l'icône, le nombre MAX d'intercalaires, ET le nom 
- * de chaque intercalaire individuellement de manière dynamique.
+ * L'édition d'un classeur déclenche la modale `ovEditCl` pour modifier le nom, l'icône, 
+ * le nombre MAX d'intercalaires, ET le nom de chaque intercalaire individuellement.
  * =========================================================================================
  */
 
@@ -1250,80 +1250,108 @@ function confirmPrintSuccess(success) {
   }
 }
 
-// 📸 LE NOUVEAU SCANNER HAUTE DÉFINITION (Spécial Papier)
+// 📸 LE SCANNER DE DIAGNOSTIC AVANCÉ (ANTI-BUG IOS)
 function openCam() {
   if($('manualCamInput')) $('manualCamInput').value = '';
   if($('ovCam')) $('ovCam').classList.remove('hidden');
-  
+
   let frameCount = 0;
   if($('camSt')) {
     $('camSt').style.color = 'var(--gold)';
-    $('camSt').innerHTML = 'Initialisation HD...';
+    $('camSt').innerHTML = 'Initialisation du diagnostic avancé...';
   }
-  
+
   try {
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
       if($('camSt')) $('camSt').innerHTML = "⚠️ Caméra bloquée. Saisie manuelle requise.";
       return;
     }
-    
-    // ON FORCE LE TÉLÉPHONE EN HAUTE RÉSOLUTION (Idéal pour le papier)
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } })
+
+    // On demande l'autofocus et une résolution HD
+    const constraints = {
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        advanced: [{ focusMode: "continuous" }]
+      }
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
       .then(stream => {
         camStream = stream;
-        const v = $('camVideo'); 
+        const v = $('camVideo');
         if(!v) return;
-        
+
         v.srcObject = stream;
-        v.play().catch(e=>{}); 
-        
+        v.setAttribute("playsinline", true); // Vital pour iOS
+        v.play().catch(e => {
+            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Video Play: " + e.message, source: 'app.js', lineno: 0 });
+        });
+
         const jsqrStatus = typeof jsQR !== 'undefined' ? '✅ Actif' : '❌ Non trouvé';
-        
+
+        // 🚨 NOUVEAUTÉ : On affiche le canvas en miniature pour voir si iOS nous bloque (Bug Canvas Fantôme)
+        const cv = $('camCanvas');
+        cv.style.display = 'block'; 
+        cv.style.width = '100px';
+        cv.style.height = 'auto';
+        cv.style.border = '2px solid red';
+        cv.style.margin = '0 auto 10px auto';
+        cv.style.borderRadius = '8px';
+
         camTick = setInterval(() => {
-          if(v.readyState !== 4 || v.videoWidth === 0) return;
+          if(v.readyState !== 4 || v.videoWidth === 0 || v.videoHeight === 0) return;
           frameCount++;
-          
+
+          cv.width = v.videoWidth;
+          cv.height = v.videoHeight;
+          const ctx = cv.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(v, 0, 0, cv.width, cv.height);
+
+          let imgData;
+          let isCanvasBlank = false;
+          try {
+              imgData = ctx.getImageData(0, 0, cv.width, cv.height);
+              // Vérification si le canvas est noir ou transparent (Bug iOS Safari)
+              const centerIdx = (Math.floor(cv.height/2) * cv.width + Math.floor(cv.width/2)) * 4;
+              if (imgData.data[centerIdx+3] === 0) isCanvasBlank = true; // Alpha = 0
+          } catch(e) {
+              if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "GetImageData: " + e.message, source: 'app.js', lineno: 0 });
+              return;
+          }
+
           if($('camSt')) {
             $('camSt').innerHTML = `
               <div style="font-size:11px; text-align:left; background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; color:#fff;">
                 <b>jsQR:</b> ${jsqrStatus}<br>
                 <b>Résolution:</b> ${v.videoWidth} x ${v.videoHeight}<br>
                 <b>Frames analysées:</b> ${frameCount}<br>
-                <b>État:</b> Scan HD natif en cours...
+                <b>Canvas Vide ?:</b> ${isCanvasBlank ? '🚨 OUI (BUG iOS)' : 'NON (Image OK)'}<br>
+                <b>État:</b> Diagnostic en cours... Regarde la miniature rouge ⬆️
               </div>`;
           }
 
           try {
-            const cv = $('camCanvas'); 
-            
-            // Résolution 100% Native sans flou !
-            cv.width = v.videoWidth; 
-            cv.height = v.videoHeight;
-            
-            const ctx = cv.getContext('2d'); 
-            ctx.drawImage(v, 0, 0, cv.width, cv.height);
-            const d = ctx.getImageData(0, 0, cv.width, cv.height);
-            
-            if(typeof jsQR !== 'undefined') {
-              // "dontInvert" est ultra-rapide et conçu pour le papier normal
-              const code = jsQR(d.data, d.width, d.height, {inversionAttempts:'dontInvert'});
+            if(typeof jsQR !== 'undefined' && !isCanvasBlank) {
+              const code = jsQR(imgData.data, imgData.width, imgData.height, {inversionAttempts:'attemptBoth'});
               if(code && code.data) {
                 if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé !";
                 processScan(code.data.trim().toUpperCase());
               }
             }
           } catch(e) {
-            if(window.appErrors) {
-              window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Scanner: " + e.message, source: 'app.js', lineno: 0 });
-            }
+            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "jsQR crash: " + e.message, source: 'app.js', lineno: 0 });
           }
-        }, 100); // Analyse ultra-rapide (10 fois par seconde)
-        
+        }, 250); 
+
       }).catch(err => {
         if($('camSt')) $('camSt').innerHTML = `❌ Erreur caméra: ${err.message}`;
+        if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "GetUserMedia: " + err.message, source: 'app.js', lineno: 0 });
       });
   } catch(e) {
     if($('camSt')) $('camSt').innerHTML = `❌ Crash: ${e.message}`;
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "openCam: " + e.message, source: 'app.js', lineno: 0 });
   }
 }
 
