@@ -23,14 +23,16 @@
     const shortSource = source ? source.split('/').pop() : 'Inconnu';
     window.appErrors.push({ time: time, msg: message, source: shortSource, lineno: lineno });
     
+    // Affichage de l'alerte flottante
     const toast = document.getElementById('errorToast');
     const toastMsg = document.getElementById('errorToastMsg');
     if(toast && toastMsg) { 
       toastMsg.textContent = "Erreur : " + message; 
       toast.classList.remove('hidden'); 
     }
+    // Mise à jour de l'onglet Logs si la fonction existe déjà
     if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
-    return false; 
+    return false; // Laisse l'erreur apparaître dans la console classique aussi
   };
 </script>
 </head>
@@ -420,4 +422,5 @@
 
 </body>
 </html>
+
 
