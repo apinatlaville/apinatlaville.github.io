@@ -10,29 +10,27 @@
 
 <script>
   (function(){
-    var v = new Date().getTime(); // Génère l'heure en millisecondes pour forcer le téléchargement
+    var v = new Date().getTime(); // Anti-cache
     document.write('<link rel="stylesheet" href="style.css?v=' + v + '">');
-    document.write('<script src="jsQR.js?v=' + v + '"><\/script>');
+    // 🆕 ON APPELLE LE NOUVEAU SCANNER ICI
+    document.write('<script src="html5-qrcode.js?v=' + v + '"><\/script>');
   })();
 </script>
 
 <script>
-  window.appErrors = []; // Historique global des erreurs
+  window.appErrors = [];
   window.onerror = function(message, source, lineno, colno, error) {
     const time = new Date().toLocaleTimeString();
     const shortSource = source ? source.split('/').pop() : 'Inconnu';
     window.appErrors.push({ time: time, msg: message, source: shortSource, lineno: lineno });
-    
-    // Affichage de l'alerte flottante
     const toast = document.getElementById('errorToast');
     const toastMsg = document.getElementById('errorToastMsg');
     if(toast && toastMsg) { 
       toastMsg.textContent = "Erreur : " + message; 
       toast.classList.remove('hidden'); 
     }
-    // Mise à jour de l'onglet Logs si la fonction existe déjà
     if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
-    return false; // Laisse l'erreur apparaître dans la console classique aussi
+    return false;
   };
 </script>
 </head>
@@ -330,8 +328,7 @@
     <div style="display:flex; gap:10px;">
       <div class="fg" style="flex:1.5;"><label>Classeur *</label><select id="fCl"></select></div>
       <div class="fg" style="flex:1;"><label>Intercalaire *</label>
-        <select id="fInter">
-          </select>
+        <select id="fInter"></select>
       </div>
     </div>
     <div class="fg"><label>Notes / Infos</label><textarea id="fDesc" rows="2" placeholder="Astuces de résolution..."></textarea></div>
@@ -354,8 +351,7 @@
     <h3 style="font-family:'Syne'; font-size:14px; margin:15px 0 10px; color:var(--acc);">Noms des intercalaires</h3>
     <p style="font-size:11px; color:var(--mut); margin-bottom:10px;">Assigne un thème personnalisé à chaque intercalaire au lieu d'un simple numéro.</p>
     
-    <div id="eClInterList" style="max-height:200px; overflow-y:auto; background:var(--s2); padding:10px; border-radius:8px; border:1px solid var(--bd); display:flex; flex-direction:column; gap:8px;">
-       </div>
+    <div id="eClInterList" style="max-height:200px; overflow-y:auto; background:var(--s2); padding:10px; border-radius:8px; border:1px solid var(--bd); display:flex; flex-direction:column; gap:8px;"></div>
 
     <div class="macts">
       <button class="bs" onclick="document.getElementById('ovEditCl').classList.add('hidden')">Annuler</button>
@@ -381,12 +377,10 @@
 <div class="ov hidden" id="ovCam">
   <div class="modal m-center">
     <h2 style="margin-bottom:15px;">📷 Scanner</h2>
-    <div class="cam-wrap">
-      <video id="camVideo" playsinline muted></video>
-      <div class="cam-line"></div>
-    </div>
-    <canvas id="camCanvas" style="display:none"></canvas>
-    <div class="cam-st" id="camSt" style="color:var(--gold); font-weight:bold; margin-bottom:20px;">Vérification...</div>
+    
+    <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 15px;"></div>
+    
+    <div class="cam-st" id="camSt" style="color:var(--gold); font-weight:bold; margin-bottom:20px;">Initialisation...</div>
     <div style="text-align:left; background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
       <label style="font-size:11px;color:var(--mut);display:block;margin-bottom:6px;text-transform:uppercase;">Saisie manuelle (Secours) :</label>
       <div style="display:flex;gap:6px;">
@@ -422,5 +416,3 @@
 
 </body>
 </html>
-
-
