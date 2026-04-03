@@ -8,26 +8,21 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="style.css?v=2">
-
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script>
-  window.appErrors = []; // Historique global des erreurs
+  window.appErrors = []; 
   window.onerror = function(message, source, lineno, colno, error) {
     const time = new Date().toLocaleTimeString();
     const shortSource = source ? source.split('/').pop() : 'Inconnu';
     window.appErrors.push({ time: time, msg: message, source: shortSource, lineno: lineno });
-    
-    // Affichage de l'alerte flottante
     const toast = document.getElementById('errorToast');
     const toastMsg = document.getElementById('errorToastMsg');
     if(toast && toastMsg) { 
       toastMsg.textContent = "Erreur : " + message; 
       toast.classList.remove('hidden'); 
     }
-    // Mise à jour de l'onglet Logs si la fonction existe déjà
     if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
     return false;
   };
@@ -405,9 +400,31 @@
 
 <div id="printZone"></div>
 
-<script src="data.js?v=2"></script>
-<script src="scanner.js?v=2"></script>
-<script type="module" src="app.js?v=2"></script>
+<script>
+  (function(){
+    var v = new Date().getTime(); 
+    
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'style.css?v=' + v;
+    document.head.appendChild(css);
+
+    var scriptData = document.createElement('script');
+    scriptData.src = 'data.js?v=' + v;
+    scriptData.async = false;
+    document.body.appendChild(scriptData);
+
+    var scriptScanner = document.createElement('script');
+    scriptScanner.src = 'scanner.js?v=' + v;
+    scriptScanner.async = false;
+    document.body.appendChild(scriptScanner);
+
+    var appScript = document.createElement('script');
+    appScript.type = 'module';
+    appScript.src = 'app.js?v=' + v;
+    document.body.appendChild(appScript);
+  })();
+</script>
 
 </body>
 </html>
