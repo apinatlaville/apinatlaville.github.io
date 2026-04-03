@@ -410,5 +410,16 @@
   })();
 </script>
 
+
+<script>
+  (function(){
+    var v = new Date().getTime();
+    document.write('<script src="data.js?v=' + v + '"><\/script>');
+    document.write('<script src="scanner.js?v=' + v + '"><\/script>');
+    document.write('<script type="module" src="app.js?v=' + v + '"><\/script>');
+  })();
+</script>
+
+
 </body>
 </html>
