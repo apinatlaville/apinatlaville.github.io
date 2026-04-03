@@ -1,28 +1,11 @@
 /**
  * =========================================================================================
- * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
+ * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION
  * =========================================================================================
- * NOM DU PROJET : Mes Cours - PC* Edition
- * TYPE : Module métier Javascript (app.js)
- * * * 🛡️ GESTIONNAIRE D'ERREURS (WATCHDOG) INTÉGRÉ :
- * Ce fichier écoute les évènements `unhandledrejection` (erreurs réseau/Firebase).
- * Il possède les fonctions `renderErrorLogs()` et `clearErrorLogs()` pour afficher
- * toutes les anomalies stockées par le script Watchdog (situé dans index.html).
- * * * 🔒 MODE ÉDITION (SÉCURITÉ UX) :
- * Les listes de Matières et de Classeurs possèdent un mode "Édition" (isEditingMat / isEditingCl)
- * pour cacher les boutons de suppression par défaut et éviter les clics accidentels.
- * * * 📷 SCANNER DE DIAGNOSTIC AVANCÉ (ANTI-BUG IOS) :
- * Le scanner affiche désormais le `<canvas>` (miniature bordée de rouge) pour s'assurer
- * que Safari iOS ne passe pas un flux vidéo vide/transparent (Bug Canvas Fantôme).
- * Des trackings d'erreurs stricts sont rajoutés sur `getImageData`.
- * L'autofocus est forcé via `advanced: [{ focusMode: "continuous" }]`.
- * * * 🗂️ BASE DE DONNÉES RELATIONNELLE (NOMS D'INTERCALAIRES) :
- * Les classeurs (D.classeurs) possèdent maintenant une propriété `interNames` (Objet).
- * Clé : le numéro (ex: "01"), Valeur : le nom custom (ex: "Mécanique").
- * La fonction utilitaire `getInterName(cl, ns)` gère le rendu dynamique partout.
- * * * ✏️ ÉDITION INLINE (SANS PROMPT NAVIGATEUR) :
- * L'édition d'un classeur déclenche la modale `ovEditCl` pour modifier le nom, l'icône, 
- * le nombre MAX d'intercalaires, ET le nom de chaque intercalaire individuellement.
+ * MOTEUR DE SCANNER MIS À JOUR : Intégration de `html5-qrcode`.
+ * Abandon définitif de jsQR. html5-qrcode gère sa propre vidéo, son canvas, et 
+ * ses algorithmes de traitement. Il est intégré dans la div `#reader` de `index.html`.
+ * TOUTES les fonctions interactives (menus, éditions de classeurs, matières) sont conservées.
  * =========================================================================================
  */
 
@@ -101,19 +84,20 @@ let editUid = null;
 let chipFilter = null; 
 let newColor = COLORS[0];
 let printSel = new Set(); 
-let camStream = null; 
-let camTick = null; 
-let curQRUid = null;
 let pomoInterval = null; 
 let pomoTimeLeft = 25 * 60; 
 let pomoRunning = false; 
 let pomoMode = 'work'; 
+let curQRUid = null;
 
 let isEditingMat = false;
 let isEditingCl = false;
 
 // VARIABLES GLOBALES POUR L'ÉDITION DE CLASSEUR
 let currentEditClId = null;
+
+// 🆕 VARIABLE GLOBALE POUR LE NOUVEAU SCANNER
+let html5QrcodeScanner = null;
 
 // 🗂️ UTILITAIRE : Récupère le nom personnalisé d'un intercalaire
 function getInterName(cl, ns) {
@@ -191,26 +175,19 @@ function updateClock() {
 setInterval(updateClock, 1000); 
 updateClock();
 
+// 🆕 NOUVELLE FONCTION D'ARRÊT DU SCANNER
 function stopCam() {
-  try {
-    if (camTick) {
-      clearInterval(camTick);
-      camTick = null;
-    }
-    if (camStream && typeof camStream.getTracks === 'function') {
-      camStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
-    }
-    camStream = null;
-    const v = $('camVideo'); 
-    if (v) {
-      v.srcObject = null;
-      v.pause();
-      v.removeAttribute('src');
-      v.load();
-    }
-  } catch(e) {}
-  const ov = $('ovCam');
-  if(ov) ov.classList.add('hidden');
+  if (html5QrcodeScanner) {
+    html5QrcodeScanner.stop().catch(e => {
+        // Erreur silencieuse
+    }).finally(() => {
+        html5QrcodeScanner.clear();
+        html5QrcodeScanner = null;
+        if($('ovCam')) $('ovCam').classList.add('hidden');
+    });
+  } else {
+    if($('ovCam')) $('ovCam').classList.add('hidden');
+  }
 }
 
 function closeLocPopup() {
@@ -299,9 +276,8 @@ function applySettings() {
 }
 
 function loadDemo() {
-  if(confirm("Activer les tests va remplacer tes données actuelles par les cours de démonstration.\n\nContinuer ?")) {
+  if(confirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?")) {
     D = JSON.parse(JSON.stringify(emptyData)); 
-    D.cours = DEMO_COURS;
     save(); 
     location.reload();
   }
@@ -1250,108 +1226,56 @@ function confirmPrintSuccess(success) {
   }
 }
 
-// 📸 LE SCANNER DE DIAGNOSTIC AVANCÉ (ANTI-BUG IOS)
-// 📸 LE SCANNER HYBRIDE (API NATIVE APPLE + JSQR)
-// 📸 LE SCANNER "SNIPER" (Recadrage central pour jsQR)
+// 🆕 LE NOUVEAU SCANNER "HTML5-QRCODE"
 function openCam() {
   if($('manualCamInput')) $('manualCamInput').value = '';
   if($('ovCam')) $('ovCam').classList.remove('hidden');
-
-  let frameCount = 0;
+  
   if($('camSt')) {
     $('camSt').style.color = 'var(--gold)';
-    $('camSt').innerHTML = 'Initialisation du mode Sniper...';
+    $('camSt').innerHTML = 'Initialisation du nouveau moteur...';
+  }
+
+  // S'assurer qu'un précédent scanner n'est pas en route
+  if (html5QrcodeScanner) {
+    html5QrcodeScanner.clear();
   }
 
   try {
-    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-      if($('camSt')) $('camSt').innerHTML = "⚠️ Caméra bloquée. Saisie manuelle requise.";
-      return;
+    // On initie la nouvelle librairie sur la div "#reader" qu'on a créée dans le HTML
+    html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader",
+      { fps: 10, qrbox: {width: 250, height: 250}, aspectRatio: 1.0 },
+      false
+    );
+
+    // Fonction si le scan réussit
+    function onScanSuccess(decodedText, decodedResult) {
+      if($('camSt')) {
+        $('camSt').style.color = 'var(--grn)';
+        $('camSt').innerHTML = '✅ QR Code trouvé !';
+      }
+      // On arrête le scanner
+      html5QrcodeScanner.clear();
+      // On traite le code
+      processScan(decodedText.trim().toUpperCase());
     }
 
-    const constraints = {
-      video: {
-        facingMode: 'environment',
-        width: { ideal: 720 },
-        height: { ideal: 720 },
-        advanced: [{ focusMode: "continuous" }]
+    // Fonction si le scan échoue à lire l'image actuelle (silencieux)
+    function onScanFailure(error) {
+      if($('camSt')) {
+        $('camSt').style.color = 'var(--mut)';
+        $('camSt').innerHTML = 'Analyse en cours...';
       }
-    };
+    }
 
-    navigator.mediaDevices.getUserMedia(constraints)
-      .then(stream => {
-        camStream = stream;
-        const v = $('camVideo');
-        if(!v) return;
+    html5QrcodeScanner.render(onScanSuccess, onScanFailure);
 
-        v.srcObject = stream;
-        v.setAttribute("playsinline", true);
-        v.play().catch(e => {});
-
-        const jsqrStatus = typeof jsQR !== 'undefined' ? '✅ Actif' : '❌ Non trouvé';
-
-        // 🎨 La miniature devient VERTE et Carrée (Mode Sniper)
-        const cv = $('camCanvas');
-        cv.style.display = 'block';
-        cv.style.width = '150px';
-        cv.style.height = '150px';
-        cv.style.border = '3px solid var(--grn)';
-        cv.style.margin = '0 auto 10px auto';
-        cv.style.borderRadius = '8px';
-        cv.style.objectFit = 'cover';
-
-        camTick = setInterval(async () => {
-          if(v.readyState !== 4 || v.videoWidth === 0 || v.videoHeight === 0) return;
-          frameCount++;
-
-          // 🎯 LE MODE SNIPER : On calcule un carré au centre de la vidéo (65% de la taille)
-          const size = Math.min(v.videoWidth, v.videoHeight) * 0.65; 
-          const startX = (v.videoWidth - size) / 2;
-          const startY = (v.videoHeight - size) / 2;
-
-          cv.width = size;
-          cv.height = size;
-          const ctx = cv.getContext('2d', { willReadFrequently: true });
-          
-          // On "rogne" l'image pour ne dessiner QUE le centre sur notre toile
-          ctx.drawImage(v, startX, startY, size, size, 0, 0, size, size);
-
-          let imgData;
-          try {
-              imgData = ctx.getImageData(0, 0, cv.width, cv.height);
-          } catch(e) { return; }
-
-          if($('camSt')) {
-            $('camSt').innerHTML = `
-              <div style="font-size:11px; text-align:left; background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; color:#fff;">
-                <b>Moteur jsQR:</b> ${jsqrStatus}<br>
-                <b>Taille du Scan:</b> ${Math.round(size)}x${Math.round(size)}<br>
-                <b>Frames:</b> ${frameCount}<br>
-                <b>État:</b> Place le QR pile au centre !
-              </div>`;
-          }
-
-          try {
-            if(typeof jsQR !== 'undefined') {
-              // On utilise dontInvert pour le papier (c'est plus rapide)
-              const code = jsQR(imgData.data, imgData.width, imgData.height, {inversionAttempts:'dontInvert'});
-              if(code && code.data) {
-                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé (Sniper) !";
-                processScan(code.data.trim().toUpperCase());
-              }
-            }
-          } catch(e) {}
-        }, 150);
-
-      }).catch(err => {
-        if($('camSt')) $('camSt').innerHTML = `❌ Erreur caméra: ${err.message}`;
-      });
   } catch(e) {
-    if($('camSt')) $('camSt').innerHTML = `❌ Crash: ${e.message}`;
+    if($('camSt')) $('camSt').innerHTML = `❌ Erreur : ${e.message}`;
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "HTML5-QRCode: " + e.message, source: 'app.js', lineno: 0 });
   }
 }
-
-
 
 function manualScan() {
   const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
