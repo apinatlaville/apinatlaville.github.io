@@ -176,21 +176,6 @@ window.executePrint = function() {
   }, 800);
 };
 
-window.confirmPrintSuccess = function(success) {
-  window.closePrintConfirm();
-  if(success) {
-    window.printSel.forEach(uid => {
-      const x = window.D.cours.find(d=>d.uid===uid);
-      if(x && x.stat==='pending') x.stat = 'printed';
-    });
-    window.save(); 
-    window.printSel.clear(); 
-    window.renderCours(); 
-    window.renderPrintGrid(); 
-    window.renderDashboard();
-  }
-};
-
 // 🆕 LE NOUVEAU SCANNER "HTML5-QRCODE" (MOTEUR PUR SANS INTERFACE)
 window.openCam = function() {
   if(window.$('manualCamInput')) window.$('manualCamInput').value = '';
