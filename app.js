@@ -1251,6 +1251,7 @@ function confirmPrintSuccess(success) {
 }
 
 // 📸 LE SCANNER DE DIAGNOSTIC AVANCÉ (ANTI-BUG IOS)
+// 📸 LE SCANNER HYBRIDE (API NATIVE APPLE + JSQR)
 function openCam() {
   if($('manualCamInput')) $('manualCamInput').value = '';
   if($('ovCam')) $('ovCam').classList.remove('hidden');
@@ -1258,7 +1259,7 @@ function openCam() {
   let frameCount = 0;
   if($('camSt')) {
     $('camSt').style.color = 'var(--gold)';
-    $('camSt').innerHTML = 'Initialisation du diagnostic avancé...';
+    $('camSt').innerHTML = 'Initialisation du scanner hybride...';
   }
 
   try {
@@ -1267,12 +1268,12 @@ function openCam() {
       return;
     }
 
-    // On demande l'autofocus et une résolution HD
+    // On demande la caméra arrière avec autofocus
     const constraints = {
       video: {
         facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 1080 },
+        height: { ideal: 1080 },
         advanced: [{ focusMode: "continuous" }]
       }
     };
@@ -1284,14 +1285,21 @@ function openCam() {
         if(!v) return;
 
         v.srcObject = stream;
-        v.setAttribute("playsinline", true); // Vital pour iOS
+        v.setAttribute("playsinline", true); 
         v.play().catch(e => {
             if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Video Play: " + e.message, source: 'app.js', lineno: 0 });
         });
 
+        // 🍎 1. INITIALISATION DE L'API NATIVE D'APPLE (Si disponible)
+        const hasNativeAPI = ('BarcodeDetector' in window);
+        let nativeScanner = null;
+        if (hasNativeAPI) {
+          try { nativeScanner = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e){}
+        }
+
         const jsqrStatus = typeof jsQR !== 'undefined' ? '✅ Actif' : '❌ Non trouvé';
 
-        // 🚨 NOUVEAUTÉ : On affiche le canvas en miniature pour voir si iOS nous bloque (Bug Canvas Fantôme)
+        // 🎨 On garde la miniature pour le diagnostic
         const cv = $('camCanvas');
         cv.style.display = 'block'; 
         cv.style.width = '100px';
@@ -1300,60 +1308,67 @@ function openCam() {
         cv.style.margin = '0 auto 10px auto';
         cv.style.borderRadius = '8px';
 
-        camTick = setInterval(() => {
+        camTick = setInterval(async () => {
           if(v.readyState !== 4 || v.videoWidth === 0 || v.videoHeight === 0) return;
           frameCount++;
 
+          // --- 🚀 TENTATIVE 1 : LE SCANNER NATIF APPLE (ÉCLAIR) ---
+          if (nativeScanner) {
+            try {
+              const codes = await nativeScanner.detect(v);
+              if (codes.length > 0) {
+                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé (Moteur Apple) !";
+                processScan(codes[0].rawValue.trim().toUpperCase());
+                return; // On arrête tout, on a trouvé !
+              }
+            } catch(e) {}
+          }
+
+          // --- 🐢 TENTATIVE 2 : LE SCANNER JSQR (PLAN B) ---
           cv.width = v.videoWidth;
           cv.height = v.videoHeight;
           const ctx = cv.getContext('2d', { willReadFrequently: true });
           ctx.drawImage(v, 0, 0, cv.width, cv.height);
 
           let imgData;
-          let isCanvasBlank = false;
           try {
               imgData = ctx.getImageData(0, 0, cv.width, cv.height);
-              // Vérification si le canvas est noir ou transparent (Bug iOS Safari)
-              const centerIdx = (Math.floor(cv.height/2) * cv.width + Math.floor(cv.width/2)) * 4;
-              if (imgData.data[centerIdx+3] === 0) isCanvasBlank = true; // Alpha = 0
           } catch(e) {
-              if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "GetImageData: " + e.message, source: 'app.js', lineno: 0 });
               return;
           }
 
           if($('camSt')) {
             $('camSt').innerHTML = `
               <div style="font-size:11px; text-align:left; background:rgba(0,0,0,0.5); padding:8px; border-radius:6px; color:#fff;">
-                <b>jsQR:</b> ${jsqrStatus}<br>
-                <b>Résolution:</b> ${v.videoWidth} x ${v.videoHeight}<br>
+                <b>Moteur Apple:</b> ${hasNativeAPI ? '✅ Actif' : '❌ Inactif'}<br>
+                <b>Moteur jsQR:</b> ${jsqrStatus}<br>
                 <b>Frames analysées:</b> ${frameCount}<br>
-                <b>Canvas Vide ?:</b> ${isCanvasBlank ? '🚨 OUI (BUG iOS)' : 'NON (Image OK)'}<br>
-                <b>État:</b> Diagnostic en cours... Regarde la miniature rouge ⬆️
+                <b>État:</b> Scan Hybride en cours...
               </div>`;
           }
 
           try {
-            if(typeof jsQR !== 'undefined' && !isCanvasBlank) {
+            if(typeof jsQR !== 'undefined') {
+              // attemptBoth : Il lit l'image normalement, et en mode couleurs inversées
               const code = jsQR(imgData.data, imgData.width, imgData.height, {inversionAttempts:'attemptBoth'});
               if(code && code.data) {
-                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé !";
+                if($('camSt')) $('camSt').innerHTML = "✅ Code trouvé (Moteur jsQR) !";
                 processScan(code.data.trim().toUpperCase());
               }
             }
           } catch(e) {
             if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "jsQR crash: " + e.message, source: 'app.js', lineno: 0 });
           }
-        }, 250); 
+        }, 200); 
 
       }).catch(err => {
         if($('camSt')) $('camSt').innerHTML = `❌ Erreur caméra: ${err.message}`;
-        if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "GetUserMedia: " + err.message, source: 'app.js', lineno: 0 });
       });
   } catch(e) {
     if($('camSt')) $('camSt').innerHTML = `❌ Crash: ${e.message}`;
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "openCam: " + e.message, source: 'app.js', lineno: 0 });
   }
 }
+
 
 function manualScan() {
   const v = $('manualCamInput') ? $('manualCamInput').value.trim().toUpperCase() : '';
