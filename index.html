@@ -8,14 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 
-<script>
-  (function(){
-    var v = new Date().getTime(); // Génère l'heure en millisecondes pour forcer le téléchargement
-    document.write('<link rel="stylesheet" href="style.css?v=' + v + '">');
-    document.write('<script src="html5-qrcode.js?v=' + v + '"><\/script>');
-    document.write('<script src="JsBarcode.js?v=' + v + '"><\/script>');
-  })();
-</script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script>
   window.appErrors = []; // Historique global des erreurs
@@ -33,7 +27,7 @@
     }
     // Mise à jour de l'onglet Logs si la fonction existe déjà
     if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
-    return false; // Laisse l'erreur apparaître dans la console classique aussi
+    return false;
   };
 </script>
 </head>
@@ -380,9 +374,7 @@
 <div class="ov hidden" id="ovCam">
   <div class="modal m-center">
     <h2 style="margin-bottom:15px;">📷 Scanner 1D</h2>
-    
     <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 15px;"></div>
-    
     <div class="cam-st" id="camSt" style="color:var(--gold); font-weight:bold; margin-bottom:20px;">Initialisation...</div>
     <div style="text-align:left; background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
       <label style="font-size:11px;color:var(--mut);display:block;margin-bottom:6px;text-transform:uppercase;">Saisie manuelle (Secours) :</label>
@@ -412,6 +404,8 @@
 <script>
   (function(){
     var v = new Date().getTime();
+    document.write('<script src="data.js?v=' + v + '"><\/script>');
+    document.write('<script src="scanner.js?v=' + v + '"><\/script>');
     document.write('<script type="module" src="app.js?v=' + v + '"><\/script>');
   })();
 </script>
