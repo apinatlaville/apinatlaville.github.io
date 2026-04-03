@@ -10,7 +10,7 @@
 
 <script>
   (function(){
-    var v = new Date().getTime(); // Génère l'heure en millisecondes
+    var v = new Date().getTime(); // Génère l'heure en millisecondes pour forcer le téléchargement
     document.write('<link rel="stylesheet" href="style.css?v=' + v + '">');
     document.write('<script src="jsQR.js?v=' + v + '"><\/script>');
   })();
@@ -329,20 +329,35 @@
       <div class="fg" style="flex:1.5;"><label>Classeur *</label><select id="fCl"></select></div>
       <div class="fg" style="flex:1;"><label>Intercalaire *</label>
         <select id="fInter">
-          <option value="">—</option>
-          <option value="01">01</option><option value="02">02</option>
-          <option value="03">03</option><option value="04">04</option>
-          <option value="05">05</option><option value="06">06</option>
-          <option value="07">07</option><option value="08">08</option>
-          <option value="09">09</option><option value="10">10</option>
-          <option value="11">11</option><option value="12">12</option>
-        </select>
+          </select>
       </div>
     </div>
     <div class="fg"><label>Notes / Infos</label><textarea id="fDesc" rows="2" placeholder="Astuces de résolution..."></textarea></div>
     <div class="macts">
       <button class="bs" id="btnCancelCours">Annuler</button>
       <button class="bp" onclick="window.saveCours()" id="btnSaveCours">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovEditCl">
+  <div class="modal">
+    <h2 style="margin-bottom:15px;">✏️ Éditer le classeur</h2>
+    <div class="fg"><label>Nom du classeur</label><input type="text" id="eClNm"></div>
+    <div style="display:flex; gap:10px;">
+      <div class="fg" style="flex:1;"><label>Icône</label><input type="text" id="eClIc" maxlength="2" style="text-align:center;"></div>
+      <div class="fg" style="flex:2;"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.renderEditClInters()"></div>
+    </div>
+    
+    <h3 style="font-family:'Syne'; font-size:14px; margin:15px 0 10px; color:var(--acc);">Noms des intercalaires</h3>
+    <p style="font-size:11px; color:var(--mut); margin-bottom:10px;">Assigne un thème personnalisé à chaque intercalaire au lieu d'un simple numéro.</p>
+    
+    <div id="eClInterList" style="max-height:200px; overflow-y:auto; background:var(--s2); padding:10px; border-radius:8px; border:1px solid var(--bd); display:flex; flex-direction:column; gap:8px;">
+       </div>
+
+    <div class="macts">
+      <button class="bs" onclick="document.getElementById('ovEditCl').classList.add('hidden')">Annuler</button>
+      <button class="bp" onclick="window.saveClEdit()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -405,6 +420,4 @@
 
 </body>
 </html>
-
-
 
