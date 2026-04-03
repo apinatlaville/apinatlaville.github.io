@@ -11,11 +11,9 @@
  * * * 🔒 MODE ÉDITION (SÉCURITÉ UX) :
  * Les listes de Matières et de Classeurs possèdent un mode "Édition" (isEditingMat / isEditingCl)
  * pour cacher les boutons de suppression par défaut et éviter les clics accidentels.
- * * * 📷 SCANNER DE DIAGNOSTIC AVANCÉ (ANTI-BUG IOS) :
- * Le scanner affiche désormais le `<canvas>` (miniature bordée de rouge) pour s'assurer
- * que Safari iOS ne passe pas un flux vidéo vide/transparent (Bug Canvas Fantôme).
- * Des trackings d'erreurs stricts sont rajoutés sur `getImageData`.
- * L'autofocus est forcé via `advanced: [{ focusMode: "continuous" }]`.
+ * * * 📷 SCANNER HTML5-QRCODE (SANS INTERFACE) :
+ * Utilisation de la classe `Html5Qrcode` (moteur pur) sans UI générée. 
+ * Pas de qrbox pour ne pas déformer l'image (Bug iOS), autofocus continu.
  * * * 🗂️ BASE DE DONNÉES RELATIONNELLE (NOMS D'INTERCALAIRES) :
  * Les classeurs (D.classeurs) possèdent maintenant une propriété `interNames` (Objet).
  * Clé : le numéro (ex: "01"), Valeur : le nom custom (ex: "Mécanique").
@@ -23,6 +21,9 @@
  * * * ✏️ ÉDITION INLINE (SANS PROMPT NAVIGATEUR) :
  * L'édition d'un classeur déclenche la modale `ovEditCl` pour modifier le nom, l'icône, 
  * le nombre MAX d'intercalaires, ET le nom de chaque intercalaire individuellement.
+ * * * 🆕 GÉNÉRATEUR DE CODE-BARRES 1D (JsBarcode) :
+ * Utilisation exclusive de codes-barres format CODE128 au lieu des QR codes.
+ * La fonction `getBarcodeURL(uid)` génère l'image base64 à la volée.
  * =========================================================================================
  */
 
@@ -113,8 +114,28 @@ let isEditingCl = false;
 // VARIABLES GLOBALES POUR L'ÉDITION DE CLASSEUR
 let currentEditClId = null;
 
-// 🆕 VARIABLE GLOBALE POUR LE NOUVEAU SCANNER INVISIBLE
+// VARIABLE GLOBALE POUR LE NOUVEAU SCANNER INVISIBLE
 let html5QrCode = null;
+
+// 🖨️ UTILITAIRE : GÉNÉRATEUR DE CODE-BARRES 1D
+function getBarcodeURL(text) {
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, text, {
+      format: "CODE128",
+      width: 2,
+      height: 60,
+      displayValue: false,
+      margin: 10,
+      background: "#ffffff",
+      lineColor: "#000000"
+    });
+    return canvas.toDataURL("image/png");
+  } catch(e) {
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur JsBarcode: " + e.message, source: 'app.js' });
+    return '';
+  }
+}
 
 // 🗂️ UTILITAIRE : Récupère le nom personnalisé d'un intercalaire
 function getInterName(cl, ns) {
@@ -192,7 +213,7 @@ function updateClock() {
 setInterval(updateClock, 1000); 
 updateClock();
 
-// 🆕 NOUVELLE FONCTION D'ARRÊT DU SCANNER
+// 🆕 FONCTION D'ARRÊT DU SCANNER
 function stopCam() {
   if (html5QrCode) {
     html5QrCode.stop().then(() => {
@@ -207,17 +228,6 @@ function stopCam() {
   } else {
     if($('ovCam')) $('ovCam').classList.add('hidden');
   }
-  
-  // Sécurité supplémentaire au cas où l'ancien code essayerait de s'exécuter
-  try {
-    if (window.camTick) { clearInterval(window.camTick); window.camTick = null; }
-    if (window.camStream && typeof window.camStream.getTracks === 'function') {
-      window.camStream.getTracks().forEach(t => { try { t.stop(); } catch(e){} });
-    }
-    window.camStream = null;
-    const v = $('camVideo'); 
-    if (v) { v.srcObject = null; v.pause(); v.removeAttribute('src'); v.load(); }
-  } catch(e) {}
 }
 
 function closeLocPopup() {
@@ -661,7 +671,6 @@ function renderCours() {
         const mo = D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
         const co = D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📁'};
         
-        // 🗂️ AFFICHAGE DU NOM D'INTERCALAIRE PERSONNALISÉ SUR LA CARTE
         const interNameDisplay = getInterName(co, c.inter);
 
         if (c.mat !== currentMat) {
@@ -691,7 +700,7 @@ function renderCours() {
           ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
           ${c.note ? `<div class="cnote">Note : ${c.note}/20</div>` : ''}
           <div class="cacts" onclick="event.stopPropagation();">
-              <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir QR">🔳</button>
+              <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir Code-Barres">🔳</button>
               <button class="cbt" onclick="window.editCours('${c.uid}')" title="Modifier">✏️</button>
               <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${c.uid}')" title="Supprimer">🗑️</button>
           </div>
@@ -737,7 +746,6 @@ function doLocate(uid) {
   const mo = D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
   const co = D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📁'};
   
-  // 🗂️ AFFICHAGE DU NOM D'INTERCALAIRE PERSONNALISÉ
   const interNameDisplay = getInterName(co, c.inter);
   
   if($('locContent')) {
@@ -790,7 +798,6 @@ function toggleManualUid() {
   }
 }
 
-// 🗂️ MISE À JOUR DYNAMIQUE DES INTERCALAIRES LORS DE L'AJOUT
 function updateIntercalairesDropdown() {
   const clId = $('fCl') ? $('fCl').value : '';
   const cl = D.classeurs.find(c => c.id === clId);
@@ -830,7 +837,7 @@ function openModalCours() {
   }
   if($('uidBox')) {
     $('uidBox').style.display = 'block';
-    $('uidBox').innerHTML = '—<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">QR code généré automatiquement</small>';
+    $('uidBox').innerHTML = '—<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code-barres généré automatiquement</small>';
   }
   
   if($('ovCours')) $('ovCours').classList.remove('hidden');
@@ -943,7 +950,6 @@ function renderClasseurs() {
       ` : '';
 
       let coursesList = cc.length ? cc.map(c => {
-        // 🗂️ AFFICHAGE DU NOM D'INTERCALAIRE PERSONNALISÉ DANS LA LISTE
         const interNameDisplay = getInterName(cl, c.inter);
         return `
         <div class="irow" onclick="window.doLocate('${c.uid}')">
@@ -977,7 +983,6 @@ function renderClasseurs() {
   }
 }
 
-// ✏️ SYSTÈME D'ÉDITION INLINE DES CLASSEURS ET INTERCALAIRES
 window.editClasseur = function(id) {
   const cl = D.classeurs.find(c => c.id === id);
   if(!cl) return;
@@ -987,7 +992,7 @@ window.editClasseur = function(id) {
   if($('eClIc')) $('eClIc').value = cl.icon;
   if($('eClMax')) $('eClMax').value = cl.maxInter || 12;
   
-  window.renderEditClInters(); // Dessine la liste des inputs
+  window.renderEditClInters(); 
   
   if($('ovEditCl')) $('ovEditCl').classList.remove('hidden');
 };
@@ -1021,7 +1026,6 @@ window.saveClEdit = function() {
   cl.icon = $('eClIc').value.trim() || cl.icon;
   cl.maxInter = parseInt($('eClMax').value) || 12;
   
-  // Sauvegarde dynamique des noms d'intercalaires
   if(!cl.interNames) cl.interNames = {};
   for(let i=1; i<=cl.maxInter; i++) {
     const val = String(i).padStart(2, '0');
@@ -1138,12 +1142,14 @@ function delCl(id) {
   }
 }
 
+// 🖨️ AFFICHER LE NOUVEAU CODE-BARRES SUR LA CARTE
 function showQR(uid) {
   const c = D.cours.find(x => x.uid===uid);
   if (!c) return;
   curQRUid = uid;
   if($('qrLbl')) $('qrLbl').textContent = uid;
-  if($('qrBox')) $('qrBox').innerHTML = `<img src="${window._QR.makeImageURL(uid, 180)}" style="border-radius:6px; margin:0 auto;">`;
+  
+  if($('qrBox')) $('qrBox').innerHTML = `<img src="${getBarcodeURL(uid)}" style="border-radius:6px; margin:0 auto; width:100%; max-width:250px;">`;
   
   if($('btnMarkOnePrinted')) {
     if(c.stat === 'pending') $('btnMarkOnePrinted').textContent = '✅ Marquer Imprimé';
@@ -1170,8 +1176,8 @@ function markOnePrinted() {
 function dlQR() {
   if(!curQRUid) return;
   const a = document.createElement('a');
-  a.download = `QR_${curQRUid}.png`;
-  a.href = window._QR.makeImageURL(curQRUid, 250);
+  a.download = `Barcode_${curQRUid}.png`;
+  a.href = getBarcodeURL(curQRUid);
   a.click();
 }
 
@@ -1182,7 +1188,7 @@ function renderPrintGrid() {
   grid.innerHTML = D.cours.map(c => `
     <div class="pcard ${printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${c.uid}')">
       <div class="pc-check">${printSel.has(c.uid)?'✅':'⬜'}</div>
-      <div class="pc-qr"><img src="${window._QR.makeImageURL(c.uid, 80)}" alt="qr"></div>
+      <div class="pc-qr"><img src="${getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;"></div>
       <div class="pc-uid">${c.uid}</div>
       <div class="pc-title">${c.title}</div>
     </div>
@@ -1226,7 +1232,7 @@ function executePrint() {
   sel.forEach(c => {
     pz.innerHTML += `
       <div class="print-label">
-        <img src="${window._QR.makeImageURL(c.uid, 150)}">
+        <img src="${getBarcodeURL(c.uid)}" style="width:90%; height:60px; object-fit:contain;">
         <div class="pl-uid">${c.uid}</div>
         <div class="pl-title">${c.title.substring(0,35)}</div>
       </div>`;
@@ -1276,26 +1282,24 @@ function openCam() {
     html5QrCode = new Html5Qrcode("reader");
 
     const config = {
-      fps: 15, // Plus de photos par seconde pour être plus réactif
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0
+      fps: 15
     };
 
-    // On force la caméra arrière ("environment") sans demander à l'utilisateur
+    // On force la caméra arrière sans demander à l'utilisateur
     html5QrCode.start(
       { facingMode: "environment" },
       config,
       (decodedText, decodedResult) => {
         if($('camSt')) {
           $('camSt').style.color = 'var(--grn)';
-          $('camSt').innerHTML = '✅ QR Code trouvé !';
+          $('camSt').innerHTML = '✅ Code-barres trouvé !';
         }
         processScan(decodedText.trim().toUpperCase());
       },
       (errorMessage) => {
         if($('camSt') && $('camSt').innerHTML.includes('Démarrage')) {
           $('camSt').style.color = 'var(--mut)';
-          $('camSt').innerHTML = 'Analyse en cours... Place le QR code dans le cadre.';
+          $('camSt').innerHTML = 'Analyse en cours... Place le code-barres dans le cadre.';
         }
       }
     ).catch((err) => {
