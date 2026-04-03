@@ -22,6 +22,21 @@
  * =========================================================================================
  */
 
+/**
+ * =========================================================================================
+ * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
+ * =========================================================================================
+ * NOM DU PROJET : Mes Cours - PC* Edition
+ * FICHIER ACTUEL : scanner.js (Caméra, Code-barres 1D et Impression)
+ * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
+ * 1. app.js      : Cœur (Firebase, État global window.D, Navigation, Paramètres).
+ * 2. data.js     : Gestion des données (Cours, Classeurs, Matières) et grilles HTML.
+ * 3. scanner.js  : [CE FICHIER] Scanner de codes-barres 1D et logique d'impression.
+ * * 👉 RÈGLE POUR L'IA : Si l'utilisateur demande une modification sur le scanner (Html5Qrcode),
+ * sur le rendu des codes-barres (JsBarcode) ou sur la liste d'impression, TOUT se trouve ici.
+ * =========================================================================================
+ */
+
 window.$ = window.$ || (id => document.getElementById(id));
 window.printSel = new Set();
 window.curQRUid = null;
@@ -51,9 +66,14 @@ window.showQR = function(uid) {
   const c = window.D.cours.find(x => x.uid===uid);
   if (!c) return;
   window.curQRUid = uid;
+  
   if(window.$('qrLbl')) window.$('qrLbl').textContent = uid;
   
-  if(window.$('qrBox')) window.$('qrBox').innerHTML = `<img src="${window.getBarcodeURL(uid)}" style="border-radius:6px; margin:0 auto; width:100%; max-width:250px;">`;
+  if(window.$('qrBox')) {
+    window.$('qrBox').innerHTML = `
+      <img src="${window.getBarcodeURL(uid)}" style="border-radius:6px; margin:0 auto; width:100%; max-width:250px;">
+    `;
+  }
   
   if(window.$('btnMarkOnePrinted')) {
     if(c.stat === 'pending') window.$('btnMarkOnePrinted').textContent = '✅ Marquer Imprimé';
@@ -67,11 +87,14 @@ window.showQR = function(uid) {
 window.markOnePrinted = function() {
   const c = window.D.cours.find(x => x.uid===window.curQRUid);
   if (!c) return;
+  
   if(c.stat === 'pending') c.stat = 'printed';
   else if(c.stat === 'printed') c.stat = 'active';
   else c.stat = 'printed';
   
-  window.save(); window.renderCours(); window.showQR(window.curQRUid); 
+  window.save(); 
+  window.renderCours(); 
+  window.showQR(window.curQRUid); 
 };
 
 window.dlQR = function() {
@@ -89,7 +112,9 @@ window.renderPrintGrid = function() {
   grid.innerHTML = window.D.cours.map(c => `
     <div class="pcard ${window.printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${c.uid}')">
       <div class="pc-check">${window.printSel.has(c.uid)?'✅':'⬜'}</div>
-      <div class="pc-qr"><img src="${window.getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;"></div>
+      <div class="pc-qr">
+        <img src="${window.getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;">
+      </div>
       <div class="pc-uid">${c.uid}</div>
       <div class="pc-title">${c.title}</div>
     </div>
@@ -99,18 +124,35 @@ window.renderPrintGrid = function() {
 };
 
 window.toggleSel = function(uid) {
-  if (window.printSel.has(uid)) window.printSel.delete(uid);
-  else window.printSel.add(uid);
+  if (window.printSel.has(uid)) {
+    window.printSel.delete(uid);
+  } else {
+    window.printSel.add(uid);
+  }
   window.renderPrintGrid();
 };
 
-window.selPending = function() { window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); window.renderPrintGrid(); };
-window.selAll = function() { window.printSel = new Set(window.D.cours.map(c=>c.uid)); window.renderPrintGrid(); };
-window.selNone = function() { window.printSel.clear(); window.renderPrintGrid(); };
+window.selPending = function() { 
+  window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); 
+  window.renderPrintGrid(); 
+};
+
+window.selAll = function() { 
+  window.printSel = new Set(window.D.cours.map(c=>c.uid)); 
+  window.renderPrintGrid(); 
+};
+
+window.selNone = function() { 
+  window.printSel.clear(); 
+  window.renderPrintGrid(); 
+};
 
 window.executePrint = function() {
   const sel = window.D.cours.filter(c => window.printSel.has(c.uid));
-  if (!sel.length) { alert('Sélectionne au moins un document !'); return; }
+  if (!sel.length) {
+    alert('Sélectionne au moins un document !');
+    return;
+  }
   
   const pz = window.$('printZone');
   if(!pz) return;
@@ -141,7 +183,11 @@ window.confirmPrintSuccess = function(success) {
       const x = window.D.cours.find(d=>d.uid===uid);
       if(x && x.stat==='pending') x.stat = 'printed';
     });
-    window.save(); window.printSel.clear(); window.renderCours(); window.renderPrintGrid(); window.renderDashboard();
+    window.save(); 
+    window.printSel.clear(); 
+    window.renderCours(); 
+    window.renderPrintGrid(); 
+    window.renderDashboard();
   }
 };
 
