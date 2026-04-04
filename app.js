@@ -313,7 +313,8 @@ window.switchTab = function(tab, overrideResetFilters = false) {
     classeurs:'paneClasseurs',
     matieres:'paneMatieres',
     settings:'paneSettings',
-    logs:'paneLogs'
+    logs:'paneLogs',
+    test:'paneTest'
   };
   
   Object.values(map).forEach(id => { 
