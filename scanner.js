@@ -19,12 +19,17 @@ window.html5QrCode = null;
 // 🖨️ UTILITAIRE : GÉNÉRATEUR DE CODE-BARRES 1D
 window.getBarcodeURL = function(text) {
   try {
+    // 👻 LE TIRET FANTÔME : On supprime le tiret avant de générer le code !
+    // Ex: "PH-8X2" devient "PH8X2". Cela réduit la longueur du code de 15%.
+    // Moins de caractères = des traits plus gros et plus lisibles par l'imprimante !
+    const cleanText = text.replace(/-/g, '');
+    
     const canvas = document.createElement('canvas');
-    window.JsBarcode(canvas, text, {
+    window.JsBarcode(canvas, cleanText, {
       format: "CODE128",
-      width: 2,
-      height: 60,
-      displayValue: false,
+      width: 4,              // Traits bien épais (idéal contre les bavures d'encre)
+      height: 80,            // Plus haut
+      displayValue: false,   // On n'affiche pas le texte dans l'image (on le fait en HTML)
       margin: 10,
       background: "#ffffff",
       lineColor: "#000000"
@@ -135,7 +140,6 @@ window.executePrint = function() {
   }, 1000);
 };
 
-// 🚨 LA FONCTION QUI MANQUAIT EST ICI 🚨
 window.confirmPrintSuccess = function(success) {
   window.closePrintConfirm();
   if(success) {
@@ -200,10 +204,29 @@ window.manualScan = function() {
   if(v) window.processScan(v);
 };
 
+// 🚨 MODIFICATION : TRAITEMENT DE LA LECTURE DU SCANNER
 window.processScan = function(uid) {
   window.stopCam();
-  if(window.$('mainSearch')) window.$('mainSearch').value = uid;
-  window.doLocate(uid);
+  try {
+    let formattedUid = uid.trim().toUpperCase();
+    
+    // 👻 LE TIRET FANTÔME (RETOUR) :
+    // Si le scanner lit un code à 5 caractères qui n'a pas de tiret (ex: "PH8X2")
+    // L'application sait qu'elle doit le remettre pour chercher "PH-8X2"
+    if (formattedUid.length === 5 && !formattedUid.includes('-')) {
+      formattedUid = formattedUid.substring(0, 2) + '-' + formattedUid.substring(2);
+    }
+    
+    if(window.$('mainSearch')) window.$('mainSearch').value = formattedUid;
+    window.doLocate(formattedUid);
+    
+    // On l'inscrit dans la console de diagnostic pour que tu puisses voir la magie !
+    if (typeof window.logDebug === 'function') {
+       window.logDebug(`🔍 Magie ! Le code brut [ ${uid} ] a été restauré en -> [ ${formattedUid} ]`, 'var(--acc)');
+    }
+  } catch(e) {
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur processScan: " + e.message, source: 'scanner.js' });
+  }
 };
 
 window.stopCam = function() {
@@ -280,4 +303,3 @@ window.stopDebugScanner = function() {
     });
   }
 };
-
