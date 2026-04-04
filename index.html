@@ -70,6 +70,7 @@
     <button class="tab" onclick="window.switchTab('classeurs')" data-tab="classeurs">🗂 Classeurs</button>
     <button class="tab" onclick="window.switchTab('matieres')" data-tab="matieres">🏷 Matières</button>
     <button class="tab" onclick="window.switchTab('logs')" data-tab="logs" style="color:var(--red);">🐛 Logs</button>
+    <button class="tab" onclick="window.switchTab('test')" data-tab="test" style="color:var(--gold);">🧪 Test Scanner</button>
   </div>
 </div>
 
@@ -263,6 +264,23 @@
     <div style="text-align:center; color:var(--mut); margin-top:50px;">Aucune erreur détectée. Tout va bien ! 🎉</div>
   </div>
 </div>
+
+<div class="pane" id="paneTest">
+  <h2 style="font-family:'Syne'; margin-bottom:10px; color:var(--gold);">🧪 Diagnostic Scanner</h2>
+  <p style="color:var(--mut); font-size:13px; margin-bottom:20px;">Scanne n'importe quel code (supermarché, QR, etc.) pour tester la caméra brute sans filtres.</p>
+  
+  <div id="debug-reader" style="width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 15px; border:2px dashed var(--gold);"></div>
+  
+  <div style="display:flex; gap:10px; margin-bottom: 20px;">
+    <button class="bp" onclick="window.startDebugScanner()" style="flex:1;">▶ Démarrer Scanner</button>
+    <button class="bs" onclick="window.stopDebugScanner()" style="flex:1; border-color:var(--red); color:var(--red);">⏹ Arrêter</button>
+  </div>
+  
+  <div id="debug-logs" style="background:var(--s2); border:1px solid var(--bd); border-radius:12px; padding:15px; display:flex; flex-direction:column; gap:8px; font-family:'DM Mono', monospace; font-size:11px; overflow-y:auto; max-height:250px; word-wrap: break-word;">
+    <div style="color:var(--mut); text-align:center; margin-top:20px;">[ Console de Diagnostic prête ]</div>
+  </div>
+</div>
+
 
 <div class="fab-wrapper" id="fabWrapper">
   <div class="fab-menu" id="fabMenu">
