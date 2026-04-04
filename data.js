@@ -71,7 +71,7 @@ window.isEditingCl = false;
 window.currentEditClId = null;
 window.chipFilter = null;
 window.newColor = window.COLORS[0];
-window.newColorCl = window.COLORS[0]; // 🚨 Nouvelle couleur dédiée aux classeurs
+window.newColorCl = window.COLORS[0]; 
 window.editUid = null;
 
 window.getInterName = function(cl, ns) {
@@ -168,7 +168,7 @@ window.renderCours = function() {
 
       list.forEach(c => {
         const mo = window.D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
-        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📁'};
+        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📘'};
         
         const interNameDisplay = window.getInterName(co, c.inter);
 
@@ -491,7 +491,6 @@ window.saveCours = function() {
   window.renderClasseurs();
 };
 
-// 🚨 MODIFICATION : Gestion de la couleur des classeurs !
 window.setNewColorCl = function(col) {
   window.newColorCl = col;
   window.renderClasseurs();
@@ -512,7 +511,6 @@ window.renderClasseurs = function() {
 
     if (!window.D.classeurs.length) {
       g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>';
-      // Ne pas faire "return" car on doit quand même afficher les pastilles de couleur !
     } else {
       html += window.D.classeurs.map(cl => {
         const cc = window.D.cours.filter(c => c.cl===cl.id);
@@ -555,7 +553,6 @@ window.renderClasseurs = function() {
 
     g.innerHTML = html;
     
-    // 🚨 Rendu des pastilles de couleur pour les classeurs !
     if(window.$('swCl')) {
       window.$('swCl').innerHTML = window.COLORS.map(c => `
         <div class="sw${c===window.newColorCl?' on':''}" style="background:${c}" onclick="window.setNewColorCl('${c}')"></div>
@@ -569,13 +566,13 @@ window.renderClasseurs = function() {
   }
 };
 
+// 🚨 MODIFICATION : On a supprimé la récupération de l'icône dans l'éditeur (fixé à 📁)
 window.editClasseur = function(id) {
   const cl = window.D.classeurs.find(c => c.id === id);
   if(!cl) return;
   window.currentEditClId = id;
   
   if(window.$('eClNm')) window.$('eClNm').value = cl.name;
-  if(window.$('eClIc')) window.$('eClIc').value = cl.icon;
   if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
   
   window.renderEditClInters(); 
@@ -604,12 +601,12 @@ window.renderEditClInters = function() {
   container.innerHTML = html;
 };
 
+// 🚨 MODIFICATION : L'icône n'est plus modifiée lors de l'enregistrement
 window.saveClEdit = function() {
   const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
   if(!cl) return;
   
   cl.name = window.$('eClNm').value.trim() || cl.name;
-  cl.icon = window.$('eClIc').value.trim() || cl.icon;
   cl.maxInter = parseInt(window.$('eClMax').value) || 12;
   
   if(!cl.interNames) cl.interNames = {};
@@ -665,10 +662,11 @@ window.setNewColor = function(col) {
   window.renderMatieres();
 };
 
+// 🚨 MODIFICATION : On a supprimé la gestion de l'icône, on fixe 📁 d'office !
 window.addCl = function() {
   const id = window.$('nClId').value.trim().toUpperCase();
   const name = window.$('nClNm').value.trim();
-  const icon = window.$('nClIc').value.trim() || '📁';
+  const icon = '📘'; 
   
   if(id.length !== 1) {
     alert("Identifiant : 1 seule lettre !");
@@ -683,7 +681,6 @@ window.addCl = function() {
     return;
   }
   
-  // 🚨 Utilisation de newColorCl pour le classeur !
   window.D.classeurs.push({id, name, icon, color:window.newColorCl, maxInter: 12, interNames: {}}); 
   window.save(); 
   window.renderClasseurs(); 
