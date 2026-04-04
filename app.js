@@ -293,22 +293,35 @@ window.genUid = function(matId) {
   }
 };
 
+// 🚨 MODIFICATION : AUTO-FORMATAGE + AUTO-SUBMIT + LIMITE DE CARACTÈRES
 window.doAutoFmtScan = function(inputEl) {
   if(!inputEl) return;
   try {
     let val = inputEl.value;
+    // Si l'utilisateur tape un espace, on arrête le formatage (il cherche un mot complet)
     if (val.includes(' ')) return; 
     
-    const raw = val.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    // On force la MAJUSCULE, on garde que Lettres/Chiffres, et on LIMITE à 5 caractères max !
+    const raw = val.toUpperCase().replace(/[^A-Z0-9]/g,'').substring(0, 5);
     
-    if(raw.length > 0 && raw.length <= 5 && /^[A-Z]{1,2}[A-Z0-9]{0,3}$/.test(raw)) {
+    if(raw.length > 0 && /^[A-Z]{1,2}[A-Z0-9]{0,3}$/.test(raw)) {
       let res = raw;
       if(raw.length > 2) {
-        res = raw.substring(0, 2) + '-' + raw.substring(2);
+        res = raw.substring(0, 2) + '-' + raw.substring(2); // Ajoute le tiret
       }
+      
       if(inputEl.value !== res) {
-        inputEl.value = res; 
+        inputEl.value = res; // Injecte le code formaté
       }
+
+      // 🚀 MAGIE : Si le code est complet (6 caractères avec le tiret), on valide tout seul !
+      if (res.length === 6) {
+        inputEl.blur(); // Enlève le clavier de l'écran (sur mobile)
+        window.doLocate(res); // Lance l'affichage du cours
+      }
+      
+    } else if (raw.length === 0) {
+      inputEl.value = '';
     }
   } catch(e) {
      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur AutoFormat: " + e.message, source: 'app.js' });
