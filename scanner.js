@@ -161,14 +161,20 @@ window.openCam = function() {
 
   if(window.$('camSt')) {
     window.$('camSt').style.color = 'var(--gold)';
-    window.$('camSt').innerHTML = 'Démarrage de la caméra arrière...';
+    window.$('camSt').innerHTML = 'Démarrage de la caméra...';
   }
 
   if (window.html5QrCode) { try { window.html5QrCode.clear(); } catch(e) {} }
 
   try {
     window.html5QrCode = new window.Html5Qrcode("reader");
-    const config = { fps: 15 };
+    
+    // 🚨 MODIFICATION : VITESSE ET TAILLE DE LA FENÊTRE DE SCAN
+    const config = { 
+      fps: 30, // 🔥 Vitesse doublée (30 images par seconde au lieu de 15)
+      qrbox: { width: 250, height: 100 }, // 🎯 Fait un rectangle de visée (idéal pour Code 128)
+      aspectRatio: 1.0 // Garde une vidéo carrée pour s'adapter à l'écran
+    };
 
     window.html5QrCode.start(
       { facingMode: "environment" },
@@ -183,7 +189,7 @@ window.openCam = function() {
       (errorMessage) => {
         if(window.$('camSt') && window.$('camSt').innerHTML.includes('Démarrage')) {
           window.$('camSt').style.color = 'var(--mut)';
-          window.$('camSt').innerHTML = 'Analyse en cours... Place le code-barres dans le cadre.';
+          window.$('camSt').innerHTML = 'Analyse en cours... Place le code dans le cadre.';
         }
       }
     ).catch((err) => {
