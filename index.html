@@ -310,7 +310,14 @@
         </label>
       </div>
       <div class="uidbox" id="uidBox" style="margin-bottom:0;">—<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code-barres généré automatiquement</small></div>
-      <input type="text" id="fUidInput" placeholder="Ex: PH-8X2" style="display:none; text-transform:uppercase; font-family:'DM Mono', monospace; text-align:center; font-weight:bold; color:var(--acc); letter-spacing:1px;" maxlength="15">
+      
+      <div id="manualUidContainer" style="display:none; justify-content:center; align-items:center; margin-top:8px;">
+        <div style="background:var(--s2); border:2px dashed var(--acc); border-radius:8px; display:flex; align-items:center; padding: 0 10px; overflow:hidden;">
+          <span id="fUidPrefix" style="font-family:'DM Mono', monospace; font-size:18px; font-weight:bold; color:var(--mut); padding: 10px 0;">XX-</span>
+          <input type="text" id="fUidInput" placeholder="8X2" style="background:transparent; border:none; color:var(--acc); font-family:'DM Mono', monospace; font-size:18px; font-weight:bold; text-transform:uppercase; letter-spacing:2px; outline:none; padding: 10px 0; width:70px; margin:0; text-align:left;" maxlength="3">
+        </div>
+      </div>
+
     </div>
 
     <div style="display:flex; gap:10px;">
