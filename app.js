@@ -356,6 +356,10 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   if (tab === 'logs') window.renderErrorLogs();
   
   window.scrollTo(0,0);
+  if (tab !== 'test' && typeof window.stopDebugScanner === 'function') {
+    window.stopDebugScanner();
+  }
+
 };
 
 window.renderDashboard = function() {
