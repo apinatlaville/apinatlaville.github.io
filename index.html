@@ -187,11 +187,8 @@
   <div style="background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
     <div class="fg"><label>Identifiant (1 Lettre)</label><input type="text" id="nClId" placeholder="A" maxlength="1"></div>
     <div class="fg"><label>Nom complet</label><input type="text" id="nClNm" placeholder="Nom du classeur"></div>
-    <div style="display:flex; gap:10px;">
-      <div class="fg" style="flex:1;"><label>Icône</label><input type="text" id="nClIc" placeholder="📁" value="📁" maxlength="2"></div>
-      <div class="fg" style="flex:2;"><label>Couleur</label>
-        <div class="sws" id="swCl"></div>
-      </div>
+    <div class="fg"><label>Couleur du classeur</label>
+      <div class="sws" id="swCl"></div>
     </div>
     <button class="bp" id="btnAddCl" onclick="window.addCl()" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
   </div>
@@ -367,10 +364,7 @@
   <div class="modal">
     <h2 style="margin-bottom:15px;">✏️ Éditer le classeur</h2>
     <div class="fg"><label>Nom du classeur</label><input type="text" id="eClNm"></div>
-    <div style="display:flex; gap:10px;">
-      <div class="fg" style="flex:1;"><label>Icône</label><input type="text" id="eClIc" maxlength="2" style="text-align:center;"></div>
-      <div class="fg" style="flex:2;"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.renderEditClInters()"></div>
-    </div>
+    <div class="fg"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.renderEditClInters()"></div>
     
     <h3 style="font-family:'Syne'; font-size:14px; margin:15px 0 10px; color:var(--acc);">Noms des intercalaires</h3>
     <p style="font-size:11px; color:var(--mut); margin-bottom:10px;">Assigne un thème personnalisé à chaque intercalaire au lieu d'un simple numéro.</p>
