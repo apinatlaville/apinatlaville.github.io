@@ -25,7 +25,6 @@ window.PC_FLASHCARDS = [
   { mat: 'Chimie Orga', q: 'Règle de Markovnikov (Add. électrophile)', a: 'Le proton s\'additionne sur le carbone le plus hydrogéné de la double liaison.' }
 ];
 
-// 🚨 MODIFICATION : VRAIES données vides (0 cours)
 window.emptyData = {
   settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
   matieres: [
@@ -38,10 +37,9 @@ window.emptyData = {
     {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {}},
     {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {}},
   ],
-  cours: [] // <- VIDE !
+  cours: [] 
 };
 
-// 🚨 MODIFICATION : Création d'une variable spécifique pour les TESTS
 window.demoData = {
   settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
   matieres: [
@@ -73,6 +71,7 @@ window.isEditingCl = false;
 window.currentEditClId = null;
 window.chipFilter = null;
 window.newColor = window.COLORS[0];
+window.newColorCl = window.COLORS[0]; // 🚨 Nouvelle couleur dédiée aux classeurs
 window.editUid = null;
 
 window.getInterName = function(cl, ns) {
@@ -492,6 +491,12 @@ window.saveCours = function() {
   window.renderClasseurs();
 };
 
+// 🚨 MODIFICATION : Gestion de la couleur des classeurs !
+window.setNewColorCl = function(col) {
+  window.newColorCl = col;
+  window.renderClasseurs();
+};
+
 window.renderClasseurs = function() {
   try {
     const g = window.$('clGrid');
@@ -507,48 +512,56 @@ window.renderClasseurs = function() {
 
     if (!window.D.classeurs.length) {
       g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>';
-      return;
-    }
-    
-    html += window.D.classeurs.map(cl => {
-      const cc = window.D.cours.filter(c => c.cl===cl.id);
-      cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
+      // Ne pas faire "return" car on doit quand même afficher les pastilles de couleur !
+    } else {
+      html += window.D.classeurs.map(cl => {
+        const cc = window.D.cours.filter(c => c.cl===cl.id);
+        cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
 
-      let editBtns = window.isEditingCl ? `
-        <button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">✏️ Éditer</button>
-        <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
-      ` : '';
+        let editBtns = window.isEditingCl ? `
+          <button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">✏️ Éditer</button>
+          <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
+        ` : '';
 
-      let coursesList = cc.length ? cc.map(c => {
-        const interNameDisplay = window.getInterName(cl, c.inter);
-        return `
-        <div class="irow" onclick="window.doLocate('${c.uid}')">
-          <div>
-            <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
-            <div style="font-size:11px; color:var(--mut);">[${interNameDisplay}] • ${c.type}</div>
-          </div>
-          <div style="color:var(--acc); font-size:18px;">➔</div>
-        </div>
-      `}).join('') : '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
-
-      return `
-        <div class="cl-card">
-          <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
-            <div class="cl-ico" style="background:${cl.color}20">${cl.icon}</div>
-            <div class="cl-info" style="flex:1;">
-              <div class="cl-nm">${cl.name}</div>
-              <div class="cl-sb">${cl.maxInter || 12} inter. max</div>
+        let coursesList = cc.length ? cc.map(c => {
+          const interNameDisplay = window.getInterName(cl, c.inter);
+          return `
+          <div class="irow" onclick="window.doLocate('${c.uid}')">
+            <div>
+              <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
+              <div style="font-size:11px; color:var(--mut);">[${interNameDisplay}] • ${c.type}</div>
             </div>
-            ${editBtns}
-            <div style="color:var(--mut); font-size:12px; margin-left:8px;">▼</div>
+            <div style="color:var(--acc); font-size:18px;">➔</div>
           </div>
-          <div class="ilist" id="ili_${cl.id}">
-            ${coursesList}
-          </div>
-        </div>`;
-    }).join('');
+        `}).join('') : '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
+
+        return `
+          <div class="cl-card">
+            <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
+              <div class="cl-ico" style="background:${cl.color}20">${cl.icon}</div>
+              <div class="cl-info" style="flex:1;">
+                <div class="cl-nm">${cl.name}</div>
+                <div class="cl-sb">${cl.maxInter || 12} inter. max</div>
+              </div>
+              ${editBtns}
+              <div style="color:var(--mut); font-size:12px; margin-left:8px;">▼</div>
+            </div>
+            <div class="ilist" id="ili_${cl.id}">
+              ${coursesList}
+            </div>
+          </div>`;
+      }).join('');
+    }
 
     g.innerHTML = html;
+    
+    // 🚨 Rendu des pastilles de couleur pour les classeurs !
+    if(window.$('swCl')) {
+      window.$('swCl').innerHTML = window.COLORS.map(c => `
+        <div class="sw${c===window.newColorCl?' on':''}" style="background:${c}" onclick="window.setNewColorCl('${c}')"></div>
+      `).join('');
+    }
+
   } catch(e) {
     if(window.appErrors) {
       window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Crash renderClasseurs: " + e.message, source: 'data.js', lineno: 0 });
@@ -670,7 +683,8 @@ window.addCl = function() {
     return;
   }
   
-  window.D.classeurs.push({id, name, icon, color:window.newColor, maxInter: 12, interNames: {}}); 
+  // 🚨 Utilisation de newColorCl pour le classeur !
+  window.D.classeurs.push({id, name, icon, color:window.newColorCl, maxInter: 12, interNames: {}}); 
   window.save(); 
   window.renderClasseurs(); 
   window.renderCours();
