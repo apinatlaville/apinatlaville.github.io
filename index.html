@@ -187,7 +187,12 @@
   <div style="background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
     <div class="fg"><label>Identifiant (1 Lettre)</label><input type="text" id="nClId" placeholder="A" maxlength="1"></div>
     <div class="fg"><label>Nom complet</label><input type="text" id="nClNm" placeholder="Nom du classeur"></div>
-    <div class="fg"><label>Icône</label><input type="text" id="nClIc" placeholder="📁" value="📁"></div>
+    <div style="display:flex; gap:10px;">
+      <div class="fg" style="flex:1;"><label>Icône</label><input type="text" id="nClIc" placeholder="📁" value="📁" maxlength="2"></div>
+      <div class="fg" style="flex:2;"><label>Couleur</label>
+        <div class="sws" id="swCl"></div>
+      </div>
+    </div>
     <button class="bp" id="btnAddCl" onclick="window.addCl()" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
   </div>
 </div>
@@ -199,7 +204,7 @@
     <div class="fg"><label>Code (4 Lettres exact.)</label><input type="text" id="nMlbl" placeholder="MATH" maxlength="4"></div>
     <div class="fg"><label>Nom complet</label><input type="text" id="nMname" placeholder="Mathématiques"></div>
     <div class="fg"><label>Couleur</label>
-      <div class="sws" id="swMat" style="display:flex; gap:8px; margin-top:5px; flex-wrap:wrap;"></div>
+      <div class="sws" id="swMat"></div>
     </div>
     <button class="bp" id="btnAddMat" onclick="window.addMat()" style="width:100%; margin-top:15px;">+ Ajouter la matière</button>
   </div>
@@ -394,7 +399,8 @@
 </div>
 
 <div class="ov hidden" id="ovCam">
-  <div class="modal m-center" style="padding: 15px;"> <h2 style="margin-bottom:10px; font-size:16px;">📷 Scanner 1D</h2>
+  <div class="modal m-center" style="padding: 15px;">
+    <h2 style="margin-bottom:10px; font-size:16px;">📷 Scanner 1D</h2>
     
     <div style="width: 100%; height: 200px; overflow: hidden; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; background: #000;">
       <div id="reader" style="width: 100%;"></div>
@@ -413,7 +419,6 @@
     <button class="bs" onclick="window.stopCam()" id="btnStopCam" style="width:100%; margin-top:10px; border-color:var(--red); color:var(--red); padding:10px;">✕ Fermer le scanner</button>
   </div>
 </div>
-
 
 <div class="ov hidden" id="ovPrintConfirm">
   <div class="modal m-center">
