@@ -221,3 +221,63 @@ window.stopCam = function() {
     if(window.$('ovCam')) window.$('ovCam').classList.add('hidden');
   }
 };
+
+// =========================================================================
+// 🧪 OUTIL DE DIAGNOSTIC SCANNER (ONGLET TEST)
+// =========================================================================
+
+window.debugQrCode = null;
+
+// Fonction pour écrire dans la console HTML
+window.logDebug = function(msg, color = 'var(--txt)') {
+  const logs = window.$('debug-logs');
+  if(!logs) return;
+  const time = new Date().toLocaleTimeString();
+  logs.innerHTML = `<div style="color:${color}; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><span style="color:var(--mut)">[${time}]</span> ${msg}</div>` + logs.innerHTML;
+};
+
+window.startDebugScanner = function() {
+  const logs = window.$('debug-logs');
+  if(logs) logs.innerHTML = ''; // Vide l'écran
+  window.logDebug("Initialisation de la caméra...", "var(--gold)");
+
+  if (window.debugQrCode) { try { window.debugQrCode.clear(); } catch(e){} }
+
+  try {
+    window.debugQrCode = new window.Html5Qrcode("debug-reader");
+    
+    window.debugQrCode.start(
+      { facingMode: "environment" },
+      { fps: 15 }, // Vitesse de lecture
+      (decodedText, decodedResult) => {
+        // SUCCÈS : On récupère le texte et le FORMAT du code !
+        const format = (decodedResult && decodedResult.result && decodedResult.result.format && decodedResult.result.format.formatName) ? decodedResult.result.format.formatName : "Inconnu";
+        window.logDebug(`✅ <b>CODE DÉTECTÉ !</b><br>Valeur : <span style="color:#fff">${decodedText}</span><br>Format : <span style="color:#fff">${format}</span>`, "var(--grn)");
+        if (navigator.vibrate) navigator.vibrate(100);
+      },
+      (errorMessage) => {
+         // On ne loggue pas les erreurs de "frame" (quand il ne voit rien), sinon ça va spammer 15 messages par seconde.
+      }
+    ).then(() => {
+      window.logDebug("Caméra démarrée ! Place n'importe quel code (Paquet de pâtes, livre, QR) devant l'objectif.", "var(--grn)");
+    }).catch((err) => {
+      window.logDebug(`❌ Erreur critique caméra (Permissions iOS ?) : ${err}`, "var(--red)");
+    });
+  } catch(e) {
+    window.logDebug(`❌ Erreur de lancement : ${e.message}`, "var(--red)");
+  }
+};
+
+window.stopDebugScanner = function() {
+  if (window.debugQrCode) {
+    window.debugQrCode.stop().then(() => {
+        window.debugQrCode.clear();
+        window.debugQrCode = null;
+        window.logDebug("⏹️ Scanner arrêté.", "var(--mut)");
+    }).catch(e => {
+        window.debugQrCode.clear();
+        window.debugQrCode = null;
+    });
+  }
+};
+
