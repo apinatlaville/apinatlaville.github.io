@@ -268,34 +268,49 @@ window.pomoReset = function() {
   window.updatePomoUI();
 };
 
+// 🚨 MODIFICATION : GÉNÉRATEUR NOUVEAU FORMAT (PH-8X2)
 window.genUid = function(matId) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let rnd = '';
-  for (let i = 0; i < 4; i++) {
-    rnd += chars[Math.floor(Math.random() * chars.length)];
+  try {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 caractères très lisibles
+    let rnd = '';
+    // On génère 3 lettres/chiffres au hasard
+    for (let i = 0; i < 3; i++) {
+      rnd += chars[Math.floor(Math.random() * chars.length)];
+    }
+    // On prend les 2 premières lettres de la matière (ex: 'PHYS' -> 'PH')
+    let prefix = matId.substring(0, 2).toUpperCase();
+    while (prefix.length < 2) prefix += 'X'; // Sécurité
+    
+    return prefix + '-' + rnd; // Résultat final : "PH-8X2" (6 caractères au total)
+  } catch(e) {
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur genUid: " + e.message, source: 'app.js' });
+    return 'XX-000';
   }
-  return matId.slice(0,4) + '-' + rnd;
 };
 
+// 🚨 MODIFICATION : AUTO-FORMATAGE INTELLIGENT DU "TIRET FANTÔME"
 window.doAutoFmtScan = function(inputEl) {
   if(!inputEl) return;
-  const raw = inputEl.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
-  let s1='', s2='';
-  let i = 0;
-  while(i < raw.length && /[A-Z]/.test(raw[i]) && s1.length < 4) {
-    s1 += raw[i++];
-  }
-  while(i < raw.length && s2.length < 4) {
-    s2 += raw[i++];
-  }
-  let res = s1;
-  if(s2) res += '-' + s2;
-  
-  if(raw.length > 0 && raw.length <= 8 && /^[A-Z]{1,4}[A-Z0-9]{0,4}$/.test(raw)) {
-    if(inputEl.value !== res) {
-      inputEl.value = res;
-      inputEl.selectionStart = inputEl.selectionEnd = res.length;
+  try {
+    const val = inputEl.value;
+    // Si l'utilisateur tape un mot normal (ex: "mécanique"), on ne fait pas de formatage auto !
+    if (val.includes(' ') || /[a-z]/.test(val)) return; 
+    
+    // Nettoyage (on garde que Majuscules et Chiffres)
+    const raw = val.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    
+    // On vérifie si la saisie ressemble à notre nouveau format ultra-court (2 Lettres + 1 à 3 Alphanum)
+    if(raw.length > 0 && raw.length <= 5 && /^[A-Z]{1,2}[A-Z0-9]{0,3}$/.test(raw)) {
+      let res = raw;
+      if(raw.length > 2) {
+        res = raw.substring(0, 2) + '-' + raw.substring(2); // On ajoute le tiret magique
+      }
+      if(inputEl.value !== res) {
+        inputEl.value = res; // On l'injecte dans la barre
+      }
     }
+  } catch(e) {
+     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur AutoFormat: " + e.message, source: 'app.js' });
   }
 };
 
@@ -356,10 +371,10 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   if (tab === 'logs') window.renderErrorLogs();
   
   window.scrollTo(0,0);
+  
   if (tab !== 'test' && typeof window.stopDebugScanner === 'function') {
     window.stopDebugScanner();
   }
-
 };
 
 window.renderDashboard = function() {
@@ -507,7 +522,7 @@ window.exportCsv = function() {
 
 window.homeGo = function() {
   const v = window.$('homeSearch') ? window.$('homeSearch').value.trim().toUpperCase() : '';
-  if(v.includes('-') && v.length >= 8) {
+  if(v.includes('-') && v.length >= 6) { // 🚨 Mis à jour pour le format court (ex: PH-8X2 fait 6 lettres)
     window.doLocate(v);
   } else {
     window.switchTab('cours');
