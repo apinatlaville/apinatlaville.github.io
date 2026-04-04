@@ -36,6 +36,13 @@
  * 3. scanner.js  : Scanner de codes-barres 1D et logique d'impression.
  * * 👉 RÈGLE POUR L'IA : Ce fichier contient uniquement les initialisations, les boutons
  * globaux et Firebase. TOUTE LA LOGIQUE MÉTIER est dans les autres fichiers.
+ * * 🎯 RÔLE DE CE FICHIER :
+ * - Orchestrer le démarrage (`initApp`).
+ * - Gérer la sauvegarde Cloud (`window.save`).
+ * - Gérer les onglets (`window.switchTab`) et le tableau de bord (`window.renderDashboard`).
+ * * ⚠️ RÈGLES STRICTES DE MODIFICATION :
+ * - NE JAMAIS SUPPRIMER cette documentation.
+ * - Ne rien enlever, ajouter uniquement.
  * =========================================================================================
  */
 
@@ -204,18 +211,19 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
 };
 
-window.loadDemo = function() {
+// 🚨 MODIFICATION : ASYNC / AWAIT AJOUTÉS POUR LAISSER LE TEMPS AU CLOUD DE SAUVEGARDER
+window.loadDemo = async function() {
   if(confirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?")) {
-    window.D = JSON.parse(JSON.stringify(window.emptyData)); 
-    window.save(); 
+    window.D = JSON.parse(JSON.stringify(window.demoData)); 
+    await window.save(); 
     location.reload();
   }
 };
 
-window.resetData = function() {
+window.resetData = async function() {
   if(confirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?")) {
     window.D = JSON.parse(JSON.stringify(window.emptyData)); 
-    window.save(); 
+    await window.save(); 
     location.reload();
   }
 };
@@ -268,45 +276,38 @@ window.pomoReset = function() {
   window.updatePomoUI();
 };
 
-// 🚨 MODIFICATION : GÉNÉRATEUR NOUVEAU FORMAT (PH-8X2)
 window.genUid = function(matId) {
   try {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 caractères très lisibles
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
     let rnd = '';
-    // On génère 3 lettres/chiffres au hasard
     for (let i = 0; i < 3; i++) {
       rnd += chars[Math.floor(Math.random() * chars.length)];
     }
-    // On prend les 2 premières lettres de la matière (ex: 'PHYS' -> 'PH')
     let prefix = matId.substring(0, 2).toUpperCase();
-    while (prefix.length < 2) prefix += 'X'; // Sécurité
+    while (prefix.length < 2) prefix += 'X'; 
     
-    return prefix + '-' + rnd; // Résultat final : "PH-8X2" (6 caractères au total)
+    return prefix + '-' + rnd; 
   } catch(e) {
     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur genUid: " + e.message, source: 'app.js' });
     return 'XX-000';
   }
 };
 
-// 🚨 MODIFICATION : AUTO-FORMATAGE INTELLIGENT DU "TIRET FANTÔME"
 window.doAutoFmtScan = function(inputEl) {
   if(!inputEl) return;
   try {
-    const val = inputEl.value;
-    // Si l'utilisateur tape un mot normal (ex: "mécanique"), on ne fait pas de formatage auto !
-    if (val.includes(' ') || /[a-z]/.test(val)) return; 
+    let val = inputEl.value;
+    if (val.includes(' ')) return; 
     
-    // Nettoyage (on garde que Majuscules et Chiffres)
     const raw = val.toUpperCase().replace(/[^A-Z0-9]/g,'');
     
-    // On vérifie si la saisie ressemble à notre nouveau format ultra-court (2 Lettres + 1 à 3 Alphanum)
     if(raw.length > 0 && raw.length <= 5 && /^[A-Z]{1,2}[A-Z0-9]{0,3}$/.test(raw)) {
       let res = raw;
       if(raw.length > 2) {
-        res = raw.substring(0, 2) + '-' + raw.substring(2); // On ajoute le tiret magique
+        res = raw.substring(0, 2) + '-' + raw.substring(2);
       }
       if(inputEl.value !== res) {
-        inputEl.value = res; // On l'injecte dans la barre
+        inputEl.value = res; 
       }
     }
   } catch(e) {
@@ -522,7 +523,7 @@ window.exportCsv = function() {
 
 window.homeGo = function() {
   const v = window.$('homeSearch') ? window.$('homeSearch').value.trim().toUpperCase() : '';
-  if(v.includes('-') && v.length >= 6) { // 🚨 Mis à jour pour le format court (ex: PH-8X2 fait 6 lettres)
+  if(v.includes('-') && v.length >= 6) { 
     window.doLocate(v);
   } else {
     window.switchTab('cours');
@@ -587,6 +588,8 @@ bindClick('btnLocate', () => { const v = window.$('mainSearch') ? window.$('main
 bindClick('btnCancelCours', () => window.closeModalCours());
 bindChange('fType', () => window.toggleNoteField());
 
+bindChange('fMat', () => { if(typeof window.updateUidPrefix === 'function') window.updateUidPrefix(); });
+
 bindClick('btnAddCl', () => window.addCl());
 bindClick('btnAddMat', () => window.addMat());
 
@@ -607,7 +610,7 @@ bindClick('btnDlQR', () => window.dlQR());
 
 bindChange('fCl', () => window.updateIntercalairesDropdown());
 
-// LANCEMENT DE L'APPLICATION AVEC RÉCUPÉRATION FIRESTORE
+// 🚨 MODIFICATION : On utilise window.emptyData au démarrage si l'app est vide.
 async function initApp() {
   try {
     const docSnap = await getDoc(window.docRef);
