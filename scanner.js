@@ -173,7 +173,7 @@ window.openCam = function() {
     const config = { 
       fps: 30, // 🔥 Vitesse doublée (30 images par seconde au lieu de 15)
       qrbox: { width: 250, height: 100 }, // 🎯 Fait un rectangle de visée (idéal pour Code 128)
-      aspectRatio: 1.0 // Garde une vidéo carrée pour s'adapter à l'écran
+      aspectRatio: 1.77 // Garde une vidéo carrée pour s'adapter à l'écran
     };
 
     window.html5QrCode.start(
