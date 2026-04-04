@@ -25,6 +25,7 @@ window.PC_FLASHCARDS = [
   { mat: 'Chimie Orga', q: 'Règle de Markovnikov (Add. électrophile)', a: 'Le proton s\'additionne sur le carbone le plus hydrogéné de la double liaison.' }
 ];
 
+// 🚨 MODIFICATION : VRAIES données vides (0 cours)
 window.emptyData = {
   settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
   matieres: [
@@ -37,7 +38,22 @@ window.emptyData = {
     {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {}},
     {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {}},
   ],
-  // 🚨 DONNÉES DE TEST INTÉGRALEMENT CONSERVÉES, FORMAT MIS À JOUR (PH-8X2)
+  cours: [] // <- VIDE !
+};
+
+// 🚨 MODIFICATION : Création d'une variable spécifique pour les TESTS
+window.demoData = {
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
+  matieres: [
+    {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
+    {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
+    {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+  ],
+  classeurs: [
+    {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter: 12, interNames: {}},
+    {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {}},
+    {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {}},
+  ],
   cours: [
     { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: '2026-04-01' },
     { uid: 'PH-X9Y', title: 'Thermodynamique', type: 'FICHE', rev: 'orange', mat: 'PHYS', cl: 'A', inter: '02', stat: 'printed', date: '2026-04-02' },
@@ -287,15 +303,32 @@ window.toggleNoteField = function() {
   }
 };
 
+window.updateUidPrefix = function() {
+  const matEl = window.$('fMat');
+  const prefixEl = window.$('fUidPrefix');
+  if (prefixEl) {
+    if (!matEl || !matEl.value) {
+      prefixEl.textContent = 'XX-';
+      prefixEl.style.color = 'var(--mut)';
+    } else {
+      let prefix = matEl.value.substring(0, 2).toUpperCase();
+      while (prefix.length < 2) prefix += 'X';
+      prefixEl.textContent = prefix + '-';
+      prefixEl.style.color = 'var(--acc)';
+    }
+  }
+};
+
 window.toggleManualUid = function() {
   const isManual = window.$('fManualUidToggle').checked;
   if (isManual) {
     window.$('uidBox').style.display = 'none';
-    window.$('fUidInput').style.display = 'block';
-    window.$('fUidInput').focus();
+    if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'flex';
+    window.updateUidPrefix();
+    if(window.$('fUidInput')) window.$('fUidInput').focus();
   } else {
     window.$('uidBox').style.display = 'block';
-    window.$('fUidInput').style.display = 'none';
+    if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'none';
   }
 };
 
@@ -343,8 +376,10 @@ window.openModalCours = function() {
   }
   if(window.$('fUidInput')) {
     window.$('fUidInput').value = '';
-    window.$('fUidInput').style.display = 'none';
   }
+  if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'none';
+  window.updateUidPrefix();
+
   if(window.$('uidBox')) {
     window.$('uidBox').style.display = 'block';
     window.$('uidBox').innerHTML = '—<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code-barres généré automatiquement</small>';
@@ -383,7 +418,7 @@ window.editCours = function(uid) {
   if(window.$('fInter')) window.$('fInter').value = c.inter;
   
   if(window.$('lblManualUid')) window.$('lblManualUid').style.display = 'none';
-  if(window.$('fUidInput')) window.$('fUidInput').style.display = 'none';
+  if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'none';
   
   if(window.$('uidBox')) {
     window.$('uidBox').style.display = 'block';
@@ -428,13 +463,18 @@ window.saveCours = function() {
   } else {
     let newUid = '';
     if (window.$('fManualUidToggle') && window.$('fManualUidToggle').checked) {
-      newUid = window.$('fUidInput').value.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
-      if (!newUid) {
-        alert("Veuillez saisir un identifiant valide.");
+      const prefixEl = window.$('fUidPrefix');
+      const prefix = prefixEl ? prefixEl.textContent.replace('-', '') : mat.substring(0,2).toUpperCase();
+      const suffix = window.$('fUidInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      
+      if (!suffix) {
+        alert("Veuillez taper au moins un caractère dans la case manuelle !");
         return;
       }
+      
+      newUid = prefix + '-' + suffix;
       if (window.D.cours.find(c => c.uid === newUid)) {
-        alert("Code déjà utilisé !");
+        alert("Ce code (" + newUid + ") est déjà utilisé ! Trouve-en un autre.");
         return;
       }
     } else {
