@@ -287,6 +287,12 @@ body.mode-compact .cdesc { display: none; }
 .mnm { color: var(--mut); font-size: 13px; flex: 1; }
 .mdel { background: rgba(240,96,96,.1); border: 1px solid rgba(240,96,96,.3); border-radius: 6px; cursor: pointer; color: var(--red); font-size: 14px; padding: 4px 8px; }
 
+/* 🎨 PASTILLES DE COULEUR (MATIÈRES & CLASSEURS) */
+.sws { display: flex; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+.sw { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.2s; }
+.sw.on { border-color: var(--txt); transform: scale(1.15); box-shadow: 0 0 8px rgba(0,0,0,0.3); }
+
+
 .set-row { display: flex; justify-content: space-between; align-items: center; background: var(--s1); border: 1px solid var(--bd); padding: 14px; border-radius: 10px; margin-bottom: 10px; }
 .set-lbl { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: bold; color: var(--txt); }
 .set-sub { font-size: 11px; color: var(--mut); margin-top: 4px; }
