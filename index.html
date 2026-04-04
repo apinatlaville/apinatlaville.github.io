@@ -394,22 +394,26 @@
 </div>
 
 <div class="ov hidden" id="ovCam">
-  <div class="modal m-center">
-    <h2 style="margin-bottom:15px;">📷 Scanner 1D</h2>
+  <div class="modal m-center" style="padding: 15px;"> <h2 style="margin-bottom:10px; font-size:16px;">📷 Scanner 1D</h2>
     
-    <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 15px;"></div>
+    <div style="width: 100%; height: 200px; overflow: hidden; border-radius: 12px; margin-bottom: 10px; display: flex; align-items: center; background: #000;">
+      <div id="reader" style="width: 100%;"></div>
+    </div>
     
-    <div class="cam-st" id="camSt" style="color:var(--gold); font-weight:bold; margin-bottom:20px;">Initialisation...</div>
-    <div style="text-align:left; background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
-      <label style="font-size:11px;color:var(--mut);display:block;margin-bottom:6px;text-transform:uppercase;">Saisie manuelle (Secours) :</label>
+    <div class="cam-st" id="camSt" style="color:var(--gold); font-weight:bold; margin-bottom:10px; font-size:13px;">Initialisation...</div>
+    
+    <div style="text-align:left; background:var(--s2); padding:10px; border-radius:12px; border:1px solid var(--bd);">
+      <label style="font-size:10px;color:var(--mut);display:block;margin-bottom:4px;text-transform:uppercase;">Saisie manuelle :</label>
       <div style="display:flex;gap:6px;">
-        <input type="text" id="manualCamInput" class="fi" placeholder="Ex: PH-8X2">
-        <button class="bp" onclick="window.manualScan()" id="btnManualCam" style="flex:0;padding:8px 16px;">OK</button>
+        <input type="text" id="manualCamInput" class="fi" placeholder="Ex: PH-8X2" style="padding:6px 10px; font-size:14px;">
+        <button class="bp" onclick="window.manualScan()" id="btnManualCam" style="flex:0;padding:6px 12px;">OK</button>
       </div>
     </div>
-    <button class="bs" onclick="window.stopCam()" id="btnStopCam" style="width:100%; margin-top:20px; border-color:var(--red); color:var(--red);">✕ Fermer le scanner</button>
+    
+    <button class="bs" onclick="window.stopCam()" id="btnStopCam" style="width:100%; margin-top:10px; border-color:var(--red); color:var(--red); padding:10px;">✕ Fermer le scanner</button>
   </div>
 </div>
+
 
 <div class="ov hidden" id="ovPrintConfirm">
   <div class="modal m-center">
