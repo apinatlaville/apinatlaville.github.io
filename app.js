@@ -22,30 +22,6 @@
  * =========================================================================================
  */
 
-/**
- * =========================================================================================
- * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
- * =========================================================================================
- * NOM DU PROJET : Mes Cours - PC* Edition
- * FICHIER ACTUEL : app.js (Cœur et Orchestrateur)
- * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
- * L'application est divisée en plusieurs fichiers pour sécuriser les modifications :
- * 1. app.js      : [CE FICHIER] Base de données Firebase, État global (window.D), 
- * Navigation (Onglets), Pomodoro et Watchdog.
- * 2. data.js     : Gestion des données (Cours, Classeurs, Matières) et grilles HTML.
- * 3. scanner.js  : Scanner de codes-barres 1D et logique d'impression.
- * * 👉 RÈGLE POUR L'IA : Ce fichier contient uniquement les initialisations, les boutons
- * globaux et Firebase. TOUTE LA LOGIQUE MÉTIER est dans les autres fichiers.
- * * 🎯 RÔLE DE CE FICHIER :
- * - Orchestrer le démarrage (`initApp`).
- * - Gérer la sauvegarde Cloud (`window.save`).
- * - Gérer les onglets (`window.switchTab`) et le tableau de bord (`window.renderDashboard`).
- * * ⚠️ RÈGLES STRICTES DE MODIFICATION :
- * - NE JAMAIS SUPPRIMER cette documentation.
- * - Ne rien enlever, ajouter uniquement.
- * =========================================================================================
- */
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
 
@@ -211,7 +187,6 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
 };
 
-// 🚨 MODIFICATION : ASYNC / AWAIT AJOUTÉS POUR LAISSER LE TEMPS AU CLOUD DE SAUVEGARDER
 window.loadDemo = async function() {
   if(confirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?")) {
     window.D = JSON.parse(JSON.stringify(window.demoData)); 
@@ -293,31 +268,31 @@ window.genUid = function(matId) {
   }
 };
 
-// 🚨 MODIFICATION : AUTO-FORMATAGE + AUTO-SUBMIT + LIMITE DE CARACTÈRES
 window.doAutoFmtScan = function(inputEl) {
   if(!inputEl) return;
   try {
     let val = inputEl.value;
-    // Si l'utilisateur tape un espace, on arrête le formatage (il cherche un mot complet)
     if (val.includes(' ')) return; 
     
-    // On force la MAJUSCULE, on garde que Lettres/Chiffres, et on LIMITE à 5 caractères max !
     const raw = val.toUpperCase().replace(/[^A-Z0-9]/g,'').substring(0, 5);
     
     if(raw.length > 0 && /^[A-Z]{1,2}[A-Z0-9]{0,3}$/.test(raw)) {
       let res = raw;
       if(raw.length > 2) {
-        res = raw.substring(0, 2) + '-' + raw.substring(2); // Ajoute le tiret
+        res = raw.substring(0, 2) + '-' + raw.substring(2); 
       }
       
       if(inputEl.value !== res) {
-        inputEl.value = res; // Injecte le code formaté
+        inputEl.value = res; 
       }
 
-      // 🚀 MAGIE : Si le code est complet (6 caractères avec le tiret), on valide tout seul !
       if (res.length === 6) {
-        inputEl.blur(); // Enlève le clavier de l'écran (sur mobile)
-        window.doLocate(res); // Lance l'affichage du cours
+        inputEl.blur(); 
+        if (inputEl.id === 'manualCamInput' && typeof window.processScan === 'function') {
+            window.processScan(res);
+        } else {
+            window.doLocate(res); 
+        }
       }
       
     } else if (raw.length === 0) {
@@ -623,7 +598,12 @@ bindClick('btnDlQR', () => window.dlQR());
 
 bindChange('fCl', () => window.updateIntercalairesDropdown());
 
-// 🚨 MODIFICATION : On utilise window.emptyData au démarrage si l'app est vide.
+// 🚨 MODIFICATION : L'ancien capteur pour "nClId" a été retiré !
+bindInput('nMlbl', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 4); });
+bindInput('manualCamInput', (e) => { window.doAutoFmtScan(e.target); });
+bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3); });
+
+// LANCEMENT DE L'APPLICATION AVEC RÉCUPÉRATION FIRESTORE
 async function initApp() {
   try {
     const docSnap = await getDoc(window.docRef);
@@ -656,6 +636,10 @@ async function initApp() {
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
   window.applySettings();
+  
+  window.renderMatieres();
+  window.renderClasseurs();
+  
   window.renderStats();
   window.switchTab('home');
 }
