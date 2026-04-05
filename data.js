@@ -254,7 +254,7 @@ window.doLocate = function(uid) {
   }
 
   const mo = window.D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
-  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📁'};
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📘'};
   
   const interNameDisplay = window.getInterName(co, c.inter);
   
@@ -566,7 +566,6 @@ window.renderClasseurs = function() {
   }
 };
 
-// 🚨 MODIFICATION : On a supprimé la récupération de l'icône dans l'éditeur (fixé à 📁)
 window.editClasseur = function(id) {
   const cl = window.D.classeurs.find(c => c.id === id);
   if(!cl) return;
@@ -601,7 +600,6 @@ window.renderEditClInters = function() {
   container.innerHTML = html;
 };
 
-// 🚨 MODIFICATION : L'icône n'est plus modifiée lors de l'enregistrement
 window.saveClEdit = function() {
   const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
   if(!cl) return;
@@ -662,31 +660,24 @@ window.setNewColor = function(col) {
   window.renderMatieres();
 };
 
-// 🚨 MODIFICATION : On a supprimé la gestion de l'icône, on fixe 📁 d'office !
+// 🚨 MODIFICATION : Disparition de la notion d'identifiant tapé par l'utilisateur !
 window.addCl = function() {
-  const id = window.$('nClId').value.trim().toUpperCase();
   const name = window.$('nClNm').value.trim();
   const icon = '📘'; 
   
-  if(id.length !== 1) {
-    alert("Identifiant : 1 seule lettre !");
-    return;
-  }
-  if(window.D.classeurs.find(c=>c.id===id)) {
-    alert("Ce classeur existe déjà !");
-    return;
-  }
   if(!name) {
     alert("Le nom est obligatoire");
     return;
   }
+  
+  // Génère un ID unique et invisible à l'utilisateur (Ex: CL_171542484)
+  const id = 'CL_' + Date.now();
   
   window.D.classeurs.push({id, name, icon, color:window.newColorCl, maxInter: 12, interNames: {}}); 
   window.save(); 
   window.renderClasseurs(); 
   window.renderCours();
   
-  window.$('nClId').value=''; 
   window.$('nClNm').value='';
   alert("Classeur ajouté avec succès !");
 };
