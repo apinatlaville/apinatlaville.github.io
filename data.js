@@ -280,14 +280,16 @@ window.doLocate = function(uid) {
   if(window.$('locPopup')) window.$('locPopup').classList.add('open');
 };
 
+// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
 window.delCours = function(uid) {
-  if (!confirm('Supprimer le document ' + uid + ' ?')) return;
-  window.D.cours = window.D.cours.filter(c => c.uid !== uid);
-  window.save();
-  window.renderCours();
-  window.renderDashboard();
-  window.renderNotes();
-  window.renderClasseurs();
+  window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
+    window.D.cours = window.D.cours.filter(c => c.uid !== uid);
+    window.save();
+    window.renderCours();
+    window.renderDashboard();
+    window.renderNotes();
+    window.renderClasseurs();
+  }, "Suppression d'un document");
 };
 
 window.toggleNoteField = function() {
@@ -427,6 +429,7 @@ window.editCours = function(uid) {
   if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
 };
 
+// 🚨 MODIFICATION : Remplacement des alerts d'erreur par sysAlert
 window.saveCours = function() {
   const title = window.$('fTitle')?window.$('fTitle').value.trim():'';
   const mat = window.$('fMat')?window.$('fMat').value:'';
@@ -434,8 +437,7 @@ window.saveCours = function() {
   const inter = window.$('fInter')?window.$('fInter').value:'';
   
   if (!title || !mat || !cl || !inter) {
-    alert('Remplis tous les champs obligatoires');
-    return;
+    return window.sysAlert('Remplis tous les champs obligatoires avant de sauvegarder.', "Erreur de saisie");
   }
   
   const obj = {
@@ -467,14 +469,12 @@ window.saveCours = function() {
       const suffix = window.$('fUidInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       
       if (!suffix) {
-        alert("Veuillez taper au moins un caractère dans la case manuelle !");
-        return;
+        return window.sysAlert("Veuillez taper au moins un caractère dans la case manuelle !", "Erreur de saisie");
       }
       
       newUid = prefix + '-' + suffix;
       if (window.D.cours.find(c => c.uid === newUid)) {
-        alert("Ce code (" + newUid + ") est déjà utilisé ! Trouve-en un autre.");
-        return;
+        return window.sysAlert("Ce code (" + newUid + ") est déjà utilisé ! Trouve-en un autre.", "Erreur de code");
       }
     } else {
       newUid = window.genUid(mat);
@@ -660,17 +660,13 @@ window.setNewColor = function(col) {
   window.renderMatieres();
 };
 
-// 🚨 MODIFICATION : Disparition de la notion d'identifiant tapé par l'utilisateur !
+// 🚨 MODIFICATION : Alertes propres via sysAlert
 window.addCl = function() {
   const name = window.$('nClNm').value.trim();
   const icon = '📘'; 
   
-  if(!name) {
-    alert("Le nom est obligatoire");
-    return;
-  }
+  if(!name) return window.sysAlert("Le nom est obligatoire", "Création de classeur");
   
-  // Génère un ID unique et invisible à l'utilisateur (Ex: CL_171542484)
   const id = 'CL_' + Date.now();
   
   window.D.classeurs.push({id, name, icon, color:window.newColorCl, maxInter: 12, interNames: {}}); 
@@ -679,21 +675,16 @@ window.addCl = function() {
   window.renderCours();
   
   window.$('nClNm').value='';
-  alert("Classeur ajouté avec succès !");
+  window.sysAlert("Classeur ajouté avec succès !", "Création de classeur");
 };
 
+// 🚨 MODIFICATION : Alertes propres via sysAlert
 window.addMat = function() {
   const lbl = window.$('nMlbl').value.trim().toUpperCase();
   const name = window.$('nMname').value.trim();
   
-  if(lbl.length !== 4) {
-    alert("Code matière : exactement 4 lettres !");
-    return;
-  }
-  if(window.D.matieres.find(m=>m.id===lbl)) {
-    alert("Cette matière existe déjà !");
-    return;
-  }
+  if(lbl.length !== 4) return window.sysAlert("Code matière : exactement 4 lettres !", "Création de matière");
+  if(window.D.matieres.find(m=>m.id===lbl)) return window.sysAlert("Cette matière existe déjà !", "Création de matière");
   
   window.D.matieres.push({id:lbl, label:lbl, name:name||lbl, color:window.newColor}); 
   window.save(); 
@@ -702,23 +693,37 @@ window.addMat = function() {
   
   window.$('nMlbl').value=''; 
   window.$('nMname').value='';
-  alert("Matière ajoutée avec succès !");
+  window.sysAlert("Matière ajoutée avec succès !", "Création de matière");
 };
 
+// 🚨 MODIFICATION : sysConfirm au lieu de confirm natif
 window.delMat = function(id) {
-  if(!window.D.cours.filter(c=>c.mat===id).length || confirm('Cette matière contient des cours. Supprimer quand même ?')) {
+  const doDel = () => {
     window.D.matieres = window.D.matieres.filter(m=>m.id!==id);
     window.save();
     window.renderMatieres();
     window.renderCours();
+  };
+  
+  if(window.D.cours.filter(c=>c.mat===id).length) {
+    window.sysConfirm('Attention, cette matière contient des cours. Veux-tu vraiment la supprimer ?', doDel, "Suppression d'une matière");
+  } else {
+    doDel();
   }
 };
 
+// 🚨 MODIFICATION : sysConfirm au lieu de confirm natif
 window.delCl = function(id) {
-  if(!window.D.cours.filter(c=>c.cl===id).length || confirm('Ce classeur contient des cours. Supprimer quand même ?')) {
+  const doDel = () => {
     window.D.classeurs = window.D.classeurs.filter(c=>c.id!==id);
     window.save();
     window.renderClasseurs();
     window.renderCours();
+  };
+
+  if(window.D.cours.filter(c=>c.cl===id).length) {
+    window.sysConfirm('Attention, ce classeur contient des cours. Veux-tu vraiment le supprimer ?', doDel, "Suppression d'un classeur");
+  } else {
+    doDel();
   }
 };
