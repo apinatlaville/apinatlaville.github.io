@@ -419,5 +419,5 @@ body.mode-compact .cdesc { display: none; }
   100% { opacity: 1; transform: scale(1.1); box-shadow: 0 0 15px 2px var(--red); }
 }
 .rev-red {
-  animation: urgentPulse 0.5s infinite ease-in-out;
+  animation: urgentPulse 0.7s infinite ease-in-out;
 }
