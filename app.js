@@ -70,6 +70,39 @@ window.pomoTimeLeft = 25 * 60;
 window.pomoRunning = false; 
 window.pomoMode = 'work'; 
 
+// 🚨 NOUVEAU SYSTÈME DE POP-UPS PERSONNALISÉS (Remplace alert et confirm)
+window.sysAlert = function(msg, title="Information") {
+  if(window.$('sysDialogTitle')) window.$('sysDialogTitle').innerHTML = title;
+  if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
+  if(window.$('sysDialogActs')) {
+    window.$('sysDialogActs').innerHTML = `<button class="bp" onclick="window.closeSysDialog()" style="width:100%;">OK</button>`;
+  }
+  if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.remove('hidden');
+};
+
+window.sysConfirm = function(msg, onConfirm, title="Attention") {
+  if(window.$('sysDialogTitle')) window.$('sysDialogTitle').innerHTML = title;
+  if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
+  
+  window._sysConfirmCallback = () => {
+    window.closeSysDialog();
+    if (onConfirm) onConfirm();
+  };
+
+  if(window.$('sysDialogActs')) {
+    window.$('sysDialogActs').innerHTML = `
+      <button class="bs" onclick="window.closeSysDialog()" style="flex:1;">Annuler</button>
+      <button class="bp" onclick="window._sysConfirmCallback()" style="flex:1; background:var(--red); color:#fff; border-color:var(--red);">Confirmer</button>
+    `;
+  }
+  if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.remove('hidden');
+};
+
+window.closeSysDialog = function() {
+  if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.add('hidden');
+};
+
+
 window.updateCloudIndicator = function() {
   const d = window.$('cDot');
   const t = window.$('cTxt');
@@ -130,6 +163,7 @@ document.addEventListener('click', function(e) {
       else if (ov.id === 'ovCours') window.closeModalCours();
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
+      else if (ov.id === 'ovSysDialog') window.closeSysDialog(); // Ferme si on clique à côté
     }
   });
   const w = window.$('fabWrapper');
@@ -187,20 +221,22 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
 };
 
-window.loadDemo = async function() {
-  if(confirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?")) {
+// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
+window.loadDemo = function() {
+  window.sysConfirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?", async () => {
     window.D = JSON.parse(JSON.stringify(window.demoData)); 
     await window.save(); 
     location.reload();
-  }
+  }, "Mode Démonstration");
 };
 
-window.resetData = async function() {
-  if(confirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?")) {
+// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
+window.resetData = function() {
+  window.sysConfirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?", async () => {
     window.D = JSON.parse(JSON.stringify(window.emptyData)); 
     await window.save(); 
     location.reload();
-  }
+  }, "Réinitialisation Totale");
 };
 
 window.formatTime = function(s) {
@@ -230,11 +266,11 @@ window.pomoToggle = function() {
         if(window.pomoMode === 'work') { 
           window.pomoMode = 'break'; 
           window.pomoTimeLeft = window.D.settings.pomoBreak * 60; 
-          alert("⏳ Fin du temps de travail ! Prends ta pause."); 
+          window.sysAlert("⏳ Fin du temps de travail ! Prends ta pause.", "Pomodoro"); 
         } else { 
           window.pomoMode = 'work'; 
           window.pomoTimeLeft = window.D.settings.pomoWork * 60; 
-          alert("⏳ Fin de la pause ! Au boulot."); 
+          window.sysAlert("⏳ Fin de la pause ! Au boulot.", "Pomodoro"); 
         }
       }
       window.updatePomoUI();
@@ -423,9 +459,10 @@ window.renderDashboard = function() {
   }
 };
 
+// 🚨 MODIFICATION : SysAlert au lieu de native Alert
 window.drawKholle = function() {
   const toReview = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange');
-  if(!toReview.length) return alert("Bravo ! Aucun document urgent à réviser.");
+  if(!toReview.length) return window.sysAlert("Bravo ! Aucun document urgent à réviser.", "Khôlle");
   const winner = toReview[Math.floor(Math.random() * toReview.length)];
   window.doLocate(winner.uid);
 };
@@ -538,10 +575,12 @@ window.renderErrorLogs = function() {
   `).reverse().join(''); 
 };
 
+// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
 window.clearErrorLogs = function() {
-  if(!confirm("Vider l'historique des erreurs ?")) return;
-  window.appErrors = [];
-  window.renderErrorLogs();
+  window.sysConfirm("Vider l'historique des erreurs ?", () => {
+    window.appErrors = [];
+    window.renderErrorLogs();
+  }, "Logs");
 };
 
 // ATTACHEMENT DYNAMIQUE DES ÉVÉNEMENTS
@@ -598,12 +637,10 @@ bindClick('btnDlQR', () => window.dlQR());
 
 bindChange('fCl', () => window.updateIntercalairesDropdown());
 
-// 🚨 MODIFICATION : L'ancien capteur pour "nClId" a été retiré !
 bindInput('nMlbl', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 4); });
 bindInput('manualCamInput', (e) => { window.doAutoFmtScan(e.target); });
 bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3); });
 
-// LANCEMENT DE L'APPLICATION AVEC RÉCUPÉRATION FIRESTORE
 async function initApp() {
   try {
     const docSnap = await getDoc(window.docRef);
