@@ -282,6 +282,7 @@
   </div>
 </div>
 
+
 <div class="fab-wrapper" id="fabWrapper">
   <div class="fab-menu" id="fabMenu">
     <button class="fab-mini" onclick="window.closeFab(); window.switchTab('print')" title="Impression">🖨</button>
@@ -421,6 +422,15 @@
       <button class="bp" id="btnConfirmPrintYes" style="background:var(--grn); color:#000;">Oui, c'est imprimé !</button>
       <button class="bs" id="btnConfirmPrintNo">Non / Annuler</button>
     </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovSysDialog">
+  <div class="modal m-center" style="max-width:320px; text-align:center;">
+    <h2 id="sysDialogTitle" style="margin-bottom:15px; font-size:18px;">Attention</h2>
+    <p id="sysDialogMsg" style="color:var(--mut); font-size:13px; margin-bottom:25px; line-height:1.5;"></p>
+    <div class="macts" id="sysDialogActs" style="display:flex; gap:10px; justify-content:center;">
+      </div>
   </div>
 </div>
 
