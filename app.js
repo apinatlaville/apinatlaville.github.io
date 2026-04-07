@@ -70,7 +70,6 @@ window.pomoTimeLeft = 25 * 60;
 window.pomoRunning = false; 
 window.pomoMode = 'work'; 
 
-// 🚨 NOUVEAU SYSTÈME DE POP-UPS PERSONNALISÉS (Remplace alert et confirm)
 window.sysAlert = function(msg, title="Information") {
   if(window.$('sysDialogTitle')) window.$('sysDialogTitle').innerHTML = title;
   if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
@@ -101,7 +100,6 @@ window.sysConfirm = function(msg, onConfirm, title="Attention") {
 window.closeSysDialog = function() {
   if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.add('hidden');
 };
-
 
 window.updateCloudIndicator = function() {
   const d = window.$('cDot');
@@ -163,7 +161,7 @@ document.addEventListener('click', function(e) {
       else if (ov.id === 'ovCours') window.closeModalCours();
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
-      else if (ov.id === 'ovSysDialog') window.closeSysDialog(); // Ferme si on clique à côté
+      else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
     }
   });
   const w = window.$('fabWrapper');
@@ -221,7 +219,6 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
 };
 
-// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
 window.loadDemo = function() {
   window.sysConfirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?", async () => {
     window.D = JSON.parse(JSON.stringify(window.demoData)); 
@@ -230,7 +227,6 @@ window.loadDemo = function() {
   }, "Mode Démonstration");
 };
 
-// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
 window.resetData = function() {
   window.sysConfirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?", async () => {
     window.D = JSON.parse(JSON.stringify(window.emptyData)); 
@@ -336,6 +332,56 @@ window.doAutoFmtScan = function(inputEl) {
     }
   } catch(e) {
      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur AutoFormat: " + e.message, source: 'app.js' });
+  }
+};
+
+// 🚨 MODIFICATION : LOGIQUE INTELLIGENTE DES 5 CASES 2FA
+window.setupCodeBoxes = function() {
+  const boxes = [window.$('cb1'), window.$('cb2'), window.$('cb3'), window.$('cb4'), window.$('cb5')];
+  boxes.forEach((box, i) => {
+    if(!box) return;
+    
+    // Écoute de la saisie
+    box.addEventListener('input', (e) => {
+      box.value = box.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      // Si on a tapé une lettre valide et qu'on n'est pas à la dernière case, on passe à la suivante
+      if(box.value && i < 4) {
+        boxes[i+1].focus();
+      }
+      window.checkHomeCode();
+    });
+    
+    // Écoute de la touche "Effacer" pour reculer
+    box.addEventListener('keydown', (e) => {
+      if(e.key === 'Backspace' && !box.value && i > 0) {
+        boxes[i-1].focus();
+      }
+    });
+    
+    // Support magique du "Copier-Coller" !
+    box.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 5);
+        for(let j=0; j<pasted.length; j++) {
+            if(boxes[j]) boxes[j].value = pasted[j];
+        }
+        if(pasted.length > 0 && pasted.length < 5) boxes[pasted.length].focus();
+        else if(pasted.length === 5) boxes[4].blur(); // Enlève le clavier si fini
+        window.checkHomeCode();
+    });
+  });
+};
+
+window.checkHomeCode = function(forceAlert = false) {
+  const code = [1,2,3,4,5].map(i => window.$('cb'+i)?window.$('cb'+i).value:'').join('');
+  if(code.length === 5) {
+    const fullCode = code.substring(0,2) + '-' + code.substring(2);
+    window.doLocate(fullCode); // Lance l'affichage du cours tout seul !
+    
+    // On vide les cases pour la prochaine recherche
+    [1,2,3,4,5].forEach(i => { if(window.$('cb'+i)) window.$('cb'+i).value = ''; });
+  } else if(forceAlert) {
+    window.sysAlert("Veuillez remplir les 5 cases pour chercher un code-barres.", "Code incomplet");
   }
 };
 
@@ -459,7 +505,6 @@ window.renderDashboard = function() {
   }
 };
 
-// 🚨 MODIFICATION : SysAlert au lieu de native Alert
 window.drawKholle = function() {
   const toReview = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange');
   if(!toReview.length) return window.sysAlert("Bravo ! Aucun document urgent à réviser.", "Khôlle");
@@ -546,18 +591,6 @@ window.exportCsv = function() {
   a.click();
 };
 
-window.homeGo = function() {
-  const v = window.$('homeSearch') ? window.$('homeSearch').value.trim().toUpperCase() : '';
-  if(v.includes('-') && v.length >= 6) { 
-    window.doLocate(v);
-  } else {
-    window.switchTab('cours');
-    if(window.$('mainSearch')) window.$('mainSearch').value = v;
-    window.renderCours();
-    window.triggerHaptic();
-  }
-};
-
 window.renderErrorLogs = function() {
   const container = window.$('errorLogContainer');
   if(!container) return;
@@ -575,7 +608,6 @@ window.renderErrorLogs = function() {
   `).reverse().join(''); 
 };
 
-// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
 window.clearErrorLogs = function() {
   window.sysConfirm("Vider l'historique des erreurs ?", () => {
     window.appErrors = [];
@@ -602,15 +634,16 @@ bindInput('setUserName', (e) => { window.D.settings.userName = e.target.value.tr
 
 bindClick('btnPomoToggle', () => window.pomoToggle());
 bindClick('btnPomoReset', () => window.pomoReset());
-bindInput('homeSearch', () => { window.doAutoFmtScan(window.$('homeSearch')); });
-bindKey('homeSearch', 'Enter', () => window.homeGo());
-bindClick('btnHomeSearch', () => window.homeGo());
 bindClick('btnHomeCam', () => window.openCam());
 bindClick('btnKholleDraw', () => window.drawKholle());
 
-bindInput('mainSearch', () => { window.doAutoFmtScan(window.$('mainSearch')); window.renderCours(); });
-bindKey('mainSearch', 'Enter', () => { const v = window.$('mainSearch').value.trim().toUpperCase(); if(v) window.doLocate(v); });
-bindClick('btnLocate', () => { const v = window.$('mainSearch') ? window.$('mainSearch').value.trim().toUpperCase() : ''; if(v) window.doLocate(v); });
+// 🚨 MODIFICATION : Le bouton "Ouvrir" vérifie les 5 cases !
+bindClick('btnHomeSearch', () => window.checkHomeCode(true));
+
+// 🚨 MODIFICATION : Les deux barres de recherche en haut !
+bindInput('mainSearchText', () => window.renderCours());
+bindInput('mainSearchCode', (e) => { window.doAutoFmtScan(e.target); });
+
 
 bindClick('btnCancelCours', () => window.closeModalCours());
 bindChange('fType', () => window.toggleNoteField());
@@ -672,6 +705,9 @@ async function initApp() {
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
+  // 🚨 INITIALISATION DES CASES 2FA
+  window.setupCodeBoxes();
+
   window.applySettings();
   
   window.renderMatieres();
