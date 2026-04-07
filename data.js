@@ -149,16 +149,18 @@ window.renderCours = function() {
       });
 
       // Configuration du "Cerveau"
+            // Configuration du "Cerveau"
       const fuse = new Fuse(searchData, {
         keys: [
-          { name: 'title', weight: 0.6 },   // Titre = Très important
-          { name: 'matName', weight: 0.3 }, // Matière = Assez important
-          { name: 'desc', weight: 0.1 }     // Description = Bonus
+          { name: 'title', weight: 3 },     // 🚨 Coefficient 3x pour le titre !
+          { name: 'matName', weight: 1 },   // Coefficient 1x pour la matière
+          { name: 'desc', weight: 1 }       // 🚨 Coefficient 1x pour les notes/infos
         ],
-        threshold: 0.3, // Le droit à l'erreur (0 = strict, 1 = n'importe quoi)
-        ignoreLocation: true,
-        isCaseSensitive: false
+        threshold: 0.4, // 🚨 Tolérance aux fautes (0 = strict, 0.4 = pardonne bien les erreurs)
+        ignoreLocation: true, // Cherche le mot n'importe où dans la phrase
+        isCaseSensitive: false // Ignore totalement les majuscules/minuscules
       });
+
 
       const results = fuse.search(qText);
       baseList = results.map(r => r.item); // On remplace la liste par les résultats pertinents
