@@ -10,6 +10,7 @@
  * 3. scanner.js  : Scanner de codes-barres 1D et logique d'impression.
  * * 👉 RÈGLE POUR L'IA : Si l'utilisateur demande de modifier l'ajout d'un cours, l'édition 
  * d'un classeur ou le filtrage, TOUT se trouve ici. L'état global est `window.D`.
+ * * 👉 NOUVEAUTÉ : Fonction "Déplacement / Modification partielle" ajoutée (openMove / saveMove).
  * =========================================================================================
  */
 
@@ -73,6 +74,7 @@ window.chipFilter = null;
 window.newColor = window.COLORS[0];
 window.newColorCl = window.COLORS[0]; 
 window.editUid = null;
+window.moveUid = null; // 🚨 NOUVEL ÉTAT : Sauvegarde l'id du cours qu'on déplace
 
 window.getInterName = function(cl, ns) {
   if (cl && cl.interNames && cl.interNames[ns]) {
@@ -211,6 +213,7 @@ window.renderCours = function() {
           warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
         }
 
+        // 🚨 MODIFICATION : Ajout du bouton "Déplacer" (🔄) sur chaque carte !
         html += `
         <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${c.uid}')">
           <div class="rev-dot rev-${c.rev}"></div>
@@ -229,6 +232,7 @@ window.renderCours = function() {
           ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
           ${c.note ? `<div class="cnote">Note : ${c.note}/20</div>` : ''}
           <div class="cacts" onclick="event.stopPropagation();">
+              <button class="cbt" onclick="window.openMove('${c.uid}')" title="Déplacer">🔄</button>
               <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir Code-Barres">🔳</button>
               <button class="cbt" onclick="window.editCours('${c.uid}')" title="Modifier">✏️</button>
               <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${c.uid}')" title="Supprimer">🗑️</button>
@@ -263,45 +267,140 @@ window.doLocate = function(uid) {
   
   window.triggerHaptic();
 
-  let validationMsg = '';
-  if (c.stat === 'printed') {
-    c.stat = 'active';
-    window.save();
-    window.renderCours();
-    window.renderDashboard();
-    validationMsg = `
-      <div style="background:rgba(80,216,144,.15);border:1px solid var(--grn);color:var(--grn);padding:10px;border-radius:10px;text-align:center;font-weight:bold;margin-bottom:15px;">
-        ✅ Document initialisé et classé !
-      </div>
-    `;
-  }
-
   const mo = window.D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
   const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📘'};
-  
   const interNameDisplay = window.getInterName(co, c.inter);
   
-  if(window.$('locContent')) {
-    window.$('locContent').innerHTML = validationMsg + `
-      <div class="loc-code">${c.uid}</div>
-      <div class="loc-title">${c.title}</div>
-      <div class="loc-cards">
-        <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
-          ${co.icon} ${co.name}
+  const baseInfoHtml = `
+    <div class="loc-code">${c.uid}</div>
+    <div class="loc-title">${c.title}</div>
+    <div style="text-align:center;margin-top:5px;margin-bottom:15px;font-size:12px;font-weight:bold;color:${mo.color}">
+      ${c.type}
+    </div>
+  `;
+
+  // 🚨 NOUVEAUTÉ : Panneau intelligent de confirmation si le document est scanné pour la 1ère fois (printed)
+  if (c.stat === 'printed') {
+    window.$('locContent').innerHTML = baseInfoHtml + `
+      <div style="background:var(--s2); border:2px dashed var(--acc); padding:15px; border-radius:12px; margin-bottom:15px;">
+        <h4 style="color:var(--acc); margin-bottom:10px; text-align:center;">📌 Initialisation</h4>
+        <p style="font-size:12px; color:var(--mut); margin-bottom:15px; text-align:center;">Confirme l'emplacement de ce document :</p>
+        <div class="loc-cards" style="margin-bottom:15px;">
+          <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
+            ${co.icon} ${co.name}
+          </div>
+          <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
+            📑 ${interNameDisplay}
+          </div>
         </div>
-        <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
-          📑 ${interNameDisplay}
+        <div style="display:flex; gap:8px; flex-direction:column;">
+          <button class="bp" onclick="window.confirmInit('${c.uid}')" style="background:var(--grn); color:#000; border:none;">✅ Confirmer le rangement</button>
+          <button class="bs" onclick="window.closeLocPopup(); window.openMove('${c.uid}')">🔄 Modifier l'emplacement</button>
+          <button class="bs" onclick="window.closeLocPopup()" style="border-color:var(--red); color:var(--red);">❌ Annuler</button>
         </div>
       </div>
-      <div style="text-align:center;margin-top:5px;font-size:12px;font-weight:bold;color:${mo.color}">
-        ${c.type}
-      </div>
-      ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
-      ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
     `;
+  } else {
+     // Affichage normal si le cours est déjà "active"
+     window.$('locContent').innerHTML = baseInfoHtml + `
+        <div class="loc-cards">
+          <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
+            ${co.icon} ${co.name}
+          </div>
+          <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
+            📑 ${interNameDisplay}
+          </div>
+        </div>
+        ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
+        ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
+        
+        <button class="bs" onclick="window.closeLocPopup(); window.openMove('${c.uid}')" style="width:100%; margin-top:15px; padding:10px;">🔄 Déplacer ce document</button>
+     `;
   }
+  
   if(window.$('locPopup')) window.$('locPopup').classList.add('open');
 };
+
+// 🚨 NOUVELLE FONCTION : Confirme l'initialisation du cours suite au scan
+window.confirmInit = function(uid) {
+  const c = window.D.cours.find(x => x.uid === uid);
+  if(c) {
+      c.stat = 'active';
+      window.save();
+      window.renderCours();
+      window.renderDashboard();
+      window.closeLocPopup();
+      window.sysAlert("✅ Document initialisé et classé avec succès !", "Succès");
+  }
+};
+
+// 🚨 NOUVELLE FONCTION : Ouvre le panneau de modification partielle (Déplacement)
+window.openMove = function(uid) {
+  const c = window.D.cours.find(x => x.uid === uid);
+  if(!c) return;
+  window.moveUid = uid;
+  
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📘'};
+  const interNameDisplay = window.getInterName(co, c.inter);
+  
+  // Affiche la position de départ
+  if(window.$('moveCurrentLoc')) {
+      window.$('moveCurrentLoc').innerHTML = `${co.icon} ${co.name} <br> 📑 ${interNameDisplay}`;
+  }
+
+  // Prépare le select pour choisir le nouveau classeur
+  const moveClSelect = window.$('fMoveCl');
+  if(moveClSelect) {
+      moveClSelect.innerHTML = window.D.classeurs.map(x => `
+        <option value="${x.id}" ${x.id===c.cl?'selected':''}>${x.icon} ${x.name}</option>
+      `).join('');
+  }
+  
+  window.updateMoveIntercalairesDropdown(c.cl, c.inter);
+  
+  if(window.$('ovMove')) window.$('ovMove').classList.remove('hidden');
+};
+
+// 🚨 NOUVELLE FONCTION : Met à jour les intercalaires dispos dans la page de déplacement
+window.updateMoveIntercalairesDropdown = function(clIdOverride, interOverride) {
+  const clId = clIdOverride || (window.$('fMoveCl') ? window.$('fMoveCl').value : '');
+  const cl = window.D.classeurs.find(c => c.id === clId);
+  const maxI = cl ? (cl.maxInter || 12) : 12;
+  
+  const interSelect = window.$('fMoveInter');
+  if(interSelect) {
+      interSelect.innerHTML = Array.from({length: maxI}, (_, i) => {
+          const val = String(i + 1).padStart(2, '0');
+          const customName = window.getInterName(cl, val);
+          return `<option value="${val}" ${val===interOverride?'selected':''}>${val} - ${customName}</option>`;
+      }).join('');
+  }
+};
+
+// 🚨 NOUVELLE FONCTION : Sauvegarde uniquement la position du document (Modification partielle)
+window.saveMove = function() {
+  const cl = window.$('fMoveCl') ? window.$('fMoveCl').value : '';
+  const inter = window.$('fMoveInter') ? window.$('fMoveInter').value : '';
+  
+  if(!cl || !inter) return;
+  
+  const c = window.D.cours.find(x => x.uid === window.moveUid);
+  if(c) {
+      c.cl = cl;
+      c.inter = inter;
+      // Si on le déplace lors de son initialisation, ça le valide de force
+      if (c.stat === 'printed') {
+          c.stat = 'active';
+      }
+      window.save();
+      window.renderCours();
+      window.renderClasseurs();
+      window.renderDashboard();
+      if(window.$('ovMove')) window.$('ovMove').classList.add('hidden');
+      window.sysAlert("✅ Document déplacé avec succès !", "Déplacement réussi");
+  }
+};
+
 
 window.delCours = function(uid) {
   window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
