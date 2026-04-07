@@ -317,8 +317,26 @@ body.mode-compact .cdesc { display: none; }
 .bp { flex: 1; background: var(--acc); border: none; border-radius: 8px; padding: 12px; color: #fff; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; text-align: center; }
 .bs { flex: 1; background: var(--s2); border: 1px solid var(--bd); border-radius: 8px; padding: 12px; color: var(--txt); font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; text-align: center; }
 
-.loc-popup { position: fixed; bottom: -500px; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--s1); border: 1px solid var(--bd); border-radius: 24px 24px 0 0; padding: 24px; z-index: 2000; transition: bottom .4s cubic-bezier(.2,.8,.4,1); box-shadow: 0 -10px 40px rgba(0,0,0,.6); display: flex; flex-direction: column; align-items: stretch; }
+/* 🚨 MODIFICATION : Agrandissement du panneau d'accès (Locate) */
+.loc-popup {
+  position: fixed; bottom: -100%; left: 0; width: 100%;
+  background: var(--s1); border-top-left-radius: 24px; border-top-right-radius: 24px;
+  padding: 25px 20px; /* Plus d'espace interne */
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+  transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.1);
+  z-index: 1000;
+  max-height: 90vh; /* Permet de prendre presque tout l'écran si besoin */
+  overflow-y: auto; /* Permet de scroller à l'intérieur si c'est trop grand */
+}
 .loc-popup.open { bottom: 0; }
+
+/* 🚨 DESIGN DES PASTILLES DE THEME (PARAMÈTRES) */
+.theme-swatch {
+  width: 35px; height: 35px; border-radius: 50%; cursor: pointer;
+  border: 3px solid transparent; transition: transform 0.2s;
+}
+.theme-swatch.on { border-color: var(--txt); transform: scale(1.15); box-shadow: 0 0 10px rgba(0,0,0,0.3); }
+
 .loc-close-btn { align-self: center; width: 48px; height: 48px; border-radius: 50%; background: var(--s3); color: var(--txt); border: 1px solid var(--bd); font-size: 20px; cursor: pointer; margin-top: 20px; display: flex; align-items: center; justify-content: center; }
 .loc-code { font-family: 'DM Mono', monospace; font-size: 24px; letter-spacing: 2px; color: var(--acc); margin-bottom: 10px; text-align: center; font-weight: bold; }
 .loc-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 16px; text-align: center; line-height: 1.2; }
