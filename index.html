@@ -57,8 +57,8 @@
 
 <div class="sticky-top">
   <div class="search-bar" id="topSearchBar">
-    <input type="text" id="mainSearch" placeholder="🔍 Rechercher un code ou titre..." style="text-transform: uppercase;">
-    <button class="sbtn sbtn-loc" id="btnLocate">📍</button>
+    <input type="text" id="mainSearchText" placeholder="🔍 Titre, Note, Mots...">
+    <input type="text" id="mainSearchCode" placeholder="📍 Code (PH-8X2)" style="text-transform: uppercase;">
   </div>
 
   <div class="tabs">
@@ -88,11 +88,20 @@
   </div>
 
   <div class="home-hero" id="dashHeroArea">
-    <h3>Recherche & Khôlle</h3>
+    <h3>Accès Rapide</h3>
     <div style="display:flex; flex-direction:column; align-items:center; gap:10px; margin-top:15px;">
-      <input type="text" id="homeSearch" class="home-search" placeholder="Ex: PH-8X2 ou 'Mécanique'" style="text-transform: uppercase;">
+      
+      <div class="code-boxes" id="homeCodeBoxes">
+        <input type="text" class="code-box" maxlength="1" id="cb1">
+        <input type="text" class="code-box" maxlength="1" id="cb2">
+        <span class="code-dash">-</span>
+        <input type="text" class="code-box" maxlength="1" id="cb3">
+        <input type="text" class="code-box" maxlength="1" id="cb4">
+        <input type="text" class="code-box" maxlength="1" id="cb5">
+      </div>
+
       <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
-        <button class="bp" id="btnHomeSearch" style="padding:12px 25px;">Chercher</button>
+        <button class="bp" id="btnHomeSearch" style="padding:12px 25px;">Ouvrir</button>
         <button class="bs" id="btnHomeCam">📷 Scanner</button>
       </div>
       <button class="bp" id="btnKholleDraw" style="background:var(--red); width:100%; max-width:400px; margin-top:10px; font-size:15px;">
