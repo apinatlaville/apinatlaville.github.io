@@ -169,8 +169,7 @@ document.addEventListener('click', function(e) {
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
       else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
-      // 🚨 MODIFICATION : Fermeture de la fenêtre "Move" si on clique en dehors
-      else if (ov.id === 'ovMove') ov.classList.add('hidden');
+      else if (ov.id === 'ovMove') ov.classList.add('hidden'); 
     }
   });
   const w = window.$('fabWrapper');
@@ -344,6 +343,7 @@ window.doAutoFmtScan = function(inputEl) {
   }
 };
 
+// 🚨 RESTAURATION DES CASES 2FA !
 window.setupCodeBoxes = function() {
   const boxes = [window.$('cb1'), window.$('cb2'), window.$('cb3'), window.$('cb4'), window.$('cb5')];
   boxes.forEach((box, i) => {
@@ -381,7 +381,6 @@ window.checkHomeCode = function(forceAlert = false) {
   if(code.length === 5) {
     const fullCode = code.substring(0,2) + '-' + code.substring(2);
     window.doLocate(fullCode); 
-    
     [1,2,3,4,5].forEach(i => { if(window.$('cb'+i)) window.$('cb'+i).value = ''; });
   } else if(forceAlert) {
     window.sysAlert("Veuillez remplir les 5 cases pour chercher un code-barres.", "Code incomplet");
@@ -640,8 +639,8 @@ bindClick('btnPomoReset', () => window.pomoReset());
 bindClick('btnHomeCam', () => window.openCam());
 bindClick('btnKholleDraw', () => window.drawKholle());
 
+// 🚨 ÉCOUTEURS RESTAURÉS
 bindClick('btnHomeSearch', () => window.checkHomeCode(true));
-
 bindInput('mainSearchText', () => window.renderCours());
 bindInput('mainSearchCode', (e) => { window.doAutoFmtScan(e.target); });
 
@@ -650,7 +649,6 @@ bindChange('fType', () => window.toggleNoteField());
 
 bindChange('fMat', () => { if(typeof window.updateUidPrefix === 'function') window.updateUidPrefix(); });
 
-// 🚨 MODIFICATION : Écouteur pour la nouvelle fenêtre de déplacement (ovMove)
 bindChange('fMoveCl', () => { if(typeof window.updateMoveIntercalairesDropdown === 'function') window.updateMoveIntercalairesDropdown(); });
 
 bindClick('btnAddCl', () => window.addCl());
@@ -711,6 +709,7 @@ async function initApp() {
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
+  // 🚨 RESTAURATION DU DÉMARRAGE DES CASES 2FA
   window.setupCodeBoxes();
 
   window.applySettings();
