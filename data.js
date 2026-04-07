@@ -26,7 +26,7 @@ window.PC_FLASHCARDS = [
 ];
 
 window.emptyData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, showInitWarn: true, appColor: '#5b8df7' },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
@@ -41,7 +41,7 @@ window.emptyData = {
 };
 
 window.demoData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, showInitWarn: true, appColor: '#5b8df7' },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
@@ -73,10 +73,11 @@ window.chipFilter = null;
 window.newColor = window.COLORS[0];
 window.newColorCl = window.COLORS[0]; 
 window.editUid = null;
-window.currentLocateUid = null; // 🚨 NOUVEAU : Sauvegarde l'UID du popup actuel
 
 window.getInterName = function(cl, ns) {
-  if (cl && cl.interNames && cl.interNames[ns]) return cl.interNames[ns];
+  if (cl && cl.interNames && cl.interNames[ns]) {
+    return cl.interNames[ns];
+  }
   return `Intercalaire ${ns}`;
 };
 
@@ -147,9 +148,9 @@ window.renderCours = function() {
 
       const fuse = new Fuse(searchData, {
         keys: [
-          { name: 'title', weight: 3 },  
-          { name: 'matName', weight: 1 }, 
-          { name: 'desc', weight: 1 }    
+          { name: 'title', weight: 3 },     
+          { name: 'matName', weight: 1 },   
+          { name: 'desc', weight: 1 }       
         ],
         threshold: 0.4, 
         ignoreLocation: true,
@@ -157,7 +158,7 @@ window.renderCours = function() {
       });
 
       const results = fuse.search(qText);
-      baseList = results.map(r => r.item);
+      baseList = results.map(r => r.item); 
     }
 
     const list = baseList.filter(c => {
@@ -191,6 +192,7 @@ window.renderCours = function() {
       list.forEach(c => {
         const mo = window.D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
         const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'📘'};
+        
         const interNameDisplay = window.getInterName(co, c.inter);
 
         if (!qText && c.mat !== currentMat) {
@@ -202,14 +204,11 @@ window.renderCours = function() {
           currentMat = c.mat;
         }
 
-        // 🚨 MODIFICATION : Avertissement visuel lié au paramètre showInitWarn
         let warnHtml = '';
-        if (window.D.settings.showInitWarn) {
-            if (c.stat === 'pending') {
-              warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
-            } else if (c.stat === 'printed') {
-              warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
-            }
+        if (c.stat === 'pending') {
+          warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
+        } else if (c.stat === 'printed') {
+          warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
         }
 
         html += `
@@ -247,190 +246,62 @@ window.renderCours = function() {
   }
 };
 
-// 🚨 MODIFICATION : REFONTE TOTALE DU POPUP LOCATE (Faible Modification)
 window.doLocate = function(uid) {
-  try {
-      const c = window.D.cours.find(x => x.uid === uid);
-      if (!c) {
-        if(window.$('locContent')) {
-          window.$('locContent').innerHTML = `
-            <div style="text-align:center;padding:10px 0">
-              <div style="font-size:32px;margin-bottom:8px">❌</div>
-              <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${uid}</div>
-              <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
-            </div>`;
-        }
-        if(window.$('locPopup')) window.$('locPopup').classList.add('open');
-        return;
-      }
-      
-      window.currentLocateUid = uid;
-      window.triggerHaptic();
-
-      let validationMsg = '';
-      if (c.stat === 'printed') {
-        c.stat = 'active';
-        window.save();
-        window.renderCours();
-        window.renderDashboard();
-        validationMsg = `
-          <div style="background:rgba(80,216,144,.15);border:1px solid var(--grn);color:var(--grn);padding:10px;border-radius:10px;text-align:center;font-weight:bold;margin-bottom:15px;">
-            ✅ Document initialisé et classé !
-          </div>
-        `;
-      }
-
-      const mo = window.D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
-      const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📘'};
-      const interNameDisplay = window.getInterName(co, c.inter);
-      
-      if(window.$('locContent')) {
-        window.$('locContent').innerHTML = validationMsg + `
-          <div class="loc-code">${c.uid}</div>
-          <div class="loc-title">${c.title}</div>
-          <div class="loc-cards">
-            <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
-              ${co.icon} ${co.name}
-            </div>
-            <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
-              📑 ${interNameDisplay}
-            </div>
-          </div>
-          <div style="text-align:center;margin-top:5px;margin-bottom:15px;font-size:12px;font-weight:bold;color:${mo.color}">
-            ${c.type}
-          </div>
-          
-          <div style="background:var(--s2); border:1px solid var(--bd); padding:15px; border-radius:12px; margin-bottom:15px;">
-            <h4 style="font-family:'Syne'; font-size:13px; margin-bottom:10px; color:var(--txt);">⚡ Modification rapide</h4>
-            <div style="display:flex; gap:10px;">
-                <div style="flex:1;">
-                    <label style="font-size:11px; color:var(--mut);">Maîtrise</label>
-                    <select id="locQuickRev" class="fi" style="width:100%;">
-                        <option value="red" ${c.rev==='red'?'selected':''}>🔴 Urgence</option>
-                        <option value="orange" ${c.rev==='orange'?'selected':''}>🟠 En cours</option>
-                        <option value="green" ${c.rev==='green'?'selected':''}>🟢 Maîtrisé</option>
-                    </select>
-                </div>
-                <div style="flex:1; display:${c.type==='DS' || c.type==='KHOLLE' ? 'block' : 'none'};">
-                    <label style="font-size:11px; color:var(--mut);">Note</label>
-                    <input type="number" id="locQuickNote" class="fi" placeholder="/20" value="${c.note || ''}" style="width:100%; box-sizing:border-box;">
-                </div>
-            </div>
-            <button class="bp" onclick="window.saveQuickEdit()" style="width:100%; margin-top:10px; padding:8px; font-size:13px;">✅ Enregistrer</button>
-          </div>
-
-          <div style="display:flex; gap:10px; margin-bottom: 20px;">
-            <button class="bs" onclick="window.openMoveModal('${c.uid}')" style="flex:1; padding:10px; font-size:13px;">📦 Déplacer</button>
-            <button class="bs" onclick="window.closeLocPopup(); window.editCours('${c.uid}')" style="flex:1; padding:10px; font-size:13px;">✏️ Modif. avancée</button>
-          </div>
-        `;
-      }
-      if(window.$('locPopup')) window.$('locPopup').classList.add('open');
-  } catch(e) {
-      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur doLocate: " + e.message, source: 'data.js' });
+  const c = window.D.cours.find(x => x.uid === uid);
+  if (!c) {
+    if(window.$('locContent')) {
+      window.$('locContent').innerHTML = `
+        <div style="text-align:center;padding:10px 0">
+          <div style="font-size:32px;margin-bottom:8px">❌</div>
+          <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${uid}</div>
+          <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
+        </div>`;
+    }
+    if(window.$('locPopup')) window.$('locPopup').classList.add('open');
+    return;
   }
-};
+  
+  window.triggerHaptic();
 
-// 🚨 NOUVEAU : Sauvegarde de la modification rapide
-window.saveQuickEdit = function() {
-    try {
-        if(!window.currentLocateUid) return;
-        const idx = window.D.cours.findIndex(c => c.uid === window.currentLocateUid);
-        if(idx > -1) {
-            const revVal = window.$('locQuickRev') ? window.$('locQuickRev').value : window.D.cours[idx].rev;
-            const noteVal = window.$('locQuickNote') ? window.$('locQuickNote').value : window.D.cours[idx].note;
-            
-            window.D.cours[idx].rev = revVal;
-            if(window.D.cours[idx].type === 'DS' || window.D.cours[idx].type === 'KHOLLE') {
-                window.D.cours[idx].note = noteVal;
-            }
-            
-            window.save();
-            window.renderCours();
-            window.renderDashboard();
-            if(typeof window.renderNotes === 'function') window.renderNotes();
-            
-            // Fait trembler le bouton pour confirmer visuellement
-            const btn = document.querySelector('#locQuickEdit button') || document.activeElement;
-            if(btn) {
-                const oldTxt = btn.innerHTML;
-                btn.innerHTML = "Sauvegardé !";
-                btn.style.background = "var(--grn)";
-                setTimeout(() => { btn.innerHTML = oldTxt; btn.style.background = ""; }, 1000);
-            }
-        }
-    } catch(e) {
-        if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur saveQuickEdit: " + e.message, source: 'data.js' });
-    }
-};
+  let validationMsg = '';
+  if (c.stat === 'printed') {
+    c.stat = 'active';
+    window.save();
+    window.renderCours();
+    window.renderDashboard();
+    validationMsg = `
+      <div style="background:rgba(80,216,144,.15);border:1px solid var(--grn);color:var(--grn);padding:10px;border-radius:10px;text-align:center;font-weight:bold;margin-bottom:15px;">
+        ✅ Document initialisé et classé !
+      </div>
+    `;
+  }
 
-// 🚨 NOUVEAU : Ouverture de la fenêtre de Déplacement
-window.openMoveModal = function(uid) {
-    try {
-        const c = window.D.cours.find(x => x.uid === uid);
-        if (!c) return;
-        window.closeLocPopup();
-        window.currentLocateUid = uid;
-        
-        const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📘'};
-        const interNameDisplay = window.getInterName(co, c.inter);
-        
-        if(window.$('moveCurrentLoc')) {
-            window.$('moveCurrentLoc').innerHTML = `${co.icon} ${co.name} <br> <span style="font-size:12px; color:var(--mut);">Intercalaire : ${interNameDisplay}</span>`;
-        }
-        
-        if(window.$('mCl')) {
-            window.$('mCl').innerHTML = '<option value="">— Choisir —</option>' + 
-            window.D.classeurs.map(x => `<option value="${x.id}" ${x.id===c.cl?'selected':''}>${x.icon} ${x.name}</option>`).join('');
-            
-            // Écouteur pour mettre à jour les intercalaires dynamiquement
-            window.$('mCl').onchange = () => {
-                const newClId = window.$('mCl').value;
-                const newCl = window.D.classeurs.find(x => x.id === newClId);
-                const maxI = newCl ? (newCl.maxInter || 12) : 12;
-                if(window.$('mInter')) {
-                    window.$('mInter').innerHTML = '<option value="">—</option>' + 
-                      Array.from({length: maxI}, (_, i) => {
-                        const val = String(i + 1).padStart(2, '0');
-                        const customName = window.getInterName(newCl, val);
-                        return `<option value="${val}">${val} - ${customName}</option>`;
-                      }).join('');
-                }
-            };
-            window.$('mCl').onchange(); // Force la mise à jour immédiate
-        }
-        
-        if(window.$('ovMove')) window.$('ovMove').classList.remove('hidden');
-    } catch(e) {
-        if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur openMoveModal: " + e.message, source: 'data.js' });
-    }
+  const mo = window.D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📘'};
+  
+  const interNameDisplay = window.getInterName(co, c.inter);
+  
+  if(window.$('locContent')) {
+    window.$('locContent').innerHTML = validationMsg + `
+      <div class="loc-code">${c.uid}</div>
+      <div class="loc-title">${c.title}</div>
+      <div class="loc-cards">
+        <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
+          ${co.icon} ${co.name}
+        </div>
+        <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
+          📑 ${interNameDisplay}
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:5px;font-size:12px;font-weight:bold;color:${mo.color}">
+        ${c.type}
+      </div>
+      ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
+      ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
+    `;
+  }
+  if(window.$('locPopup')) window.$('locPopup').classList.add('open');
 };
-
-// 🚨 NOUVEAU : Sauvegarder le déplacement
-window.saveMove = function() {
-    try {
-        const newCl = window.$('mCl') ? window.$('mCl').value : '';
-        const newInter = window.$('mInter') ? window.$('mInter').value : '';
-        
-        if (!newCl || !newInter) {
-            return window.sysAlert('Veuillez choisir un nouveau classeur ET un intercalaire.', 'Erreur');
-        }
-        
-        const idx = window.D.cours.findIndex(c => c.uid === window.currentLocateUid);
-        if(idx > -1) {
-            window.D.cours[idx].cl = newCl;
-            window.D.cours[idx].inter = newInter;
-            window.save();
-            window.renderCours();
-            window.renderClasseurs();
-            if(window.$('ovMove')) window.$('ovMove').classList.add('hidden');
-            window.sysAlert('Le document a bien été déplacé.', 'Succès');
-        }
-    } catch(e) {
-        if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur saveMove: " + e.message, source: 'data.js' });
-    }
-};
-
 
 window.delCours = function(uid) {
   window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
@@ -873,18 +744,3 @@ window.delCl = function(id) {
     doDel();
   }
 };
-
-// 🚨 MODIFICATION : On sépare les grilles "Nouveaux" et "Historique"
-window.renderPrintGrid = function() {
-  const gridPending = window.$('printGridPending');
-  const gridHistory = window.$('printGridHistory');
-  if(!gridPending || !gridHistory) return;
-  
-  const drawCard = (c) => `
-    <div class="pcard ${window.printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${c.uid}')">
-      <div class="pc-check">${window.printSel.has(c.uid)?'✅':'⬜'}</div>
-      <div class="pc-qr">
-        <img src="${window.getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;">
-      </div>
-      <div class="pc-uid">${c.uid}</div>
-      <div class="pc-title">${c.title}</div>
