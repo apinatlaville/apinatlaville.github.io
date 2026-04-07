@@ -173,10 +173,18 @@ body.mode-compact .cdesc { display: none; }
 .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
 .sticky-top { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--bd); width: 100%; }
-.search-bar { background: var(--s2); padding: 10px 14px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--bd); }
-.search-bar.hidden-on-home { display: none; }
-.search-bar input { flex: 1; background: var(--bg); border: 1.5px solid var(--bd); border-radius: 10px; padding: 9px 12px; color: var(--txt); font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; }
+/* 🚨 RECHERCHE EN HAUT - 2 BARRES SÉPARÉES ET CENTRÉES */
+.search-bar { background: var(--s2); padding: 10px 14px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid var(--bd); justify-content: center; }
+.search-bar.hidden-on-home { display: none !important; }
+.search-bar input { flex: 1; max-width: 180px; background: var(--bg); border: 1.5px solid var(--bd); border-radius: 10px; padding: 9px 12px; color: var(--txt); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; }
 .search-bar input:focus { border-color: var(--acc); box-shadow: 0 0 0 3px var(--glow); }
+
+/* 🚨 CASES 2FA ACCUEIL (CODE) */
+.code-boxes { display: flex; gap: 8px; justify-content: center; align-items: center; margin-bottom: 15px; }
+.code-box { width: 45px; height: 55px; border-radius: 12px; border: 2px solid var(--bd); background: var(--bg); color: var(--acc); font-family: 'DM Mono', monospace; font-size: 24px; font-weight: bold; text-align: center; text-transform: uppercase; outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+.code-box:focus { border-color: var(--acc); box-shadow: 0 0 0 4px var(--glow); }
+.code-dash { font-family: 'DM Mono', monospace; font-size: 24px; color: var(--mut); font-weight: bold; }
+
 .sbtn { border: none; border-radius: 9px; padding: 9px 14px; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .sbtn-loc { background: var(--acc); color: #fff; }
 
