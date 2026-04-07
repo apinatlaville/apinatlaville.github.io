@@ -91,8 +91,9 @@ window.toggleEditCl = function() {
   window.renderClasseurs();
 };
 
+// 🚨 MODIFICATION : On vide les DEUX nouvelles barres de recherche
 window.resetFilters = function() {
-  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearch'].forEach(id => {
+  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearchText', 'mainSearchCode'].forEach(id => {
     if(window.$(id)) window.$(id).value = '';
   });
   window.chipFilter = null;
@@ -133,14 +134,15 @@ window.renderCours = function() {
       });
     }
 
-    const q = window.$('mainSearch') ? window.$('mainSearch').value.toLowerCase().trim() : '';
+    // 🚨 MODIFICATION : On filtre avec "mainSearchText"
+    const q = window.$('mainSearchText') ? window.$('mainSearchText').value.toLowerCase().trim() : '';
     const qrf = window.$('fltQr') ? window.$('fltQr').value : '';
     const fType = window.$('fltType') ? window.$('fltType').value : '';
     const fRev = window.$('fltRev') ? window.$('fltRev').value : '';
     
     const list = window.D.cours.filter(c => {
       const mo = window.D.matieres.find(x => x.id===c.mat) || {name:''};
-      return (!q || c.title.toLowerCase().includes(q) || c.uid.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
+      return (!q || c.title.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
         && (!ms || !ms.value || c.mat===ms.value)
         && (!cs || !cs.value || c.cl===cs.value)
         && (!window.chipFilter || c.mat===window.chipFilter)
@@ -280,7 +282,6 @@ window.doLocate = function(uid) {
   if(window.$('locPopup')) window.$('locPopup').classList.add('open');
 };
 
-// 🚨 MODIFICATION : On utilise le sysConfirm au lieu du confirm natif
 window.delCours = function(uid) {
   window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
     window.D.cours = window.D.cours.filter(c => c.uid !== uid);
@@ -429,7 +430,6 @@ window.editCours = function(uid) {
   if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
 };
 
-// 🚨 MODIFICATION : Remplacement des alerts d'erreur par sysAlert
 window.saveCours = function() {
   const title = window.$('fTitle')?window.$('fTitle').value.trim():'';
   const mat = window.$('fMat')?window.$('fMat').value:'';
@@ -660,7 +660,6 @@ window.setNewColor = function(col) {
   window.renderMatieres();
 };
 
-// 🚨 MODIFICATION : Alertes propres via sysAlert
 window.addCl = function() {
   const name = window.$('nClNm').value.trim();
   const icon = '📘'; 
@@ -678,7 +677,6 @@ window.addCl = function() {
   window.sysAlert("Classeur ajouté avec succès !", "Création de classeur");
 };
 
-// 🚨 MODIFICATION : Alertes propres via sysAlert
 window.addMat = function() {
   const lbl = window.$('nMlbl').value.trim().toUpperCase();
   const name = window.$('nMname').value.trim();
@@ -696,7 +694,6 @@ window.addMat = function() {
   window.sysAlert("Matière ajoutée avec succès !", "Création de matière");
 };
 
-// 🚨 MODIFICATION : sysConfirm au lieu de confirm natif
 window.delMat = function(id) {
   const doDel = () => {
     window.D.matieres = window.D.matieres.filter(m=>m.id!==id);
@@ -712,7 +709,6 @@ window.delMat = function(id) {
   }
 };
 
-// 🚨 MODIFICATION : sysConfirm au lieu de confirm natif
 window.delCl = function(id) {
   const doDel = () => {
     window.D.classeurs = window.D.classeurs.filter(c=>c.id!==id);
