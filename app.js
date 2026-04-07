@@ -7,18 +7,10 @@
  * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
  * L'application est divisée en plusieurs fichiers pour sécuriser les modifications :
  * 1. app.js      : [CE FICHIER] Base de données Firebase, État global (window.D), 
- * Navigation (Onglets), Pomodoro et Watchdog.
- * 2. data.js     : Gestion des données (Cours, Classeurs, Matières) et grilles HTML.
+ * Navigation (Onglets), Paramètres, Thèmes couleurs.
+ * 2. data.js     : Gestion des données (Cours, Classeurs, Matières) et UI.
  * 3. scanner.js  : Scanner de codes-barres 1D et logique d'impression.
- * * 👉 RÈGLE POUR L'IA : Ce fichier contient uniquement les initialisations, les boutons
- * globaux et Firebase. TOUTE LA LOGIQUE MÉTIER est dans les autres fichiers.
- * * 🎯 RÔLE DE CE FICHIER :
- * - Orchestrer le démarrage (`initApp`).
- * - Gérer la sauvegarde Cloud (`window.save`).
- * - Gérer les onglets (`window.switchTab`) et le tableau de bord (`window.renderDashboard`).
- * * ⚠️ RÈGLES STRICTES DE MODIFICATION :
- * - NE JAMAIS SUPPRIMER cette documentation.
- * - Ne rien enlever, ajouter uniquement.
+ * * 👉 RÈGLE POUR L'IA : Ne rien enlever, ajouter uniquement la détection d'erreurs (try/catch).
  * =========================================================================================
  */
 
@@ -38,9 +30,7 @@ window.addEventListener('unhandledrejection', function(event) {
     toastMsg.textContent = "Erreur Réseau : " + errorMsg;
     toast.classList.remove('hidden');
   }
-  if(typeof window.renderErrorLogs === 'function') {
-    window.renderErrorLogs();
-  }
+  if(typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
 });
 
 const firebaseConfig = {
@@ -69,6 +59,15 @@ window.pomoInterval = null;
 window.pomoTimeLeft = 25 * 60; 
 window.pomoRunning = false; 
 window.pomoMode = 'work'; 
+
+// 🚨 DÉFINITION DES COULEURS D'ACCENTUATION DE L'APPLICATION
+window.APP_COLORS = [
+  { id: 'blue', hex: '#5b8df7' },
+  { id: 'green', hex: '#8cc63f' }, // Vert pomme
+  { id: 'violet', hex: '#b06af7' },
+  { id: 'pink', hex: '#f06ab0' },
+  { id: 'orange', hex: '#f09060' }
+];
 
 window.sysAlert = function(msg, title="Information") {
   if(window.$('sysDialogTitle')) window.$('sysDialogTitle').innerHTML = title;
@@ -162,6 +161,7 @@ document.addEventListener('click', function(e) {
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
       else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
+      else if (ov.id === 'ovMove') ov.classList.add('hidden');
     }
   });
   const w = window.$('fabWrapper');
@@ -180,43 +180,69 @@ window.closeFab = function() {
   if(w) w.classList.remove('open');
 };
 
+// 🚨 MODIFICATION : Application du thème couleur + Avertissement d'initialisation
 window.applySettings = function() {
-  if (window.D.settings.theme === 'light') {
-    document.body.classList.add('theme-light'); 
-  } else {
-    document.body.classList.remove('theme-light');
-  }
-  
-  document.body.classList.remove('tmpl-default', 'tmpl-glass', 'tmpl-neo');
-  document.body.classList.add('tmpl-' + window.D.settings.template);
+  try {
+    if (window.D.settings.theme === 'light') {
+      document.body.classList.add('theme-light'); 
+    } else {
+      document.body.classList.remove('theme-light');
+    }
+    
+    document.body.classList.remove('tmpl-default', 'tmpl-glass', 'tmpl-neo');
+    document.body.classList.add('tmpl-' + window.D.settings.template);
 
-  if (window.D.settings.compact) {
-    document.body.classList.add('mode-compact'); 
-  } else {
-    document.body.classList.remove('mode-compact');
-  }
+    if (window.D.settings.compact) {
+      document.body.classList.add('mode-compact'); 
+    } else {
+      document.body.classList.remove('mode-compact');
+    }
+    
+    // Application de la couleur d'accentuation (--acc)
+    const accColor = window.D.settings.appColor || '#5b8df7';
+    document.documentElement.style.setProperty('--acc', accColor);
+    
+    // Génération des pastilles de couleur dans les paramètres
+    if(window.$('appColorContainer')) {
+      window.$('appColorContainer').innerHTML = window.APP_COLORS.map(c => `
+        <div class="theme-swatch ${accColor === c.hex ? 'on' : ''}" style="background:${c.hex}" onclick="window.setAppColor('${c.hex}')"></div>
+      `).join('');
+    }
 
-  if(window.$('statsBand')) window.$('statsBand').classList.toggle('hidden-ui', !window.D.settings.showStats);
-  if(window.$('matChips')) window.$('matChips').classList.toggle('hidden-ui', !window.D.settings.showChips);
-  if(window.$('dashHeroArea')) window.$('dashHeroArea').style.display = window.D.settings.showDashHero ? 'block' : 'none';
-  if(window.$('dashRevArea')) window.$('dashRevArea').style.display = window.D.settings.showDashRev ? 'block' : 'none';
-  if(window.$('dashOverviewArea')) window.$('dashOverviewArea').style.display = window.D.settings.showDashOver ? 'block' : 'none';
-  if(window.$('pomoWidget')) window.$('pomoWidget').style.display = window.D.settings.showPomo ? 'flex' : 'none';
-  
-  if(window.$('btnThemeToggle')) window.$('btnThemeToggle').textContent = window.D.settings.theme === 'light' ? 'Passer Sombre' : 'Passer Clair';
-  if(window.$('btnCompactToggle')) window.$('btnCompactToggle').textContent = window.D.settings.compact ? 'Activé' : 'Désactivé';
-  if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
-  if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
-  if(window.$('btnDashHeroToggle')) window.$('btnDashHeroToggle').textContent = window.D.settings.showDashHero ? 'Oui' : 'Non';
-  if(window.$('btnDashRevToggle')) window.$('btnDashRevToggle').textContent = window.D.settings.showDashRev ? 'Oui' : 'Non';
-  if(window.$('btnDashOverToggle')) window.$('btnDashOverToggle').textContent = window.D.settings.showDashOver ? 'Oui' : 'Non';
-  if(window.$('btnPomoVisToggle')) window.$('btnPomoVisToggle').textContent = window.D.settings.showPomo ? 'Affiché' : 'Masqué';
-  
-  if(window.$('setUserName')) window.$('setUserName').value = window.D.settings.userName;
-  if(window.$('setTemplate')) window.$('setTemplate').value = window.D.settings.template;
-  if(window.$('setPomoWork')) window.$('setPomoWork').value = window.D.settings.pomoWork;
-  if(window.$('setPomoBreak')) window.$('setPomoBreak').value = window.D.settings.pomoBreak;
-  if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
+    if(window.$('statsBand')) window.$('statsBand').classList.toggle('hidden-ui', !window.D.settings.showStats);
+    if(window.$('matChips')) window.$('matChips').classList.toggle('hidden-ui', !window.D.settings.showChips);
+    if(window.$('dashHeroArea')) window.$('dashHeroArea').style.display = window.D.settings.showDashHero ? 'block' : 'none';
+    if(window.$('dashRevArea')) window.$('dashRevArea').style.display = window.D.settings.showDashRev ? 'block' : 'none';
+    if(window.$('dashOverviewArea')) window.$('dashOverviewArea').style.display = window.D.settings.showDashOver ? 'block' : 'none';
+    if(window.$('pomoWidget')) window.$('pomoWidget').style.display = window.D.settings.showPomo ? 'flex' : 'none';
+    
+    if(window.$('btnThemeToggle')) window.$('btnThemeToggle').textContent = window.D.settings.theme === 'light' ? 'Passer Sombre' : 'Passer Clair';
+    if(window.$('btnCompactToggle')) window.$('btnCompactToggle').textContent = window.D.settings.compact ? 'Activé' : 'Désactivé';
+    if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
+    if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
+    if(window.$('btnDashHeroToggle')) window.$('btnDashHeroToggle').textContent = window.D.settings.showDashHero ? 'Oui' : 'Non';
+    if(window.$('btnDashRevToggle')) window.$('btnDashRevToggle').textContent = window.D.settings.showDashRev ? 'Oui' : 'Non';
+    if(window.$('btnDashOverToggle')) window.$('btnDashOverToggle').textContent = window.D.settings.showDashOver ? 'Oui' : 'Non';
+    if(window.$('btnPomoVisToggle')) window.$('btnPomoVisToggle').textContent = window.D.settings.showPomo ? 'Affiché' : 'Masqué';
+    if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
+    
+    if(window.$('setUserName')) window.$('setUserName').value = window.D.settings.userName;
+    if(window.$('setTemplate')) window.$('setTemplate').value = window.D.settings.template;
+    if(window.$('setPomoWork')) window.$('setPomoWork').value = window.D.settings.pomoWork;
+    if(window.$('setPomoBreak')) window.$('setPomoBreak').value = window.D.settings.pomoBreak;
+    if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
+    
+    // Rafraîchir les cours si on active/désactive l'alerte
+    if(typeof window.renderCours === 'function') window.renderCours();
+  } catch(e) {
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur applySettings: " + e.message, source: 'app.js' });
+  }
+};
+
+window.setAppColor = function(hex) {
+  window.D.settings.appColor = hex;
+  window.save();
+  window.applySettings();
 };
 
 window.loadDemo = function() {
@@ -313,10 +339,7 @@ window.doAutoFmtScan = function(inputEl) {
       if(raw.length > 2) {
         res = raw.substring(0, 2) + '-' + raw.substring(2); 
       }
-      
-      if(inputEl.value !== res) {
-        inputEl.value = res; 
-      }
+      if(inputEl.value !== res) inputEl.value = res; 
 
       if (res.length === 6) {
         inputEl.blur(); 
@@ -326,7 +349,6 @@ window.doAutoFmtScan = function(inputEl) {
             window.doLocate(res); 
         }
       }
-      
     } else if (raw.length === 0) {
       inputEl.value = '';
     }
@@ -335,30 +357,18 @@ window.doAutoFmtScan = function(inputEl) {
   }
 };
 
-// 🚨 MODIFICATION : LOGIQUE INTELLIGENTE DES 5 CASES 2FA
 window.setupCodeBoxes = function() {
   const boxes = [window.$('cb1'), window.$('cb2'), window.$('cb3'), window.$('cb4'), window.$('cb5')];
   boxes.forEach((box, i) => {
     if(!box) return;
-    
-    // Écoute de la saisie
     box.addEventListener('input', (e) => {
       box.value = box.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      // Si on a tapé une lettre valide et qu'on n'est pas à la dernière case, on passe à la suivante
-      if(box.value && i < 4) {
-        boxes[i+1].focus();
-      }
+      if(box.value && i < 4) boxes[i+1].focus();
       window.checkHomeCode();
     });
-    
-    // Écoute de la touche "Effacer" pour reculer
     box.addEventListener('keydown', (e) => {
-      if(e.key === 'Backspace' && !box.value && i > 0) {
-        boxes[i-1].focus();
-      }
+      if(e.key === 'Backspace' && !box.value && i > 0) boxes[i-1].focus();
     });
-    
-    // Support magique du "Copier-Coller" !
     box.addEventListener('paste', (e) => {
         e.preventDefault();
         const pasted = (e.clipboardData || window.clipboardData).getData('text').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 5);
@@ -366,7 +376,7 @@ window.setupCodeBoxes = function() {
             if(boxes[j]) boxes[j].value = pasted[j];
         }
         if(pasted.length > 0 && pasted.length < 5) boxes[pasted.length].focus();
-        else if(pasted.length === 5) boxes[4].blur(); // Enlève le clavier si fini
+        else if(pasted.length === 5) boxes[4].blur();
         window.checkHomeCode();
     });
   });
@@ -376,9 +386,7 @@ window.checkHomeCode = function(forceAlert = false) {
   const code = [1,2,3,4,5].map(i => window.$('cb'+i)?window.$('cb'+i).value:'').join('');
   if(code.length === 5) {
     const fullCode = code.substring(0,2) + '-' + code.substring(2);
-    window.doLocate(fullCode); // Lance l'affichage du cours tout seul !
-    
-    // On vide les cases pour la prochaine recherche
+    window.doLocate(fullCode); 
     [1,2,3,4,5].forEach(i => { if(window.$('cb'+i)) window.$('cb'+i).value = ''; });
   } else if(forceAlert) {
     window.sysAlert("Veuillez remplir les 5 cases pour chercher un code-barres.", "Code incomplet");
@@ -626,6 +634,7 @@ bindClick('btnDashHeroToggle', () => { window.D.settings.showDashHero = !window.
 bindClick('btnDashRevToggle', () => { window.D.settings.showDashRev = !window.D.settings.showDashRev; window.save(); window.applySettings(); });
 bindClick('btnDashOverToggle', () => { window.D.settings.showDashOver = !window.D.settings.showDashOver; window.save(); window.applySettings(); });
 bindClick('btnPomoVisToggle', () => { window.D.settings.showPomo = !window.D.settings.showPomo; window.save(); window.applySettings(); });
+bindClick('btnInitWarnToggle', () => { window.D.settings.showInitWarn = !window.D.settings.showInitWarn; window.save(); window.applySettings(); });
 
 bindChange('setTemplate', (e) => { window.D.settings.template = e.target.value; window.save(); window.applySettings(); });
 bindInput('setPomoWork', (e) => { window.D.settings.pomoWork = parseInt(e.target.value) || 25; window.save(); window.pomoReset(); });
@@ -637,10 +646,8 @@ bindClick('btnPomoReset', () => window.pomoReset());
 bindClick('btnHomeCam', () => window.openCam());
 bindClick('btnKholleDraw', () => window.drawKholle());
 
-// 🚨 MODIFICATION : Le bouton "Ouvrir" vérifie les 5 cases !
 bindClick('btnHomeSearch', () => window.checkHomeCode(true));
 
-// 🚨 MODIFICATION : Les deux barres de recherche en haut !
 bindInput('mainSearchText', () => window.renderCours());
 bindInput('mainSearchCode', (e) => { window.doAutoFmtScan(e.target); });
 
@@ -697,6 +704,10 @@ async function initApp() {
   if(!window.D.cours) window.D.cours = [];
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   
+  // Rétrocompatibilité et sécurité
+  if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
+  if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
+
   window.D.classeurs.forEach(cl => {
     if(!cl.interNames) cl.interNames = {};
     if(!cl.maxInter) cl.maxInter = 12;
@@ -705,14 +716,10 @@ async function initApp() {
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
-  // 🚨 INITIALISATION DES CASES 2FA
   window.setupCodeBoxes();
-
   window.applySettings();
-  
   window.renderMatieres();
   window.renderClasseurs();
-  
   window.renderStats();
   window.switchTab('home');
 }
