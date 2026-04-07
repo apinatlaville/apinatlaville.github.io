@@ -14,6 +14,22 @@
  * =========================================================================================
  */
 
+/**
+ * =========================================================================================
+ * 🧠 MASTER PROJECT CONTEXT & DOCUMENTATION (AI CONTEXT RETAINER)
+ * =========================================================================================
+ * NOM DU PROJET : Mes Cours - PC* Edition
+ * FICHIER ACTUEL : data.js (Logique métier et CRUD)
+ * * 🏗️ ARCHITECTURE MULTI-FICHIERS (TRÈS IMPORTANT POUR L'IA) :
+ * 1. app.js      : Cœur (Firebase, État global window.D, Navigation, Paramètres).
+ * 2. data.js     : [CE FICHIER] Gestion des données (Cours, Classeurs, Matières) et UI.
+ * 3. scanner.js  : Scanner de codes-barres 1D et logique d'impression.
+ * * 👉 RÈGLE POUR L'IA : Si l'utilisateur demande de modifier l'ajout d'un cours, l'édition 
+ * d'un classeur ou le filtrage, TOUT se trouve ici. L'état global est `window.D`.
+ * * 👉 NOUVEAUTÉ : Fonction "Déplacement / Modification partielle" ajoutée (openMove / saveMove).
+ * =========================================================================================
+ */
+
 window.$ = window.$ || (id => document.getElementById(id));
 window.COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
 
@@ -74,7 +90,7 @@ window.chipFilter = null;
 window.newColor = window.COLORS[0];
 window.newColorCl = window.COLORS[0]; 
 window.editUid = null;
-window.moveUid = null; // 🚨 NOUVEL ÉTAT : Sauvegarde l'id du cours qu'on déplace
+window.moveUid = null; // 🚨 ÉTAT : Sauvegarde l'id du cours qu'on déplace
 
 window.getInterName = function(cl, ns) {
   if (cl && cl.interNames && cl.interNames[ns]) {
@@ -213,7 +229,7 @@ window.renderCours = function() {
           warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
         }
 
-        // 🚨 MODIFICATION : Ajout du bouton "Déplacer" (🔄) sur chaque carte !
+        // 🚨 BOUTON "🔄 DÉPLACER" AJOUTÉ ICI
         html += `
         <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${c.uid}')">
           <div class="rev-dot rev-${c.rev}"></div>
@@ -279,7 +295,7 @@ window.doLocate = function(uid) {
     </div>
   `;
 
-  // 🚨 NOUVEAUTÉ : Panneau intelligent de confirmation si le document est scanné pour la 1ère fois (printed)
+  // 🚨 PANNEAU DE CONFIRMATION DE RANGEMENT AU SCAN
   if (c.stat === 'printed') {
     window.$('locContent').innerHTML = baseInfoHtml + `
       <div style="background:var(--s2); border:2px dashed var(--acc); padding:15px; border-radius:12px; margin-bottom:15px;">
@@ -301,7 +317,6 @@ window.doLocate = function(uid) {
       </div>
     `;
   } else {
-     // Affichage normal si le cours est déjà "active"
      window.$('locContent').innerHTML = baseInfoHtml + `
         <div class="loc-cards">
           <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
@@ -321,7 +336,7 @@ window.doLocate = function(uid) {
   if(window.$('locPopup')) window.$('locPopup').classList.add('open');
 };
 
-// 🚨 NOUVELLE FONCTION : Confirme l'initialisation du cours suite au scan
+// 🚨 CONFIRME INITIALISATION
 window.confirmInit = function(uid) {
   const c = window.D.cours.find(x => x.uid === uid);
   if(c) {
@@ -334,7 +349,7 @@ window.confirmInit = function(uid) {
   }
 };
 
-// 🚨 NOUVELLE FONCTION : Ouvre le panneau de modification partielle (Déplacement)
+// 🚨 OUVRE POPUP DEPLACEMENT
 window.openMove = function(uid) {
   const c = window.D.cours.find(x => x.uid === uid);
   if(!c) return;
@@ -343,12 +358,10 @@ window.openMove = function(uid) {
   const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: '📘'};
   const interNameDisplay = window.getInterName(co, c.inter);
   
-  // Affiche la position de départ
   if(window.$('moveCurrentLoc')) {
       window.$('moveCurrentLoc').innerHTML = `${co.icon} ${co.name} <br> 📑 ${interNameDisplay}`;
   }
 
-  // Prépare le select pour choisir le nouveau classeur
   const moveClSelect = window.$('fMoveCl');
   if(moveClSelect) {
       moveClSelect.innerHTML = window.D.classeurs.map(x => `
@@ -361,7 +374,7 @@ window.openMove = function(uid) {
   if(window.$('ovMove')) window.$('ovMove').classList.remove('hidden');
 };
 
-// 🚨 NOUVELLE FONCTION : Met à jour les intercalaires dispos dans la page de déplacement
+// 🚨 MET A JOUR LE MENU DEPLACEMENT
 window.updateMoveIntercalairesDropdown = function(clIdOverride, interOverride) {
   const clId = clIdOverride || (window.$('fMoveCl') ? window.$('fMoveCl').value : '');
   const cl = window.D.classeurs.find(c => c.id === clId);
@@ -377,7 +390,7 @@ window.updateMoveIntercalairesDropdown = function(clIdOverride, interOverride) {
   }
 };
 
-// 🚨 NOUVELLE FONCTION : Sauvegarde uniquement la position du document (Modification partielle)
+// 🚨 SAUVEGARDE DEPLACEMENT
 window.saveMove = function() {
   const cl = window.$('fMoveCl') ? window.$('fMoveCl').value : '';
   const inter = window.$('fMoveInter') ? window.$('fMoveInter').value : '';
@@ -388,7 +401,6 @@ window.saveMove = function() {
   if(c) {
       c.cl = cl;
       c.inter = inter;
-      // Si on le déplace lors de son initialisation, ça le valide de force
       if (c.stat === 'printed') {
           c.stat = 'active';
       }
@@ -400,7 +412,6 @@ window.saveMove = function() {
       window.sysAlert("✅ Document déplacé avec succès !", "Déplacement réussi");
   }
 };
-
 
 window.delCours = function(uid) {
   window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
