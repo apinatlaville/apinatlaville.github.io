@@ -181,19 +181,14 @@
       <p style="color:var(--mut);font-size:12px" id="pStats">0 sélectionné</p>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="cbt" id="btnSelPending">Sél. Nouveaux</button>
-      <button class="cbt" id="btnSelAll">Sél. Tous</button>
+      <button class="cbt" id="btnSelPending">Nouveaux</button>
+      <button class="cbt" id="btnSelAll">Tous</button>
       <button class="cbt" id="btnDesel">Vider</button>
       <button class="bp" style="flex:0;padding:10px 16px;background:var(--grn);color:#000;" id="btnDoPrint">🖨 Lancer l'impression</button>
     </div>
   </div>
-  <p style="font-size:12px;color:var(--mut);margin-bottom:15px;background:var(--s2);padding:10px;border-radius:8px;">💡 Sélectionne les étiquettes à imprimer. Après impression, confirme pour les passer en "Déjà imprimé".</p>
-  
-  <h3 style="font-family:'Syne'; margin-top:20px; margin-bottom:10px; color:var(--red);">🔴 Nouveaux (À imprimer)</h3>
-  <div class="cgrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px;" id="printGridPending"></div>
-  
-  <h3 style="font-family:'Syne'; margin-top:30px; margin-bottom:10px; color:var(--grn);">🟢 Historique (Déjà imprimés)</h3>
-  <div class="cgrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; opacity:0.7;" id="printGridHistory"></div>
+  <p style="font-size:12px;color:var(--mut);margin-bottom:15px;background:var(--s2);padding:10px;border-radius:8px;">💡 Sélectionne les étiquettes à imprimer. Après impression, confirme pour les passer en "À scanner".</p>
+  <div class="cgrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px;" id="printGrid"></div>
 </div>
 
 <div class="pane" id="paneClasseurs">
@@ -224,17 +219,14 @@
 <div class="pane" id="paneSettings">
   <h2 style="font-family:'Syne'; margin-bottom:20px;">Paramètres</h2>
   
-  <h3 style="font-family:'Syne'; margin-bottom:15px; color:var(--txt); font-size:15px;">Profil & Personnalisation</h3>
+  <h3 style="font-family:'Syne'; margin-bottom:15px; color:var(--txt); font-size:15px;">Profil & Accueil</h3>
   <div class="set-row">
     <div><div class="set-lbl">Ton Prénom</div><div class="set-sub">Affiché sur l'écran d'accueil</div></div>
     <input type="text" id="setUserName" placeholder="Prénom" style="width:120px; background:var(--s3); border:1px solid var(--bd); color:var(--txt); padding:8px; border-radius:8px; outline:none; text-align:center;">
   </div>
-  
-  <div class="set-row" style="flex-direction:column; align-items:flex-start;">
-    <div style="margin-bottom:10px;"><div class="set-lbl">Couleur de l'application</div><div class="set-sub">Personnalise ton thème</div></div>
-    <div style="display:flex; gap:12px;" id="appColorContainer">
-      </div>
-  </div>
+  <div class="set-row"><div><div class="set-lbl">Recherche Accueil</div><div class="set-sub">Gros bloc de recherche</div></div><button class="toggle-btn" id="btnDashHeroToggle">Oui</button></div>
+  <div class="set-row"><div><div class="set-lbl">Statut des révisions</div><div class="set-sub">Feux tricolores (Accueil)</div></div><button class="toggle-btn" id="btnDashRevToggle">Oui</button></div>
+  <div class="set-row"><div><div class="set-lbl">Vue d'ensemble</div><div class="set-sub">Comptage (Accueil)</div></div><button class="toggle-btn" id="btnDashOverToggle">Oui</button></div>
 
   <h3 style="font-family:'Syne'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Interface & Thèmes</h3>
   <div class="set-row">
@@ -248,13 +240,6 @@
   <div class="set-row"><div><div class="set-lbl">Thème Sombre / Clair</div></div><button class="toggle-btn" id="btnThemeToggle">Changer</button></div>
   <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
   <div class="set-row"><div><div class="set-lbl">Filtres rapides (Bulles)</div><div class="set-sub">Affiche les boutons matières</div></div><button class="toggle-btn" id="btnChipsToggle">Affiché</button></div>
-  
-  <div class="set-row"><div><div class="set-lbl">Alerte d'Initialisation</div><div class="set-sub">Affiche les pastilles rouges (À imprimer/Scanner)</div></div><button class="toggle-btn" id="btnInitWarnToggle">Activé</button></div>
-
-  <h3 style="font-family:'Syne'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Modules de l'Accueil</h3>
-  <div class="set-row"><div><div class="set-lbl">Accès Rapide (Code)</div></div><button class="toggle-btn" id="btnDashHeroToggle">Oui</button></div>
-  <div class="set-row"><div><div class="set-lbl">Statut des révisions</div></div><button class="toggle-btn" id="btnDashRevToggle">Oui</button></div>
-  <div class="set-row"><div><div class="set-lbl">Vue d'ensemble</div></div><button class="toggle-btn" id="btnDashOverToggle">Oui</button></div>
 
   <h3 style="font-family:'Syne'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Réglages Pomodoro</h3>
   <div class="set-row"><div><div class="set-lbl">Widget Pomodoro</div><div class="set-sub">Afficher le minuteur</div></div><button class="toggle-btn" id="btnPomoVisToggle">Affiché</button></div>
@@ -322,30 +307,6 @@
   <button class="loc-close-btn" id="btnCloseLocPopup">✕</button>
 </div>
 
-<div class="ov hidden" id="ovMove">
-  <div class="modal">
-    <h2 style="margin-bottom:15px;">📦 Déplacer le document</h2>
-    
-    <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:10px; margin-bottom:20px; text-align:center;">
-      <div style="font-size:12px; color:var(--mut); margin-bottom:5px;">Position actuelle</div>
-      <div id="moveCurrentLoc" style="font-weight:bold; color:var(--txt);">...</div>
-      <div style="font-size:24px; margin:10px 0; color:var(--acc);">⬇</div>
-      <div style="font-size:12px; color:var(--mut); margin-bottom:5px;">Nouvelle position</div>
-      
-      <div style="display:flex; gap:10px; text-align:left;">
-        <div class="fg" style="flex:1.5; margin:0;"><label>Classeur</label><select id="mCl"></select></div>
-        <div class="fg" style="flex:1; margin:0;"><label>Inter.</label><select id="mInter"></select></div>
-      </div>
-    </div>
-
-    <div class="macts">
-      <button class="bs" onclick="document.getElementById('ovMove').classList.add('hidden')">Annuler</button>
-      <button class="bp" onclick="window.saveMove()">Déplacer</button>
-    </div>
-  </div>
-</div>
-
-
 <div class="ov hidden" id="ovCours">
   <div class="modal">
     <h2 id="mTitle" style="margin-bottom:15px;">✏️ Document</h2>
@@ -366,6 +327,7 @@
           <input type="text" id="fUidInput" placeholder="8X2" style="background:transparent; border:none; color:var(--acc); font-family:'DM Mono', monospace; font-size:18px; font-weight:bold; text-transform:uppercase; letter-spacing:2px; outline:none; padding: 10px 0; width:70px; margin:0; text-align:left;" maxlength="3">
         </div>
       </div>
+
     </div>
 
     <div style="display:flex; gap:10px;">
@@ -478,6 +440,33 @@
     <p id="sysDialogMsg" style="color:var(--mut); font-size:13px; margin-bottom:25px; line-height:1.5;"></p>
     <div class="macts" id="sysDialogActs" style="display:flex; gap:10px; justify-content:center;">
       </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovMove">
+  <div class="modal">
+    <button onclick="document.getElementById('ovMove').classList.add('hidden')" style="position:absolute; right:15px; top:15px; background:none; border:none; color:var(--mut); font-size:20px; cursor:pointer;">✕</button>
+    
+    <h2 style="margin-bottom:15px;">🔄 Déplacer le document</h2>
+    
+    <div style="background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd); margin-bottom:15px;">
+      <label style="font-size:11px; color:var(--mut); text-transform:uppercase;">Position Actuelle</label>
+      <div id="moveCurrentLoc" style="font-weight:bold; color:var(--txt); margin-top:5px; line-height:1.5;"></div>
+    </div>
+
+    <div style="display:flex; justify-content:center; margin: 15px 0;">
+       <div style="width:40px; height:40px; background:var(--acc); border-radius:50%; display:flex; justify-content:center; align-items:center; color:#fff; font-size:20px; box-shadow:0 4px 10px rgba(91,141,247,0.3);">
+         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+       </div>
+    </div>
+
+    <div class="fg"><label>Nouveau Classeur *</label><select id="fMoveCl"></select></div>
+    <div class="fg"><label>Nouvel Intercalaire *</label><select id="fMoveInter"></select></div>
+
+    <div class="macts" style="margin-top:20px;">
+      <button class="bs" onclick="document.getElementById('ovMove').classList.add('hidden')">Annuler</button>
+      <button class="bp" onclick="window.saveMove()">Enregistrer le déplacement</button>
+    </div>
   </div>
 </div>
 
