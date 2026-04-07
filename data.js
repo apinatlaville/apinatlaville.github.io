@@ -91,7 +91,6 @@ window.toggleEditCl = function() {
   window.renderClasseurs();
 };
 
-// 🚨 MODIFICATION : On vide les DEUX nouvelles barres de recherche
 window.resetFilters = function() {
   ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearchText', 'mainSearchCode'].forEach(id => {
     if(window.$(id)) window.$(id).value = '';
@@ -134,16 +133,40 @@ window.renderCours = function() {
       });
     }
 
-    // 🚨 MODIFICATION : On filtre avec "mainSearchText"
-    const q = window.$('mainSearchText') ? window.$('mainSearchText').value.toLowerCase().trim() : '';
+    // 🚨 INTELLIGENCE ARTIFICIELLE DE RECHERCHE : FUSE.JS
+    const qText = window.$('mainSearchText') ? window.$('mainSearchText').value.trim() : '';
     const qrf = window.$('fltQr') ? window.$('fltQr').value : '';
     const fType = window.$('fltType') ? window.$('fltType').value : '';
     const fRev = window.$('fltRev') ? window.$('fltRev').value : '';
-    
-    const list = window.D.cours.filter(c => {
-      const mo = window.D.matieres.find(x => x.id===c.mat) || {name:''};
-      return (!q || c.title.toLowerCase().includes(q) || mo.name.toLowerCase().includes(q) || (c.desc||'').toLowerCase().includes(q))
-        && (!ms || !ms.value || c.mat===ms.value)
+
+    let baseList = window.D.cours;
+
+    // Si on a tapé un truc dans la barre et que Fuse.js est bien chargé par index.html
+    if (qText && typeof Fuse !== 'undefined') {
+      const searchData = baseList.map(c => {
+        const mo = window.D.matieres.find(x => x.id===c.mat) || {name:''};
+        return { ...c, matName: mo.name };
+      });
+
+      // Configuration du "Cerveau"
+      const fuse = new Fuse(searchData, {
+        keys: [
+          { name: 'title', weight: 0.6 },   // Titre = Très important
+          { name: 'matName', weight: 0.3 }, // Matière = Assez important
+          { name: 'desc', weight: 0.1 }     // Description = Bonus
+        ],
+        threshold: 0.3, // Le droit à l'erreur (0 = strict, 1 = n'importe quoi)
+        ignoreLocation: true,
+        isCaseSensitive: false
+      });
+
+      const results = fuse.search(qText);
+      baseList = results.map(r => r.item); // On remplace la liste par les résultats pertinents
+    }
+
+    // Filtres normaux (Type, Maîtrise, etc.)
+    const list = baseList.filter(c => {
+      return (!ms || !ms.value || c.mat===ms.value)
         && (!cs || !cs.value || c.cl===cs.value)
         && (!window.chipFilter || c.mat===window.chipFilter)
         && (!qrf || c.stat === qrf)
@@ -151,11 +174,15 @@ window.renderCours = function() {
         && (!fRev || c.rev === fRev);
     });
 
-    list.sort((a,b) => {
-      if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
-      if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
-      return a.inter.localeCompare(b.inter);
-    });
+    // 🚨 IMPORTANT : On ne trie par "Matière" que si on ne fait pas de recherche Fuse !
+    // Si on fait une recherche, on garde l'ordre de pertinence de l'IA (meilleur résultat en premier)
+    if (!qText) {
+      list.sort((a,b) => {
+        if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
+        if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
+        return a.inter.localeCompare(b.inter);
+      });
+    }
 
     const grid = window.$('coursGrid');
     if(grid) {
@@ -174,7 +201,8 @@ window.renderCours = function() {
         
         const interNameDisplay = window.getInterName(co, c.inter);
 
-        if (c.mat !== currentMat) {
+        // On affiche les en-têtes de catégorie (ex: "Physique") seulement si on ne recherche pas
+        if (!qText && c.mat !== currentMat) {
           html += `
             <div style="grid-column: 1/-1; margin-top: 15px; border-bottom: 2px solid ${mo.color}; padding-bottom: 5px;">
               <h3 style="font-family: 'Syne'; color: ${mo.color};">${mo.name}</h3>
