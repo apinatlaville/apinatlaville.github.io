@@ -458,3 +458,12 @@ body.mode-compact .cdesc { display: none; }
 .rev-red {
   animation: urgentPulse 0.7s infinite ease-in-out;
 }
+
+/* 🚨 VERROUILLAGE DE L'APPLICATION AVANT CONNEXION */
+body.not-logged-in {
+  overflow: hidden !important;
+}
+body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
+  display: none !important;
+}
+
