@@ -721,4 +721,39 @@ async function initApp() {
   window.switchTab('home');
 }
 
+// ... (Garde tout ton code Firebase et tes fonctions) ...
+
+// 🚨 MODIFICATION DE LA FIN DU FICHIER
+async function initApp(user) {
+  // On change le chemin pour que chaque utilisateur ait ses propres données
+  // Si c'est l'admin, on pourrait lui donner accès à un dossier spécial
+  const userPath = `user_data/${user.sub}`; 
+  window.docRef = doc(db, userPath, "main"); 
+
+  try {
+    const docSnap = await getDoc(window.docRef);
+    // ... (Reste de ta logique initApp habituelle) ...
+    
+    // Affichage du nom de l'utilisateur Google
+    if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${user.given_name}`;
+    
+    window.renderDashboard();
+    window.switchTab('home');
+  } catch (e) {
+    console.error("Erreur init:", e);
+  }
+}
+
+// On remplace le lancement automatique par une attente du Cloud
+window.onload = function() {
+    window.initGoogleAuth();
+};
+
+// Cette fonction sera appelée par cloud.js après le clic sur le bouton
+window.initAppAfterAuth = function(user) {
+    initApp(user);
+};
+
+
+
 initApp();
