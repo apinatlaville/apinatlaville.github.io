@@ -513,4 +513,32 @@
 </script>
 
 </body>
+
+// ... (Garde tout ton début de fichier jusqu'à <body>) ...
+<body>
+
+<div id="loginOverlay" style="position:fixed; inset:0; background:var(--bg); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
+    <div style="font-size:60px; margin-bottom:20px;">📚</div>
+    <h1 style="font-family:'Syne'; font-size:32px; margin-bottom:10px;">Mes Cours <span style="color:var(--acc);">PC*</span></h1>
+    <p style="color:var(--mut); margin-bottom:40px; max-width:300px;">Connecte-toi avec ton compte Google pour accéder à tes révisions et tes documents Drive.</p>
+    <div id="googleBtn"></div>
+    <p style="font-size:11px; color:var(--mut); margin-top:50px;">Version 2.0 — Sécurisé par Google Cloud</p>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="cloud.js"></script>
+
+<script>
+  (function(){
+    var v = new Date().getTime(); 
+    // ... (Tes chargements de scripts habituels) ...
+    var scriptCloud = document.createElement('script');
+    scriptCloud.src = 'cloud.js?v=' + v;
+    document.body.appendChild(scriptCloud);
+    // ...
+  })();
+</script>
+</body>
+
+  
 </html>
