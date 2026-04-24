@@ -722,38 +722,74 @@ async function initApp() {
 }
 
 // ... (Garde tout ton code Firebase et tes fonctions) ...
+// =========================================================
+// 🚨 REMPLACE TOUTE LA FIN DE TON APP.JS PAR CE BLOC
+// =========================================================
 
-// 🚨 MODIFICATION DE LA FIN DU FICHIER
 async function initApp(user) {
-  // On change le chemin pour que chaque utilisateur ait ses propres données
-  // Si c'est l'admin, on pourrait lui donner accès à un dossier spécial
+  // On crée un chemin unique pour chaque utilisateur dans Firebase
   const userPath = `user_data/${user.sub}`; 
   window.docRef = doc(db, userPath, "main"); 
 
   try {
     const docSnap = await getDoc(window.docRef);
-    // ... (Reste de ta logique initApp habituelle) ...
-    
-    // Affichage du nom de l'utilisateur Google
-    if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${user.given_name}`;
-    
-    window.renderDashboard();
-    window.switchTab('home');
+    if (docSnap.exists()) {
+      window.D = docSnap.data(); // Charge les données du cloud
+      window.cloudConnected = true;
+    } else {
+      window.D = null; // Nouveau compte = données vides
+      window.cloudConnected = true;
+    }
   } catch (e) {
-    console.error("Erreur init:", e);
+    console.error("Erreur de récupération :", e);
+    window.cloudConnected = false;
   }
+
+  window.updateCloudIndicator();
+
+  // 1. On sécurise la base de données (C'EST ÇA QUI MANQUAIT !)
+  if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
+  if(!window.D.cours) window.D.cours = [];
+  if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
+  
+  if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
+  if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
+
+  window.D.classeurs.forEach(cl => {
+    if(!cl.interNames) cl.interNames = {};
+    if(!cl.maxInter) cl.maxInter = 12;
+  });
+  
+  if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
+  if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
+  
+  // 2. On met à jour le prénom avec celui du compte Google !
+  if(user && user.given_name) {
+      window.D.settings.userName = user.given_name;
+  }
+
+  // 3. On lance l'interface SEULEMENT une fois que les données sont prêtes
+  window.setupCodeBoxes();
+  window.applySettings();
+  window.renderMatieres();
+  window.renderClasseurs();
+  window.renderStats();
+  window.renderDashboard();
+  window.switchTab('home');
 }
 
-// On remplace le lancement automatique par une attente du Cloud
+// L'application attend sagement la connexion Google (plus de chargement automatique)
 window.onload = function() {
-    window.initGoogleAuth();
+    if(window.initGoogleAuth) {
+        window.initGoogleAuth();
+    } else {
+        console.error("cloud.js n'est pas chargé !");
+    }
 };
 
-// Cette fonction sera appelée par cloud.js après le clic sur le bouton
+// Fonction déclenchée par cloud.js quand la connexion réussit
 window.initAppAfterAuth = function(user) {
     initApp(user);
 };
-
-
 
 initApp();
