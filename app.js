@@ -778,14 +778,16 @@ async function initApp(user) {
   window.switchTab('home');
 }
 
-// L'application attend sagement la connexion Google (plus de chargement automatique)
+// L'application attend sagement
 window.onload = function() {
-    if(window.initGoogleAuth) {
-        window.initGoogleAuth();
-    } else {
-        console.error("cloud.js n'est pas chargé !");
-    }
+    console.log("En attente de la connexion Google...");
 };
+
+// Fonction déclenchée par cloud.js quand la connexion réussit
+window.initAppAfterAuth = function(user) {
+    initApp(user);
+};
+
 
 // Fonction déclenchée par cloud.js quand la connexion réussit
 window.initAppAfterAuth = function(user) {
