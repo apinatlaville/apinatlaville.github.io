@@ -517,13 +517,31 @@
 // ... (Garde tout ton début de fichier jusqu'à <body>) ...
 <body>
 
+<body class="not-logged-in">
+
 <div id="loginOverlay" style="position:fixed; inset:0; background:var(--bg); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
     <div style="font-size:60px; margin-bottom:20px;">📚</div>
     <h1 style="font-family:'Syne'; font-size:32px; margin-bottom:10px;">Mes Cours <span style="color:var(--acc);">PC*</span></h1>
     <p style="color:var(--mut); margin-bottom:40px; max-width:300px;">Connecte-toi avec ton compte Google pour accéder à tes révisions et tes documents Drive.</p>
-    <div id="googleBtn"></div>
+    
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <div id="g_id_onload"
+         data-client_id="889951150073-v91560remp86n50njmnmqhlbgn14pn65.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin" 
+         data-type="standard" 
+         data-size="large" 
+         data-theme="outline" 
+         data-text="sign_in_with" 
+         data-shape="rectangular" 
+         data-logo_alignment="left">
+    </div>
+
     <p style="font-size:11px; color:var(--mut); margin-top:50px;">Version 2.0 — Sécurisé par Google Cloud</p>
 </div>
+
 
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="cloud.js"></script>
