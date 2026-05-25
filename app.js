@@ -676,38 +676,45 @@ bindInput('manualCamInput', (e) => { window.doAutoFmtScan(e.target); });
 bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3); });
 
 
-
 // =========================================================
-// ☁️ INITIALISATION ET GESTION CLOUD FIREBASE
-// Ce bloc remplace les anciennes déclarations en double.
+// ☁️ INITIALISATION ET GESTION CLOUD FIREBASE (CORRIGÉ)
 // =========================================================
 
 /**
  * Fonction principale d'initialisation de l'application.
- * @param {Object} user - L'objet utilisateur fourni par Google Auth (via cloud.js).
+ * Appelé après la connexion Google réussie.
  */
 async function initApp(user) {
   try {
-    // 1. Chemin unique pour isoler les données de chaque étudiant
+    // 1. Définition du chemin unique de l'étudiant
     const userPath = `user_data/${user.sub}`; 
-    window.docRef = doc(db, userPath, "main"); 
-
-    const docSnap = await getDoc(window.docRef);
-    if (docSnap.exists()) {
-      window.D = docSnap.data(); // Charge les données du cloud
-      window.cloudConnected = true;
+    
+    // Sécurité : On vérifie si Firebase est bien lié globalement
+    if (window.doc && window.db && window.getDoc) {
+      window.docRef = window.doc(window.db, userPath, "main"); 
+      const docSnap = await window.getDoc(window.docRef);
+      
+      if (docSnap.exists()) {
+        window.D = docSnap.data(); // Chargement des données distantes
+        window.cloudConnected = true;
+        console.log("☁️ Données Cloud synchronisées avec succès !");
+      } else {
+        window.D = null; // Nouveau compte utilisateur
+        window.cloudConnected = true;
+        console.log("☁️ Nouveau compte détecté. Initialisation des données par défaut.");
+      }
     } else {
-      window.D = null; // Nouveau compte
-      window.cloudConnected = true;
+      throw new Error("Les modules Firebase (db, doc, getDoc) ne sont pas injectés dans window.");
     }
+
   } catch (e) {
-    // 🐛 LOGS : On capture l'erreur réseau sans faire crasher l'app
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur initApp: " + e.message, source: 'app.js' });
+    // Enregistrement de l'erreur dans tes logs
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Cloud sync: " + e.message, source: 'app.js' });
     console.error("Erreur de récupération Firebase :", e);
     window.cloudConnected = false;
   }
 
-  // 2. Sécurisation de l'état global window.D (Aucune donnée manquante)
+  // 2. Sécurisation et intégrité de la structure des données (window.D)
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
   if(!window.D.cours) window.D.cours = [];
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
@@ -723,12 +730,17 @@ async function initApp(user) {
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
-  // 3. On met à jour le prénom avec celui du compte Google
+  // Associer le prénom Google à l'interface
   if(user && user.given_name) {
       window.D.settings.userName = user.given_name;
   }
 
-  // 4. Lancement de l'interface SEULEMENT une fois que les données sont prêtes
+  // Mise à jour de l'indicateur visuel de connexion
+  if (typeof window.updateCloudIndicator === 'function') {
+    window.updateCloudIndicator();
+  }
+
+  // 3. Lancement des vues graphiques
   window.setupCodeBoxes();
   window.applySettings();
   window.renderMatieres();
@@ -738,21 +750,38 @@ async function initApp(user) {
   window.switchTab('home');
 }
 
+/**
+ * 💾 SYNC SORTANTE : Fonction globale de sauvegarde automatique.
+ * Elle est appelée par data.js à chaque ajout, édition ou suppression.
+ */
+window.save = async function() {
+  // Sauvegarde locale de secours au cas où
+  localStorage.setItem('backup_local_cours', JSON.stringify(window.D));
+  
+  // Envoi temps réel sur la base de données Firebase Google Cloud
+  if (window.cloudConnected && window.docRef && window.setDoc) {
+    try {
+      await window.setDoc(window.docRef, window.D);
+      console.log("💾 Modification sauvegardée sur le Cloud !");
+    } catch (e) {
+      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture Cloud: " + e.message, source: 'app.js' });
+      console.error("Échec de la sauvegarde Cloud :", e);
+    }
+  } else {
+    console.warn("⚠️ Mode hors-ligne ou Firebase non initialisé. Sauvegarde Cloud impossible.");
+  }
+};
+
 // =========================================================
-// 🚀 GESTION DU DÉMARRAGE
+// 🚀 GESTION DU DÉMARRAGE EN ATTENTE DE GOOGLE
 // =========================================================
 
-/**
- * L'application ne se lance plus toute seule au chargement de la page.
- * Elle attend la connexion via la popup Google.
- */
 window.onload = function() {
-    console.log("⏳ En attente de la connexion Google...");
+    console.log("⏳ En attente de l'authentification Google...");
 };
 
 /**
- * Point d'entrée appelé depuis `cloud.js` (handleCredentialResponse)
- * une fois l'authentification réussie.
+ * Point d'entrée déclenché par cloud.js après validation du jeton JWT
  */
 window.initAppAfterAuth = function(user) {
     initApp(user);
