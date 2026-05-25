@@ -721,33 +721,42 @@ async function initApp() {
   window.switchTab('home');
 }
 
-// ... (Garde tout ton code Firebase et tes fonctions) ...
 // =========================================================
-// 🚨 REMPLACE TOUTE LA FIN DE TON APP.JS PAR CE BLOC
+// ☁️ INITIALISATION ET GESTION CLOUD FIREBASE
+// Ce bloc remplace l'ancien démarrage local de l'application.
 // =========================================================
 
+/**
+ * Fonction principale d'initialisation de l'application.
+ * @param {Object} user - L'objet utilisateur fourni par Google Auth (via cloud.js).
+ * Contient notamment user.sub (ID unique) et user.given_name (Prénom).
+ */
 async function initApp(user) {
-  // On crée un chemin unique pour chaque utilisateur dans Firebase
-  const userPath = `user_data/${user.sub}`; 
-  window.docRef = doc(db, userPath, "main"); 
-
   try {
+    // 1. On crée un chemin unique (Dossier Firebase) pour chaque utilisateur
+    // Cela permet que chaque étudiant ait sa propre base de données isolée
+    const userPath = `user_data/${user.sub}`; 
+    window.docRef = doc(db, userPath, "main"); 
+
     const docSnap = await getDoc(window.docRef);
     if (docSnap.exists()) {
-      window.D = docSnap.data(); // Charge les données du cloud
+      window.D = docSnap.data(); // Charge les données du cloud si elles existent
       window.cloudConnected = true;
     } else {
       window.D = null; // Nouveau compte = données vides
       window.cloudConnected = true;
     }
   } catch (e) {
+    // En cas de problème réseau, on sauvegarde l'erreur dans les logs et on passe en mode local/erreur
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur initApp: " + e.message, source: 'app.js' });
     console.error("Erreur de récupération :", e);
     window.cloudConnected = false;
   }
 
   window.updateCloudIndicator();
 
-  // 1. On sécurise la base de données (C'EST ÇA QUI MANQUAIT !)
+  // 2. Vérification et sécurisation de la structure des données (État Global window.D)
+  // On s'assure qu'aucun champ n'est manquant pour éviter les crashs de l'interface
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
   if(!window.D.cours) window.D.cours = [];
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
@@ -755,6 +764,7 @@ async function initApp(user) {
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
 
+  // Sécurisation des données internes des classeurs
   window.D.classeurs.forEach(cl => {
     if(!cl.interNames) cl.interNames = {};
     if(!cl.maxInter) cl.maxInter = 12;
@@ -763,12 +773,12 @@ async function initApp(user) {
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
-  // 2. On met à jour le prénom avec celui du compte Google !
+  // 3. Personnalisation de l'interface avec le prénom Google
   if(user && user.given_name) {
       window.D.settings.userName = user.given_name;
   }
 
-  // 3. On lance l'interface SEULEMENT une fois que les données sont prêtes
+  // 4. Lancement de l'interface graphique (SEULEMENT une fois les données prêtes)
   window.setupCodeBoxes();
   window.applySettings();
   window.renderMatieres();
@@ -778,20 +788,19 @@ async function initApp(user) {
   window.switchTab('home');
 }
 
-// L'application attend sagement
+/**
+ * Phase d'attente au chargement de la page :
+ * L'application ne se lance plus toute seule. Elle attend sagement 
+ * que l'utilisateur se connecte via la popup Google de index.html.
+ */
 window.onload = function() {
     console.log("En attente de la connexion Google...");
 };
 
-// Fonction déclenchée par cloud.js quand la connexion réussit
+/**
+ * Point d'entrée appelé depuis `cloud.js` (handleCredentialResponse)
+ * une fois que l'authentification Google est réussie.
+ */
 window.initAppAfterAuth = function(user) {
     initApp(user);
 };
-
-
-// Fonction déclenchée par cloud.js quand la connexion réussit
-window.initAppAfterAuth = function(user) {
-    initApp(user);
-};
-
-initApp();
