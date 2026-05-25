@@ -686,12 +686,11 @@ bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().re
  */
 async function initApp(user) {
   try {
-    // 1. Définition du chemin unique de l'étudiant
-    const userPath = `user_data/${user.sub}`; 
-    
+    try {
     // Sécurité : On vérifie si Firebase est bien lié globalement
     if (window.doc && window.db && window.getDoc) {
-      window.docRef = window.doc(window.db, userPath, "main"); 
+      // CORRECTION : On cible directement le fichier de l'utilisateur (2 segments : Collection "user_data" / Document "user.sub")
+      window.docRef = window.doc(window.db, "user_data", user.sub);
       const docSnap = await window.getDoc(window.docRef);
       
       if (docSnap.exists()) {
