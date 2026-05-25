@@ -675,51 +675,7 @@ bindInput('nMlbl', (e) => { e.target.value = e.target.value.toUpperCase().replac
 bindInput('manualCamInput', (e) => { window.doAutoFmtScan(e.target); });
 bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 3); });
 
-async function initApp() {
-  try {
-    const docSnap = await getDoc(window.docRef);
-    if (docSnap.exists()) {
-      window.D = docSnap.data();
-      window.cloudConnected = true;
-    } else {
-      const rawData = localStorage.getItem('mc_v28');
-      window.D = rawData ? JSON.parse(rawData) : null;
-      window.cloudConnected = true;
-    }
-  } catch (e) {
-    const rawData = localStorage.getItem('mc_v28');
-    window.D = rawData ? JSON.parse(rawData) : null;
-    window.cloudConnected = false;
-  }
 
-  window.updateCloudIndicator();
-
-  if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
-  if(!window.D.cours) window.D.cours = [];
-  if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
-  
-  if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
-  if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
-
-  window.D.classeurs.forEach(cl => {
-    if(!cl.interNames) cl.interNames = {};
-    if(!cl.maxInter) cl.maxInter = 12;
-  });
-  
-  if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
-  if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
-  
-  // 🚨 RESTAURATION DU DÉMARRAGE DES CASES 2FA
-  window.setupCodeBoxes();
-
-  window.applySettings();
-  
-  window.renderMatieres();
-  window.renderClasseurs();
-  
-  window.renderStats();
-  window.switchTab('home');
-}
 
 // =========================================================
 // ☁️ INITIALISATION ET GESTION CLOUD FIREBASE
