@@ -29,7 +29,7 @@
   };
 </script>
 </head>
-<body>
+<body class="not-logged-in">
 
 <div id="errorToast" class="hidden" style="position:fixed; top:20px; left:50%; transform:translateX(-50%); background:var(--s1); border:2px solid var(--red); border-radius:12px; padding:12px 20px; z-index:9999; box-shadow:0 10px 30px rgba(240,96,96,0.3); display:flex; align-items:center; gap:15px; width:90%; max-width:400px;">
   <div style="font-size:24px;">⚠️</div>
@@ -486,43 +486,10 @@
 
 <div id="printZone"></div>
 
-<script>
-  (function(){
-    var v = new Date().getTime(); 
-    
-    var css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = 'style.css?v=' + v;
-    document.head.appendChild(css);
-
-    var scriptData = document.createElement('script');
-    scriptData.src = 'data.js?v=' + v;
-    scriptData.async = false;
-    document.body.appendChild(scriptData);
-
-    var scriptScanner = document.createElement('script');
-    scriptScanner.src = 'scanner.js?v=' + v;
-    scriptScanner.async = false;
-    document.body.appendChild(scriptScanner);
-
-    var appScript = document.createElement('script');
-    appScript.type = 'module';
-    appScript.src = 'app.js?v=' + v;
-    document.body.appendChild(appScript);
-  })();
-</script>
-
-</body>
-
-// ... (Garde tout ton début de fichier jusqu'à <body>) ...
-<body>
-
-<body class="not-logged-in">
-
 <div id="loginOverlay" style="position:fixed; inset:0; background:var(--bg); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:20px;">
     <div style="font-size:60px; margin-bottom:20px;">📚</div>
     <h1 style="font-family:'Syne'; font-size:32px; margin-bottom:10px;">Mes Cours <span style="color:var(--acc);">PC*</span></h1>
-    <p style="color:var(--mut); margin-bottom:40px; max-width:300px;">Connecte-toi avec ton compte Google pour accéder à tes révisions et tes documents Drive.</p>
+    <p style="color:var(--mut); margin-bottom:40px; max-width:300px;">Connecte-toi avec ton compte Google pour accéder à tes révisions.</p>
     
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <div id="g_id_onload"
@@ -542,21 +509,67 @@
     <p style="font-size:11px; color:var(--mut); margin-top:50px;">Version 2.0 — Sécurisé par Google Cloud</p>
 </div>
 
+<script type="module">
+  // On importe les outils Firebase de la version 10
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="cloud.js"></script>
+  // ⚠️ ATTENTION : Remplis ici avec TA configuration Firebase !!
+  const firebaseConfig = {
+    // apiKey: "TON_API_KEY",
+    // authDomain: "TON_PROJET.firebaseapp.com",
+    // projectId: "TON_PROJET",
+    // storageBucket: "TON_PROJET.appspot.com",
+    // messagingSenderId: "...",
+    // appId: "..."
+  };
+
+  // Petite sécurité pour ne pas faire crasher l'appli si tu n'as pas encore mis les identifiants
+  if (firebaseConfig.apiKey) {
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // C'EST ICI LA MAGIE : On rend les fonctions Firebase globales pour app.js !
+    window.db = db;
+    window.doc = doc;
+    window.getDoc = getDoc;
+    window.setDoc = setDoc;
+    console.log("🔥 Firebase est initialisé et prêt pour app.js !");
+  } else {
+    console.warn("⚠️ Firebase non configuré : Pense à remplir firebaseConfig dans index.html");
+  }
+</script>
 
 <script>
   (function(){
     var v = new Date().getTime(); 
-    // ... (Tes chargements de scripts habituels) ...
+    
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'style.css?v=' + v;
+    document.head.appendChild(css);
+
+    var scriptData = document.createElement('script');
+    scriptData.src = 'data.js?v=' + v;
+    scriptData.async = false;
+    document.body.appendChild(scriptData);
+
+    var scriptScanner = document.createElement('script');
+    scriptScanner.src = 'scanner.js?v=' + v;
+    scriptScanner.async = false;
+    document.body.appendChild(scriptScanner);
+
     var scriptCloud = document.createElement('script');
     scriptCloud.src = 'cloud.js?v=' + v;
+    scriptCloud.async = false;
     document.body.appendChild(scriptCloud);
-    // ...
+
+    var appScript = document.createElement('script');
+    appScript.type = 'module';
+    appScript.src = 'app.js?v=' + v;
+    document.body.appendChild(appScript);
   })();
 </script>
-</body>
 
-  
+</body>
 </html>
