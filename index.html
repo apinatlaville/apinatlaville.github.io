@@ -12,6 +12,8 @@
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="fuse.js"></script>
 
+<script src="cloud.js"></script>
+
 <script>
   window.appErrors = []; 
   window.onerror = function(message, source, lineno, colno, error) {
@@ -510,11 +512,10 @@
 </div>
 
 <script type="module">
-  // On importe les outils Firebase de la version 10
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
-  // ⚠️ ATTENTION : Remplis ici avec TA configuration Firebase !!
+  // ⚠️ ATTENTION : N'oublie pas de re-remplir ça avec ta configuration Firebase
   const firebaseConfig = {
     // apiKey: "TON_API_KEY",
     // authDomain: "TON_PROJET.firebaseapp.com",
@@ -524,17 +525,15 @@
     // appId: "..."
   };
 
-  // Petite sécurité pour ne pas faire crasher l'appli si tu n'as pas encore mis les identifiants
   if (firebaseConfig.apiKey) {
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // C'EST ICI LA MAGIE : On rend les fonctions Firebase globales pour app.js !
     window.db = db;
     window.doc = doc;
     window.getDoc = getDoc;
     window.setDoc = setDoc;
-    console.log("🔥 Firebase est initialisé et prêt pour app.js !");
+    console.log("🔥 Firebase est initialisé !");
   } else {
     console.warn("⚠️ Firebase non configuré : Pense à remplir firebaseConfig dans index.html");
   }
@@ -558,11 +557,6 @@
     scriptScanner.src = 'scanner.js?v=' + v;
     scriptScanner.async = false;
     document.body.appendChild(scriptScanner);
-
-    var scriptCloud = document.createElement('script');
-    scriptCloud.src = 'cloud.js?v=' + v;
-    scriptCloud.async = false;
-    document.body.appendChild(scriptCloud);
 
     var appScript = document.createElement('script');
     appScript.type = 'module';
