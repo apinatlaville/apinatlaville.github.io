@@ -677,7 +677,7 @@ bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().re
 
 
 // =========================================================
-// ☁️ INITIALISATION ET GESTION CLOUD FIREBASE (CORRIGÉ)
+// ☁️ INITIALISATION ET GESTION CLOUD FIREBASE
 // =========================================================
 
 /**
@@ -686,13 +686,12 @@ bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().re
  */
 async function initApp(user) {
   try {
-    try {
     // Sécurité : On vérifie si Firebase est bien lié globalement
     if (window.doc && window.db && window.getDoc) {
-      // CORRECTION : On cible directement le fichier de l'utilisateur (2 segments : Collection "user_data" / Document "user.sub")
-      window.docRef = window.doc(window.db, "user_data", user.sub);
-      const docSnap = await window.getDoc(window.docRef);
+      // CORRECTION : On cible directement le fichier de l'utilisateur (2 segments)
+      window.docRef = window.doc(window.db, "user_data", user.sub); 
       
+      const docSnap = await window.getDoc(window.docRef);
       if (docSnap.exists()) {
         window.D = docSnap.data(); // Chargement des données distantes
         window.cloudConnected = true;
@@ -705,9 +704,8 @@ async function initApp(user) {
     } else {
       throw new Error("Les modules Firebase (db, doc, getDoc) ne sont pas injectés dans window.");
     }
-
   } catch (e) {
-    // Enregistrement de l'erreur dans tes logs
+    // LE BLOC QUI MANQUAIT POUR ÉVITER L'ERREUR DE SYNTAXE
     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Cloud sync: " + e.message, source: 'app.js' });
     console.error("Erreur de récupération Firebase :", e);
     window.cloudConnected = false;
@@ -754,10 +752,8 @@ async function initApp(user) {
  * Elle est appelée par data.js à chaque ajout, édition ou suppression.
  */
 window.save = async function() {
-  // Sauvegarde locale de secours au cas où
   localStorage.setItem('backup_local_cours', JSON.stringify(window.D));
   
-  // Envoi temps réel sur la base de données Firebase Google Cloud
   if (window.cloudConnected && window.docRef && window.setDoc) {
     try {
       await window.setDoc(window.docRef, window.D);
