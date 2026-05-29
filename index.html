@@ -530,8 +530,10 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  
+  // 🔐 NOUVEAU : Importation des outils d'Authentification Firebase
+  import { getAuth, signInWithCredential, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
-  // ⚠️ ATTENTION : N'oublie pas de re-remplir ça avec ta configuration Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyD4pMz1ydaWgNWLX0C4HTauRE7eHkrcAfA",
     authDomain: "cours-pc-application.firebaseapp.com",
@@ -545,12 +547,20 @@
   if (firebaseConfig.apiKey) {
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app); // On allume le moteur d'authentification
 
+    // On rend la base de données disponible pour l'application
     window.db = db;
     window.doc = doc;
     window.getDoc = getDoc;
     window.setDoc = setDoc;
-    console.log("🔥 Firebase est initialisé !");
+
+    // 🔐 On rend l'authentification disponible pour cloud.js
+    window.auth = auth;
+    window.signInWithCredential = signInWithCredential;
+    window.GoogleAuthProvider = GoogleAuthProvider;
+
+    console.log("🔥 Firebase & Auth sont initialisés !");
   } else {
     console.warn("⚠️ Firebase non configuré : Pense à remplir firebaseConfig dans index.html");
   }
