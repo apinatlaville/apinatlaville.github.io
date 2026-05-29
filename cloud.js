@@ -16,22 +16,36 @@ function launchAppWhenReady(payload) {
 }
 
 // Fonction déclenchée par Google quand tu cliques sur ton compte
-window.handleCredentialResponse = function(response) {
+// Fonction déclenchée par Google quand tu cliques sur ton compte
+window.handleCredentialResponse = async function(response) {
+    // 1. Décodage du profil utilisateur Google
     const payload = JSON.parse(atob(response.credential.split('.')[1]));
     window.currentUser = payload;
     
-    console.log("✅ Connecté avec : " + payload.email);
+    console.log("✅ Authentification Google réussie : " + payload.email);
+    
+    // 2. 🔐 LIAISON AVEC FIREBASE AUTH (Rend l'application impénétrable)
+    if (window.auth && window.GoogleAuthProvider && window.signInWithCredential) {
+        try {
+            const credential = window.GoogleAuthProvider.credential(response.credential);
+            const userCredential = await window.signInWithCredential(window.auth, credential);
+            console.log("🔥 Authentification Firebase sécurisée validée ! UID:", userCredential.user.uid);
+        } catch (authError) {
+            console.error("❌ Échec de la liaison de sécurité Firebase Auth:", authError);
+            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Auth Firebase: " + authError.message, source: 'cloud.js' });
+        }
+    } else {
+        console.warn("⚠️ Les modules Firebase Auth ne sont pas encore prêts, connexion en mode dégradé.");
+    }
     
     // 💾 SAUVEGARDE EN MÉMOIRE : On retient l'utilisateur pour la prochaine fois
     localStorage.setItem('pc_user_session', JSON.stringify(payload));
     
-    // 1. On cache l'écran de connexion
+    // 3. On cache l'écran de connexion et on déverrouille l'interface
     document.getElementById('loginOverlay').style.display = 'none';
-    
-    // 2. On déverrouille l'application entière
     document.body.classList.remove('not-logged-in');
     
-    // 3. On lance l'application
+    // 4. On lance l'application
     launchAppWhenReady(payload);
 };
 
