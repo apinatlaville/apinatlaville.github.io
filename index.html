@@ -30,6 +30,18 @@
     return false;
   };
 </script>
+<style>
+  /* On cible le masque sombre généré automatiquement par la caméra */
+  #qr-shaded-region,
+  [id*="shaded-region"],
+  #reader__scan_region div[style*="border-style"] {
+      /* 1. On étend massivement la bordure inférieure pour qu'elle descende très bas */
+      border-bottom-width: 600px !important;
+      
+      /* 2. En sécurité supplémentaire, on rajoute une ombre noire immense en bas pour combler tout vide */
+      box-shadow: 0px 500px 0px 0px rgba(0, 0, 0, 0.48) !important;
+  }
+</style>
 </head>
 <body class="not-logged-in">
 
