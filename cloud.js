@@ -16,24 +16,29 @@ function launchAppWhenReady(payload) {
 }
 
 // Fonction déclenchée par Google quand tu cliques sur ton compte
+// Fonction déclenchée par Google quand tu cliques sur ton compte
 window.handleCredentialResponse = async function(response) {
     console.log("✅ Authentification Google réussie, liaison Firebase en cours...");
     
-    if (window.auth && window.GoogleAuthProvider && window.signInWithCredential) {
+    if (window.auth && window.GoogleAuthProvider && window.signInWithCredential && window.setPersistence) {
         try {
+            // 💾 LE FIX MAGIQUE : On force Firebase à écrire la session dans le disque dur simple du navigateur
+            await window.setPersistence(window.auth, window.browserLocalPersistence);
+            
             const credential = window.GoogleAuthProvider.credential(response.credential);
-            // On connecte Firebase. Le "gardien" ci-dessous va détecter la connexion et ouvrir l'appli !
             await window.signInWithCredential(window.auth, credential);
+            
+            // On nettoie la mémoire du mode local pour éviter les conflits
+            localStorage.removeItem('active_mode'); 
         } catch (authError) {
-            console.error("❌ Échec de la liaison de sécurité Firebase Auth:", authError);
-            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Auth Firebase: " + authError.message, source: 'cloud.js' });
+            console.error("❌ Échec de la liaison Firebase Auth:", authError);
+            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Auth: " + authError.message, source: 'cloud.js' });
             alert("Erreur d'authentification : " + authError.message);
         }
     } else {
         console.warn("⚠️ Les modules de sécurité ne sont pas encore prêts.");
     }
 };
-
 // Fonction de déconnexion propre
 window.signOut = async function() {
     console.log("🚪 Déconnexion demandée...");
