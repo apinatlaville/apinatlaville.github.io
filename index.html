@@ -531,8 +531,8 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   
-  // 🔐 Importation des outils d'Authentification Firebase (avec le surveillant onAuthStateChanged)
-  import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+  // 🔐 AJOUT DES OUTILS DE MÉMOIRE (setPersistence et browserLocalPersistence)
+  import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD4pMz1ydaWgNWLX0C4HTauRE7eHkrcAfA",
@@ -557,14 +557,17 @@
     window.auth = auth;
     window.signInWithCredential = signInWithCredential;
     window.GoogleAuthProvider = GoogleAuthProvider;
-    window.onAuthStateChanged = onAuthStateChanged; // 👈 On le rend disponible pour cloud.js
+    window.onAuthStateChanged = onAuthStateChanged;
+    
+    // On rend les outils de mémoire disponibles pour cloud.js
+    window.setPersistence = setPersistence;
+    window.browserLocalPersistence = browserLocalPersistence;
 
     console.log("🔥 Firebase & Auth sont initialisés !");
   } else {
     console.warn("⚠️ Firebase non configuré.");
   }
 </script>
-
 <script>
   (function(){
     var v = new Date().getTime(); 
