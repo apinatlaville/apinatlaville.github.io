@@ -531,8 +531,8 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
   import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   
-  // 🔐 NOUVEAU : Importation des outils d'Authentification Firebase
-  import { getAuth, signInWithCredential, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+  // 🔐 Importation des outils d'Authentification Firebase (avec le surveillant onAuthStateChanged)
+  import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD4pMz1ydaWgNWLX0C4HTauRE7eHkrcAfA",
@@ -547,22 +547,21 @@
   if (firebaseConfig.apiKey) {
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    const auth = getAuth(app); // On allume le moteur d'authentification
+    const auth = getAuth(app);
 
-    // On rend la base de données disponible pour l'application
     window.db = db;
     window.doc = doc;
     window.getDoc = getDoc;
     window.setDoc = setDoc;
 
-    // 🔐 On rend l'authentification disponible pour cloud.js
     window.auth = auth;
     window.signInWithCredential = signInWithCredential;
     window.GoogleAuthProvider = GoogleAuthProvider;
+    window.onAuthStateChanged = onAuthStateChanged; // 👈 On le rend disponible pour cloud.js
 
     console.log("🔥 Firebase & Auth sont initialisés !");
   } else {
-    console.warn("⚠️ Firebase non configuré : Pense à remplir firebaseConfig dans index.html");
+    console.warn("⚠️ Firebase non configuré.");
   }
 </script>
 
