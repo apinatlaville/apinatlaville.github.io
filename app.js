@@ -677,48 +677,55 @@ bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().re
 
 
 // =========================================================
-// ☁️ INITIALISATION ET GESTION CLOUD FIREBASE
+// ☁️ INITIALISATION ET GESTION CLOUD / LOCAL
 // =========================================================
 
-/**
- * Fonction principale d'initialisation de l'application.
- * Appelé après la connexion Google réussie.
- */
 async function initApp(user) {
   try {
-    // Sécurité : On vérifie si Firebase est bien lié globalement
-    if (window.doc && window.db && window.getDoc) {
-      // CORRECTION : On cible directement le fichier de l'utilisateur (2 segments)
-      window.docRef = window.doc(window.db, "user_data", user.sub); 
-      
-      const docSnap = await window.getDoc(window.docRef);
-      if (docSnap.exists()) {
-        window.D = docSnap.data(); // Chargement des données distantes
-        window.cloudConnected = true;
-        console.log("☁️ Données Cloud synchronisées avec succès !");
+    if (window.isLocalMode) {
+      // 🌸 MODE LOCAL INTÉGRAL
+      console.log("🌸 Chargement des données locales...");
+      const localData = localStorage.getItem('backup_local_cours');
+      if (localData) {
+        window.D = JSON.parse(localData);
       } else {
-        window.D = null; // Nouveau compte utilisateur
-        window.cloudConnected = true;
-        console.log("☁️ Nouveau compte détecté. Initialisation des données par défaut.");
+        window.D = null;
       }
+      window.cloudConnected = false; // On coupe le Cloud
+      
     } else {
-      throw new Error("Les modules Firebase (db, doc, getDoc) ne sont pas injectés dans window.");
+      // ☁️ MODE GOOGLE MULTI-COMPTES (Étape 1)
+      if (window.doc && window.db && window.getDoc) {
+        // 🔥 On utilise maintenant l'email exact pour séparer les comptes !
+        window.docRef = window.doc(window.db, "utilisateurs", user.email); 
+        
+        const docSnap = await window.getDoc(window.docRef);
+        if (docSnap.exists()) {
+          window.D = docSnap.data();
+          window.cloudConnected = true;
+          console.log("☁️ Données Cloud synchronisées pour : " + user.email);
+        } else {
+          window.D = null;
+          window.cloudConnected = true;
+          console.log("☁️ Nouveau compte créé pour : " + user.email);
+        }
+      } else {
+        throw new Error("Modules Firebase manquants.");
+      }
     }
   } catch (e) {
-    // LE BLOC QUI MANQUAIT POUR ÉVITER L'ERREUR DE SYNTAXE
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Cloud sync: " + e.message, source: 'app.js' });
-    console.error("Erreur de récupération Firebase :", e);
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
+    console.error("Erreur d'initialisation :", e);
     window.cloudConnected = false;
   }
 
-  // 2. Sécurisation et intégrité de la structure des données (window.D)
+  // Sécurisation de la structure des données (Commune aux deux modes)
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
   if(!window.D.cours) window.D.cours = [];
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
-  
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
-
+  
   window.D.classeurs.forEach(cl => {
     if(!cl.interNames) cl.interNames = {};
     if(!cl.maxInter) cl.maxInter = 12;
@@ -727,17 +734,18 @@ async function initApp(user) {
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   
-  // Associer le prénom Google à l'interface
-  if(user && user.given_name) {
-      window.D.settings.userName = user.given_name;
+  // 🎨 Personnalisation visuelle selon le mode
+  if (window.isLocalMode) {
+    window.D.settings.userName = "Mode Local";
+    window.D.settings.appColor = '#ff6b9e'; // 🌸 On force le thème Rose !
+  } else if (user && user.given_name) {
+    window.D.settings.userName = user.given_name;
   }
 
-  // Mise à jour de l'indicateur visuel de connexion
   if (typeof window.updateCloudIndicator === 'function') {
     window.updateCloudIndicator();
   }
 
-  // 3. Lancement des vues graphiques
   window.setupCodeBoxes();
   window.applySettings();
   window.renderMatieres();
@@ -748,36 +756,36 @@ async function initApp(user) {
 }
 
 /**
- * 💾 SYNC SORTANTE : Fonction globale de sauvegarde automatique.
- * Elle est appelée par data.js à chaque ajout, édition ou suppression.
+ * 💾 SAUVEGARDE INTELLIGENTE
  */
 window.save = async function() {
+  // Sauvegarde locale de secours (toujours active)
   localStorage.setItem('backup_local_cours', JSON.stringify(window.D));
   
+  // Si on est en mode local, on s'arrête là !
+  if (window.isLocalMode) {
+    console.log("🌸 [Mode Local] Sauvegarde locale dans le navigateur réussie.");
+    return; 
+  }
+  
+  // Si on est connecté via Google, on envoie sur Firebase
   if (window.cloudConnected && window.docRef && window.setDoc) {
     try {
       await window.setDoc(window.docRef, window.D);
-      console.log("💾 Modification sauvegardée sur le Cloud !");
+      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
     } catch (e) {
-      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture Cloud: " + e.message, source: 'app.js' });
-      console.error("Échec de la sauvegarde Cloud :", e);
+      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture: " + e.message, source: 'app.js' });
+      console.error("Échec Cloud :", e);
     }
-  } else {
-    console.warn("⚠️ Mode hors-ligne ou Firebase non initialisé. Sauvegarde Cloud impossible.");
   }
 };
 
 // =========================================================
-// 🚀 GESTION DU DÉMARRAGE EN ATTENTE DE GOOGLE
+// 🚀 GESTION DU DÉMARRAGE
 // =========================================================
-
 window.onload = function() {
-    console.log("⏳ En attente de l'authentification Google...");
+    console.log("⏳ En attente de l'authentification...");
 };
-
-/**
- * Point d'entrée déclenché par cloud.js après validation du jeton JWT
- */
 window.initAppAfterAuth = function(user) {
     initApp(user);
 };
