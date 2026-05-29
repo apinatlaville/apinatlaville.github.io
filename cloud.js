@@ -36,8 +36,17 @@ window.handleCredentialResponse = function(response) {
 };
 
 window.signOut = function() {
-    localStorage.removeItem('pc_user_session'); // 🗑️ On efface la mémoire au moment de la déconnexion
-    google.accounts.id.disableAutoSelect();
+    console.log("🚪 Déconnexion en cours...");
+    
+    // 1. On vide la mémoire du navigateur pour qu'il ne nous reconnecte pas tout seul
+    localStorage.removeItem('pc_user_session'); 
+    
+    // 2. On dit à Google de nous déconnecter
+    if (google && google.accounts && google.accounts.id) {
+        google.accounts.id.disableAutoSelect();
+    }
+    
+    // 3. On recharge la page pour faire réapparaître l'écran noir de connexion
     location.reload();
 };
 
@@ -63,3 +72,28 @@ window.checkSavedSession = function() {
 window.addEventListener('DOMContentLoaded', () => {
     window.checkSavedSession();
 });
+
+// =========================================================
+// 🌸 GESTION DU MODE LOCAL (SANS FIREBASE)
+// =========================================================
+window.startLocalMode = function() {
+    console.log("🌸 Mode Local activé !");
+    
+    // On met un drapeau pour dire au reste de l'appli (app.js) qu'on est en local
+    window.isLocalMode = true; 
+    
+    // On cache l'écran de connexion
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.body.classList.remove('not-logged-in');
+    
+    // On crée un "faux" utilisateur pour tromper l'application 
+    // et lui faire croire qu'on est connecté, pour qu'elle s'ouvre !
+    const localPayload = { 
+        sub: 'local_test_user', 
+        given_name: 'Testeur', 
+        email: 'local@test.com' 
+    };
+    
+    // On lance l'application avec ce faux compte
+    launchAppWhenReady(localPayload);
+};
