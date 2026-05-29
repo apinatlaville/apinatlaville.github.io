@@ -11,123 +11,94 @@ function launchAppWhenReady(payload) {
         window.initAppAfterAuth(payload);
     } else {
         console.log("⏳ Chargement des modules Firebase en cours, on patiente...");
-        setTimeout(() => launchAppWhenReady(payload), 100);
+        setTimeout(() => launchAppWhenReady(payload), 100); // Réessaye toutes les 0.1s
     }
 }
 
 // Fonction déclenchée par Google quand tu cliques sur ton compte
-// Fonction déclenchée par Google quand tu cliques sur ton compte
-window.handleCredentialResponse = async function(response) {
-    console.log("✅ Authentification Google réussie, liaison Firebase en cours...");
+window.handleCredentialResponse = function(response) {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    window.currentUser = payload;
     
-    if (window.auth && window.GoogleAuthProvider && window.signInWithCredential && window.setPersistence) {
-        try {
-            // 💾 LE FIX MAGIQUE : On force Firebase à écrire la session dans le disque dur simple du navigateur
-            await window.setPersistence(window.auth, window.browserLocalPersistence);
-            
-            const credential = window.GoogleAuthProvider.credential(response.credential);
-            await window.signInWithCredential(window.auth, credential);
-            
-            // On nettoie la mémoire du mode local pour éviter les conflits
-            localStorage.removeItem('active_mode'); 
-        } catch (authError) {
-            console.error("❌ Échec de la liaison Firebase Auth:", authError);
-            if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Auth: " + authError.message, source: 'cloud.js' });
-            alert("Erreur d'authentification : " + authError.message);
-        }
-    } else {
-        console.warn("⚠️ Les modules de sécurité ne sont pas encore prêts.");
-    }
+    console.log("✅ Connecté avec : " + payload.email);
+    
+    // 💾 SAUVEGARDE EN MÉMOIRE : On retient l'utilisateur pour la prochaine fois
+    localStorage.setItem('pc_user_session', JSON.stringify(payload));
+    
+    // 1. On cache l'écran de connexion
+    const loginOverlay = document.getElementById('loginOverlay');
+    if (loginOverlay) loginOverlay.style.display = 'none';
+    
+    // 2. On déverrouille l'application entière
+    document.body.classList.remove('not-logged-in');
+    
+    // 3. On lance l'application
+    launchAppWhenReady(payload);
 };
-// Fonction de déconnexion propre
-window.signOut = async function() {
+
+// =========================================================
+// 🚪 LE FIX DE LA DÉCONNEXION
+// =========================================================
+window.signOut = function() {
     console.log("🚪 Déconnexion demandée...");
     
-    if (window.auth) {
-        try {
-            await window.auth.signOut(); // Déconnexion officielle de Firebase
-        } catch (e) {
-            console.error("Erreur lors de la déconnexion Firebase:", e);
-        }
-    }
+    // 1. On supprime proprement le jeton de session
+    localStorage.removeItem('pc_user_session');
     
-    if (google && google.accounts && google.accounts.id) {
+    // 2. On dit à Google de désactiver la sélection automatique pour éviter les boucles infinies
+    if (typeof google !== 'undefined' && google && google.accounts && google.accounts.id) {
         google.accounts.id.disableAutoSelect();
     }
     
+    // 3. ⚡ LE FIX MAGIQUE : On recharge la page complète !
+    // Cela réinitialise proprement le bouton Google pour qu'il soit à nouveau cliquable à 100%
     location.reload();
 };
 
-// =========================================================
-// 🔄 GARDIEN DE SESSION AUTOMATIQUE (Natif Firebase)
-// =========================================================
+// On vérifie s'il y a une session enregistrée au démarrage
 window.checkSavedSession = function() {
-    // Si Firebase Auth n'est pas encore prêt, on attend un tout petit peu
-    if (!window.auth || !window.onAuthStateChanged) {
-        setTimeout(window.checkSavedSession, 50);
-        return;
+    const saved = localStorage.getItem('pc_user_session');
+    if (saved) {
+        console.log("💾 Session retrouvée ! Connexion automatique en cours...");
+        const payload = JSON.parse(saved);
+        window.currentUser = payload;
+        
+        const loginOverlay = document.getElementById('loginOverlay');
+        if (loginOverlay) loginOverlay.style.display = 'none';
+        
+        document.body.classList.remove('not-logged-in');
+        
+        // On lance l'application
+        launchAppWhenReady(payload);
     }
-
-    console.log("🔒 Activation du gardien de session Firebase Auth...");
-
-    // On écoute en temps réel l'état de connexion de Firebase
-    window.onAuthStateChanged(window.auth, (user) => {
-        // Si l'utilisateur a volontairement cliqué sur le "Mode Local", on n'écoute pas Firebase
-        if (window.isLocalMode) return;
-
-        if (user) {
-            console.log("💾 Session sécurisée Firebase détectée pour :", user.email);
-            
-            // On crée le payload d'informations dont app.js a besoin
-            const payload = {
-                email: user.email,
-                given_name: user.displayName ? user.displayName.split(' ')[0] : user.email.split('@')[0],
-                sub: user.uid
-            };
-            window.currentUser = payload;
-            
-            // On cache l'écran noir de connexion
-            const loginOverlay = document.getElementById('loginOverlay');
-            if (loginOverlay) loginOverlay.style.display = 'none';
-            document.body.classList.remove('not-logged-in');
-            
-            // On lance l'application avec les pleins droits d'accès sécurisés !
-            launchAppWhenReady(payload);
-        } else {
-            console.log("🚪 Aucun utilisateur Firebase connecté.");
-            // Si pas connecté et pas en mode local, on s'assure que l'écran noir reste actif
-            if (!window.isLocalMode) {
-                const loginOverlay = document.getElementById('loginOverlay');
-                if (loginOverlay) loginOverlay.style.display = 'flex';
-                document.body.classList.add('not-logged-in');
-            }
-        }
-    });
 };
 
-// On lance le gardien de session dès le chargement de la page
-if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', window.checkSavedSession);
-} else {
+// On déclenche la vérification dès que la page HTML s'affiche
+window.addEventListener('DOMContentLoaded', () => {
     window.checkSavedSession();
-}
+});
 
 // =========================================================
 // 🌸 GESTION DU MODE LOCAL (SANS FIREBASE)
 // =========================================================
 window.startLocalMode = function() {
     console.log("🌸 Mode Local activé !");
+    
+    // On met un drapeau pour dire au reste de l'appli (app.js) qu'on est en local
     window.isLocalMode = true; 
     
+    // On cache l'écran de connexion
     const loginOverlay = document.getElementById('loginOverlay');
     if (loginOverlay) loginOverlay.style.display = 'none';
     document.body.classList.remove('not-logged-in');
     
+    // On crée un "faux" utilisateur pour tromper l'application 
     const localPayload = { 
         sub: 'local_test_user', 
         given_name: 'Testeur', 
         email: 'local@test.com' 
     };
     
+    // On lance l'application avec ce payload de test
     launchAppWhenReady(localPayload);
 };
