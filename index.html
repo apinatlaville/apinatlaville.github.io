@@ -12,8 +12,6 @@
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="fuse.js"></script>
 
-<script src="cloud.js"></script>
-
 <script>
   window.appErrors = []; 
   window.onerror = function(message, source, lineno, colno, error) {
@@ -566,6 +564,12 @@
     css.rel = 'stylesheet';
     css.href = 'style.css?v=' + v;
     document.head.appendChild(css);
+
+    // ☁️ NOUVEAU : Chargement dynamique de cloud.js anti-cache !
+    var scriptCloud = document.createElement('script');
+    scriptCloud.src = 'cloud.js?v=' + v;
+    scriptCloud.async = false;
+    document.body.appendChild(scriptCloud);
 
     var scriptData = document.createElement('script');
     scriptData.src = 'data.js?v=' + v;
