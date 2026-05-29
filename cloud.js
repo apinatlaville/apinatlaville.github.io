@@ -69,9 +69,12 @@ window.checkSavedSession = function() {
 };
 
 // On déclenche la vérification dès que la page HTML s'affiche
-window.addEventListener('DOMContentLoaded', () => {
+// Si la page est déjà chargée, on lance direct, sinon on attend un peu.
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', window.checkSavedSession);
+} else {
     window.checkSavedSession();
-});
+}
 
 // =========================================================
 // 🌸 GESTION DU MODE LOCAL (SANS FIREBASE)
