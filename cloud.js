@@ -111,12 +111,7 @@ window.checkSavedSession = function() {
     });
 };
 
-// Lancement automatique du gardien au démarrage
-if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', window.checkSavedSession);
-} else {
-    window.checkSavedSession();
-}
+
 
 // 4️⃣ GESTION DU MODE LOCAL (SANS CLOUD)
 window.startLocalMode = function() {
@@ -136,3 +131,11 @@ window.startLocalMode = function() {
     
     launchAppWhenReady(localPayload);
 };
+
+
+// Lancement automatique du gardien au démarrage
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', window.checkSavedSession);
+} else {
+    window.checkSavedSession();
+}
