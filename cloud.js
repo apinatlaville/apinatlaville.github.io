@@ -16,25 +16,28 @@ function launchAppWhenReady(payload) {
     }
 }
 
-// 1️⃣ FONCTION DÉCLENCHÉE PAR GOOGLE
+// 1️⃣ FONCTION DÉCLENCHÉE PAR GOOGLE (Sécurisée contre les clics trop rapides ⚡)
 window.handleCredentialResponse = async function(response) {
-    console.log("✅ Authentification Google réussie, liaison avec Firebase Auth...");
+    console.log("✅ Authentification Google réussie, tentative de liaison avec Firebase Auth...");
     
-    if (window.auth && window.GoogleAuthProvider && window.signInWithCredential) {
-        try {
-            // On crée le badge de connexion Firebase grâce au jeton Google
-            const credential = window.GoogleAuthProvider.credential(response.credential);
-            // On connecte officiellement l'utilisateur dans Firebase Auth !
-            await window.signInWithCredential(window.auth, credential);
-            
-            // On nettoie le mode local au cas où
-            localStorage.removeItem('active_mode'); 
-        } catch (authError) {
-            console.error("❌ Échec de la liaison Firebase Auth:", authError);
-            alert("Erreur d'authentification Firebase : " + authError.message);
-        }
-    } else {
-        console.error("❌ Les modules Firebase Auth ne sont pas encore prêts dans index.html");
+    // 🛡️ LE FIX MAGIQUE : Si Firebase Auth n'est pas encore totalement initialisé dans index.html
+    if (!window.auth || !window.GoogleAuthProvider || !window.signInWithCredential) {
+        console.log("⏳ Firebase Auth n'est pas encore prêt, on patiente 0.1s avant de lier le compte...");
+        setTimeout(() => window.handleCredentialResponse(response), 100); // On réessaye en boucle jusqu'à ce que ce soit prêt
+        return;
+    }
+
+    try {
+        // On crée le badge de connexion Firebase grâce au jeton Google
+        const credential = window.GoogleAuthProvider.credential(response.credential);
+        // On connecte officiellement l'utilisateur dans Firebase Auth !
+        await window.signInWithCredential(window.auth, credential);
+        
+        // On nettoie le mode local au cas où
+        localStorage.removeItem('active_mode'); 
+    } catch (authError) {
+        console.error("❌ Échec de la liaison Firebase Auth:", authError);
+        alert("Erreur d'authentification Firebase : " + authError.message);
     }
 };
 
@@ -108,7 +111,7 @@ window.checkSavedSession = function() {
     });
 };
 
-// Lancement automatique du gardien
+// Lancement automatique du gardien au démarrage
 if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', window.checkSavedSession);
 } else {
