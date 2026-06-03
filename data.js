@@ -791,21 +791,35 @@ window.setNewColor = function(col) {
   window.renderMatieres();
 };
 
-window.addCl = function() {
-  const name = window.$('nClNm').value.trim();
-  const icon = '📘'; 
-  
-  if(!name) return window.sysAlert("Le nom est obligatoire", "Création de classeur");
-  
-  const id = 'CL_' + Date.now();
-  
-  window.D.classeurs.push({id, name, icon, color:window.newColorCl, maxInter: 12, interNames: {}}); 
+window.newCl = function() { // (Ou le nom actuel de ta fonction de création)
+  // 1. On récupère la valeur de l'input et on enlève les espaces (trim)
+  // (Remplace 'id_de_ton_input' par le vrai ID de ton champ de texte)
+  const title = window.$('id_de_ton_input').value.trim(); 
+
+  // 2. 🛡️ LE FIX EST ICI : On vérifie TOUT DE SUITE si le titre est vide
+  // Le 'return' est crucial : il empêche la création du classeur si la condition est vraie.
+  if (!title) {
+    return window.sysAlert("Le titre est obligatoire !", "Création de classeur");
+  }
+
+  // 3. Si on arrive ici, c'est que le titre est valide. On crée le classeur !
+  const newId = 'cl_' + Date.now(); // (Garde ta propre logique de création d'ID si tu en as une autre)
+  window.D.classeurs.push({
+    id: newId,
+    name: title
+    // ... garde les autres propriétés que tu avais déjà (couleur, etc.)
+  }); 
+
+  // 4. On sauvegarde et on met à jour l'interface
   window.save(); 
-  window.renderClasseurs(); 
-  window.renderCours();
+  window.renderClasseurs();
+  // window.renderCours(); (Si tu as besoin de rafraîchir les cours aussi)
+
+  // 5. On vide le champ texte SEULEMENT à la toute fin
+  window.$('id_de_ton_input').value = ''; 
   
-  window.$('nClNm').value='';
-  window.sysAlert("Classeur ajouté avec succès !", "Création de classeur");
+  // Optionnel : tu peux même ajouter une petite alerte de succès !
+  // window.sysAlert("Classeur ajouté avec succès !", "Création de classeur");
 };
 
 window.addMat = function() {
