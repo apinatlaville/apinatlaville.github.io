@@ -40,17 +40,19 @@
       box-shadow: 0px 500px 0px 0px rgba(0, 0, 0, 0.48) !important;
   }
 </style>
-
 <style>
-  /* 🖤 Fix Magique : Force le fond en noir profond dès la première milliseconde */
+  /* 🧊 Fix Magique : Fond bleuté Glassmorphism instantané dès le chargement */
   html, body {
-    background-color: #0d0d12 !important; /* Ton fond sombre de base */
+    background-color: #0f172a !important; /* Un bleu nuit très sombre et élégant */
     color: #ffffff !important;
   }
   
-  /* Force aussi ton écran de chargement à être sombre instantanément */
   #loginOverlay {
-    background-color: #0d0d12 !important;
+    /* Le fameux effet "Verre" (transparent bleuté + flou) */
+    background: rgba(15, 23, 42, 0.5) !important; 
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    z-index: 9999;
   }
 </style>
 
