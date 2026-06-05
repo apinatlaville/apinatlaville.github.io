@@ -822,21 +822,109 @@ window.newCl = function() { // (Ou le nom actuel de ta fonction de création)
   // window.sysAlert("Classeur ajouté avec succès !", "Création de classeur");
 };
 
+// =========================================================
+// 📁 GESTION DES MATIÈRES (VERSION CORRIGÉE AVEC BORDURE ROUGE)
+// =========================================================
 window.addMat = function() {
-  const lbl = window.$('nMlbl').value.trim().toUpperCase();
-  const name = window.$('nMname').value.trim();
+  const lblInput = window.$('nMlbl');
+  const nameInput = window.$('nMname');
+  if (!lblInput || !nameInput) return;
+
+  const lbl = lblInput.value.trim().toUpperCase();
+  const name = nameInput.value.trim();
   
-  if(lbl.length !== 4) return window.sysAlert("Code matière : exactement 4 lettres !", "Création de matière");
-  if(window.D.matieres.find(m=>m.id===lbl)) return window.sysAlert("Cette matière existe déjà !", "Création de matière");
+  const showError = (input, msg) => {
+    input.style.border = "2px solid var(--red)";
+    let errText = input.nextElementSibling;
+    if (!errText || errText.className !== 'inline-error') {
+      errText = document.createElement('div');
+      errText.className = 'inline-error';
+      errText.style.color = "var(--red)";
+      errText.style.fontSize = "12px";
+      errText.style.marginTop = "5px";
+      errText.style.fontWeight = "bold";
+      input.parentNode.insertBefore(errText, input.nextSibling);
+    }
+    errText.innerText = "❌ " + msg;
+    
+    setTimeout(() => {
+      input.style.border = "";
+      if (errText && errText.parentNode) errText.parentNode.removeChild(errText);
+    }, 4000);
+  };
+
+  if (lbl.length !== 4) {
+    showError(lblInput, "Le code matière doit faire exactement 4 lettres.");
+    return; // Bloque la création si erreur !
+  }
+  if (window.D.matieres.find(m => m.id === lbl)) {
+    showError(lblInput, "Ce code matière existe déjà !");
+    return; // Bloque la création si erreur !
+  }
+  if (name.length === 0) {
+    showError(nameInput, "Tu dois donner un nom complet à ta matière.");
+    return; // Bloque la création si erreur !
+  }
   
-  window.D.matieres.push({id:lbl, label:lbl, name:name||lbl, color:window.newColor}); 
+  window.D.matieres.push({id:lbl, label:lbl, name:name, color:window.newColor}); 
   window.save(); 
   window.renderMatieres(); 
   window.renderCours();
   
-  window.$('nMlbl').value=''; 
-  window.$('nMname').value='';
-  window.sysAlert("Matière ajoutée avec succès !", "Création de matière");
+  lblInput.value = ''; 
+  nameInput.value = '';
+};
+
+// =========================================================
+// 📁 GESTION DES CLASSEURS (RESTAURÉE ET SÉCURISÉE)
+// =========================================================
+window.addCl = function() {
+  const nameInput = window.$('nClNm');
+  if (!nameInput) return;
+
+  const name = nameInput.value.trim();
+  
+  const showError = (input, msg) => {
+    input.style.border = "2px solid var(--red)";
+    let errText = input.nextElementSibling;
+    if (!errText || errText.className !== 'inline-error') {
+      errText = document.createElement('div');
+      errText.className = 'inline-error';
+      errText.style.color = "var(--red)";
+      errText.style.fontSize = "12px";
+      errText.style.marginTop = "5px";
+      errText.style.fontWeight = "bold";
+      input.parentNode.insertBefore(errText, input.nextSibling);
+    }
+    errText.innerText = "❌ " + msg;
+    
+    setTimeout(() => {
+      input.style.border = "";
+      if (errText && errText.parentNode) errText.parentNode.removeChild(errText);
+    }, 4000);
+  };
+
+  if (name.length === 0) {
+    showError(nameInput, "Tu dois donner un nom à ton classeur.");
+    return; // Bloque la création si erreur !
+  }
+  
+  const newId = 'CL-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+  
+  window.D.classeurs.push({
+    id: newId, 
+    name: name, 
+    icon: '📁', 
+    color: window.newColorCl || (window.COLORS && window.COLORS[0]) || '#ccc', 
+    maxInter: 12, 
+    interNames: {}
+  });
+  
+  window.save(); 
+  window.renderClasseurs(); 
+  window.renderCours();
+  
+  nameInput.value = '';
 };
 
 window.delMat = function(id) {
