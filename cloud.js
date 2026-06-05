@@ -7,15 +7,41 @@ window.currentUser = null;
 window.isLocalMode = false;
 window.appLaunched = false; // 🛡️ FIX : Évite de lancer l'application deux fois
 
-// Fonction de lancement sécurisée (attend que app.js soit prêt)
+let launchAttempts = 0; // Compteur pour traquer le blocage
+
 function launchAppWhenReady(payload) {
-    if (window.appLaunched) return; // Si l'app est déjà lancée, on stoppe !
+    launchAttempts++;
+    
+    // Ajout d'un log visible dans la console du navigateur
+    console.log(`⏳ [Aide-Debug] Tentative ${launchAttempts} : Attente que app.js s'initialise...`);
 
     if (window.initAppAfterAuth) {
-        window.appLaunched = true;
+        console.log("🚀 [Succès] app.js est détecté ! Lancement de l'application.");
         window.initAppAfterAuth(payload);
     } else {
-        console.log("⏳ Chargement des modules de l'application, on patiente...");
+        // 🚨 SÉCURITÉ : Si après 5 secondes (50 essais de 100ms) app.js ne répond pas
+        if (launchAttempts > 50) {
+            console.error("❌ CRITIQUE : Le fichier app.js n'a pas chargé ou contient une erreur fatale.");
+            
+            // On écrit le bug directement sur ton écran de chargement pour que tu le voies
+            const loginOverlay = document.getElementById('loginOverlay');
+            if (loginOverlay) {
+                let debugDiv = document.getElementById('debug-auth-error');
+                if (!debugDiv) {
+                    debugDiv = document.createElement('div');
+                    debugDiv.id = 'debug-auth-error';
+                    debugDiv.style.color = "var(--red)";
+                    debugDiv.style.marginTop = "20px";
+                    debugDiv.style.fontWeight = "bold";
+                    debugDiv.style.textAlign = "center";
+                    loginOverlay.appendChild(debugDiv);
+                }
+                debugDiv.innerHTML = "❌ Le chargement automatique bloque.<br><small style='font-weight:normal;color:#aaa;'>Vérifie la console (F12) : app.js a probablement un problème ou Firebase ne répond pas.</small>";
+            }
+            return; // On arrête la boucle infinie pour ne pas faire ramer ton téléphone/PC
+        }
+        
+        // Sinon, on continue d'attendre sagement
         setTimeout(() => launchAppWhenReady(payload), 100);
     }
 }
