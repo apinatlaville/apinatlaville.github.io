@@ -5,10 +5,14 @@ window.ADMIN_EMAIL = "devesc@hotmail.com";
 
 window.currentUser = null;
 window.isLocalMode = false;
+window.appLaunched = false; // 🛡️ FIX : Évite de lancer l'application deux fois
 
 // Fonction de lancement sécurisée (attend que app.js soit prêt)
 function launchAppWhenReady(payload) {
+    if (window.appLaunched) return; // Si l'app est déjà lancée, on stoppe !
+
     if (window.initAppAfterAuth) {
+        window.appLaunched = true;
         window.initAppAfterAuth(payload);
     } else {
         console.log("⏳ Chargement des modules de l'application, on patiente...");
@@ -20,21 +24,35 @@ function launchAppWhenReady(payload) {
 window.handleCredentialResponse = async function(response) {
     console.log("✅ Authentification Google réussie, tentative de liaison avec Firebase Auth...");
     
-    // 🛡️ LE FIX MAGIQUE : Si Firebase Auth n'est pas encore totalement initialisé dans index.html
+    // Si Firebase Auth n'est pas encore totalement initialisé
     if (!window.auth || !window.GoogleAuthProvider || !window.signInWithCredential) {
-        console.log("⏳ Firebase Auth n'est pas encore prêt, on patiente 0.1s avant de lier le compte...");
-        setTimeout(() => window.handleCredentialResponse(response), 100); // On réessaye en boucle jusqu'à ce que ce soit prêt
+        console.log("⏳ Firebase Auth n'est pas encore prêt, on patiente 0.1s...");
+        setTimeout(() => window.handleCredentialResponse(response), 100); 
         return;
     }
 
     try {
-        // On crée le badge de connexion Firebase grâce au jeton Google
         const credential = window.GoogleAuthProvider.credential(response.credential);
-        // On connecte officiellement l'utilisateur dans Firebase Auth !
-        await window.signInWithCredential(window.auth, credential);
+        const userCredential = await window.signInWithCredential(window.auth, credential);
         
-        // On nettoie le mode local au cas où
         localStorage.removeItem('active_mode'); 
+        
+        // 🛡️ FIX MAGIQUE 2 : On force le lancement directement ici !
+        // Au cas où Firebase freeze et ne déclenche pas le gardien automatique.
+        if (userCredential.user) {
+            const payload = {
+                email: userCredential.user.email,
+                given_name: userCredential.user.displayName ? userCredential.user.displayName.split(' ')[0] : userCredential.user.email.split('@')[0],
+                sub: userCredential.user.uid
+            };
+            window.currentUser = payload;
+            
+            const loginOverlay = document.getElementById('loginOverlay');
+            if (loginOverlay) loginOverlay.style.display = 'none';
+            document.body.classList.remove('not-logged-in');
+            
+            launchAppWhenReady(payload);
+        }
     } catch (authError) {
         console.error("❌ Échec de la liaison Firebase Auth:", authError);
         alert("Erreur d'authentification Firebase : " + authError.message);
@@ -45,12 +63,13 @@ window.handleCredentialResponse = async function(response) {
 window.signOut = async function() {
     console.log("🚪 Déconnexion demandée...");
     localStorage.removeItem('active_mode');
+    window.appLaunched = false;
     
     if (window.auth) {
         try {
             await window.auth.signOut(); // Déconnexion de Firebase
         } catch (e) {
-            console.error(e);
+            console.error("Erreur à la déconnexion :", e);
         }
     }
     
@@ -58,19 +77,21 @@ window.signOut = async function() {
         google.accounts.id.disableAutoSelect();
     }
     
-    location.reload(); // Rechargement propre pour remettre le bouton Google à neuf
+    // 🛡️ FIX MAGIQUE 1 : On laisse 500ms à Firebase pour nettoyer sa base de données interne
+    // avant de recharger la page. Sinon, la page coupe Firebase en plein milieu de sa déconnexion !
+    setTimeout(() => {
+        location.reload(); 
+    }, 500);
 };
 
 // 3️⃣ LE GARDIEN DE SESSION AUTOMATIQUE (onAuthStateChanged)
 window.checkSavedSession = function() {
-    // Si on a explicitement cliqué sur "Mode Local" au coup d'avant
     if (localStorage.getItem('active_mode') === 'local') {
         console.log("🌸 Reprise automatique du Mode Local.");
         window.startLocalMode();
         return;
     }
 
-    // On attend que index.html ait fourni les outils à cloud.js
     if (!window.auth || !window.onAuthStateChanged) {
         setTimeout(window.checkSavedSession, 50);
         return;
@@ -78,14 +99,12 @@ window.checkSavedSession = function() {
 
     console.log("🔒 Activation du gardien Firebase Auth...");
 
-    // Firebase nous dit en temps réel si un utilisateur est déjà connecté
     window.onAuthStateChanged(window.auth, (user) => {
-        if (window.isLocalMode) return; // Si on est en local, on ignore Firebase
+        if (window.isLocalMode) return; 
 
         if (user) {
             console.log("💾 Session Firebase détectée et valide pour :", user.email);
             
-            // Formatage du profil pour app.js
             const payload = {
                 email: user.email,
                 given_name: user.displayName ? user.displayName.split(' ')[0] : user.email.split('@')[0],
@@ -93,12 +112,10 @@ window.checkSavedSession = function() {
             };
             window.currentUser = payload;
             
-            // On cache l'écran noir et on débloque l'application
             const loginOverlay = document.getElementById('loginOverlay');
             if (loginOverlay) loginOverlay.style.display = 'none';
             document.body.classList.remove('not-logged-in');
             
-            // On lance l'application avec les pleins pouvoirs !
             launchAppWhenReady(payload);
         } else {
             console.log("🚪 Aucun utilisateur connecté à Firebase.");
@@ -110,8 +127,6 @@ window.checkSavedSession = function() {
         }
     });
 };
-
-
 
 // 4️⃣ GESTION DU MODE LOCAL (SANS CLOUD)
 window.startLocalMode = function() {
@@ -131,7 +146,6 @@ window.startLocalMode = function() {
     
     launchAppWhenReady(localPayload);
 };
-
 
 // Lancement automatique du gardien au démarrage
 if (document.readyState === 'loading') {
