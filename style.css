@@ -467,3 +467,8 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
   display: none !important;
 }
 
+/* ✨ Correctif pour l'animation du panneau de recherche rapide */
+.bottom-sheet {
+  padding-bottom: 150px !important;
+  margin-bottom: -130px !important;
+}
