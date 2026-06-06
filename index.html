@@ -41,18 +41,23 @@
   }
 </style>
 <style>
-  /* 🧊 Fix Magique : Fond bleuté Glassmorphism instantané dès le chargement */
-  html, body {
-    background-color: #0f172a !important; /* Un bleu nuit très sombre et élégant */
-    color: #ffffff !important;
-  }
-  
+  /* 🧊 Style exclusif pour l'écran de pré-accueil (N'interfère pas avec le Dashboard) */
   #loginOverlay {
-    /* Le fameux effet "Verre" (transparent bleuté + flou) */
-    background: rgba(15, 23, 42, 0.5) !important; 
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    z-index: 9999;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    
+    /* Magnifique dégradé immersif bleu nuit, violet foncé et noir (Style Verre Dépoli) */
+    background: linear-gradient(135deg, #0b0f19 0%, #111827 40%, #1e1b4b 100%) !important;
+    
+    /* Effet de flou Glassmorphism en arrière-plan */
+    backdrop-filter: blur(15px) !important;
+    -webkit-backdrop-filter: blur(15px) !important;
+    
+    /* S'assure que cet écran passe bien au-dessus de tout le reste pendant le chargement */
+    z-index: 999999 !important; 
   }
 </style>
 <script>
