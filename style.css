@@ -467,8 +467,11 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
   display: none !important;
 }
 
-/* ✨ Correctif pour l'animation du panneau de recherche rapide */
-.#quickSheet {
-  padding-bottom: 150px !important;
-  margin-bottom: -130px !important;
+/* ✨ Correctif final pour le rebond du panneau d'emplacement */
+.loc-popup {
+  padding-bottom: 120px !important; /* Crée une marge de sécurité invisible en bas */
+}
+
+.loc-popup.open {
+  bottom: -90px !important; /* Ancre le panneau légèrement sous l'écran pour masquer le trou lors du rebond */
 }
