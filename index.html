@@ -352,6 +352,8 @@
   <button class="fab-main" onclick="window.toggleFab()" id="btnFabMain">⚡</button>
 </div>
 
+<div id="locBackdrop" onclick="window.closeLocPopup()" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:999; backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);"></div>
+
 <div class="loc-popup" id="locPopup">
   <div id="locContent"></div>
   <button class="loc-close-btn" id="btnCloseLocPopup">✕</button>
@@ -617,21 +619,20 @@
     var appScript = document.createElement('script');
     appScript.type = 'module';
     appScript.src = 'app.js?v=' + v;
-    document.body.appendChild(appScript);
-
 
     // ✨ Déclenché automatiquement dès que app.js est totalement chargé et prêt
+    // 🛡️ FIX : onload doit être défini AVANT d'ajouter le script au DOM
     appScript.onload = function() {
         setTimeout(() => {
             const splash = document.getElementById('splashScreen');
             if (splash) {
-                splash.style.opacity = '0'; // Fondu au noir/bleu très fluide
-                setTimeout(() => splash.remove(), 400); // Supprime l'élément pour libérer la mémoire
+                splash.style.opacity = '0';
+                setTimeout(() => splash.remove(), 400);
             }
-        }, 200); // Petit délai de confort pour s'assurer du rendu visuel stable
+        }, 200);
     };
 
-    document.body.appendChild(appScript);
+    document.body.appendChild(appScript); // 🛡️ FIX : ajouté une seule fois, après l'onload
   })();
 </script>
 

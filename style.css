@@ -469,9 +469,85 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
 
 /* ✨ Correctif final pour le rebond du panneau d'emplacement */
 .loc-popup {
-  padding-bottom: 120px !important; /* Crée une marge de sécurité invisible en bas */
+  padding-bottom: env(safe-area-inset-bottom, 20px);
 }
 
 .loc-popup.open {
-  bottom: -90px !important; /* Ancre le panneau légèrement sous l'écran pour masquer le trou lors du rebond */
+  bottom: 0 !important;
+}
+
+/* ===================================================
+   📱➡️🖥️ RESPONSIVE DESKTOP (min-width: 768px)
+   =================================================== */
+@media (min-width: 768px) {
+  .pane {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 20px 30px;
+  }
+
+  .search-bar {
+    justify-content: center;
+  }
+  .search-bar input {
+    max-width: 300px;
+  }
+
+  .cgrid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .dash-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .home-hero {
+    max-width: 620px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .fc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+
+  .loc-popup {
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 560px;
+    border-radius: 16px;
+    bottom: -100%;
+  }
+  .loc-popup.open {
+    bottom: 20px !important;
+  }
+
+  .filters {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .modal {
+    max-width: 500px;
+  }
+  
+  .pbar {
+    flex-wrap: nowrap;
+  }
+  
+  .hdr-content {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .stats-band {
+    justify-content: center;
+  }
+}
+
+@media (min-width: 1200px) {
+  .pane, .hdr-content {
+    max-width: 1200px;
+  }
 }

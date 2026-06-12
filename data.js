@@ -277,6 +277,7 @@ window.doLocate = function(uid) {
           <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
         </div>`;
     }
+    if(window.$('locBackdrop')) window.$('locBackdrop').style.display = 'block';
     if(window.$('locPopup')) window.$('locPopup').classList.add('open');
     return;
   }
@@ -333,6 +334,7 @@ window.doLocate = function(uid) {
      `;
   }
   
+  if(window.$('locBackdrop')) window.$('locBackdrop').style.display = 'block';
   if(window.$('locPopup')) window.$('locPopup').classList.add('open');
 };
 

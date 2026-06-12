@@ -222,7 +222,7 @@ window.manualScan = function() {
 
 window.processScan = function(uid) {
   window.stopCam();
-  if(window.$('mainSearchCode')) window.$('mainSearchCode').value = uid; // 🚨 Modifié pour cibler la nouvelle barre
+  // 🛡️ FIX : On n'écrit plus le UID dans la barre de recherche pour qu'elle reste propre
   window.doLocate(uid);
 };
 

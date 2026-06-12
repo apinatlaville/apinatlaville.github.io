@@ -155,7 +155,12 @@ window.updateClock = function() {
 setInterval(window.updateClock, 1000); 
 window.updateClock();
 
-window.closeLocPopup = function() { const lp = window.$('locPopup'); if(lp) lp.classList.remove('open'); };
+window.closeLocPopup = function() { 
+  const lp = window.$('locPopup'); 
+  if(lp) lp.classList.remove('open'); 
+  const bd = window.$('locBackdrop');
+  if(bd) bd.style.display = 'none';
+};
 window.closeModalCours = function() { const ov = window.$('ovCours'); if(ov) ov.classList.add('hidden'); };
 window.closeQRModal = function() { const ov = window.$('ovQR'); if(ov) ov.classList.add('hidden'); };
 window.closePrintConfirm = function() { const ov = window.$('ovPrintConfirm'); if(ov) ov.classList.add('hidden'); };
@@ -225,6 +230,26 @@ window.applySettings = function() {
   if(window.$('setPomoWork')) window.$('setPomoWork').value = window.D.settings.pomoWork;
   if(window.$('setPomoBreak')) window.$('setPomoBreak').value = window.D.settings.pomoBreak;
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
+  if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
+
+  // 🛡️ FIX THÈME : Application de la couleur d'accent au CSS + rendu des pastilles
+  if (window.D.settings.appColor) {
+    document.documentElement.style.setProperty('--acc', window.D.settings.appColor);
+    const glowR = parseInt(window.D.settings.appColor.slice(1,3),16);
+    const glowG = parseInt(window.D.settings.appColor.slice(3,5),16);
+    const glowB = parseInt(window.D.settings.appColor.slice(5,7),16);
+    document.documentElement.style.setProperty('--glow', `rgba(${glowR},${glowG},${glowB},0.22)`);
+  }
+  const colorContainer = window.$('appColorContainer');
+  if (colorContainer && window.COLORS) {
+    colorContainer.innerHTML = window.COLORS.map(c => `
+      <div class="theme-swatch ${c === window.D.settings.appColor ? 'on' : ''}" 
+           style="background:${c}" 
+           title="${c}"
+           onclick="window.D.settings.appColor='${c}'; window.save(); window.applySettings();">
+      </div>
+    `).join('');
+  }
 };
 
 window.loadDemo = function() {
@@ -332,6 +357,8 @@ window.doAutoFmtScan = function(inputEl) {
             window.processScan(res);
         } else {
             window.doLocate(res); 
+            // 🛡️ FIX : Effacement de l'input après la recherche
+            setTimeout(() => { inputEl.value = ''; }, 150);
         }
       }
       
@@ -628,6 +655,7 @@ bindClick('btnDashHeroToggle', () => { window.D.settings.showDashHero = !window.
 bindClick('btnDashRevToggle', () => { window.D.settings.showDashRev = !window.D.settings.showDashRev; window.save(); window.applySettings(); });
 bindClick('btnDashOverToggle', () => { window.D.settings.showDashOver = !window.D.settings.showDashOver; window.save(); window.applySettings(); });
 bindClick('btnPomoVisToggle', () => { window.D.settings.showPomo = !window.D.settings.showPomo; window.save(); window.applySettings(); });
+bindClick('btnInitWarnToggle', () => { window.D.settings.showInitWarn = !window.D.settings.showInitWarn; window.save(); window.applySettings(); });
 
 bindChange('setTemplate', (e) => { window.D.settings.template = e.target.value; window.save(); window.applySettings(); });
 bindInput('setPomoWork', (e) => { window.D.settings.pomoWork = parseInt(e.target.value) || 25; window.save(); window.pomoReset(); });
