@@ -48,7 +48,7 @@
         <div class="quick-create-row">
           <select id="qkMat">${matOpts}</select>
           <select id="qkProf">${profOpts}</select>
-          <input type="number" id="qkTemps" min="5" max="600" value="20" title="Temps cible (s)">
+          <input type="number" id="qkTemps" min="0.25" max="60" step="0.25" value="0.5" title="Temps cible (min)">
           <button class="bp" onclick="window.quickAdd()">+ Créer</button>
         </div>
         <div class="quick-mut">💡 Astuce : Entrée dans le champ Réponse pour créer rapidement.</div>
@@ -79,7 +79,7 @@
     const r = $("qkR").value.trim();
     const mat = $("qkMat").value;
     const profil = $("qkProf").value;
-    const temps = parseInt($("qkTemps").value) || 20;
+    const temps = Math.round((parseFloat($("qkTemps").value) || 0.5) * 60);
     if (!window.quickAddAnkiCard) { window.sysAlert("Module Anki non chargé.", "Erreur"); return; }
     window.quickAddAnkiCard({ question: q, reponse: r, mat, profil, tempsCible: temps, statut: "actif", priorite: 2 });
     $("qkQ").value = ''; $("qkR").value = '';
@@ -132,7 +132,7 @@
             </div>
             <div class="qk-back">
               <div class="qk-r">${c.reponse ? esc(c.reponse) : '<em style="color:var(--mut);">Pas de réponse — auto-évaluation libre</em>'}</div>
-              <div class="anki-mut" style="font-size:11px;text-align:center;">⏱ ${c.tempsCible || 60}s</div>
+              <div class="anki-mut" style="font-size:11px;text-align:center;">⏱ ${window.AnkiAlgo ? window.AnkiAlgo.fmtDur(c.tempsCible || 60) : (c.tempsCible || 60) + 's'}</div>
             </div>
           </div>
         </div>

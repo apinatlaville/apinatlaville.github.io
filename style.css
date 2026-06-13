@@ -1030,3 +1030,201 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
 .qk-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 6px; }
 .qk-actions { display: flex; gap: 4px; }
 
+
+
+/* =====================================================
+   🆕 EXTRAS v3 (drag, slider, diag, devoirs, calendrier)
+   ===================================================== */
+.anki-q-row { cursor: default; }
+.anki-q-row[draggable="true"] { cursor: grab; }
+.anki-q-row.dragging { opacity: .4; cursor: grabbing; }
+.anki-q-handle {
+  color: var(--mut);
+  font-family: monospace;
+  font-size: 14px;
+  letter-spacing: -2px;
+  cursor: grab;
+  padding: 0 4px;
+  user-select: none;
+}
+.anki-q-row.devoir {
+  background: linear-gradient(90deg, rgba(176,106,247,.08), var(--bg));
+  border-left: 3px solid #b06af7;
+}
+
+/* Slider 1-10 */
+.anki-slider-wrap {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+}
+.anki-slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.anki-slider-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--acc);
+}
+.anki-slider {
+  width: 100%;
+  height: 30px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, var(--red) 0%, var(--gold) 50%, var(--grn) 100%);
+  border-radius: 15px;
+  outline: none;
+  margin: 4px 0;
+}
+.anki-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px; height: 22px;
+  background: #fff;
+  border: 3px solid var(--acc);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,.4);
+}
+.anki-slider::-moz-range-thumb {
+  width: 22px; height: 22px;
+  background: #fff;
+  border: 3px solid var(--acc);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.anki-slider-btn { width: 100%; margin-top: 6px; }
+
+/* Pick urgence */
+.anki-pick-urg {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  color: var(--acc);
+  background: rgba(91,141,247,.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+  font-weight: 700;
+}
+
+/* Devoirs */
+.anki-devoirs-list { display: flex; flex-direction: column; gap: 6px; }
+.anki-devoir-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+}
+.anki-devoir-body { flex: 1; min-width: 0; }
+.anki-devoir-title { font-size: 13px; font-weight: 600; color: var(--txt); }
+.anki-devoir-meta { font-size: 11px; color: var(--mut); font-family: 'DM Mono', monospace; margin-bottom: 4px; }
+.anki-progress {
+  background: var(--s3);
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.anki-progress-bar { height: 100%; transition: width .3s; }
+.anki-decoupe label { font-weight: 500; }
+
+/* Calendrier jour par jour */
+.anki-cal-list { display: flex; flex-direction: column; gap: 8px; }
+.anki-cal-day {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.anki-cal-day.today { border-color: var(--acc); }
+.anki-cal-day-hdr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--s3);
+  font-size: 13px;
+}
+.anki-cal-day.today .anki-cal-day-hdr { background: rgba(91,141,247,.12); }
+.anki-cal-day-hdr strong { font-family: 'DM Mono', monospace; }
+.anki-cal-day-list { display: flex; flex-direction: column; gap: 1px; }
+.anki-cal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--bd);
+  font-size: 12px;
+}
+.anki-fc-bar.over { background: linear-gradient(to top, var(--red), var(--gold)) !important; }
+.anki-fc-col.sel .anki-fc-bar { box-shadow: 0 0 0 2px var(--acc); }
+.on-bs { background: var(--acc); color: #fff; border-color: var(--acc); }
+
+/* Diagnostic */
+.anki-formula {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--acc);
+  overflow-x: auto;
+  margin: 10px 0;
+  white-space: nowrap;
+}
+.anki-coef-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  color: var(--mut);
+}
+.anki-coef-row b { color: var(--txt); }
+.anki-diag-table-wrap { overflow-x: auto; }
+.anki-diag-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+}
+.anki-diag-table th, .anki-diag-table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--bd);
+}
+.anki-diag-table th {
+  background: var(--s3);
+  color: var(--mut);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.anki-diag-table tr:hover { background: var(--bg); }
+.anki-log-row {
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--bd);
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+}
+.anki-log-time { color: var(--mut); }
+.anki-log-action {
+  color: var(--acc);
+  font-weight: 700;
+  min-width: 90px;
+}
+.anki-log-details { color: var(--txt); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
