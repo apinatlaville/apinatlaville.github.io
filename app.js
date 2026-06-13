@@ -785,44 +785,19 @@ async function initApp(user) {
     }
     if (!c.profil) c.profil = 'COURS';
   });
-  // Auto-split des devoirs configurés avec _morceauxTotal > 1 mais sans morceaux créés
-  if (window.AnkiAlgo && window.AnkiAlgo.splitDevoir) {
-    const devoirs = window.D.exercices.filter(c => c.type === 'devoir' && (c._morceauxTotal || 1) > 1);
-    devoirs.forEach(parent => {
-      const existing = window.D.exercices.filter(c => c._morceauOf === parent.id);
-      const need = (parent._morceauxTotal || 1) - existing.length - 1; // -1 car le parent compte comme 1
-      if (need > 0) {
-        const today = window.AnkiAlgo.todayISO();
-        const piecesNew = Math.ceil((parent.tempsCible || 60) / (parent._morceauxTotal || 1));
-        // Le parent devient le 1er morceau (durée réduite)
-        parent.tempsCible = piecesNew;
-        parent._morceauIndex = 1;
-        parent._isMorceauParent = true;
-        // Création des morceaux 2..N
-        for (let i = 1; i < (parent._morceauxTotal || 1); i++) {
-          const ids = window.D.exercices.map(x => x.id);
-          const pieceId = window.AnkiAlgo.genExoUid(parent.mat, ids);
-          window.D.exercices.unshift({
-            id: pieceId,
-            titre: (parent.titre || parent.question) + ' (' + (i + 1) + '/' + parent._morceauxTotal + ')',
-            question: parent.question,
-            reponse: parent.reponse,
-            mat: parent.mat,
-            profil: parent.profil,
-            tempsCible: piecesNew,
-            priorite: parent.priorite,
-            statut: 'actif',
-            coursIds: parent.coursIds || [],
-            intervalle: 0, ease: parent.ease || 2.5, repetitions: 0,
-            dateProchaineRevision: window.AnkiAlgo.addDays(today, i),
-            historique: [],
-            type: 'devoir-morceau',
-            _morceauOf: parent.id,
-            _morceauIndex: i + 1,
-            _morceauTotal: parent._morceauxTotal,
-            dateCreation: new Date().toISOString()
-          });
-        }
+  // ⚠️ v3.4 : on NE découpe PLUS en cartes séparées.
+  // Le DM reste UN seul objet avec _morceauxTotal / _morceauxFaits.
+  // Il apparaît dans la file jusqu'à ce que tous les morceaux soient faits.
+  // On nettoie d'anciens morceaux résiduels si présents.
+  if (Array.isArray(window.D.exercices)) {
+    window.D.exercices = window.D.exercices.filter(c => c.type !== 'devoir-morceau');
+    // Réinitialise les parents qui ont été tripotés par les versions précédentes
+    window.D.exercices.forEach(c => {
+      if (c.type === 'devoir' && c._isMorceauParent) {
+        delete c._morceauIndex;
+        delete c._isMorceauParent;
+        // tempsCible reflète UN morceau ; on remet la durée totale si _dureeTotaleMin présent
+        if (c._dureeTotaleMin) c.tempsCible = c._dureeTotaleMin * 60;
       }
     });
   }

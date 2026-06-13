@@ -211,19 +211,23 @@
     const isLate = c.dateProchaineRevision && c.dateProchaineRevision < today;
     const urg = window.AnkiAlgo.urgenceScore(c, today);
     const isDevoir = c.type === 'devoir';
-    const tempsMin = ((c.tempsCible || 60) / 60).toFixed(1).replace(/\.0$/, '');
+    // Pour un DM : on affiche le temps PAR SESSION (pas la durée totale)
+    const tempsAffiche = isDevoir
+      ? Math.round(((c._dureeTotaleMin || (c.tempsCible / 60)) / (c._morceauxTotal || 1)) * 10) / 10
+      : ((c.tempsCible || 60) / 60).toFixed(1).replace(/\.0$/, '');
+    const sessionInfo = isDevoir ? ` · session ${(c._morceauxFaits || 0) + 1}/${c._morceauxTotal || 1}` : '';
     return `
       <div class="anki-q-row ${isDevoir ? 'devoir' : ''}" draggable="true" data-id="${c.id}" data-idx="${i}">
         <span class="anki-q-handle" title="Glisser">⋮⋮</span>
         <div class="anki-q-num">${i + 1}</div>
         <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? '📝' : m.label}</div>
         <div class="anki-q-body" onclick="window.startAnkiSingle('${c.id}')">
-          <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}</div>
+          <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}${sessionInfo}</div>
           <div class="anki-q-meta">${c.id} · urgence ${urg.total.toFixed(1)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
         </div>
         <div class="anki-q-time" onclick="event.stopPropagation();">
-          <input type="number" min="0.25" max="600" step="0.25" value="${tempsMin}" title="Temps en minutes — éditable"
-            onchange="window.ankiUpdateTemps('${c.id}', this.value)">
+          <input type="number" min="0.25" max="600" step="0.25" value="${tempsAffiche}" title="Temps en minutes — éditable"
+            onchange="window.ankiUpdateTemps('${c.id}', this.value, ${isDevoir})">
           <span class="anki-mut">min</span>
         </div>
         <div class="anki-q-go" onclick="window.startAnkiSingle('${c.id}')">▶</div>
@@ -335,12 +339,19 @@
     window.AnkiAlgo.getCandidates(window.D.exercices).forEach(x => S.selectionIds.add(x.card.id));
     renderActiveView();
   };
-  window.ankiUpdateTemps = function (id, valMin) {
+  window.ankiUpdateTemps = function (id, valMin, isDevoir) {
     const c = window.D.exercices.find(x => x.id === id);
     if (!c) return;
-    const sec = Math.round((parseFloat(valMin) || 1) * 60);
-    c.tempsCible = sec;
-    window.AnkiAlgo.log("update-temps", { id, sec });
+    const minVal = parseFloat(valMin) || 1;
+    if (isDevoir) {
+      // Pour un DM : on modifie le temps PAR SESSION, donc on recalcule la durée totale = min × morceauxRestants
+      const restants = (c._morceauxTotal || 1) - (c._morceauxFaits || 0);
+      c.tempsCible = Math.round(minVal * 60) * Math.max(1, restants);
+      c._dureeTotaleMin = minVal * (c._morceauxTotal || 1);
+    } else {
+      c.tempsCible = Math.round(minVal * 60);
+    }
+    window.AnkiAlgo.log("update-temps", { id, min: minVal, isDevoir: !!isDevoir });
     window.save();
     refreshQueueOnly();
   };
@@ -783,6 +794,29 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
             <li>Le drag-drop dans le Cockpit te permet de réorganiser comme tu veux</li>
           </ol>
         </details>
+        <details class="anki-explain">
+          <summary><b>📝 Devoirs / DM : fonctionnement détaillé</b></summary>
+          <p>Un DM est <b>UN seul objet</b> dans la base. Si tu indiques "découpe en 3 morceaux", l'algo le présente :</p>
+          <ul class="anki-explain-list">
+            <li><b>1 fois par jour</b> dans la file, avec affichage "session X/N"</li>
+            <li>Temps par session = <code>durée totale / nombre de morceaux</code></li>
+            <li>Tu peux <b>ajuster le temps de chaque session inline</b> (l'algo recalcule le temps total restant)</li>
+            <li>Pas de slider qScore : juste <b>Fait / Partiel / À refaire</b></li>
+            <li>L'ease/intervalle ne sont PAS modifiés (ce n'est pas une carte de mémorisation)</li>
+            <li>Quand toutes les sessions sont faites → statut <code>fini</code>, le DM disparaît de la file</li>
+          </ul>
+          <p>Exemple : DM 90 min en 3 morceaux. Jour 1 : tu fais 35 min au lieu de 30. L'algo retient « 55 min restants », répartit sur 2 sessions → 27.5 min chacune.</p>
+        </details>
+        <details class="anki-explain">
+          <summary><b>🎚 Slider 1-10 vs boutons 3 niveaux</b></summary>
+          <p>Les 2 sont disponibles en même temps. Mapping :</p>
+          <ul class="anki-explain-list">
+            <li><b>1-3</b> (Blocage rouge) : reset (intervalle = 0), ease −0.20</li>
+            <li><b>4-7</b> (Étourderie jaune) : intervalle court, ease ajusté selon score</li>
+            <li><b>8-10</b> (Parfait vert) : intervalle long, ease +0.05 à +0.15</li>
+          </ul>
+          <p>Le slider permet une nuance plus fine : score=5 réduit l'intervalle de 0.55× vs score=7 qui le multiplie par 1.0.</p>
+        </details>
       </div>
 
       <div class="anki-card-block">
@@ -1086,6 +1120,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     }).join(' · ');
     const hasReponse = c.reponse && c.reponse.trim().length;
     const showSlider = (window.D.settings && window.D.settings.ankiShowSlider !== false);
+    const isDevoir = c.type === 'devoir';
+    const sessionMin = isDevoir
+      ? Math.round(((c._dureeTotaleMin || (c.tempsCible / 60)) / (c._morceauxTotal || 1)))
+      : ((c.tempsCible || 60) / 60);
 
     ov.innerHTML = `
       <div class="modal anki-session" style="border-top:5px solid ${m.color};">
@@ -1093,33 +1131,51 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div>
             <span class="uid-badge">${c.id}</span>
             <span class="anki-tag" style="background:${m.color}20;color:${m.color};border:1px solid ${m.color};">${m.label}</span>
-            <span class="anki-tag">${pri(c.priorite || 2)}</span>
+            ${isDevoir ? `<span class="anki-tag" style="background:#b06af720;color:#b06af7;border:1px solid #b06af7;">📝 DM ${(c._morceauxFaits || 0) + 1}/${c._morceauxTotal || 1}</span>` : `<span class="anki-tag">${pri(c.priorite || 2)}</span>`}
           </div>
           <div class="anki-chrono" id="ankiChrono">00:00</div>
         </div>
-        <div class="anki-sess-meta">⏱ Cible ${window.AnkiAlgo.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · 🔗 ' + esc(linkedTitle) : ''}</div>
+        ${isDevoir ? `
+          <div class="anki-devoir-bandeau">
+            <div class="anki-mut" style="font-size:11px;">Temps prévu pour cette session :</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+              <input type="number" id="ankiDevoirTemps" min="1" max="240" step="5" value="${sessionMin}" style="width:70px;">
+              <span class="anki-mut">min · Reste après celle-ci : <b>${Math.max(0, (c._morceauxTotal || 1) - (c._morceauxFaits || 0) - 1)} session(s)</b></span>
+            </div>
+          </div>
+        ` : `<div class="anki-sess-meta">⏱ Cible ${window.AnkiAlgo.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · 🔗 ' + esc(linkedTitle) : ''}</div>`}
         ${c.titre ? `<div class="anki-sess-titre">${esc(c.titre)}</div>` : ''}
         <div class="anki-sess-q">${esc(c.question || '')}</div>
         ${S.showAnswer ? `
           ${hasReponse ? `<div class="anki-sess-r"><div class="anki-mut" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Réponse</div><div>${esc(c.reponse)}</div></div>` : '<div class="anki-sess-r-empty">Auto-évaluation libre (pas de réponse enregistrée)</div>'}
-          <div class="anki-mut" style="text-align:center;margin:14px 0 8px;font-size:12px;">Comment ça s'est passé ?</div>
-          <div class="anki-evals">
-            <button class="anki-eval bad" onclick="window.evalCard(2)"><span>❌</span><small>Blocage</small></button>
-            <button class="anki-eval mid" onclick="window.evalCard(6)"><span>🟡</span><small>Étourderie</small></button>
-            <button class="anki-eval good" onclick="window.evalCard(9)"><span>✅</span><small>Parfait</small></button>
-          </div>
-          ${showSlider ? `
-            <div class="anki-slider-wrap">
-              <div class="anki-slider-head">
-                <span class="anki-mut">Précision fine :</span>
-                <span class="anki-slider-val" id="ankiSliderVal">${S.sliderValue}</span><span class="anki-mut">/10</span>
-              </div>
-              <input type="range" min="1" max="10" value="${S.sliderValue}" class="anki-slider" id="ankiSlider"
-                oninput="document.getElementById('ankiSliderVal').textContent=this.value;window._ankiSlider=parseInt(this.value);">
-              <button class="bp anki-slider-btn" onclick="window.evalCard(parseInt(document.getElementById('ankiSlider').value))">Valider (score précis)</button>
+          ${isDevoir ? `
+            <div class="anki-mut" style="text-align:center;margin:14px 0 8px;font-size:12px;">Session de DM terminée ? Indique l'avancement :</div>
+            <div class="anki-evals">
+              <button class="anki-eval bad" onclick="window.evalCard(2)" title="Pas avancé ou bloqué"><span>⏸</span><small>À refaire</small></button>
+              <button class="anki-eval mid" onclick="window.evalCard(6)" title="Partiellement fait"><span>📝</span><small>Partiel</small></button>
+              <button class="anki-eval good" onclick="window.evalCard(9)" title="Session complétée"><span>✅</span><small>Fait</small></button>
             </div>
-          ` : ''}
-        ` : `<button class="bp anki-reveal" onclick="window.revealAnki()">${hasReponse ? 'Afficher la réponse' : "J'ai fini · m'auto-évaluer"}</button>`}
+            <p class="anki-mut" style="font-size:11px;text-align:center;margin-top:8px;">Pour un DM, on n'évalue pas la mémoire mais l'avancement. L'ease/intervalle ne changent pas.</p>
+          ` : `
+            <div class="anki-mut" style="text-align:center;margin:14px 0 8px;font-size:12px;">Comment ça s'est passé ?</div>
+            <div class="anki-evals">
+              <button class="anki-eval bad" onclick="window.evalCard(2)"><span>❌</span><small>Blocage</small></button>
+              <button class="anki-eval mid" onclick="window.evalCard(6)"><span>🟡</span><small>Étourderie</small></button>
+              <button class="anki-eval good" onclick="window.evalCard(9)"><span>✅</span><small>Parfait</small></button>
+            </div>
+            ${showSlider ? `
+              <div class="anki-slider-wrap">
+                <div class="anki-slider-head">
+                  <span class="anki-mut">Précision fine :</span>
+                  <span class="anki-slider-val" id="ankiSliderVal">${S.sliderValue}</span><span class="anki-mut">/10</span>
+                </div>
+                <input type="range" min="1" max="10" value="${S.sliderValue}" class="anki-slider" id="ankiSlider"
+                  oninput="document.getElementById('ankiSliderVal').textContent=this.value;window._ankiSlider=parseInt(this.value);">
+                <button class="bp anki-slider-btn" onclick="window.evalCard(parseInt(document.getElementById('ankiSlider').value))">Valider (score précis)</button>
+              </div>
+            ` : ''}
+          `}
+        ` : `<button class="bp anki-reveal" onclick="window.revealAnki()">${isDevoir ? "J'ai fini cette session" : (hasReponse ? 'Afficher la réponse' : "J'ai fini · m'auto-évaluer")}</button>`}
         <div class="anki-sess-foot">
           <span class="anki-mut">Reste : ${S.queue.length} · ✅ ${S.stats.ok} · 🟡 ${S.stats.mid} · ❌ ${S.stats.bad}</span>
           <button class="bs anki-quit" onclick="window.abortAnkiSession()">Terminer maintenant</button>
@@ -1134,33 +1190,65 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     qScore = Math.max(0, Math.min(10, qScore));
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     const tps = S.chronoElapsed;
-    const easeAvant = S.current.ease || 2.5;
-    const intAvant = S.current.intervalle || 0;
-    const out = window.AnkiAlgo.computeNextInterval(S.current, qScore, tps);
-    if (S.mode !== "colle") {
-      S.current.intervalle = out.intervalle; S.current.ease = out.ease;
-      S.current.repetitions = out.repetitions; S.current.dateProchaineRevision = out.dateProchaineRevision;
-    }
-    S.current.historique = S.current.historique || [];
-    S.current.historique.push({ date: new Date().toISOString(), qScore, tempsReel: Math.round(tps), pen: out.penaliteVitesse, mode: S.mode });
-    // Devoir découpé : avance d'1 morceau
-    if (S.current._morceauOf) {
-      const parent = window.D.exercices.find(x => x.id === S.current._morceauOf);
-      if (parent) {
-        parent._morceauxFaits = (parent._morceauxFaits || 0) + 1;
-        if (parent._morceauxFaits >= (parent._morceauxTotal || 1)) parent.statut = 'fini';
+    const isDevoir = S.current.type === 'devoir';
+
+    if (isDevoir) {
+      // ⚙️ DM : on ne touche PAS ease/intervalle/repetitions (pas une carte de mémorisation)
+      // On incrémente juste _morceauxFaits ; la prochaine session = lendemain
+      S.current._morceauxFaits = (S.current._morceauxFaits || 0) + 1;
+      const restants = (S.current._morceauxTotal || 1) - S.current._morceauxFaits;
+      if (restants <= 0) {
+        S.current.statut = 'fini';
+        S.current.dateProchaineRevision = null;
+      } else {
+        S.current.dateProchaineRevision = window.AnkiAlgo.addDays(window.AnkiAlgo.todayISO(), 1);
+      }
+      S.current.historique = S.current.historique || [];
+      S.current.historique.push({ date: new Date().toISOString(), qScore, tempsReel: Math.round(tps), pen: 1, mode: S.mode, type: 'devoir-session' });
+      window.AnkiAlgo.log("devoir-session", {
+        id: S.current.id,
+        morceaux: S.current._morceauxFaits + "/" + S.current._morceauxTotal,
+        prochaine: restants > 0 ? S.current.dateProchaineRevision : "TERMINÉ",
+        tempsReel: window.AnkiAlgo.fmtDur(tps)
+      });
+      window.sysAlert(`📝 <b>${S.current.titre || S.current.id}</b><br>Session ${S.current._morceauxFaits}/${S.current._morceauxTotal} terminée.<br>${restants > 0 ? 'Prochaine session : <b>' + S.current.dateProchaineRevision + '</b>' : '✅ <b>DM TERMINÉ</b>'}`, "DM");
+    } else {
+      // 📚 Carte normale : update ease/intervalle/repetitions
+      const easeAvant = S.current.ease || 2.5;
+      const intAvant = S.current.intervalle || 0;
+      const out = window.AnkiAlgo.computeNextInterval(S.current, qScore, tps);
+      if (S.mode !== "colle") {
+        S.current.intervalle = out.intervalle; S.current.ease = out.ease;
+        S.current.repetitions = out.repetitions; S.current.dateProchaineRevision = out.dateProchaineRevision;
+      }
+      S.current.historique = S.current.historique || [];
+      S.current.historique.push({ date: new Date().toISOString(), qScore, tempsReel: Math.round(tps), pen: out.penaliteVitesse, mode: S.mode });
+      window.AnkiAlgo.log("eval", {
+        id: S.current.id,
+        qScore,
+        ease: easeAvant.toFixed(2) + "→" + out.ease,
+        intervalle: intAvant + "→" + out.intervalle + "j",
+        next: out.dateProchaineRevision
+      });
+      // 🆕 Confirmation visible immédiate après chaque eval (mode single / quick)
+      if (S.mode === 'single' || S.queue.length === 0) {
+        const deltaEase = out.ease - easeAvant;
+        const easeArrow = deltaEase > 0 ? '↑' : deltaEase < 0 ? '↓' : '=';
+        const easeColor = deltaEase > 0 ? 'var(--grn)' : deltaEase < 0 ? 'var(--red)' : 'var(--mut)';
+        window.sysAlert(
+          `<b>${S.current.titre || S.current.id}</b><br><br>` +
+          `🎯 Score : <b>${qScore}/10</b> (vitesse ×${out.penaliteVitesse})<br>` +
+          `📊 Ease : ${easeAvant.toFixed(2)} → <b style="color:${easeColor};">${out.ease} ${easeArrow}</b><br>` +
+          `📅 Intervalle : ${intAvant}j → <b>${out.intervalle}j</b><br>` +
+          `🗓 Prochaine révision : <b>${out.dateProchaineRevision}</b>`,
+          "Carte évaluée"
+        );
       }
     }
+
     const btn = window.AnkiAlgo.qScoreToButton(qScore);
     if (btn === 0) S.stats.bad++; else if (btn === 1) S.stats.mid++; else S.stats.ok++;
-    if (qScore <= 3 && S.mode !== "colle" && S.mode !== "single") S.queue.push(S.current);
-    window.AnkiAlgo.log("eval", {
-      id: S.current.id,
-      qScore,
-      ease: easeAvant + "→" + out.ease,
-      intervalle: intAvant + "→" + out.intervalle + "j",
-      next: out.dateProchaineRevision
-    });
+    if (qScore <= 3 && S.mode !== "colle" && S.mode !== "single" && !isDevoir) S.queue.push(S.current);
     if (window.D.settings) window.D.settings.ankiLastSession = window.AnkiAlgo.todayISO();
     window.save(); nextCard();
   };

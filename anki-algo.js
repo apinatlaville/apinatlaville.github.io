@@ -187,11 +187,12 @@
   };
 
   // ===== Cartes à proposer aujourd'hui (TOUTES, triées par urgence — le coef gère tout) =====
+  // ⚠️ Exclut les DM terminés (statut='fini')
   ALGO.getCandidates = function (exercices, refIso) {
     const ref = refIso || ALGO.todayISO();
     if (!Array.isArray(exercices)) return [];
     return exercices
-      .filter(c => c.statut === 'actif' || c.statut === 'attente')
+      .filter(c => (c.statut === 'actif' || c.statut === 'attente') && c.statut !== 'fini')
       .map(c => ({ card: c, score: ALGO.urgenceScore(c, ref) }))
       .sort((a, b) => b.score.total - a.score.total);
   };
@@ -308,11 +309,14 @@
     }
 
     // ===== Phase 1 : sélection par urgence + budget =====
+    // Pour les DM : on compte le temps par session (pas la durée totale)
     const budget = (o.sessionMinutes || 60) * 60 * o.marge;
     const selected = []; let used = 0;
     for (const c of pool) {
-      const t = c.tempsCible || 60;
-      if (used + t > budget && selected.length) continue; // skip mais essaie les suivantes plus courtes
+      const t = c.type === 'devoir'
+        ? Math.round(((c._dureeTotaleMin || (c.tempsCible / 60)) / (c._morceauxTotal || 1)) * 60)
+        : (c.tempsCible || 60);
+      if (used + t > budget && selected.length) continue;
       selected.push(c); used += t;
     }
 
@@ -438,8 +442,8 @@
   };
 
   // ===== Schedule détaillé (avec projection multi-révisions) =====
-  // Pour chaque carte active, projette ses N prochaines révisions
-  // en simulant un score parfait (qScore=7) à chaque étape
+  // Pour les cartes normales : projette les N prochaines révisions (simul. qScore=7)
+  // Pour les DM (type='devoir') : projette les morceaux RESTANTS, 1 par jour, avec tempsParSession
   ALGO.forecastSchedule = function (exercices, days) {
     const N = days || 14;
     const today = ALGO.todayISO();
@@ -447,7 +451,30 @@
     for (let i = 0; i < N; i++) out[ALGO.addDays(today, i)] = [];
     (exercices || []).forEach(c => {
       if (c.statut !== 'actif') return;
-      // Simulation : copie de la carte, on l'évolue
+
+      // --- DM : 1 occurrence par session restante ---
+      if (c.type === 'devoir') {
+        const restants = (c._morceauxTotal || 1) - (c._morceauxFaits || 0);
+        const tempsParSession = Math.round(((c._dureeTotaleMin || (c.tempsCible / 60)) / (c._morceauxTotal || 1)) * 60);
+        let date = c.dateProchaineRevision || today;
+        if (date < today) date = today;
+        for (let i = 0; i < restants; i++) {
+          if (out[date]) {
+            out[date].push({
+              ...c,
+              tempsCible: tempsParSession,
+              _projDate: date,
+              _projSessionIdx: (c._morceauxFaits || 0) + i + 1,
+              _projSessionTotal: c._morceauxTotal || 1
+            });
+          }
+          date = ALGO.addDays(date, 1);
+          if (date > ALGO.addDays(today, N - 1)) break;
+        }
+        return;
+      }
+
+      // --- Carte normale : simulation des révisions ---
       let sim = {
         intervalle: c.intervalle || 0,
         ease: c.ease || 2.5,
@@ -457,7 +484,6 @@
       };
       let date = c.dateProchaineRevision || today;
       if (date < today) date = today;
-      // Place la 1ère occurrence
       let safety = 0;
       while (date <= ALGO.addDays(today, N - 1) && safety++ < 20) {
         if (out[date]) {
@@ -468,7 +494,6 @@
             _projEase: parseFloat(sim.ease.toFixed(2))
           });
         }
-        // Calcule la prochaine date en simulant un succès parfait
         const nxt = ALGO.computeNextInterval(sim, 7, sim.tempsCible);
         sim.intervalle = nxt.intervalle;
         sim.ease = nxt.ease;
