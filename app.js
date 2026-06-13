@@ -316,21 +316,37 @@ window.pomoReset = function() {
   window.updatePomoUI();
 };
 
-window.genUid = function(matId) {
-  try {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
-    let rnd = '';
+// =========================================================================
+// 🛡️ MOTEUR ANTI-COLLISION (Écrase l'ancienne version)
+// =========================================================================
+window.genUid = function(prefixeMatiere) {
+  const caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let nouveauCode = "";
+  let estUnique = false;
+
+  if (!window.D.cours) window.D.cours = [];
+  if (!window.D.exercices) window.D.exercices = [];
+
+  while (!estUnique) {
+    let suffixe = "";
     for (let i = 0; i < 3; i++) {
-      rnd += chars[Math.floor(Math.random() * chars.length)];
+      let indexAleatoire = Math.floor(Math.random() * caracteres.length);
+      suffixe += caracteres.charAt(indexAleatoire);
     }
-    let prefix = matId.substring(0, 2).toUpperCase();
-    while (prefix.length < 2) prefix += 'X'; 
     
-    return prefix + '-' + rnd; 
-  } catch(e) {
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur genUid: " + e.message, source: 'app.js' });
-    return 'XX-000';
+    // Formate le préfixe (ex: PH)
+    const prefixe = prefixeMatiere.substring(0, 2).toUpperCase();
+    nouveauCode = prefixe + "-" + suffixe;
+
+    // Vérifie partout s'il y a un doublon
+    let collisionCours = window.D.cours.some(c => c.uid === nouveauCode);
+    let collisionExos = window.D.exercices.some(e => e.id === nouveauCode);
+
+    if (!collisionCours && !collisionExos) {
+      estUnique = true; 
+    }
   }
+  return nouveauCode;
 };
 
 window.doAutoFmtScan = function(inputEl) {
