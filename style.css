@@ -551,3 +551,154 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
     max-width: 1200px;
   }
 }
+
+
+/* =====================================================
+   🧬 MODE SYNCHROTRON (Répétition Espacée PC*)
+   ===================================================== */
+.anki-hero { margin-bottom: 10px; }
+
+.anki-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.anki-cockpit {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 16px;
+  border-left: 4px solid #b06af7;
+}
+.anki-cockpit-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  font-size: 13px;
+  color: var(--txt);
+  margin-top: 4px;
+}
+
+.anki-heatmap-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 100px;
+  padding: 10px;
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+.anki-heatmap-col {
+  flex: 1;
+  min-width: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+}
+.anki-heatmap-bar {
+  width: 100%;
+  background: linear-gradient(to top, #b06af7, #5b8df7);
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+  transition: height 0.3s;
+}
+.anki-heatmap-lbl {
+  font-size: 9px;
+  color: var(--mut);
+  margin-top: 4px;
+  font-family: 'DM Mono', monospace;
+}
+
+.anki-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.anki-card {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 12px;
+  position: relative;
+}
+.anki-card-top {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.anki-card-q {
+  font-size: 13px;
+  color: var(--txt);
+  line-height: 1.4;
+  margin-bottom: 6px;
+  min-height: 36px;
+}
+.anki-card-meta {
+  font-size: 11px;
+  color: var(--mut);
+  font-family: 'DM Mono', monospace;
+  margin-bottom: 8px;
+}
+
+.anki-modal {
+  max-width: 520px;
+}
+.anki-question {
+  font-size: 18px;
+  line-height: 1.45;
+  color: var(--txt);
+  background: var(--bg);
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  margin: 10px 0;
+  min-height: 80px;
+  font-family: 'DM Sans', sans-serif;
+}
+.anki-answer {
+  background: rgba(80,216,144,0.08);
+  border: 1px solid rgba(80,216,144,0.4);
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--txt);
+  margin-top: 12px;
+}
+.anki-eval-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.anki-eval {
+  background: var(--bg);
+  border: 2px solid var(--bd);
+  color: var(--txt);
+  padding: 14px 8px;
+  border-radius: 10px;
+  font-size: 22px;
+  cursor: pointer;
+  transition: transform 0.1s, background 0.15s, border-color 0.15s;
+  text-align: center;
+}
+.anki-eval small {
+  display: block;
+  font-size: 10px;
+  color: var(--mut);
+  margin-top: 4px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.anki-eval:hover { transform: translateY(-2px); }
+.anki-eval-bad:hover { border-color: var(--red); background: rgba(240,96,96,0.1); }
+.anki-eval-mid:hover { border-color: var(--gold); background: rgba(240,192,96,0.1); }
+.anki-eval-good:hover { border-color: var(--grn); background: rgba(80,216,144,0.1); }

@@ -440,6 +440,7 @@ window.switchTab = function(tab, overrideResetFilters = false) {
     cours:'paneCours',
     notes:'paneNotes',
     flashcards:'paneFlashcards',
+    anki:'paneAnki',
     print:'panePrint',
     classeurs:'paneClasseurs',
     matieres:'paneMatieres',
@@ -475,6 +476,7 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   }
   if (tab === 'notes') window.renderNotes();
   if (tab === 'flashcards') window.renderFlashcards();
+  if (tab === 'anki' && typeof window.renderAnki === 'function') window.renderAnki();
   if (tab === 'print') window.renderPrintGrid();
   if (tab === 'classeurs') {
     window.isEditingCl = false;
@@ -766,9 +768,12 @@ async function initApp(user) {
   // Sécurisation de la structure des données (Commune aux deux modes)
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
   if(!window.D.cours) window.D.cours = [];
+  if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
+  if(!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
+  if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
   
   window.D.classeurs.forEach(cl => {
     if(!cl.interNames) cl.interNames = {};

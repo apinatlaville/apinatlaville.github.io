@@ -43,7 +43,7 @@ window.PC_FLASHCARDS = [
 ];
 
 window.emptyData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
@@ -54,20 +54,22 @@ window.emptyData = {
     {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {}},
     {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {}},
   ],
-  cours: [] 
+  cours: [],
+  exercices: [],
+  devoirs: []
 };
 
 window.demoData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', compact: false, showStats: true, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
     {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
   ],
   classeurs: [
-    {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter: 12, interNames: {}},
-    {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {}},
-    {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {}},
+    {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter: 12, interNames: {'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique'}},
+    {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {'01':'Algèbre linéaire','02':'Analyse','03':'Réduction'}},
+    {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools'}},
   ],
   cours: [
     { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: '2026-04-01' },
@@ -80,7 +82,23 @@ window.demoData = {
     { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: '2026-04-04' },
     { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: '2026-04-05' },
     { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: '2026-04-05' }
-  ] 
+  ],
+  exercices: [
+    // ⚡ Cartes TEST (format PH-AAA : 3 lettres pures pour différencier des cours alphanum)
+    { id:'PH-AAA', coursId:'PH-A1B', mat:'PHYS', question:"Énonce le théorème de l'énergie cinétique (système matériel).", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Référentiel galiléen.", tempsCible:45, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], epinglee:true },
+    { id:'PH-BBB', coursId:'PH-X9Y', mat:'PHYS', question:"Rendement du cycle de Carnot.", reponse:"η = 1 − Tf/Tc (Tf,Tc en Kelvin, Tc>Tf).", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[] },
+    { id:'PH-CCC', coursId:'PH-3K9', mat:'PHYS', question:"Équation de Maxwell-Faraday (forme locale).", reponse:"rot(E) = −∂B/∂t", tempsCible:25, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[] },
+    { id:'MA-AAA', coursId:'MA-7Z3', mat:'MATH', question:"Définition d'un sous-espace vectoriel.", reponse:"Stable par + et par · ; contient 0_E.", tempsCible:40, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[] },
+    { id:'MA-BBB', coursId:'MA-V6J', mat:'MATH', question:"Critère de diagonalisabilité d'un endomorphisme.", reponse:"⟺ polynôme caractéristique scindé + dim(E_λ) = mult(λ) ∀λ.", tempsCible:60, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[] },
+    { id:'MA-CCC', coursId:null, mat:'MATH', question:"Rayon de convergence d'une série entière (Hadamard).", reponse:"1/R = limsup |a_n|^(1/n).", tempsCible:50, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[] },
+    { id:'CH-AAA', coursId:'CH-T1R', mat:'CHIM', question:"Produits d'oxydation douce d'un alcool primaire.", reponse:"Aldéhyde (puis acide carboxylique si oxydant en excès).", tempsCible:35, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[] },
+    { id:'CH-BBB', coursId:'CH-T1R', mat:'CHIM', question:"Règle de Markovnikov (addition électrophile).", reponse:"H+ s'additionne sur le carbone le plus hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[] },
+    { id:'CH-CCC', coursId:'CH-8M5', mat:'CHIM', question:"Loi de vitesse d'ordre 1 : intégration.", reponse:"[A](t) = [A]_0 · exp(−k·t) ; t_{1/2} = ln2 / k.", tempsCible:55, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[] }
+  ],
+  devoirs: [
+    { id:'DM-PH1', mat:'PHYS', titre:'DM Mécanique chap.1', dateLimite:'2026-01-15', dureeMin:30 },
+    { id:'DM-MA1', mat:'MATH', titre:'DM Algèbre linéaire', dateLimite:'2026-01-12', dureeMin:25 }
+  ]
 };
 
 window.isEditingMat = false;
@@ -93,10 +111,17 @@ window.editUid = null;
 window.moveUid = null; // 🚨 ÉTAT : Sauvegarde l'id du cours qu'on déplace
 
 window.getInterName = function(cl, ns) {
+  // Format unifié partout : "01 - Mécanique" ou "01" si pas de nom personnalisé
   if (cl && cl.interNames && cl.interNames[ns]) {
-    return cl.interNames[ns];
+    return `${ns} - ${cl.interNames[ns]}`;
   }
   return `Intercalaire ${ns}`;
+};
+
+// Variante "nom seul" (utilisée dans les dropdowns qui préfixent déjà le numéro)
+window.getInterRawName = function(cl, ns) {
+  if (cl && cl.interNames && cl.interNames[ns]) return cl.interNames[ns];
+  return '';
 };
 
 window.toggleEditMat = function() {
@@ -386,8 +411,7 @@ window.updateMoveIntercalairesDropdown = function(clIdOverride, interOverride) {
   if(interSelect) {
       interSelect.innerHTML = Array.from({length: maxI}, (_, i) => {
           const val = String(i + 1).padStart(2, '0');
-          const customName = window.getInterName(cl, val);
-          return `<option value="${val}" ${val===interOverride?'selected':''}>${val} - ${customName}</option>`;
+          return `<option value="${val}" ${val===interOverride?'selected':''}>${window.getInterName(cl, val)}</option>`;
       }).join('');
   }
 };
@@ -476,8 +500,7 @@ window.updateIntercalairesDropdown = function() {
     window.$('fInter').innerHTML = '<option value="">—</option>' + 
       Array.from({length: maxI}, (_, i) => {
         const val = String(i + 1).padStart(2, '0');
-        const customName = window.getInterName(cl, val);
-        return `<option value="${val}">${val} - ${customName}</option>`;
+        return `<option value="${val}">${window.getInterName(cl, val)}</option>`;
       }).join('');
   }
 };
@@ -654,17 +677,35 @@ window.renderClasseurs = function() {
           <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">✕</button>
         ` : '';
 
-        let coursesList = cc.length ? cc.map(c => {
-          const interNameDisplay = window.getInterName(cl, c.inter);
-          return `
-          <div class="irow" onclick="window.doLocate('${c.uid}')">
-            <div>
-              <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
-              <div style="font-size:11px; color:var(--mut);">[${interNameDisplay}] • ${c.type}</div>
-            </div>
-            <div style="color:var(--acc); font-size:18px;">➔</div>
-          </div>
-        `}).join('') : '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
+        let coursesList = '';
+        if (cc.length) {
+          // 🆕 Groupement par intercalaire pour clarifier l'affichage
+          const groups = {};
+          cc.forEach(c => {
+            const key = c.inter || '00';
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(c);
+          });
+          const sortedKeys = Object.keys(groups).sort();
+          coursesList = sortedKeys.map(k => {
+            const interHeader = window.getInterName(cl, k);
+            const items = groups[k].map(c => `
+              <div class="irow" onclick="window.doLocate('${c.uid}')">
+                <div>
+                  <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
+                  <div style="font-size:11px; color:var(--mut);">${c.type} · ${c.uid}</div>
+                </div>
+                <div style="color:var(--acc); font-size:18px;">➔</div>
+              </div>`).join('');
+            return `
+              <div class="inter-group">
+                <div class="inter-group-hdr" style="background:${cl.color}15; color:${cl.color}; border-left:3px solid ${cl.color}; padding:8px 12px; font-family:'DM Mono',monospace; font-weight:bold; font-size:12px; letter-spacing:0.5px; margin-top:4px;">📑 ${interHeader} <span style="float:right;color:var(--mut);font-weight:normal;">${groups[k].length} doc${groups[k].length>1?'s':''}</span></div>
+                ${items}
+              </div>`;
+          }).join('');
+        } else {
+          coursesList = '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
+        }
 
         return `
           <div class="cl-card">

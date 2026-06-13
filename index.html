@@ -103,6 +103,7 @@
     <button class="tab" onclick="window.switchTab('cours')" data-tab="cours">📋 Base Doc.</button>
     <button class="tab" onclick="window.switchTab('notes')" data-tab="notes">📈 Notes</button>
     <button class="tab" onclick="window.switchTab('flashcards')" data-tab="flashcards">🃏 Bêta</button>
+    <button class="tab" onclick="window.switchTab('anki')" data-tab="anki" style="color:#b06af7;">🧬 Synchrotron</button>
     <button class="tab" onclick="window.switchTab('print')" data-tab="print">🖨 Impression</button>
     <button class="tab" onclick="window.switchTab('classeurs')" data-tab="classeurs">🗂 Classeurs</button>
     <button class="tab" onclick="window.switchTab('matieres')" data-tab="matieres">🏷 Matières</button>
@@ -209,6 +210,8 @@
   <p style="color:var(--mut); font-size:13px; margin-bottom:20px;">Clique sur une carte pour révéler la réponse.</p>
   <div class="fc-grid" id="fcGrid"></div>
 </div>
+
+<div class="pane" id="paneAnki"></div>
 
 <div class="pane" id="panePrint">
   <div class="pbar">
@@ -615,6 +618,17 @@
     scriptScanner.src = 'scanner.js?v=' + v;
     scriptScanner.async = false;
     document.body.appendChild(scriptScanner);
+
+    // 🧬 Mode Synchrotron (Répétition Espacée PC*)
+    var scriptAnkiAlgo = document.createElement('script');
+    scriptAnkiAlgo.src = 'anki-algo.js?v=' + v;
+    scriptAnkiAlgo.async = false;
+    document.body.appendChild(scriptAnkiAlgo);
+
+    var scriptAnkiApp = document.createElement('script');
+    scriptAnkiApp.src = 'anki-app.js?v=' + v;
+    scriptAnkiApp.async = false;
+    document.body.appendChild(scriptAnkiApp);
 
     var appScript = document.createElement('script');
     appScript.type = 'module';
