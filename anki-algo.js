@@ -316,8 +316,9 @@
       selected.push(c); used += t;
     }
 
-    // ===== Phase 2 : remplissage anglais (cartes courtes ≤ 60s) =====
+    // ===== Phase 2 : remplissage anglais (cartes courtes ≤ 60s) — MAX 5 pour ne pas envahir =====
     const reste = budget - used;
+    const maxAnglais = (window.D && window.D.settings && window.D.settings.ankiMaxAnglaisFill) || 5;
     if (reste > 30) {
       const anglais = (exercices || [])
         .filter(c => !selected.includes(c)
@@ -325,7 +326,8 @@
           && (c.statut === 'actif' || c.statut === 'attente'))
         .map(c => ({ card: c, score: ALGO.urgenceScore(c, ref) }))
         .sort((a, b) => b.score.total - a.score.total)
-        .map(x => x.card);
+        .map(x => x.card)
+        .slice(0, maxAnglais);
       for (const c of anglais) {
         const t = c.tempsCible || 60;
         if (used + t > budget) break;
@@ -435,7 +437,9 @@
     return { shifted: skipped.length };
   };
 
-  // ===== Schedule détaillé =====
+  // ===== Schedule détaillé (avec projection multi-révisions) =====
+  // Pour chaque carte active, projette ses N prochaines révisions
+  // en simulant un score parfait (qScore=7) à chaque étape
   ALGO.forecastSchedule = function (exercices, days) {
     const N = days || 14;
     const today = ALGO.todayISO();
@@ -443,9 +447,35 @@
     for (let i = 0; i < N; i++) out[ALGO.addDays(today, i)] = [];
     (exercices || []).forEach(c => {
       if (c.statut !== 'actif') return;
-      let d = c.dateProchaineRevision || today;
-      if (d < today) d = today;
-      if (out[d]) out[d].push(c);
+      // Simulation : copie de la carte, on l'évolue
+      let sim = {
+        intervalle: c.intervalle || 0,
+        ease: c.ease || 2.5,
+        repetitions: c.repetitions || 0,
+        tempsCible: c.tempsCible || 60,
+        profil: c.profil || 'COURS'
+      };
+      let date = c.dateProchaineRevision || today;
+      if (date < today) date = today;
+      // Place la 1ère occurrence
+      let safety = 0;
+      while (date <= ALGO.addDays(today, N - 1) && safety++ < 20) {
+        if (out[date]) {
+          out[date].push({
+            ...c,
+            _projDate: date,
+            _projRep: sim.repetitions,
+            _projEase: parseFloat(sim.ease.toFixed(2))
+          });
+        }
+        // Calcule la prochaine date en simulant un succès parfait
+        const nxt = ALGO.computeNextInterval(sim, 7, sim.tempsCible);
+        sim.intervalle = nxt.intervalle;
+        sim.ease = nxt.ease;
+        sim.repetitions = nxt.repetitions;
+        if (!nxt.intervalle || nxt.intervalle < 1) break;
+        date = nxt.dateProchaineRevision;
+      }
     });
     Object.keys(out).forEach(d => {
       out[d] = ALGO.smartOrder(out[d]);

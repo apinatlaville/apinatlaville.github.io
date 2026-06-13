@@ -126,6 +126,79 @@ window.demoData = {
   ]
 };
 
+// ===========================================================================================
+// JEU DE DONNÉES TEST #2 : utilisateur expérimenté (3 semaines d'usage simulées)
+// Cartes avec historique riche, ease modifiés, dates étalées, courbes de stats peuplées
+// ===========================================================================================
+window.demoDataXP = (function() {
+  const _d = new Date(); _d.setHours(0,0,0,0);
+  const _today = _d.toISOString().split('T')[0];
+  const _shift = (n) => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+  const _dateTime = (n) => { const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString(); };
+
+  // Génère un historique réaliste (3 derniers révisions)
+  const histo = (qs, temps) => qs.map((q, i) => ({
+    date: _dateTime(-(qs.length - i) * 3 - 1),
+    qScore: q,
+    tempsReel: temps[i] || 60,
+    pen: 1,
+    mode: 'normal'
+  }));
+
+  return {
+    settings: { userName: "Étudiant XP", theme:'dark', template:'glass', compact:false, showStats:true, showChips:true, showDashHero:true, showDashRev:true, showDashOver:true, showPomo:true, pomoWork:25, pomoBreak:5, ankiQuotaMin:90, ankiSessionMin:75, ankiIncludeNew:4, ankiMaxAnglaisFill:4 },
+    matieres: [
+      {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
+      {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
+      {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+      {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
+    ],
+    classeurs: [
+      {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter:12, interNames:{'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique','05':'Mécanique quantique'}},
+      {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter:12, interNames:{'01':'Algèbre linéaire','02':'Analyse','03':'Réduction','04':'Probabilités'}},
+      {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter:12, interNames:{'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools','04':'Atomistique'}},
+      {id:'E', name:'Classeur Anglais', icon:'🇬🇧', color:'#e07ab3', maxInter:6, interNames:{'01':'Vocabulaire scientifique','02':'Expressions'}}
+    ],
+    cours: [
+      { uid:'PH-A1B', title:'Mécanique de Newton', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-21) },
+      { uid:'PH-X9Y', title:'Thermodynamique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-18) },
+      { uid:'PH-3K9', title:'Électromagnétisme', type:'COURS', rev:'orange', mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-14) },
+      { uid:'PH-5D4', title:'Optique Ondulatoire', type:'TD', rev:'red', mat:'PHYS', cl:'A', inter:'04', stat:'active', date:_shift(-7) },
+      { uid:'MA-7Z3', title:'Espaces Vectoriels', type:'COURS', rev:'green', mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-21) },
+      { uid:'MA-P4L', title:'Séries Entières', type:'TD', rev:'orange', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-10) },
+      { uid:'MA-V6J', title:'Réduction', type:'FICHE', rev:'orange', mat:'MATH', cl:'B', inter:'03', stat:'active', date:_shift(-5) },
+      { uid:'CH-T1R', title:'Chimie Org - Alcools', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'03', stat:'active', date:_shift(-12) },
+      { uid:'CH-8M5', title:'Cinétique Chimique', type:'COURS', rev:'orange', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8) }
+    ],
+    exercices: [
+      // Cartes maîtrisées (ease haut, intervalle moyen, historique réussi)
+      { id:'PH-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen.", tempsCible:60, priorite:1, statut:'actif', intervalle:8, ease:2.75, repetitions:4, dateProchaineRevision:_shift(2), historique:histo([8,9,8,9],[55,50,48,45]), dateCreation:_dateTime(-21) },
+      { id:'PH-9XM', titre:"Rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"η de Carnot ?", reponse:"η = 1 − Tf/Tc (T en K).", tempsCible:30, priorite:2, statut:'actif', intervalle:14, ease:2.8, repetitions:5, dateProchaineRevision:_shift(7), historique:histo([8,9,10,9,10],[28,25,22,20,18]), dateCreation:_dateTime(-25) },
+      // Cartes en difficulté (ease bas, intervalle court, historique mixte)
+      { id:'MA-7QP', titre:"Diagonalisabilité", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Critère de diagonalisabilité d'un endomorphisme.", reponse:"⟺ Pol. car. scindé + dim(E_λ)=mult(λ) ∀λ.", tempsCible:90, priorite:1, statut:'actif', intervalle:1, ease:1.85, repetitions:3, dateProchaineRevision:_today, historique:histo([3,5,3,6],[120,100,140,95]), dateCreation:_dateTime(-15) },
+      { id:'MA-D6X', titre:"Série dérivée", coursIds:['MA-P4L'], mat:'MATH', profil:'EXO', question:"Σ n·x^(n−1) sur ]-1,1[ ?", reponse:"= 1/(1-x)²", tempsCible:75, priorite:1, statut:'actif', intervalle:0, ease:1.7, repetitions:2, dateProchaineRevision:_today, historique:histo([2,4,3],[110,90,105]), dateCreation:_dateTime(-12) },
+      // Cartes moyennes
+      { id:'PH-2RT', titre:"Maxwell-Faraday", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:30, priorite:2, statut:'actif', intervalle:5, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([6,7,7],[35,30,28]), dateCreation:_dateTime(-14) },
+      { id:'PH-J8L', titre:"Interférences Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Interfrange dans les fentes d'Young ?", reponse:"i = λD/a", tempsCible:90, priorite:2, statut:'actif', intervalle:3, ease:2.2, repetitions:2, dateProchaineRevision:_shift(1), historique:histo([5,6],[100,85]), dateCreation:_dateTime(-9) },
+      { id:'MA-5BD', titre:"Sous-espace vectoriel", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Définition d'un SEV.", reponse:"Stable par +, ·, contient 0_E.", tempsCible:45, priorite:2, statut:'actif', intervalle:21, ease:2.85, repetitions:6, dateProchaineRevision:_shift(14), historique:histo([9,10,9,10,9,10],[40,35,30,28,25,22]), dateCreation:_dateTime(-30) },
+      { id:'CH-T8R', titre:"Oxydation alcool primaire", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Produits d'oxydation douce d'un alcool primaire ?", reponse:"Aldéhyde (puis acide carbox. si excès).", tempsCible:45, priorite:2, statut:'actif', intervalle:7, ease:2.5, repetitions:3, dateProchaineRevision:_shift(3), historique:histo([7,8,7],[50,45,40]), dateCreation:_dateTime(-10) },
+      { id:'CH-N7G', titre:"Cinétique ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Loi d'ordre 1 intégrée et t½.", reponse:"[A]=[A]₀·exp(−kt); t½=ln2/k", tempsCible:60, priorite:1, statut:'actif', intervalle:0, ease:2.0, repetitions:1, dateProchaineRevision:_today, historique:histo([4,3],[80,75]), dateCreation:_dateTime(-7) },
+      // Réservoir : nouvelles cartes en attente
+      { id:'MA-V4N', titre:"Rayon convergence (Hadamard)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R ?", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:50, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-2) },
+      { id:'CH-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov.", reponse:"H+ sur le C le + hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-1) },
+      // Anglais (matière dédiée) — vocab + historique
+      { id:'AN-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter", tempsCible:20, priorite:2, statut:'actif', intervalle:4, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([7,8,7],[18,15,14]), dateCreation:_dateTime(-12) },
+      { id:'AN-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
+      { id:'AN-C9D', titre:"a breakthrough", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"a breakthrough", reponse:"une percée majeure", tempsCible:20, priorite:2, statut:'actif', intervalle:2, ease:2.2, repetitions:2, dateProchaineRevision:_today, historique:histo([6,7],[22,18]), dateCreation:_dateTime(-8) },
+      { id:'AN-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:20, priorite:2, statut:'actif', intervalle:15, ease:2.65, repetitions:5, dateProchaineRevision:_shift(8), historique:histo([8,9,10,9,10],[20,18,15,13,12]), dateCreation:_dateTime(-20) },
+      // Devoir auto-découpé en 3 morceaux
+      { id:'MA-DMX', titre:"DM Réduction d'endomorphismes", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 4 exercices de réduction.", reponse:"", tempsCible:4800, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(5), historique:[], _morceauxTotal:3, _morceauxFaits:0, dateCreation:_dateTime(-1) }
+    ],
+    devoirs: []
+  };
+})();
+
+
 window.isEditingMat = false;
 window.isEditingCl = false;
 window.currentEditClId = null;

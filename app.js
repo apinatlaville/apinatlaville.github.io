@@ -260,6 +260,14 @@ window.loadDemo = function() {
   }, "Mode Démonstration");
 };
 
+window.loadDemoXP = function() {
+  window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, ease variés, stats peuplées.\n\nCela remplace tes données actuelles.", async () => {
+    window.D = JSON.parse(JSON.stringify(window.demoDataXP));
+    await window.save();
+    location.reload();
+  }, "Démo expérimenté");
+};
+
 window.resetData = function() {
   window.sysConfirm("⚠ ATTENTION !\n\nCette action va TOUT effacer pour repartir de ZÉRO (app vide).\n\nEs-tu sûr ?", async () => {
     window.D = JSON.parse(JSON.stringify(window.emptyData)); 

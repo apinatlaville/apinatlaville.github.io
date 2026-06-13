@@ -544,6 +544,56 @@
     renderActiveView();
   };
 
+  // SVG line chart pour stats hebdo
+  function renderStatsCurve(week, byDay) {
+    const W = 600, H = 180, PAD_L = 32, PAD_R = 32, PAD_T = 14, PAD_B = 24;
+    const innerW = W - PAD_L - PAD_R;
+    const innerH = H - PAD_T - PAD_B;
+    const maxN = Math.max(1, ...week.map(d => byDay[d].total));
+    const xStep = innerW / Math.max(1, week.length - 1);
+    // Courbe quantité (échelle gauche, max=maxN)
+    const ptsN = week.map((d, i) => {
+      const x = PAD_L + i * xStep;
+      const y = PAD_T + innerH - (byDay[d].total / maxN) * innerH;
+      return { x, y, val: byDay[d].total, d };
+    });
+    // Courbe qualité moyenne (échelle droite, 0-10)
+    const ptsQ = week.map((d, i) => {
+      const x = PAD_L + i * xStep;
+      const q = byDay[d].total ? byDay[d].sumQ / byDay[d].total : null;
+      const y = q === null ? null : PAD_T + innerH - (q / 10) * innerH;
+      return { x, y, q, d };
+    });
+    const pathN = ptsN.map((p, i) => (i === 0 ? 'M' : 'L') + p.x + ',' + p.y).join(' ');
+    const pathQ = ptsQ.filter(p => p.y !== null).map((p, i) => (i === 0 ? 'M' : 'L') + p.x + ',' + p.y).join(' ');
+    // Aire sous la courbe quantité
+    const areaN = `${pathN} L ${ptsN[ptsN.length-1].x},${PAD_T + innerH} L ${ptsN[0].x},${PAD_T + innerH} Z`;
+    return `
+      <div class="anki-curve-wrap">
+        <svg viewBox="0 0 ${W} ${H}" class="anki-curve" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="gradN" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="var(--acc)" stop-opacity="0.4"/>
+              <stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          ${[0,0.25,0.5,0.75,1].map(t => `<line x1="${PAD_L}" x2="${W-PAD_R}" y1="${PAD_T + innerH * t}" y2="${PAD_T + innerH * t}" stroke="var(--bd)" stroke-width="1" stroke-dasharray="2,3"/>`).join('')}
+          <path d="${areaN}" fill="url(#gradN)"/>
+          <path d="${pathN}" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          ${pathQ ? `<path d="${pathQ}" fill="none" stroke="var(--gold)" stroke-width="2" stroke-dasharray="4,3" stroke-linejoin="round"/>` : ''}
+          ${ptsN.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--bg)" stroke="var(--acc)" stroke-width="2"/>`).join('')}
+          ${ptsQ.filter(p => p.y !== null).map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="var(--gold)"/>`).join('')}
+          ${ptsN.map(p => `<text x="${p.x}" y="${H-6}" text-anchor="middle" fill="var(--mut)" font-size="10" font-family="DM Mono, monospace">${p.d.substring(8) + '/' + p.d.substring(5,7)}</text>`).join('')}
+          ${ptsN.map(p => p.val ? `<text x="${p.x}" y="${p.y - 10}" text-anchor="middle" fill="var(--acc)" font-size="11" font-weight="700">${p.val}</text>` : '').join('')}
+        </svg>
+        <div class="anki-curve-legend">
+          <span><span class="anki-leg-dot" style="background:var(--acc);"></span> Nombre de cartes</span>
+          <span><span class="anki-leg-dot" style="background:var(--gold);"></span> Qualité moy. (0-10)</span>
+        </div>
+      </div>
+    `;
+  }
+
   // ====== VUE STATS ======
   function viewStats() {
     const today = window.AnkiAlgo.todayISO();
@@ -582,12 +632,13 @@
     // Stats par matière (7 derniers jours)
     const week = Array.from({ length: 7 }, (_, i) => window.AnkiAlgo.addDays(today, -6 + i));
     const byDay = {};
-    week.forEach(d => byDay[d] = { ok: 0, mid: 0, bad: 0, total: 0 });
+    week.forEach(d => byDay[d] = { ok: 0, mid: 0, bad: 0, total: 0, sumQ: 0 });
     exos.forEach(c => {
       (c.historique || []).forEach(h => {
         const d = h.date && h.date.substring(0, 10);
         if (byDay[d]) {
           byDay[d].total++;
+          byDay[d].sumQ += (h.qScore || 0);
           if ((h.qScore || 0) >= 8) byDay[d].ok++;
           else if ((h.qScore || 0) >= 4) byDay[d].mid++;
           else byDay[d].bad++;
@@ -650,24 +701,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       </div>
 
       <div class="anki-card-block">
-        <h3>📈 7 derniers jours</h3>
-        <div class="anki-week-bars">
-          ${week.map(d => {
-            const dy = byDay[d];
-            const pct = Math.round((dy.total / maxDay) * 100);
-            const dd = d.substring(8) + '/' + d.substring(5,7);
-            const isToday = d === today;
-            return `<div class="anki-week-col ${isToday ? 'today' : ''}" title="${d} — ${dy.total} cartes (✅${dy.ok} 🟡${dy.mid} ❌${dy.bad})">
-              <div class="anki-week-bar-wrap">
-                <div class="anki-week-bar-g" style="height:${dy.total ? (dy.ok / dy.total) * pct : 0}%;background:var(--grn);"></div>
-                <div class="anki-week-bar-m" style="height:${dy.total ? (dy.mid / dy.total) * pct : 0}%;background:var(--gold);"></div>
-                <div class="anki-week-bar-b" style="height:${dy.total ? (dy.bad / dy.total) * pct : 0}%;background:var(--red);"></div>
-              </div>
-              <div class="anki-week-lbl">${dd}</div>
-              <div class="anki-week-n">${dy.total || ''}</div>
-            </div>`;
-          }).join('')}
-        </div>
+        <h3>📈 Évolution sur 7 jours</h3>
+        <p class="anki-mut" style="font-size:11px;margin-bottom:10px;">Courbe du nombre de cartes révisées par jour + courbe de la qualité moyenne (0-10).</p>
+        ${renderStatsCurve(week, byDay)}
       </div>
 
       <div class="anki-card-block">
@@ -706,9 +742,51 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     return `
       <div class="anki-card-block">
-        <h3>🔬 Comment pense l'algorithme ?</h3>
-        <p class="anki-mut">Chaque carte reçoit un <strong>score d'urgence</strong>. Tous les coefficients sont modifiables dans Réglages.</p>
-        <pre class="anki-formula">urgence = ${coefs.W_retard}·retard + ${coefs.W_proche}·exp(-Δ/${coefs.TAU}) + ${coefs.W_priorite}·priorité + ${coefs.W_nouveau}·nouveau + ${coefs.W_ease}·(3−ease)</pre>
+        <h3>📖 Comment fonctionne le Synchrotron ?</h3>
+        <details open class="anki-explain">
+          <summary><b>🎯 Principe : le coefficient d'urgence règne</b></summary>
+          <p>Chaque carte reçoit en temps réel un <b>score d'urgence</b> qui résume tout ce qui compte : retard, proximité de la date prévue, priorité que tu as donnée, nouveauté, et difficulté (ease). L'algorithme trie TOUTES tes cartes par ce score, prend les plus urgentes jusqu'à remplir 92% du budget temps de la session, puis intercale longues et courtes pour ne pas t'épuiser.</p>
+        </details>
+        <details class="anki-explain">
+          <summary><b>📐 Formule du score d'urgence</b></summary>
+          <pre class="anki-formula">urgence = ${coefs.W_retard}·retard + ${coefs.W_proche}·exp(-Δ/${coefs.TAU}) + ${coefs.W_priorite}·priorité + ${coefs.W_nouveau}·nouveau + ${coefs.W_ease}·(3−ease)</pre>
+          <ul class="anki-explain-list">
+            <li><b>retard</b> = jours de retard (0 si à jour, +1 par jour)</li>
+            <li><b>Δ</b> = jours restants avant la date prévue (négatif si futur)</li>
+            <li><b>priorité</b> = 2 si Urgence, 1 si Normale, 0.3 si Faible</li>
+            <li><b>nouveau</b> = 1 si la carte est en réservoir, 0 sinon</li>
+            <li><b>ease</b> = facilité (1.3 = très dur, 3.0 = très facile). Plus l'ease est bas, plus tu galères → urgence augmente.</li>
+          </ul>
+        </details>
+        <details class="anki-explain">
+          <summary><b>📊 Comment évoluent ease et intervalle ?</b></summary>
+          <p>Quand tu évalues une carte (slider 1-10 ou bouton) :</p>
+          <ul class="anki-explain-list">
+            <li><b>qScore ≤ 3</b> (blocage) → reset à 0 jour, ease −0.20</li>
+            <li><b>qScore 4-7</b> (étourderie) → intervalle court, ease s'ajuste</li>
+            <li><b>qScore ≥ 8</b> (parfait) → intervalle long, ease +0.05 à +0.15</li>
+          </ul>
+          <p><b>Pénalité vitesse</b> : si tu mets > 1.5× le temps cible, intervalle ×0.7. Si > 2× → ×0.5. Si rapide (&lt; 0.7×) → bonus ×1.15.</p>
+          <p><b>Profils</b> : chaque carte appartient à un profil (ANGLAIS/FORMULE/COURS/EXO) avec des étapes pré-définies (ex: ANGLAIS = [1,2,4,8,15,30] jours). Tu peux modifier ces étapes dans <b>Réglages</b>.</p>
+        </details>
+        <details class="anki-explain">
+          <summary><b>🌅 Décalage automatique et load balancing</b></summary>
+          <p>Si tu rates une journée, toutes les cartes <i>en retard</i> sont automatiquement glissées à aujourd'hui. Le bouton <b>⚖️ Rééquilibrer</b> dans Prévisions détecte les pics (jour avec > 75 min de révisions) et redistribue les cartes les moins prioritaires vers les jours adjacents (j-1, j+1, j-2, j+2...) jusqu'à lisser la charge.</p>
+        </details>
+        <details class="anki-explain">
+          <summary><b>🃏 Intercalation longues / courtes / matières</b></summary>
+          <p>Dans une session, l'algo construit la file ainsi :</p>
+          <ol class="anki-explain-list">
+            <li>Tri par urgence ↓ → on prend tant que ça rentre dans 92% du budget</li>
+            <li>Remplissage avec max 5 cartes courtes (anglais) si reste du temps</li>
+            <li>Intercalation : long → court → long → court (en gardant l'ordre d'urgence dans chaque catégorie)</li>
+            <li>Le drag-drop dans le Cockpit te permet de réorganiser comme tu veux</li>
+          </ol>
+        </details>
+      </div>
+
+      <div class="anki-card-block">
+        <h3>🔬 Top 30 — décomposition du score</h3>
         <div class="anki-coef-row">
           <span><b>W_retard</b> ${coefs.W_retard}</span>
           <span><b>W_proche</b> ${coefs.W_proche}</span>
@@ -717,10 +795,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <span><b>W_nouveau</b> ${coefs.W_nouveau}</span>
           <span><b>W_ease</b> ${coefs.W_ease}</span>
         </div>
-      </div>
-
-      <div class="anki-card-block">
-        <h3>Top 30 — décomposition du score</h3>
         <div class="anki-diag-table-wrap">
           <table class="anki-diag-table">
             <thead><tr><th>ID</th><th>Mat.</th><th>Titre</th><th>Date prév.</th><th>ease</th><th>int.</th><th>rep.</th><th>retard</th><th>proche</th><th>prio</th><th>new</th><th>ease·w</th><th>TOTAL</th></tr></thead>
@@ -759,7 +833,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
             <span class="anki-log-action">${l.action}</span>
             <span class="anki-log-details">${esc(JSON.stringify(l.details))}</span>
           </div>
-        `).join('') : '<div class="anki-empty">Aucune décision encore enregistrée.</div>'}
+        `).join('') : '<div class="anki-empty">Aucune décision encore enregistrée. Lance une session de révision pour peupler le journal.</div>'}
       </div>
     `;
   }
