@@ -173,6 +173,7 @@
     const isLate = c.dateProchaineRevision && c.dateProchaineRevision < today;
     const urg = window.AnkiAlgo.urgenceScore(c, today);
     const isDevoir = c.type === 'devoir';
+    const tempsMin = ((c.tempsCible || 60) / 60).toFixed(1).replace(/\.0$/, '');
     return `
       <div class="anki-q-row ${isDevoir ? 'devoir' : ''}" draggable="true" data-id="${c.id}" data-idx="${i}">
         <span class="anki-q-handle" title="Glisser">⋮⋮</span>
@@ -180,7 +181,12 @@
         <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? '📝' : m.label}</div>
         <div class="anki-q-body" onclick="window.startAnkiSingle('${c.id}')">
           <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}</div>
-          <div class="anki-q-meta">${c.id} · ⏱ ${window.AnkiAlgo.fmtDur(c.tempsCible || 60)} · urgence ${urg.total.toFixed(1)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
+          <div class="anki-q-meta">${c.id} · urgence ${urg.total.toFixed(1)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
+        </div>
+        <div class="anki-q-time" onclick="event.stopPropagation();">
+          <input type="number" min="0.25" max="600" step="0.25" value="${tempsMin}" title="Temps en minutes — éditable"
+            onchange="window.ankiUpdateTemps('${c.id}', this.value)">
+          <span class="anki-mut">min</span>
         </div>
         <div class="anki-q-go" onclick="window.startAnkiSingle('${c.id}')">▶</div>
       </div>
@@ -290,6 +296,15 @@
   window.ankiSelectAllDue = function () {
     window.AnkiAlgo.getCandidates(window.D.exercices).forEach(x => S.selectionIds.add(x.card.id));
     renderActiveView();
+  };
+  window.ankiUpdateTemps = function (id, valMin) {
+    const c = window.D.exercices.find(x => x.id === id);
+    if (!c) return;
+    const sec = Math.round((parseFloat(valMin) || 1) * 60);
+    c.tempsCible = sec;
+    window.AnkiAlgo.log("update-temps", { id, sec });
+    window.save();
+    refreshQueueOnly();
   };
   window.ankiResetManualOrder = function () {
     S.manualOrder = null;
@@ -448,7 +463,8 @@
             const cards = sch[d];
             const total = cards.reduce((s, c) => s + (c.tempsCible || 60), 0);
             const isToday = d === window.AnkiAlgo.todayISO();
-            const open = S.expandedDay === d || cards.length <= 3 || isToday;
+            // Par défaut tout fermé ; ouvert SI l'utilisateur a cliqué
+            const open = S.expandedDay === d;
             if (!cards.length) return '';
             return `
               <div class="anki-cal-day ${isToday ? 'today' : ''}">
@@ -516,7 +532,7 @@
         <h3>Top 30 — décomposition du score</h3>
         <div class="anki-diag-table-wrap">
           <table class="anki-diag-table">
-            <thead><tr><th>ID</th><th>Mat.</th><th>Titre</th><th>Date</th><th>retard</th><th>proche</th><th>prio</th><th>new</th><th>ease</th><th>TOTAL</th></tr></thead>
+            <thead><tr><th>ID</th><th>Mat.</th><th>Titre</th><th>Date prév.</th><th>ease</th><th>int.</th><th>rep.</th><th>retard</th><th>proche</th><th>prio</th><th>new</th><th>ease·w</th><th>TOTAL</th></tr></thead>
             <tbody>
               ${cands.map(({ card, score }) => {
                 const m = mat(card.mat);
@@ -525,6 +541,9 @@
                   <td><span class="anki-q-mat" style="background:${m.color};">${m.label}</span></td>
                   <td>${esc((card.titre || card.question || '').substring(0, 40))}</td>
                   <td>${card.dateProchaineRevision || '—'}</td>
+                  <td><b style="color:var(--acc);">${(card.ease || 2.5).toFixed(2)}</b></td>
+                  <td><b>${card.intervalle || 0}j</b></td>
+                  <td>${card.repetitions || 0}</td>
                   <td>${score.breakdown.retard}</td>
                   <td>${score.breakdown.proche}</td>
                   <td>${score.breakdown.priorite}</td>
@@ -532,7 +551,7 @@
                   <td>${score.breakdown.ease}</td>
                   <td><strong>${score.total}</strong></td>
                 </tr>`;
-              }).join('') || '<tr><td colspan="10" class="anki-mut">Aucune carte</td></tr>'}
+              }).join('') || '<tr><td colspan="13" class="anki-mut">Aucune carte</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -773,6 +792,8 @@
     qScore = Math.max(0, Math.min(10, qScore));
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     const tps = S.chronoElapsed;
+    const easeAvant = S.current.ease || 2.5;
+    const intAvant = S.current.intervalle || 0;
     const out = window.AnkiAlgo.computeNextInterval(S.current, qScore, tps);
     if (S.mode !== "colle") {
       S.current.intervalle = out.intervalle; S.current.ease = out.ease;
@@ -791,7 +812,13 @@
     const btn = window.AnkiAlgo.qScoreToButton(qScore);
     if (btn === 0) S.stats.bad++; else if (btn === 1) S.stats.mid++; else S.stats.ok++;
     if (qScore <= 3 && S.mode !== "colle") S.queue.push(S.current);
-    window.AnkiAlgo.log("eval", { id: S.current.id, qScore, interval: out.intervalle, ease: out.ease });
+    window.AnkiAlgo.log("eval", {
+      id: S.current.id,
+      qScore,
+      ease: easeAvant + "→" + out.ease,
+      intervalle: intAvant + "→" + out.intervalle + "j",
+      next: out.dateProchaineRevision
+    });
     if (window.D.settings) window.D.settings.ankiLastSession = window.AnkiAlgo.todayISO();
     window.save(); nextCard();
   };

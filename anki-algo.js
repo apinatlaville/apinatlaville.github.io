@@ -186,15 +186,13 @@
     };
   };
 
-  // ===== Cartes à proposer aujourd'hui (toutes celles avec urgence ≥ seuil) =====
+  // ===== Cartes à proposer aujourd'hui (TOUTES, triées par urgence — le coef gère tout) =====
   ALGO.getCandidates = function (exercices, refIso) {
     const ref = refIso || ALGO.todayISO();
-    const seuil = (window.D && window.D.settings && window.D.settings.ankiUrgenceSeuil) || 1.5;
     if (!Array.isArray(exercices)) return [];
     return exercices
       .filter(c => c.statut === 'actif' || c.statut === 'attente')
       .map(c => ({ card: c, score: ALGO.urgenceScore(c, ref) }))
-      .filter(x => x.score.total >= seuil || x.card.statut === 'actif' && (x.card.dateProchaineRevision || ref) <= ref)
       .sort((a, b) => b.score.total - a.score.total);
   };
 
@@ -219,18 +217,19 @@
       }
       buckets[k] = out;
     });
-    // 2) Round-robin par matière en évitant 2 longues à la suite
+    // 2) Round-robin par matière en évitant 2 mêmes matières à la suite + alternance long/court
     const out = [];
     const matKeys = Object.keys(buckets).sort();
     let lastDur = 0;
+    let lastMat = null;
     while (matKeys.some(k => buckets[k].length)) {
-      // Tente d'alterner les durées
       let chosen = null, chosenKey = null;
+      // 1ère passe : préfère une matière différente de la dernière
       for (const k of matKeys) {
         if (!buckets[k].length) continue;
+        if (k === lastMat && matKeys.filter(m => buckets[m].length).length > 1) continue;
         const cand = buckets[k][0];
-        if (chosen === null) { chosen = cand; chosenKey = k; }
-        // Préfère alternance : si dernière était longue, prends courte
+        if (chosen === null) { chosen = cand; chosenKey = k; continue; }
         const cantDur = cand.tempsCible || 0;
         const chosenDur = chosen.tempsCible || 0;
         if (lastDur > 0) {
@@ -239,64 +238,134 @@
           }
         }
       }
+      // Fallback : si rien (toutes filtrées) → on prend même matière
+      if (!chosen) {
+        for (const k of matKeys) {
+          if (buckets[k].length) { chosen = buckets[k][0]; chosenKey = k; break; }
+        }
+      }
       out.push(chosen);
       buckets[chosenKey].shift();
       lastDur = chosen.tempsCible || 0;
+      lastMat = chosenKey;
     }
     return out;
   };
 
-  // ===== Build session =====
-  // opts : { sessionMinutes, includeNew, selectedIds, includeDevoirs, manualOrder }
+  // ===== Build session — VERSION URGENCE FIRST =====
+  // Stratégie :
+  //  1) Tri par urgence ↓ (file naturelle)
+  //  2) On prend tant que ça rentre dans (budget × 0.92) → marge de sécurité
+  //  3) Réorganisation intelligente : on garde le 1er urgent (au cas où l'utilisateur s'arrête)
+  //     puis on intercale long/court + on insère des cartes ANGLAIS courtes pour combler les trous
+  //  4) Si selectedIds : on respecte cette restriction
   ALGO.buildSession = function (exercices, opts) {
     const o = Object.assign({
       sessionMinutes: 60,
       includeNew: 5,
       selectedIds: null,
-      includeDevoirs: true,
-      manualOrder: null  // si fourni : array d'IDs respectés tel quel
+      marge: 0.92,        // 8% de marge
+      manualOrder: null
     }, opts || {});
 
-    const cands = ALGO.getCandidates(exercices, ALGO.todayISO());
-    let due = cands.filter(x => x.card.statut === 'actif').map(x => x.card);
-    let nouvelles = cands.filter(x => x.card.statut === 'attente').map(x => x.card);
+    const ref = ALGO.todayISO();
+    const all = ALGO.getCandidates(exercices, ref);
+    let pool = all.map(x => x.card);
 
     if (o.selectedIds && o.selectedIds.length) {
       const set = new Set(o.selectedIds);
-      due = due.filter(c => set.has(c.id));
-      nouvelles = nouvelles.filter(c => set.has(c.id));
+      pool = pool.filter(c => set.has(c.id));
     }
-    nouvelles = nouvelles.slice(0, o.includeNew);
 
-    let queue;
+    // Limite des nouvelles (statut='attente')
+    let newCount = 0;
+    pool = pool.filter(c => {
+      if (c.statut === 'attente') {
+        if (newCount >= o.includeNew) return false;
+        newCount++;
+      }
+      return true;
+    });
+
     if (o.manualOrder && o.manualOrder.length) {
-      // Respecte l'ordre manuel
       const map = {};
-      [...due, ...nouvelles].forEach(c => { map[c.id] = c; });
-      queue = o.manualOrder.map(id => map[id]).filter(Boolean);
-    } else {
-      // Tri intelligent automatique
-      queue = ALGO.smartOrder([...due, ...nouvelles]);
+      pool.forEach(c => { map[c.id] = c; });
+      const ordered = o.manualOrder.map(id => map[id]).filter(Boolean);
+      // Limite budget
+      const budget = (o.sessionMinutes || 60) * 60 * o.marge;
+      const result = []; let used = 0;
+      for (const c of ordered) {
+        const t = c.tempsCible || 60;
+        if (used + t > budget && result.length) break;
+        result.push(c); used += t;
+      }
+      return {
+        cartes: result, tempsTotalPrev: used,
+        countDue: ordered.filter(c=>c.statut==='actif').length,
+        countNew: ordered.filter(c=>c.statut==='attente').length,
+        reportees: ordered.filter(c => !result.includes(c))
+      };
     }
 
-    // Limite budget temps
-    const budget = (o.sessionMinutes || 60) * 60;
-    const result = [];
-    let used = 0;
-    for (const c of queue) {
+    // ===== Phase 1 : sélection par urgence + budget =====
+    const budget = (o.sessionMinutes || 60) * 60 * o.marge;
+    const selected = []; let used = 0;
+    for (const c of pool) {
       const t = c.tempsCible || 60;
-      if (o.sessionMinutes && used + t > budget && result.length > 0) break;
-      result.push(c);
-      used += t;
+      if (used + t > budget && selected.length) continue; // skip mais essaie les suivantes plus courtes
+      selected.push(c); used += t;
     }
+
+    // ===== Phase 2 : remplissage anglais (cartes courtes ≤ 60s) =====
+    const reste = budget - used;
+    if (reste > 30) {
+      const anglais = (exercices || [])
+        .filter(c => !selected.includes(c)
+          && (c.profil === 'ANGLAIS' || (c.tempsCible || 60) <= 60)
+          && (c.statut === 'actif' || c.statut === 'attente'))
+        .map(c => ({ card: c, score: ALGO.urgenceScore(c, ref) }))
+        .sort((a, b) => b.score.total - a.score.total)
+        .map(x => x.card);
+      for (const c of anglais) {
+        const t = c.tempsCible || 60;
+        if (used + t > budget) break;
+        selected.push(c); used += t;
+      }
+    }
+
+    // ===== Phase 3 : réorganisation long/court avec préservation des urgents =====
+    const arranged = ALGO.arrangeUrgentFirst(selected);
+
     return {
-      cartes: result,
+      cartes: arranged,
       tempsTotalPrev: used,
-      countDue: due.length,
-      countNew: nouvelles.length,
-      reportees: queue.filter(c => !result.includes(c))
+      countDue: arranged.filter(c => c.statut === 'actif').length,
+      countNew: arranged.filter(c => c.statut === 'attente').length,
+      reportees: pool.filter(c => !selected.includes(c))
     };
   };
+
+  // ===== Arrangement : intercalation longues/courtes en PRÉSERVANT l'ordre d'urgence =====
+  ALGO.arrangeUrgentFirst = function (cards) {
+    if (!cards || cards.length <= 1) return cards;
+    // Sépare courtes (≤90s) et longues (>90s) — l'ordre d'urgence est déjà dans 'cards'
+    const courtes = cards.filter(c => (c.tempsCible || 60) <= 90);
+    const longues = cards.filter(c => (c.tempsCible || 60) > 90);
+    if (!courtes.length) return longues;
+    if (!longues.length) return courtes;
+    // Intercalation : long → court → long → court...
+    // L'ordre d'urgence est respecté car les listes sont déjà triées dans 'cards'
+    const out = [];
+    let li = 0, ci = 0;
+    while (li < longues.length || ci < courtes.length) {
+      if (li < longues.length) out.push(longues[li++]);
+      if (ci < courtes.length) out.push(courtes[ci++]);
+    }
+    return out;
+  };
+
+  // Alias rétrocompat (anki-quick.js et code legacy)
+  ALGO.interleave = function (cards) { return ALGO.smartOrder(cards); };
 
   // ===== Load balancing BIDIRECTIONNEL =====
   // Si j+5 dépasse maxPerDay → cherche j+4, j+6, j+3, j+7… (étoile)

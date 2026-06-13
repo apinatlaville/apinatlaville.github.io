@@ -1228,3 +1228,33 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
   min-width: 90px;
 }
 .anki-log-details { color: var(--txt); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Temps éditable inline dans la file */
+.anki-q-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--bd);
+  margin: 0 6px;
+}
+.anki-q-time input {
+  width: 50px;
+  background: transparent;
+  border: none;
+  color: var(--txt);
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.anki-q-time input::-webkit-outer-spin-button,
+.anki-q-time input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.anki-q-time input:focus { outline: 1px solid var(--acc); }
+.anki-q-time .anki-mut { font-size: 10px; }
+

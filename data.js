@@ -48,11 +48,13 @@ window.emptyData = {
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
     {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+    {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
   ],
   classeurs: [
     {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter: 12, interNames: {}},
     {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {}},
     {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {}},
+    {id:'E', name:'Classeur Anglais', icon:'🇬🇧', color:'#e07ab3', maxInter: 6, interNames: {}},
   ],
   cours: [],
   exercices: [],
@@ -65,11 +67,13 @@ window.demoData = {
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
     {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+    {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
   ],
   classeurs: [
     {id:'A', name:'Classeur Phys A', icon:'📘', color:'#5b8df7', maxInter: 12, interNames: {'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique'}},
     {id:'B', name:'Classeur Maths B', icon:'📙', color:'#f0c060', maxInter: 12, interNames: {'01':'Algèbre linéaire','02':'Analyse','03':'Réduction'}},
     {id:'C', name:'Classeur Chim C', icon:'📗', color:'#50d890', maxInter: 12, interNames: {'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools'}},
+    {id:'E', name:'Classeur Anglais', icon:'🇬🇧', color:'#e07ab3', maxInter: 6, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
   ],
   cours: [
     { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: '2026-04-01' },
@@ -83,26 +87,38 @@ window.demoData = {
     { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: '2026-04-05' },
     { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: '2026-04-05' }
   ],
-  exercices: [
-    // ⚡ Cartes COURS / EXO PC* — durées en minutes converties en secondes (×60)
-    { id:'PH-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique (système matériel).", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Référentiel galiléen.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], epinglee:true, dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'PH-9XM', titre:"Rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"Rendement du cycle de Carnot.", reponse:"η = 1 − Tf/Tc (T en Kelvin, Tc>Tf).", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'PH-2RT', titre:"Maxwell-Faraday", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation de Maxwell-Faraday (forme locale).", reponse:"rot(E) = −∂B/∂t", tempsCible:540, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'PH-J8L', titre:"Interférences à 2 ondes", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Calcul de l'interfrange dans le dispositif des fentes d'Young.", reponse:"i = λD/a (D distance fentes-écran, a écartement).", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:'2026-01-02', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'MA-5BD', titre:"Sous-espace vectoriel", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Définition d'un sous-espace vectoriel.", reponse:"Stable par + et par ·, contient 0_E.", tempsCible:900, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'MA-7QP', titre:"Diagonalisabilité", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Critère de diagonalisabilité d'un endomorphisme.", reponse:"⟺ polynôme caractéristique scindé + dim(E_λ) = mult(λ) pour tout λ.", tempsCible:1800, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'MA-V4N', titre:"Rayon convergence Hadamard", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Rayon de convergence d'une série entière (Hadamard).", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:720, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'MA-D6X', titre:"Série dérivée", coursIds:['MA-P4L'], mat:'MATH', profil:'EXO', question:"Calcule Σ n·x^(n−1) sur ]-1,1[.", reponse:"= 1/(1-x)² (dérivation terme à terme).", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:'2026-01-03', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'CH-T8R', titre:"Oxydation alcool primaire", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Produits d'oxydation douce d'un alcool primaire.", reponse:"Aldéhyde (puis acide carboxylique si oxydant en excès).", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'CH-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov (addition électrophile).", reponse:"H+ s'additionne sur le carbone le plus hydrogéné de la double liaison.", tempsCible:540, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    { id:'CH-N7G', titre:"Cinétique ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Loi de vitesse d'ordre 1 : intégration.", reponse:"[A](t) = [A]₀·exp(−kt) ; t½ = ln2/k.", tempsCible:900, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-01T08:00:00Z' },
-    // 🇬🇧 Cartes ANGLAIS rapides (15-30s)
-    { id:'PH-A2C', titre:"to elicit", coursIds:[], mat:'PHYS', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter (une réaction, une réponse)", tempsCible:20, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-02T09:00:00Z' },
-    { id:'PH-B7E', titre:"to bridge the gap", coursIds:[], mat:'PHYS', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé / l'écart", tempsCible:20, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:'2026-01-01', historique:[], dateCreation:'2026-01-02T09:00:00Z' },
-    { id:'PH-C9D', titre:"a breakthrough", coursIds:[], mat:'PHYS', profil:'ANGLAIS', question:"a breakthrough", reponse:"une percée / une avancée majeure", tempsCible:20, priorite:3, statut:'attente', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:'2026-01-02T09:00:00Z' },
-    // 📝 Devoir spécial (DM) avec découpage
-    { id:'MA-DM1', titre:"DM Algèbre linéaire chap.2", coursIds:['MA-7Z3'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : exercices 1 à 6 chapitre Algèbre linéaire.", reponse:"", tempsCible:5400, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:'2026-01-02', dateLimite:'2026-01-10', historique:[], _morceauxTotal:3, _morceauxFaits:0, dateCreation:'2026-01-02T09:00:00Z' }
-  ],
+  exercices: (function(){
+    // Dates dynamiques : relatives au jour courant (toujours cohérentes)
+    const _d = new Date(); _d.setHours(0,0,0,0);
+    const _today = _d.toISOString().split('T')[0];
+    const _shift = (n) => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; };
+    return [
+      // ⚡ Cartes COURS / EXO PC* — durées en minutes ×60 ; dates relatives à aujourd'hui
+      // 2 en retard (urgence élevée)
+      { id:'PH-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique (système matériel).", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Référentiel galiléen.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(-2), historique:[], epinglee:true, dateCreation:_today },
+      { id:'PH-9XM', titre:"Rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"Rendement du cycle de Carnot.", reponse:"η = 1 − Tf/Tc (T en Kelvin, Tc>Tf).", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(-1), historique:[], dateCreation:_today },
+      // 3 dues aujourd'hui
+      { id:'PH-2RT', titre:"Maxwell-Faraday", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation de Maxwell-Faraday (forme locale).", reponse:"rot(E) = −∂B/∂t", tempsCible:540, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'MA-5BD', titre:"Sous-espace vectoriel", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Définition d'un sous-espace vectoriel.", reponse:"Stable par + et par ·, contient 0_E.", tempsCible:900, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'CH-T8R', titre:"Oxydation alcool primaire", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Produits d'oxydation douce d'un alcool primaire.", reponse:"Aldéhyde (puis acide carboxylique si oxydant en excès).", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      // 4 prochains jours (futur proche)
+      { id:'PH-J8L', titre:"Interférences à 2 ondes", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Calcul de l'interfrange dans le dispositif des fentes d'Young.", reponse:"i = λD/a (D distance fentes-écran, a écartement).", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'MA-7QP', titre:"Diagonalisabilité", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Critère de diagonalisabilité d'un endomorphisme.", reponse:"⟺ polynôme caractéristique scindé + dim(E_λ) = mult(λ) pour tout λ.", tempsCible:1800, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
+      { id:'MA-D6X', titre:"Série dérivée", coursIds:['MA-P4L'], mat:'MATH', profil:'EXO', question:"Calcule Σ n·x^(n−1) sur ]-1,1[.", reponse:"= 1/(1-x)² (dérivation terme à terme).", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(3), historique:[], dateCreation:_today },
+      { id:'CH-N7G', titre:"Cinétique ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Loi de vitesse d'ordre 1 : intégration.", reponse:"[A](t) = [A]₀·exp(−kt) ; t½ = ln2/k.", tempsCible:900, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(4), historique:[], dateCreation:_today },
+      // Réservoir (nouvelles)
+      { id:'MA-V4N', titre:"Rayon convergence Hadamard", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Rayon de convergence d'une série entière (Hadamard).", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:720, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
+      { id:'CH-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov (addition électrophile).", reponse:"H+ s'additionne sur le carbone le plus hydrogéné de la double liaison.", tempsCible:540, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
+      // 🇬🇧 ANGLAIS (matière dédiée ANGL) — courtes, pour combler les trous
+      { id:'AN-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter (une réaction, une réponse)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'AN-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé / l'écart", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'AN-C9D', titre:"a breakthrough", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"a breakthrough", reponse:"une percée / une avancée majeure", tempsCible:30, priorite:3, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'AN-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'AN-H6N', titre:"comprehensive", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"comprehensive (study)", reponse:"exhaustif / complet (≠ 'compréhensif')", tempsCible:30, priorite:2, statut:'attente', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
+      // 📝 Devoir spécial (DM) avec découpage en 3 morceaux
+      { id:'MA-DM1', titre:"DM Algèbre linéaire chap.2", coursIds:['MA-7Z3'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : exercices 1 à 6 chapitre Algèbre linéaire.", reponse:"", tempsCible:5400, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), dateLimite:_shift(7), historique:[], _morceauxTotal:3, _morceauxFaits:0, dateCreation:_today }
+    ];
+  })(),
   devoirs: [
     { id:'DM-PH1', mat:'PHYS', titre:'DM Mécanique chap.1', dateLimite:'2026-01-15', dureeMin:30 },
     { id:'DM-MA1', mat:'MATH', titre:'DM Algèbre linéaire', dateLimite:'2026-01-12', dureeMin:25 }
