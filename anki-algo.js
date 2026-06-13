@@ -418,22 +418,17 @@
     return { moves, charge, buckets };
   };
 
-  // ===== Décalage automatique du programme si session ratée =====
-  // Si la veille (ou avant) avait des cartes dues non révisées → décale TOUTES les cartes futures d'1 jour
+  // ===== Décalage automatique : toute carte dont dueDate < today est replacée à today =====
   ALGO.shiftProgramIfMissed = function (exercices) {
     const today = ALGO.todayISO();
-    const yesterday = ALGO.addDays(today, -1);
-    const lastSession = (window.D && window.D.settings && window.D.settings.ankiLastSession) || null;
-    if (lastSession && lastSession >= yesterday) return { shifted: 0 };
-    // Compte cartes dues hier non révisées
     const skipped = (exercices || []).filter(c =>
       c.statut === 'actif' &&
       c.dateProchaineRevision &&
-      c.dateProchaineRevision < today &&
-      (!c.historique || !c.historique.length || c.historique[c.historique.length - 1].date.substring(0,10) < today)
+      c.dateProchaineRevision < today
     );
     if (!skipped.length) return { shifted: 0 };
     skipped.forEach(c => {
+      c._shiftedFrom = c.dateProchaineRevision;
       c.dateProchaineRevision = today;
       c._shiftedFromMiss = true;
     });

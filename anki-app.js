@@ -69,6 +69,7 @@
         <button class="anki-tab ${S.view === 'cockpit' ? 'on' : ''}" onclick="window.ankiSetView('cockpit')">🎛 Cockpit</button>
         <button class="anki-tab ${S.view === 'library' ? 'on' : ''}" onclick="window.ankiSetView('library')">📚 Bibliothèque</button>
         <button class="anki-tab ${S.view === 'forecast' ? 'on' : ''}" onclick="window.ankiSetView('forecast')">📅 Prévisions</button>
+        <button class="anki-tab ${S.view === 'stats' ? 'on' : ''}" onclick="window.ankiSetView('stats')">📊 Stats</button>
         <button class="anki-tab ${S.view === 'diag' ? 'on' : ''}" onclick="window.ankiSetView('diag')">🔬 Diagnostic</button>
         <button class="anki-tab ${S.view === 'settings' ? 'on' : ''}" onclick="window.ankiSetView('settings')">⚙️ Réglages</button>
       </div>
@@ -93,6 +94,7 @@
     if (S.view === "cockpit")    c.innerHTML = viewCockpit();
     else if (S.view === "library")  c.innerHTML = viewLibrary();
     else if (S.view === "forecast") c.innerHTML = viewForecast();
+    else if (S.view === "stats")    c.innerHTML = viewStats();
     else if (S.view === "diag")     c.innerHTML = viewDiag();
     else if (S.view === "settings") c.innerHTML = viewSettings();
     bindDragDrop();
@@ -104,6 +106,8 @@
     const sessionMin = settings.ankiSessionMin || 60;
     const includeNew = settings.ankiIncludeNew !== undefined ? settings.ankiIncludeNew : 5;
     const selectedIds = Array.from(S.selectionIds);
+    const isManualMode = selectedIds.length > 0 || S.manualOrder;
+
     const plan = window.AnkiAlgo.buildSession(window.D.exercices, {
       sessionMinutes: sessionMin,
       includeNew,
@@ -114,20 +118,21 @@
     const cartes = plan.cartes;
     const total = plan.tempsTotalPrev;
 
+    // Bloc 1 : file (auto OU manuelle selon ce que l'utilisateur a coché)
     let html = `
-      <div class="anki-card-block">
+      <div class="anki-card-block ${isManualMode ? 'manual' : 'auto'}">
         <div class="anki-block-hdr">
           <div>
-            <h3>File de session <span class="anki-mut">(${cartes.length} cartes · ${window.AnkiAlgo.fmtDur(total)})</span></h3>
-            <p class="anki-mut">${plan.countDue} dues · ${plan.countNew} nouvelles · ${S.manualOrder ? '<span style="color:var(--gold);">Ordre manuel</span>' : '<span style="color:var(--grn);">Ordre auto (algo)</span>'}</p>
+            <h3>${isManualMode ? '✋ File MANUELLE' : '🤖 File AUTOMATIQUE'} <span class="anki-mut">(${cartes.length} cartes · ${window.AnkiAlgo.fmtDur(total)})</span></h3>
+            <p class="anki-mut">${plan.countDue} dues · ${plan.countNew} nouvelles · ${isManualMode ? '<span style="color:var(--gold);">Ta sélection / ton ordre</span>' : '<span style="color:var(--grn);">L&apos;algorithme choisit pour toi</span>'}</p>
           </div>
           <div class="anki-block-actions">
             <button class="bs" onclick="window.ankiQuickEditSession()">⏱ ${sessionMin} min</button>
-            ${S.manualOrder ? `<button class="bs" onclick="window.ankiResetManualOrder()">↺ Auto</button>` : ''}
+            ${isManualMode ? `<button class="bs" onclick="window.ankiBackToAuto()">↺ Revenir à l'auto</button>` : ''}
             <button class="bp" onclick="window.startAnkiSession()" ${cartes.length === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>▶ Commencer</button>
           </div>
         </div>
-        <p class="anki-mut" style="font-size:11px;margin:0 0 8px;">💡 Glisse-dépose les cartes pour personnaliser l'ordre. Clique sur une carte pour la réviser immédiatement.</p>
+        <p class="anki-mut" style="font-size:11px;margin:0 0 8px;">💡 Glisse-dépose les cartes pour personnaliser l'ordre. Clique sur une carte pour la réviser tout de suite.</p>
         <div class="anki-queue" id="ankiQueueDrop">
           ${cartes.length === 0 ? '<div class="anki-empty">Aucune carte à réviser. 🎉</div>' : cartes.map((c, i) => renderQueueRow(c, i)).join('')}
         </div>
@@ -135,37 +140,70 @@
       </div>
     `;
 
-    // Sélection manuelle (sans re-render complet → fix bug page blanche)
+    // Bloc 2 : sélection / recherche dans toutes les cartes
+    const allCards = (window.D.exercices || []).filter(c => c.statut === 'actif' || c.statut === 'attente');
     const candidats = window.AnkiAlgo.getCandidates(window.D.exercices)
       .map(x => ({ ...x.card, _urg: x.score.total }));
+    const cockpitSearch = S.cockpitSearch || '';
+    let displayList = candidats;
+    if (cockpitSearch) {
+      const q = cockpitSearch.toLowerCase();
+      displayList = allCards.filter(c =>
+        ((c.titre || '') + ' ' + (c.question || '') + ' ' + (c.id || '')).toLowerCase().includes(q)
+      ).map(c => {
+        const urg = window.AnkiAlgo.urgenceScore(c).total;
+        return { ...c, _urg: urg };
+      });
+    }
+
     html += `
       <div class="anki-card-block">
         <div class="anki-block-hdr">
-          <h3>Sélection manuelle <span class="anki-mut">(triée par urgence ↓)</span></h3>
+          <h3>🔎 Choisir mes cartes <span class="anki-mut">(au choix, en plus du proposé)</span></h3>
           <div class="anki-block-actions">
             <button class="bs" onclick="window.ankiSelectClear()">Vider</button>
             <button class="bs" onclick="window.ankiSelectAllDue()">Cocher dues</button>
           </div>
         </div>
-        <p class="anki-mut" style="margin-bottom:8px;font-size:12px;">Coche pour limiter la session à ces cartes. L'ordre proposé suit l'urgence.</p>
+        <input type="text" class="fi anki-search-input" placeholder="🔍 Cherche n'importe quelle carte (titre, énoncé, code)..." value="${esc(cockpitSearch)}" oninput="window.ankiCockpitSearch(this.value)">
+        <p class="anki-mut" style="margin:8px 0 6px;font-size:11px;">${cockpitSearch ? `<b>Recherche dans toutes les cartes</b> (${displayList.length} résultats) — coche pour basculer en mode manuel` : `<b>Candidats triés par urgence ↓</b> — coche les cartes à inclure dans la session`}</p>
         <div class="anki-pick-grid" id="ankiPickGrid">
-          ${candidats.slice(0, 80).map(c => renderPickCard(c)).join('') || '<div class="anki-empty">Aucune carte disponible</div>'}
+          ${displayList.slice(0, 80).map(c => renderPickCard(c)).join('') || '<div class="anki-empty">Aucun résultat</div>'}
         </div>
       </div>
 
       <div class="anki-card-block">
         <div class="anki-block-hdr">
-          <h3>Cartes spéciales (DM / Colle / Exo)</h3>
+          <h3>📝 Cartes spéciales (DM / Colle / Exo)</h3>
           <div class="anki-block-actions">
             <button class="bp" onclick="window.openDevoirModal()">+ Ajouter un devoir</button>
           </div>
         </div>
-        <p class="anki-mut" style="font-size:12px;margin-bottom:8px;">Ajoute un devoir à intégrer dans la file. Coche « découper en morceaux » pour étaler sur plusieurs jours.</p>
+        <p class="anki-mut" style="font-size:12px;margin-bottom:8px;">Découpe automatique en morceaux séparés (chaque morceau est une carte indépendante dans la file).</p>
         <div class="anki-devoirs-list">${renderDevoirsList()}</div>
       </div>
     `;
     return html;
   }
+
+  window.ankiCockpitSearch = function (v) {
+    S.cockpitSearch = v;
+    // Re-render seulement la grille
+    const grid = $("ankiPickGrid");
+    if (!grid) { renderActiveView(); return; }
+    // Plus simple : re-render la vue Cockpit complète (pas la nav)
+    renderActiveView();
+    // Restaure le focus sur le champ
+    const input = document.querySelector('.anki-search-input');
+    if (input) { input.focus(); input.setSelectionRange(v.length, v.length); }
+  };
+
+  window.ankiBackToAuto = function () {
+    S.selectionIds.clear();
+    S.manualOrder = null;
+    S.cockpitSearch = '';
+    renderActiveView();
+  };
 
   function renderQueueRow(c, i) {
     const m = mat(c.mat);
@@ -506,6 +544,159 @@
     renderActiveView();
   };
 
+  // ====== VUE STATS ======
+  function viewStats() {
+    const today = window.AnkiAlgo.todayISO();
+    const exos = window.D.exercices || [];
+    // Filtre des évaluations d'aujourd'hui
+    const todayEvals = [];
+    exos.forEach(c => {
+      (c.historique || []).forEach(h => {
+        if (h.date && h.date.substring(0, 10) === today) {
+          todayEvals.push({ card: c, h });
+        }
+      });
+    });
+    const nOk = todayEvals.filter(e => e.h.qScore >= 8).length;
+    const nMid = todayEvals.filter(e => e.h.qScore >= 4 && e.h.qScore < 8).length;
+    const nBad = todayEvals.filter(e => e.h.qScore < 4).length;
+    const total = todayEvals.length;
+
+    // Temps réel total
+    const tempsReel = todayEvals.reduce((s, e) => s + (e.h.tempsReel || 0), 0);
+    // Temps prévu total (somme des tempsCible des cartes faites)
+    const tempsPrevu = todayEvals.reduce((s, e) => s + (e.card.tempsCible || 0), 0);
+
+    // Note d'efficacité : 0-100
+    // Facteur exactitude : moyenne des qScore (0-10) → /10
+    const moyQ = total ? todayEvals.reduce((s, e) => s + (e.h.qScore || 0), 0) / total : 0;
+    const factExact = moyQ / 10; // 0-1
+    // Facteur vitesse : tempsPrevu/tempsReel (cap 1.2)
+    const factVit = tempsPrevu && tempsReel ? Math.min(1.2, tempsPrevu / tempsReel) : 1;
+    // Facteur volume : min(1, total / 10) (10 cartes = volume idéal)
+    const factVol = total ? Math.min(1, total / 10) : 0;
+    // Note finale : exactitude pondère 50%, vitesse 25%, volume 25%
+    const note = Math.round((factExact * 0.5 + (factVit / 1.2) * 0.25 + factVol * 0.25) * 100);
+    const noteColor = note >= 75 ? 'var(--grn)' : note >= 50 ? 'var(--gold)' : 'var(--red)';
+
+    // Stats par matière (7 derniers jours)
+    const week = Array.from({ length: 7 }, (_, i) => window.AnkiAlgo.addDays(today, -6 + i));
+    const byDay = {};
+    week.forEach(d => byDay[d] = { ok: 0, mid: 0, bad: 0, total: 0 });
+    exos.forEach(c => {
+      (c.historique || []).forEach(h => {
+        const d = h.date && h.date.substring(0, 10);
+        if (byDay[d]) {
+          byDay[d].total++;
+          if ((h.qScore || 0) >= 8) byDay[d].ok++;
+          else if ((h.qScore || 0) >= 4) byDay[d].mid++;
+          else byDay[d].bad++;
+        }
+      });
+    });
+    const maxDay = Math.max(1, ...week.map(d => byDay[d].total));
+
+    // Stats par matière (depuis le début)
+    const matStats = {};
+    exos.forEach(c => {
+      const k = c.mat || '?';
+      if (!matStats[k]) matStats[k] = { total: 0, ok: 0, bad: 0, easeSum: 0, easeN: 0, cards: 0 };
+      matStats[k].cards++;
+      matStats[k].easeSum += c.ease || 2.5;
+      matStats[k].easeN++;
+      (c.historique || []).forEach(h => {
+        matStats[k].total++;
+        if ((h.qScore || 0) >= 8) matStats[k].ok++;
+        if ((h.qScore || 0) < 4) matStats[k].bad++;
+      });
+    });
+
+    return `
+      <div class="anki-card-block">
+        <h3>📊 Efficacité de la session du jour</h3>
+        <div class="anki-stat-hero">
+          <div class="anki-stat-note" style="color:${noteColor};">${total ? note + '/100' : '—'}</div>
+          <div class="anki-mut">${total ? "Note d&apos;efficacité" : "Aucune carte révisée aujourd&apos;hui"}</div>
+        </div>
+        <div class="anki-stat-bars">
+          <div class="anki-stat-bar-row">
+            <span class="anki-stat-lbl">Exactitude</span>
+            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${factExact * 100}%;background:var(--grn);"></div></div>
+            <span class="anki-stat-val">${(factExact * 100).toFixed(0)}%</span>
+          </div>
+          <div class="anki-stat-bar-row">
+            <span class="anki-stat-lbl">Vitesse</span>
+            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${Math.min(100, (factVit / 1.2) * 100)}%;background:var(--acc);"></div></div>
+            <span class="anki-stat-val">${(factVit * 100).toFixed(0)}%</span>
+          </div>
+          <div class="anki-stat-bar-row">
+            <span class="anki-stat-lbl">Volume</span>
+            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${factVol * 100}%;background:var(--gold);"></div></div>
+            <span class="anki-stat-val">${total}/10</span>
+          </div>
+        </div>
+        <div class="anki-stat-grid">
+          <div class="kpi"><div class="kpi-n" style="color:var(--grn);">${nOk}</div><div class="kpi-l">Parfait ≥8</div></div>
+          <div class="kpi"><div class="kpi-n" style="color:var(--gold);">${nMid}</div><div class="kpi-l">Étourderie 4-7</div></div>
+          <div class="kpi"><div class="kpi-n" style="color:var(--red);">${nBad}</div><div class="kpi-l">Blocage &lt;4</div></div>
+          <div class="kpi"><div class="kpi-n">${window.AnkiAlgo.fmtDur(tempsReel)}</div><div class="kpi-l">Temps réel</div></div>
+          <div class="kpi"><div class="kpi-n anki-mut">${window.AnkiAlgo.fmtDur(tempsPrevu)}</div><div class="kpi-l">Temps prévu</div></div>
+        </div>
+        <details class="anki-stat-details">
+          <summary class="anki-mut" style="cursor:pointer;font-size:12px;">📐 Comment la note est calculée</summary>
+          <pre class="anki-formula" style="white-space:pre-wrap;font-size:11px;">note = 50% × exactitude(moyQ/10) + 25% × vitesse(prévu/réel, max 1.2) + 25% × volume(min(1, n/10))
+moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPrevu/tempsReel).toFixed(2) : '—'} · n = ${total}</pre>
+        </details>
+      </div>
+
+      <div class="anki-card-block">
+        <h3>📈 7 derniers jours</h3>
+        <div class="anki-week-bars">
+          ${week.map(d => {
+            const dy = byDay[d];
+            const pct = Math.round((dy.total / maxDay) * 100);
+            const dd = d.substring(8) + '/' + d.substring(5,7);
+            const isToday = d === today;
+            return `<div class="anki-week-col ${isToday ? 'today' : ''}" title="${d} — ${dy.total} cartes (✅${dy.ok} 🟡${dy.mid} ❌${dy.bad})">
+              <div class="anki-week-bar-wrap">
+                <div class="anki-week-bar-g" style="height:${dy.total ? (dy.ok / dy.total) * pct : 0}%;background:var(--grn);"></div>
+                <div class="anki-week-bar-m" style="height:${dy.total ? (dy.mid / dy.total) * pct : 0}%;background:var(--gold);"></div>
+                <div class="anki-week-bar-b" style="height:${dy.total ? (dy.bad / dy.total) * pct : 0}%;background:var(--red);"></div>
+              </div>
+              <div class="anki-week-lbl">${dd}</div>
+              <div class="anki-week-n">${dy.total || ''}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="anki-card-block">
+        <h3>🎯 Par matière</h3>
+        <table class="anki-diag-table">
+          <thead><tr><th>Matière</th><th>Cartes</th><th>Révisions</th><th>✅</th><th>❌</th><th>Ease moy.</th></tr></thead>
+          <tbody>
+            ${Object.keys(matStats).map(k => {
+              const m = mat(k);
+              const s = matStats[k];
+              const easeMoy = (s.easeSum / s.easeN).toFixed(2);
+              const easeCol = parseFloat(easeMoy) < 2.0 ? 'var(--red)' : parseFloat(easeMoy) < 2.4 ? 'var(--gold)' : 'var(--grn)';
+              return `<tr>
+                <td><span class="anki-q-mat" style="background:${m.color};">${m.label}</span> ${m.name}</td>
+                <td>${s.cards}</td>
+                <td>${s.total}</td>
+                <td>${s.ok}</td>
+                <td>${s.bad}</td>
+                <td style="color:${easeCol};font-weight:700;">${easeMoy}</td>
+              </tr>`;
+            }).join('') || '<tr><td colspan="6" class="anki-mut">Aucune donnée</td></tr>'}
+          </tbody>
+        </table>
+        <p class="anki-mut" style="font-size:11px;margin-top:8px;">Ease faible (rouge) = matière où tu galères. L'algo va y mettre plus d'urgence automatiquement.</p>
+      </div>
+    `;
+  }
+
+
   // ====== VUE DIAGNOSTIC ======
   function viewDiag() {
     const coefs = window.AnkiAlgo.getCoefs();
@@ -602,6 +793,13 @@
 
     return `
       <div class="anki-card-block">
+        <h3>Maintenance / Démo</h3>
+        <p class="anki-mut" style="font-size:12px;">Si tu utilises les données de démo et que les dates ne sont plus à jour (ex: tu reviens après plusieurs jours), recale-les sur aujourd'hui.</p>
+        <button class="bs" onclick="window.ankiRecalDates()">📅 Recaler toutes les dates sur aujourd'hui</button>
+        <button class="bs" onclick="window.ankiRebuildPieces()" style="margin-left:6px;">✂️ Re-découper les devoirs en morceaux</button>
+      </div>
+
+      <div class="anki-card-block">
         <h3>Session</h3>
         <div class="anki-set-row">
           <label>Durée de session (min)</label>
@@ -665,6 +863,76 @@
   window.ankiResetProfiles = function () {
     window.D.settings.ankiProfiles = JSON.parse(JSON.stringify(window.AnkiAlgo.DEFAULT_PROFILES));
     window.save(); renderActiveView();
+  };
+
+  window.ankiRecalDates = function () {
+    const today = window.AnkiAlgo.todayISO();
+    let n = 0;
+    (window.D.exercices || []).forEach(c => {
+      if (c.statut !== 'actif') return;
+      // Si dueDate < today : recaler à today
+      // Si dueDate > today + 30 : trop loin, recaler aussi
+      if (!c.dateProchaineRevision || c.dateProchaineRevision < today) {
+        c.dateProchaineRevision = today;
+        n++;
+      }
+    });
+    window.AnkiAlgo.log("recal-dates", { n });
+    window.save();
+    window.sysAlert(`${n} carte(s) recalée(s) sur aujourd'hui (${today}).`, "Dates recalées");
+    window.renderAnki();
+  };
+
+  window.ankiRebuildPieces = function () {
+    const exos = window.D.exercices || [];
+    // Supprime tous les morceaux existants
+    window.D.exercices = exos.filter(c => c.type !== 'devoir-morceau');
+    // Réinitialise les parents
+    window.D.exercices.forEach(c => {
+      if (c.type === 'devoir' && (c._morceauxTotal || 1) > 1) {
+        delete c._morceauIndex;
+        delete c._isMorceauParent;
+      }
+    });
+    // Re-appelle le split (cette logique est dans app.js initData; on simule ici)
+    const today = window.AnkiAlgo.todayISO();
+    const devoirs = window.D.exercices.filter(c => c.type === 'devoir' && (c._morceauxTotal || 1) > 1);
+    devoirs.forEach(parent => {
+      const N = parent._morceauxTotal || 1;
+      const piecesNew = Math.ceil((parent.tempsCible || 60) / N);
+      // Si le parent a déjà été réduit auparavant, on le restore d'abord :
+      parent.tempsCible = piecesNew;
+      parent._morceauIndex = 1;
+      parent._isMorceauParent = true;
+      parent.dateProchaineRevision = today;
+      for (let i = 1; i < N; i++) {
+        const ids = window.D.exercices.map(x => x.id);
+        const pieceId = window.AnkiAlgo.genExoUid(parent.mat, ids);
+        window.D.exercices.unshift({
+          id: pieceId,
+          titre: (parent.titre || parent.question) + ' (' + (i + 1) + '/' + N + ')',
+          question: parent.question,
+          reponse: parent.reponse,
+          mat: parent.mat,
+          profil: parent.profil,
+          tempsCible: piecesNew,
+          priorite: parent.priorite,
+          statut: 'actif',
+          coursIds: parent.coursIds || [],
+          intervalle: 0, ease: parent.ease || 2.5, repetitions: 0,
+          dateProchaineRevision: window.AnkiAlgo.addDays(today, i),
+          historique: [],
+          type: 'devoir-morceau',
+          _morceauOf: parent.id,
+          _morceauIndex: i + 1,
+          _morceauTotal: N,
+          dateCreation: new Date().toISOString()
+        });
+      }
+    });
+    window.save();
+    window.sysAlert(`${devoirs.length} devoir(s) re-découpé(s) en morceaux.`, "Re-découpage");
+    window.renderAnki();
   };
 
   // ====== SESSION ======
@@ -811,7 +1079,7 @@
     }
     const btn = window.AnkiAlgo.qScoreToButton(qScore);
     if (btn === 0) S.stats.bad++; else if (btn === 1) S.stats.mid++; else S.stats.ok++;
-    if (qScore <= 3 && S.mode !== "colle") S.queue.push(S.current);
+    if (qScore <= 3 && S.mode !== "colle" && S.mode !== "single") S.queue.push(S.current);
     window.AnkiAlgo.log("eval", {
       id: S.current.id,
       qScore,

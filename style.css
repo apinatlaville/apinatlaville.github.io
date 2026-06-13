@@ -1258,3 +1258,86 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
 .anki-q-time input:focus { outline: 1px solid var(--acc); }
 .anki-q-time .anki-mut { font-size: 10px; }
 
+
+
+/* =====================================================
+   v3.2 — Auto/Manuel · Recherche · Stats
+   ===================================================== */
+.anki-card-block.auto { border-left: 3px solid var(--grn); }
+.anki-card-block.manual { border-left: 3px solid var(--gold); }
+.anki-search-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  color: var(--txt);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.anki-search-input:focus { outline: none; border-color: var(--acc); }
+
+/* Stats */
+.anki-stat-hero {
+  text-align: center;
+  padding: 18px 0 8px;
+  border-bottom: 1px solid var(--bd);
+  margin-bottom: 14px;
+}
+.anki-stat-note { font-family: 'Syne'; font-size: 64px; font-weight: 800; line-height: 1; }
+.anki-stat-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.anki-stat-bar-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.anki-stat-lbl { width: 90px; color: var(--txt); }
+.anki-stat-bar-bg {
+  flex: 1;
+  height: 12px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.anki-stat-bar-fill { height: 100%; transition: width .4s; }
+.anki-stat-val { width: 50px; text-align: right; color: var(--mut); font-family: 'DM Mono', monospace; }
+.anki-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.anki-stat-grid .kpi { padding: 10px; }
+.anki-stat-grid .kpi-n { font-size: 22px; }
+.anki-stat-details { margin-top: 10px; }
+.anki-stat-details summary { padding: 6px 0; }
+
+.anki-week-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  padding: 14px 8px 8px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+}
+.anki-week-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  position: relative;
+}
+.anki-week-col.today .anki-week-lbl { color: var(--acc); font-weight: 700; }
+.anki-week-bar-wrap {
+  width: 70%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+}
+.anki-week-bar-g, .anki-week-bar-m, .anki-week-bar-b { width: 100%; }
+.anki-week-lbl { font-size: 10px; color: var(--mut); margin-top: 6px; font-family: 'DM Mono', monospace; }
+.anki-week-n { position: absolute; top: -6px; font-size: 10px; font-weight: 700; color: var(--txt); }

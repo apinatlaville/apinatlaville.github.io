@@ -777,6 +777,47 @@ async function initApp(user) {
     }
     if (!c.profil) c.profil = 'COURS';
   });
+  // Auto-split des devoirs configurés avec _morceauxTotal > 1 mais sans morceaux créés
+  if (window.AnkiAlgo && window.AnkiAlgo.splitDevoir) {
+    const devoirs = window.D.exercices.filter(c => c.type === 'devoir' && (c._morceauxTotal || 1) > 1);
+    devoirs.forEach(parent => {
+      const existing = window.D.exercices.filter(c => c._morceauOf === parent.id);
+      const need = (parent._morceauxTotal || 1) - existing.length - 1; // -1 car le parent compte comme 1
+      if (need > 0) {
+        const today = window.AnkiAlgo.todayISO();
+        const piecesNew = Math.ceil((parent.tempsCible || 60) / (parent._morceauxTotal || 1));
+        // Le parent devient le 1er morceau (durée réduite)
+        parent.tempsCible = piecesNew;
+        parent._morceauIndex = 1;
+        parent._isMorceauParent = true;
+        // Création des morceaux 2..N
+        for (let i = 1; i < (parent._morceauxTotal || 1); i++) {
+          const ids = window.D.exercices.map(x => x.id);
+          const pieceId = window.AnkiAlgo.genExoUid(parent.mat, ids);
+          window.D.exercices.unshift({
+            id: pieceId,
+            titre: (parent.titre || parent.question) + ' (' + (i + 1) + '/' + parent._morceauxTotal + ')',
+            question: parent.question,
+            reponse: parent.reponse,
+            mat: parent.mat,
+            profil: parent.profil,
+            tempsCible: piecesNew,
+            priorite: parent.priorite,
+            statut: 'actif',
+            coursIds: parent.coursIds || [],
+            intervalle: 0, ease: parent.ease || 2.5, repetitions: 0,
+            dateProchaineRevision: window.AnkiAlgo.addDays(today, i),
+            historique: [],
+            type: 'devoir-morceau',
+            _morceauOf: parent.id,
+            _morceauIndex: i + 1,
+            _morceauTotal: parent._morceauxTotal,
+            dateCreation: new Date().toISOString()
+          });
+        }
+      }
+    });
+  }
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
