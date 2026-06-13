@@ -102,7 +102,7 @@
     <button class="tab on" onclick="window.switchTab('home')" data-tab="home">🏠 Accueil</button>
     <button class="tab" onclick="window.switchTab('cours')" data-tab="cours">📋 Base Doc.</button>
     <button class="tab" onclick="window.switchTab('notes')" data-tab="notes">📈 Notes</button>
-    <button class="tab" onclick="window.switchTab('flashcards')" data-tab="flashcards">🃏 Bêta</button>
+    <button class="tab" onclick="window.switchTab('flashcards')" data-tab="flashcards">🃏 Atelier</button>
     <button class="tab" onclick="window.switchTab('anki')" data-tab="anki" style="color:#b06af7;">🧬 Synchrotron</button>
     <button class="tab" onclick="window.switchTab('print')" data-tab="print">🖨 Impression</button>
     <button class="tab" onclick="window.switchTab('classeurs')" data-tab="classeurs">🗂 Classeurs</button>
@@ -205,11 +205,7 @@
   </div>
 </div>
 
-<div class="pane" id="paneFlashcards">
-  <h2 style="font-family:'Syne'; margin-bottom:10px;">Cartes de révision PC*</h2>
-  <p style="color:var(--mut); font-size:13px; margin-bottom:20px;">Clique sur une carte pour révéler la réponse.</p>
-  <div class="fc-grid" id="fcGrid"></div>
-</div>
+<div class="pane" id="paneFlashcards"></div>
 
 <div class="pane" id="paneAnki"></div>
 
@@ -629,6 +625,12 @@
     scriptAnkiApp.src = 'anki-app.js?v=' + v;
     scriptAnkiApp.async = false;
     document.body.appendChild(scriptAnkiApp);
+
+    // 🃏 Atelier de cartes rapides (onglet Bêta)
+    var scriptAnkiQuick = document.createElement('script');
+    scriptAnkiQuick.src = 'anki-quick.js?v=' + v;
+    scriptAnkiQuick.async = false;
+    document.body.appendChild(scriptAnkiQuick);
 
     var appScript = document.createElement('script');
     appScript.type = 'module';

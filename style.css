@@ -554,151 +554,479 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
 
 
 /* =====================================================
-   🧬 MODE SYNCHROTRON (Répétition Espacée PC*)
+   🧬 MODE SYNCHROTRON & 🃏 ATELIER (intégré au design)
    ===================================================== */
-.anki-hero { margin-bottom: 10px; }
+.anki-head h2 { font-family: 'Syne'; margin-bottom: 4px; }
+.anki-head .anki-sub { color: var(--mut); font-weight: normal; font-size: 14px; }
+.anki-head p { color: var(--mut); font-size: 13px; margin: 0 0 14px; }
+.anki-mut { color: var(--mut); }
 
-.anki-stats-grid {
+/* Navigation interne onglets */
+.anki-nav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--bd);
+  flex-wrap: wrap;
+}
+.anki-tab {
+  background: transparent;
+  border: none;
+  color: var(--mut);
+  padding: 10px 14px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.anki-tab:hover { color: var(--txt); }
+.anki-tab.on { color: var(--acc); border-bottom-color: var(--acc); }
+
+/* KPIs */
+.anki-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
+.kpi {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 14px;
+  text-align: center;
+}
+.kpi-n { font-family: 'Syne'; font-size: 28px; font-weight: 800; line-height: 1; }
+.kpi-l { font-size: 11px; color: var(--mut); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
 
-.anki-cockpit {
+/* Blocs de contenu */
+.anki-card-block {
   background: var(--s2);
   border: 1px solid var(--bd);
   border-radius: 14px;
   padding: 16px;
-  border-left: 4px solid #b06af7;
+  margin-bottom: 16px;
 }
-.anki-cockpit-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+.anki-card-block h3 { font-family: 'Syne'; font-size: 16px; margin: 0 0 4px; }
+.anki-block-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.anki-block-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.anki-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--mut);
   font-size: 13px;
-  color: var(--txt);
-  margin-top: 4px;
+  background: var(--bg);
+  border: 1px dashed var(--bd);
+  border-radius: 10px;
 }
 
-.anki-heatmap-bars {
+/* File du jour (cockpit) */
+.anki-queue { display: flex; flex-direction: column; gap: 4px; }
+.anki-q-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform .1s, background .15s, border-color .15s;
+}
+.anki-q-row:hover { transform: translateX(4px); border-color: var(--acc); }
+.anki-q-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mut);
+  min-width: 22px;
+  text-align: center;
+}
+.anki-q-mat {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.anki-q-body { flex: 1; min-width: 0; }
+.anki-q-title { font-size: 13px; font-weight: 600; color: var(--txt); margin-bottom: 2px; }
+.anki-q-meta { font-size: 11px; color: var(--mut); font-family: 'DM Mono', monospace; }
+.anki-q-go { color: var(--acc); font-size: 18px; }
+
+/* Sélection manuelle */
+.anki-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.anki-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: border-color .15s;
+}
+.anki-pick.on { border-color: var(--acc); background: rgba(91,141,247,.06); }
+.anki-pick input { width: 14px; height: 14px; margin: 0; accent-color: var(--acc); }
+.anki-pick-mat { font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+.anki-pick-id { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--mut); }
+.anki-pick-q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Bibliothèque */
+.anki-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.anki-filters .fi { flex: 1; min-width: 120px; }
+.anki-lib { display: flex; flex-direction: column; gap: 12px; }
+.anki-lib-group { background: var(--bg); border: 1px solid var(--bd); border-radius: 10px; overflow: hidden; }
+.anki-lib-group-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--s3);
+}
+.anki-lib-grp-mat { padding: 2px 8px; border-radius: 4px; font-size: 10px; }
+.anki-lib-grp-t { color: var(--txt); }
+.anki-lib-items { display: flex; flex-direction: column; gap: 1px; }
+.anki-lib-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border-top: 1px solid var(--bd);
+}
+.anki-lib-id { flex-shrink: 0; }
+.anki-lib-text { flex: 1; min-width: 0; }
+.anki-lib-title { font-size: 13px; color: var(--txt); margin-bottom: 2px; }
+.anki-lib-meta { font-size: 11px; }
+.anki-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  border-radius: 4px;
+  border: 1px solid var(--bd);
+  margin-right: 6px;
+}
+.anki-lib-acts { display: flex; gap: 4px; }
+
+/* Prévisions */
+.anki-forecast-bars {
   display: flex;
   align-items: flex-end;
   gap: 4px;
-  height: 100px;
-  padding: 10px;
-  background: var(--s2);
+  height: 140px;
+  padding: 14px 8px 8px;
+  background: var(--bg);
   border: 1px solid var(--bd);
   border-radius: 10px;
   overflow-x: auto;
 }
-.anki-heatmap-col {
+.anki-fc-col {
   flex: 1;
-  min-width: 22px;
+  min-width: 28px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   align-items: center;
+  justify-content: flex-end;
   height: 100%;
+  cursor: pointer;
+  transition: transform .15s;
 }
-.anki-heatmap-bar {
-  width: 100%;
-  background: linear-gradient(to top, #b06af7, #5b8df7);
+.anki-fc-col:hover { transform: translateY(-2px); }
+.anki-fc-col.today .anki-fc-lbl { color: var(--acc); font-weight: 700; }
+.anki-fc-col.today .anki-fc-bar { background: linear-gradient(to top, var(--acc), var(--gold)); }
+.anki-fc-bar {
+  width: 80%;
+  background: linear-gradient(to top, var(--acc), #b06af7);
   border-radius: 4px 4px 0 0;
   min-height: 2px;
-  transition: height 0.3s;
+  transition: height .3s;
 }
-.anki-heatmap-lbl {
-  font-size: 9px;
-  color: var(--mut);
-  margin-top: 4px;
-  font-family: 'DM Mono', monospace;
-}
-
-.anki-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-}
-.anki-card {
-  background: var(--s2);
-  border: 1px solid var(--bd);
-  border-radius: 12px;
-  padding: 12px;
-  position: relative;
-}
-.anki-card-top {
+.anki-fc-lbl { font-size: 10px; color: var(--mut); margin-top: 4px; font-family: 'DM Mono', monospace; }
+.anki-fc-n { position: absolute; font-size: 10px; color: var(--txt); margin-top: -16px; font-weight: 700; }
+.anki-day-hdr h4 { font-family: 'Syne'; font-size: 14px; margin: 0 0 8px; }
+.anki-day-list { display: flex; flex-direction: column; gap: 4px; }
+.anki-day-row {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.anki-day-num { font-family: 'DM Mono', monospace; font-weight: 700; color: var(--mut); min-width: 20px; }
+.anki-day-title { flex: 1; min-width: 0; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Réglages */
+.anki-set-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  gap: 12px;
+  border-bottom: 1px solid var(--bd);
+}
+.anki-set-row:last-child { border-bottom: none; }
+.anki-set-row label { font-size: 13px; color: var(--txt); }
+.anki-set-row input { width: 100px; }
+.anki-prof-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.anki-prof {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  padding: 12px;
+}
+.anki-prof-hdr { display: flex; justify-content: space-between; margin-bottom: 8px; align-items: baseline; }
+.anki-prof label { display: block; margin-top: 6px; }
+
+/* Session overlay */
+.anki-session {
+  max-width: 560px;
+  padding: 22px;
+}
+.anki-sess-top {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
 }
-.anki-card-q {
-  font-size: 13px;
-  color: var(--txt);
-  line-height: 1.4;
-  margin-bottom: 6px;
-  min-height: 36px;
-}
-.anki-card-meta {
-  font-size: 11px;
-  color: var(--mut);
+.anki-chrono {
   font-family: 'DM Mono', monospace;
-  margin-bottom: 8px;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--grn);
 }
-
-.anki-modal {
-  max-width: 520px;
-}
-.anki-question {
+.anki-sess-meta { font-size: 11px; color: var(--mut); margin-bottom: 12px; }
+.anki-sess-titre { font-family: 'Syne'; font-size: 15px; color: var(--mut); margin-bottom: 6px; }
+.anki-sess-q {
   font-size: 18px;
   line-height: 1.45;
   color: var(--txt);
   background: var(--bg);
-  padding: 16px;
-  border-radius: 10px;
+  padding: 18px;
+  border-radius: 12px;
   border: 1px solid var(--bd);
-  margin: 10px 0;
-  min-height: 80px;
-  font-family: 'DM Sans', sans-serif;
+  margin-bottom: 10px;
+  min-height: 90px;
 }
-.anki-answer {
+.anki-sess-r {
   background: rgba(80,216,144,0.08);
   border: 1px solid rgba(80,216,144,0.4);
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: 12px;
+  padding: 16px;
   font-size: 15px;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--txt);
-  margin-top: 12px;
 }
-.anki-eval-row {
+.anki-sess-r-empty {
+  font-style: italic;
+  text-align: center;
+  color: var(--mut);
+  padding: 14px;
+  border: 1px dashed var(--bd);
+  border-radius: 12px;
+  font-size: 12px;
+}
+.anki-reveal { width: 100%; margin-top: 14px; padding: 14px; font-size: 14px; }
+.anki-evals {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-top: 8px;
 }
 .anki-eval {
   background: var(--bg);
   border: 2px solid var(--bd);
   color: var(--txt);
   padding: 14px 8px;
-  border-radius: 10px;
-  font-size: 22px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: transform 0.1s, background 0.15s, border-color 0.15s;
+  transition: transform .1s, background .15s, border-color .15s;
   text-align: center;
+  font-family: 'DM Sans', sans-serif;
 }
-.anki-eval small {
-  display: block;
-  font-size: 10px;
-  color: var(--mut);
-  margin-top: 4px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
+.anki-eval span { display: block; font-size: 24px; line-height: 1; }
+.anki-eval small { display: block; font-size: 10px; color: var(--mut); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
 .anki-eval:hover { transform: translateY(-2px); }
-.anki-eval-bad:hover { border-color: var(--red); background: rgba(240,96,96,0.1); }
-.anki-eval-mid:hover { border-color: var(--gold); background: rgba(240,192,96,0.1); }
-.anki-eval-good:hover { border-color: var(--grn); background: rgba(80,216,144,0.1); }
+.anki-eval.bad:hover { border-color: var(--red); background: rgba(240,96,96,.1); }
+.anki-eval.mid:hover { border-color: var(--gold); background: rgba(240,192,96,.1); }
+.anki-eval.good:hover { border-color: var(--grn); background: rgba(80,216,144,.1); }
+.anki-sess-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  font-size: 11px;
+}
+.anki-quit { padding: 4px 10px; font-size: 11px; border-color: var(--red); color: var(--red); }
+
+/* Modal édition exo */
+.anki-modal-exo { max-width: 640px; max-height: 90vh; overflow-y: auto; }
+.anki-modal-row { display: flex; gap: 10px; }
+.anki-modal-row .fg { flex: 1; }
+.anki-link-selected {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 6px 0;
+  min-height: 22px;
+}
+.anki-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 16px;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  transition: background .15s;
+}
+.anki-link-chip:hover { background: var(--s3); }
+.anki-link-results {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  background: var(--bg);
+  margin-top: 4px;
+}
+.anki-link-results:empty { border: none; }
+.anki-link-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bd);
+  cursor: pointer;
+  font-size: 12px;
+  transition: background .15s;
+}
+.anki-link-row:last-child { border-bottom: none; }
+.anki-link-row:hover { background: var(--s3); }
+.anki-link-mat { font-family: 'DM Mono', monospace; font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+.anki-link-id { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--mut); }
+.anki-link-title { flex: 1; color: var(--txt); }
+
+/* =====================================================
+   🃏 ATELIER DE CARTES RAPIDES (paneFlashcards)
+   ===================================================== */
+.quick-head h2 { font-family: 'Syne'; margin-bottom: 4px; }
+.quick-head p { color: var(--mut); font-size: 13px; margin-bottom: 18px; }
+.quick-mut { color: var(--mut); font-size: 11px; margin-top: 6px; }
+.quick-create {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-left: 4px solid var(--acc);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.quick-create-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.quick-create-row input, .quick-create-row select {
+  flex: 1;
+  min-width: 120px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  color: var(--txt);
+  padding: 10px;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+}
+.quick-create-row input:focus, .quick-create-row select:focus { outline: 1px solid var(--acc); border-color: var(--acc); }
+.quick-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.quick-filters input, .quick-filters select {
+  flex: 1;
+  min-width: 120px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  color: var(--txt);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.qk-card {
+  perspective: 1000px;
+  height: 170px;
+  cursor: pointer;
+}
+.qk-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+.qk-card.flipped .qk-inner { transform: rotateY(180deg); }
+.qk-front, .qk-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--s2);
+  display: flex;
+  flex-direction: column;
+}
+.qk-back { transform: rotateY(180deg); background: var(--s3); justify-content: center; }
+.qk-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.qk-mat { font-family: 'DM Mono', monospace; font-size: 10px; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 700; }
+.qk-id { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--mut); }
+.qk-q { font-size: 15px; color: var(--txt); flex: 1; overflow: hidden; line-height: 1.35; }
+.qk-r { font-size: 14px; color: var(--txt); text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; padding: 6px; line-height: 1.4; }
+.qk-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 6px; }
+.qk-actions { display: flex; gap: 4px; }
+

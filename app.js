@@ -770,10 +770,20 @@ async function initApp(user) {
   if(!window.D.cours) window.D.cours = [];
   if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if(!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
+  // Migration coursId (string) → coursIds (array) pour les anciennes cartes Anki
+  window.D.exercices.forEach(c => {
+    if (!Array.isArray(c.coursIds)) {
+      c.coursIds = c.coursId ? [c.coursId] : [];
+    }
+    if (!c.profil) c.profil = 'COURS';
+  });
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b8df7';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
+  if(!window.D.settings.ankiSessionMin) window.D.settings.ankiSessionMin = 60;
+  if(window.D.settings.ankiIncludeNew === undefined) window.D.settings.ankiIncludeNew = 5;
+  if(!window.D.settings.ankiMaxPerDay) window.D.settings.ankiMaxPerDay = 75;
   
   window.D.classeurs.forEach(cl => {
     if(!cl.interNames) cl.interNames = {};
