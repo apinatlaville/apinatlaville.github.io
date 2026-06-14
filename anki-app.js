@@ -1,10 +1,11 @@
 /**
  * =========================================================================================
- * 🧠 anki-app.js v3 — UI Mode Synchrotron (PC*)
+ * 🧠 anki-app.js v4 — UI Mode Synchrotron (PC*)
  * =========================================================================================
- * Vues : Cockpit · Bibliothèque · Prévisions · Diagnostic · Réglages
+ * Vues : Cockpit · Bibliothèque · Réservoir · Prévisions · Stats · Diagnostic · Réglages
  * Fonctions : drag&drop, slider 1-10 + boutons 3, cartes spéciales DM/Colle,
- *             score d'urgence visible, file d'attente accessible.
+ *             score d'urgence visible (I_R), file d'attente accessible,
+ *             session persistante (D.sessionEnCours), bouton Undo, sources livre/classeur.
  * =========================================================================================
  */
 (function () {
@@ -14,9 +15,12 @@
     view: "cockpit",
     queue: [], current: null, showAnswer: false,
     chronoStart: 0, chronoElapsed: 0, chronoInt: null,
+    chronoPausedAt: 0, chronoPausedAccum: 0, // 🆕 v4 : pause auto au changement d'onglet
     stats: { ok: 0, mid: 0, bad: 0, total: 0 },
     mode: "normal",
     libFilter: { mat: "", stat: "", profil: "", q: "" },
+    reservoirFilter: { mat: "", q: "" },  // 🆕 v4 : filtre de la vue Réservoir
+    reservoirSel: new Set(),              // 🆕 v4 : sélection multiple pour activation groupée
     forecastDays: 14,
     selectionIds: new Set(),
     coursLinkSelection: new Set(),
@@ -24,8 +28,44 @@
     manualOrder: null, // array d'ids quand l'utilisateur drag&drop
     expandedDay: null,
     sliderValue: 7,
-    showSlider: false
+    showSlider: false,
+    sessionTempsManuel: null,             // 🆕 v4 : temps réel saisi manuellement (minutes)
+    dernierExerciceModifie: null,         // 🆕 v4 : snapshot pour Undo
+    sessionGeneree: false                 // 🆕 v4 : flag "session du soir générée"
   };
+
+  // 🆕 v4 : pause / reprise du chrono (visibilité onglet, changement de vue)
+  function pauseChrono() {
+    if (!S.chronoInt) return;
+    clearInterval(S.chronoInt);
+    S.chronoInt = null;
+    S.chronoPausedAt = Date.now();
+  }
+  function resumeChrono() {
+    if (!S.current || S.chronoInt) return;
+    if (S.chronoPausedAt > 0) {
+      // Translate the start time so elapsed time excludes the pause duration
+      S.chronoStart += (Date.now() - S.chronoPausedAt);
+      S.chronoPausedAt = 0;
+    }
+    S.chronoInt = setInterval(tickChrono, 200);
+  }
+  function tickChrono() {
+    S.chronoElapsed = (Date.now() - S.chronoStart) / 1000;
+    const el = $("ankiChrono");
+    if (el) {
+      el.textContent = fmtSec(S.chronoElapsed);
+      const cible = (S.current && S.current.tempsCible) || 60;
+      el.style.color = S.chronoElapsed > cible * 1.5 ? "var(--red)" : S.chronoElapsed > cible ? "var(--gold)" : "var(--grn)";
+    }
+  }
+  // Pause auto quand l'onglet/navigateur perd le focus
+  if (typeof document !== 'undefined' && !window._ankiVisibilityBound) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) pauseChrono(); else if (S.current) resumeChrono();
+    });
+    window._ankiVisibilityBound = true;
+  }
 
   function ensure() {
     if (!window.D) return;
@@ -50,29 +90,44 @@
       window.AnkiAlgo.log("auto-shift", { count: shift.shifted, reason: "session ratée → décalage à aujourd'hui" });
       window.save();
     }
+    // 🆕 v4 : restauration éventuelle d'une session persistée (D.sessionEnCours)
+    restoreSessionFromStorageIfAny();
+
     const root = $("paneAnki");
     if (!root) return;
 
     const exos = window.D.exercices;
     const actifs = exos.filter(c => c.statut === "actif").length;
-    const reservoir = exos.filter(c => c.statut === "attente").length;
+    const reservoir = exos.filter(c => window.AnkiAlgo.isReservoir(c)).length;
     const cands = window.AnkiAlgo.getCandidates(exos);
     const sessionMin = (window.D.settings && window.D.settings.ankiSessionMin) || 60;
+    const sessionActive = !!(window.D.sessionEnCours && Array.isArray(window.D.sessionEnCours.queueIds) && window.D.sessionEnCours.queueIds.length);
 
     root.innerHTML = `
       <div class="anki-head">
         <h2>🧬 Synchrotron <span class="anki-sub">— Répétition espacée PC*</span></h2>
-        <p>Coefficient d'urgence continu · Auto + Override · Cartes spéciales DM/Colle.</p>
+        <p>Coefficient d'urgence I_R · Ease élastique · Réservoir · Session persistante.</p>
       </div>
 
       <div class="anki-nav">
-        <button class="anki-tab ${S.view === 'cockpit' ? 'on' : ''}" onclick="window.ankiSetView('cockpit')">🎛 Cockpit</button>
-        <button class="anki-tab ${S.view === 'library' ? 'on' : ''}" onclick="window.ankiSetView('library')">📚 Bibliothèque</button>
-        <button class="anki-tab ${S.view === 'forecast' ? 'on' : ''}" onclick="window.ankiSetView('forecast')">📅 Prévisions</button>
-        <button class="anki-tab ${S.view === 'stats' ? 'on' : ''}" onclick="window.ankiSetView('stats')">📊 Stats</button>
-        <button class="anki-tab ${S.view === 'diag' ? 'on' : ''}" onclick="window.ankiSetView('diag')">🔬 Diagnostic</button>
-        <button class="anki-tab ${S.view === 'settings' ? 'on' : ''}" onclick="window.ankiSetView('settings')">⚙️ Réglages</button>
+        <button class="anki-tab ${S.view === 'cockpit' ? 'on' : ''}" data-testid="anki-tab-cockpit" onclick="window.ankiSetView('cockpit')">🎛 Cockpit</button>
+        <button class="anki-tab ${S.view === 'reservoir' ? 'on' : ''}" data-testid="anki-tab-reservoir" onclick="window.ankiSetView('reservoir')">⏳ Réservoir ${reservoir ? `<span class="anki-tab-badge">${reservoir}</span>` : ''}</button>
+        <button class="anki-tab ${S.view === 'library' ? 'on' : ''}" data-testid="anki-tab-library" onclick="window.ankiSetView('library')">📚 Bibliothèque</button>
+        <button class="anki-tab ${S.view === 'forecast' ? 'on' : ''}" data-testid="anki-tab-forecast" onclick="window.ankiSetView('forecast')">📅 Prévisions</button>
+        <button class="anki-tab ${S.view === 'stats' ? 'on' : ''}" data-testid="anki-tab-stats" onclick="window.ankiSetView('stats')">📊 Stats</button>
+        <button class="anki-tab ${S.view === 'diag' ? 'on' : ''}" data-testid="anki-tab-diag" onclick="window.ankiSetView('diag')">🔬 Diagnostic</button>
+        <button class="anki-tab ${S.view === 'settings' ? 'on' : ''}" data-testid="anki-tab-settings" onclick="window.ankiSetView('settings')">⚙️ Réglages</button>
       </div>
+
+      ${sessionActive ? `
+        <div class="anki-session-resume" data-testid="session-resume-bar">
+          <span><b>📌 Session du soir en cours</b> — ${window.D.sessionEnCours.queueIds.length} cartes restantes</span>
+          <div>
+            <button class="bp" data-testid="btn-reprendre-session" onclick="window.ankiResumeSession()">▶ Reprendre la session en cours</button>
+            <button class="bs" data-testid="btn-abandon-session" onclick="window.ankiDiscardSession()">🗑 Abandonner</button>
+          </div>
+        </div>
+      ` : ''}
 
       <div class="anki-kpis">
         <div class="kpi"><div class="kpi-n" style="color:var(--red);">${cands.length}</div><div class="kpi-l">Candidates</div></div>
@@ -86,17 +141,23 @@
     renderActiveView();
   };
 
-  window.ankiSetView = function (v) { S.view = v; window.renderAnki(); };
+  window.ankiSetView = function (v) {
+    // 🆕 v4 : pause auto du chrono dès qu'on quitte la vue de révision (mais on garde S.queue !)
+    if (S.current) pauseChrono();
+    S.view = v;
+    window.renderAnki();
+  };
 
   function renderActiveView() {
     const c = $("ankiViewContent");
     if (!c) return;
-    if (S.view === "cockpit")    c.innerHTML = viewCockpit();
-    else if (S.view === "library")  c.innerHTML = viewLibrary();
-    else if (S.view === "forecast") c.innerHTML = viewForecast();
-    else if (S.view === "stats")    c.innerHTML = viewStats();
-    else if (S.view === "diag")     c.innerHTML = viewDiag();
-    else if (S.view === "settings") c.innerHTML = viewSettings();
+    if (S.view === "cockpit")        c.innerHTML = viewCockpit();
+    else if (S.view === "reservoir") c.innerHTML = viewReservoir();
+    else if (S.view === "library")   c.innerHTML = viewLibrary();
+    else if (S.view === "forecast")  c.innerHTML = viewForecast();
+    else if (S.view === "stats")     c.innerHTML = viewStats();
+    else if (S.view === "diag")      c.innerHTML = viewDiag();
+    else if (S.view === "settings")  c.innerHTML = viewSettings();
     bindDragDrop();
   }
 
@@ -124,15 +185,16 @@
         <div class="anki-block-hdr">
           <div>
             <h3>${isManualMode ? '✋ File MANUELLE' : '🤖 File AUTOMATIQUE'} <span class="anki-mut">(${cartes.length} cartes · ${window.AnkiAlgo.fmtDur(total)})</span></h3>
-            <p class="anki-mut">${plan.countDue} dues · ${plan.countNew} nouvelles · ${isManualMode ? '<span style="color:var(--gold);">Ta sélection / ton ordre</span>' : '<span style="color:var(--grn);">L&apos;algorithme choisit pour toi</span>'}</p>
+            <p class="anki-mut">${plan.countDue} dues · marge ${Math.round((plan.marge || 0.92) * 100)}% · ${isManualMode ? '<span style="color:var(--gold);">Ta sélection / ton ordre</span>' : '<span style="color:var(--grn);">L&apos;algorithme choisit pour toi</span>'}</p>
           </div>
           <div class="anki-block-actions">
-            <button class="bs" onclick="window.ankiQuickEditSession()">⏱ ${sessionMin} min</button>
-            ${isManualMode ? `<button class="bs" onclick="window.ankiBackToAuto()">↺ Revenir à l'auto</button>` : ''}
-            <button class="bp" onclick="window.startAnkiSession()" ${cartes.length === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>▶ Commencer</button>
+            <button class="bs" data-testid="btn-edit-session-min" onclick="window.ankiQuickEditSession()">⏱ ${sessionMin} min</button>
+            ${isManualMode ? `<button class="bs" data-testid="btn-back-auto" onclick="window.ankiBackToAuto()">↺ Revenir à l'auto</button>` : ''}
+            <button class="bs" data-testid="btn-generer-session-soir" onclick="window.ankiGenererSessionSoir()" title="Fige la file pour ce soir : elle survit aux changements d'onglet et au refresh">📌 Générer la session du soir</button>
+            <button class="bp" data-testid="btn-commencer-session" onclick="window.startAnkiSession()" ${cartes.length === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>▶ Commencer</button>
           </div>
         </div>
-        <p class="anki-mut" style="font-size:11px;margin:0 0 8px;">💡 Glisse-dépose les cartes pour personnaliser l'ordre. Clique sur une carte pour la réviser tout de suite.</p>
+        <p class="anki-mut" style="font-size:11px;margin:0 0 8px;">💡 Glisse-dépose les cartes pour personnaliser l'ordre. Clique sur une carte pour la réviser tout de suite. La session générée est persistée et reprenable après refresh.</p>
         <div class="anki-queue" id="ankiQueueDrop">
           ${cartes.length === 0 ? '<div class="anki-empty">Aucune carte à réviser. 🎉</div>' : cartes.map((c, i) => renderQueueRow(c, i)).join('')}
         </div>
@@ -272,6 +334,147 @@
     }).join('');
   }
 
+  // ====== VUE RÉSERVOIR (v4) ======
+  // Liste toutes les cartes en réservoir (statut 'reservoir' ou 'attente' legacy),
+  // groupées par matière, avec activation individuelle ou groupée vers 'actif'.
+  function viewReservoir() {
+    const exos = window.D.exercices || [];
+    const all = exos.filter(c => window.AnkiAlgo.isReservoir(c));
+    // Filtres
+    let list = all.slice();
+    if (S.reservoirFilter.mat) list = list.filter(c => c.mat === S.reservoirFilter.mat);
+    if (S.reservoirFilter.q) {
+      const q = S.reservoirFilter.q.toLowerCase();
+      list = list.filter(c => ((c.titre || '') + ' ' + (c.question || '') + ' ' + (c.id || '')).toLowerCase().includes(q));
+    }
+    // Groupement par matière
+    const groups = {};
+    list.forEach(c => {
+      const k = c.mat || '?';
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(c);
+    });
+    const matKeys = Object.keys(groups).sort((a, b) => {
+      const la = (mat(a).label || a), lb = (mat(b).label || b);
+      return la.localeCompare(lb);
+    });
+    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${S.reservoirFilter.mat === m.id ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
+    const selCount = S.reservoirSel.size;
+
+    let html = `
+      <div class="anki-card-block">
+        <div class="anki-block-hdr">
+          <div>
+            <h3>⏳ Réservoir <span class="anki-mut">(${all.length} cartes)</span></h3>
+            <p class="anki-mut" style="font-size:12px;">Les cartes du réservoir n'entrent JAMAIS dans les sessions automatiques. Active-les manuellement quand tu veux les intégrer aux révisions.</p>
+          </div>
+          <div class="anki-block-actions">
+            <button class="bp" data-testid="btn-reservoir-new-card" onclick="window.openExoModal()">+ Nouvelle carte</button>
+            <button class="bp" data-testid="btn-reservoir-new-exo" onclick="window.openDevoirModal()">+ Nouvel exercice / DM</button>
+          </div>
+        </div>
+        <div class="anki-filters">
+          <input class="fi" placeholder="🔍 Titre, énoncé, code..." data-testid="reservoir-search" value="${esc(S.reservoirFilter.q || '')}" oninput="window.ankiReservoirFilter('q', this.value)">
+          <select class="fi" data-testid="reservoir-mat-filter" onchange="window.ankiReservoirFilter('mat', this.value)">
+            <option value="">Toutes matières</option>${matOpts}
+          </select>
+          <button class="bs" data-testid="btn-reservoir-clear-sel" onclick="window.ankiReservoirClearSel()">Vider sél. (${selCount})</button>
+          <button class="bp" data-testid="btn-reservoir-activate-selected" onclick="window.ankiReservoirActivateSelected()" ${selCount === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>⚡ Activer la sélection (${selCount})</button>
+        </div>
+        ${list.length === 0 ? '<div class="anki-empty">Aucune carte dans le réservoir.</div>' : matKeys.map(k => {
+          const m = mat(k);
+          const cards = groups[k];
+          return `
+            <div class="anki-lib-group" data-testid="reservoir-group-${k}">
+              <div class="anki-lib-group-hdr" style="border-left:4px solid ${m.color};">
+                <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${m.label}</span>
+                <span class="anki-lib-grp-t">${esc(m.name || k)}</span>
+                <span class="anki-mut" style="margin-left:auto;">${cards.length}</span>
+                <button class="bs" style="margin-left:8px;" data-testid="btn-reservoir-activate-mat-${k}" onclick="window.ankiReservoirActivateMat('${k}')">⚡ Activer toute la matière</button>
+              </div>
+              <div class="anki-lib-items">
+                ${cards.map(c => renderReservoirRow(c)).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+    return html;
+  }
+  function renderReservoirRow(c) {
+    const m = mat(c.mat);
+    const checked = S.reservoirSel.has(c.id);
+    const hasSrcE = c.sourceEnonce && (c.sourceEnonce.nom || c.sourceEnonce.details);
+    const hasSrcC = c.sourceCorrection && (c.sourceCorrection.nom || c.sourceCorrection.details);
+    const srcChips = [];
+    if (hasSrcE) srcChips.push(`<span class="anki-tag" style="background:#ffaa3320;color:#ffaa33;border:1px solid #ffaa33;">📖 Énoncé : ${esc(c.sourceEnonce.type || '?')} · ${esc(c.sourceEnonce.nom || '')} ${esc(c.sourceEnonce.details || '')}</span>`);
+    if (hasSrcC) srcChips.push(`<span class="anki-tag" style="background:#42b56b20;color:#42b56b;border:1px solid #42b56b;">✅ Corrigé : ${esc(c.sourceCorrection.type || '?')} · ${esc(c.sourceCorrection.nom || '')} ${esc(c.sourceCorrection.details || '')}</span>`);
+    return `
+      <div class="anki-lib-row" data-testid="reservoir-row-${c.id}">
+        <label class="anki-pick ${checked ? 'on' : ''}" style="flex:0 0 auto;" data-pickid="res-${c.id}">
+          <input type="checkbox" ${checked ? 'checked' : ''} data-testid="reservoir-check-${c.id}" onchange="window.ankiReservoirToggleSel('${c.id}')">
+        </label>
+        <span class="uid-badge anki-lib-id">${c.id}</span>
+        <div class="anki-lib-text">
+          <div class="anki-lib-title">${esc(c.titre || (c.question || '').substring(0, 70))}</div>
+          <div class="anki-lib-meta">
+            <span class="anki-tag" style="border-color:${m.color}80;color:${m.color};">${profileLabel(c.profil || 'COURS')}</span>
+            <span class="anki-mut">⏱ ${window.AnkiAlgo.fmtDur(c.tempsCible || 60)} · ${pri(c.priorite || 2)}</span>
+            ${srcChips.join(' ')}
+          </div>
+        </div>
+        <div class="anki-lib-acts">
+          <button class="bp" data-testid="btn-reservoir-activate-${c.id}" onclick="window.ankiReservoirActivateOne('${c.id}')" title="Activer pour les révisions">⚡ Activer</button>
+          <button class="cbt" title="Modifier" onclick="window.editExo('${c.id}')">✏️</button>
+          <button class="cbt" style="color:var(--red);border-color:var(--red);" title="Supprimer" onclick="window.delExo('${c.id}')">🗑</button>
+        </div>
+      </div>
+    `;
+  }
+  window.ankiReservoirFilter = function (k, v) { S.reservoirFilter[k] = v; renderActiveView(); };
+  window.ankiReservoirToggleSel = function (id) {
+    if (S.reservoirSel.has(id)) S.reservoirSel.delete(id);
+    else S.reservoirSel.add(id);
+    renderActiveView();
+  };
+  window.ankiReservoirClearSel = function () {
+    S.reservoirSel.clear();
+    renderActiveView();
+  };
+  function activateCardById(id) {
+    const c = window.D.exercices.find(x => x.id === id);
+    if (!c) return false;
+    return window.AnkiAlgo.activateFromReservoir(c);
+  }
+  window.ankiReservoirActivateOne = function (id) {
+    if (activateCardById(id)) {
+      S.reservoirSel.delete(id);
+      window.AnkiAlgo.log("activate-reservoir", { id, mode: "single" });
+      window.save();
+      window.renderAnki();
+    }
+  };
+  window.ankiReservoirActivateSelected = function () {
+    const ids = Array.from(S.reservoirSel);
+    let n = 0;
+    ids.forEach(id => { if (activateCardById(id)) n++; });
+    S.reservoirSel.clear();
+    window.AnkiAlgo.log("activate-reservoir", { count: n, mode: "selected" });
+    window.save();
+    window.sysAlert(`${n} carte(s) activée(s) pour les révisions (échéance : aujourd'hui).`, "Réservoir");
+    window.renderAnki();
+  };
+  window.ankiReservoirActivateMat = function (matId) {
+    const list = (window.D.exercices || []).filter(c => c.mat === matId && window.AnkiAlgo.isReservoir(c));
+    let n = 0;
+    list.forEach(c => { if (window.AnkiAlgo.activateFromReservoir(c)) n++; });
+    window.AnkiAlgo.log("activate-reservoir", { mat: matId, count: n, mode: "matiere" });
+    window.save();
+    window.sysAlert(`${n} carte(s) de la matière "${(mat(matId).name || matId)}" activées.`, "Réservoir");
+    window.renderAnki();
+  };
+
   // ===== Drag & drop =====
   function bindDragDrop() {
     const box = $("ankiQueueDrop");
@@ -372,7 +575,10 @@
   function viewLibrary() {
     let list = window.D.exercices.slice().filter(c => c.type !== 'devoir');
     if (S.libFilter.mat) list = list.filter(c => c.mat === S.libFilter.mat);
-    if (S.libFilter.stat) list = list.filter(c => c.statut === S.libFilter.stat);
+    if (S.libFilter.stat) {
+      if (S.libFilter.stat === 'reservoir') list = list.filter(c => window.AnkiAlgo.isReservoir(c));
+      else list = list.filter(c => c.statut === S.libFilter.stat);
+    }
     if (S.libFilter.profil) list = list.filter(c => (c.profil || "COURS") === S.libFilter.profil);
     if (S.libFilter.q) {
       const q = S.libFilter.q.toLowerCase();
@@ -404,7 +610,7 @@
           <select class="fi" onchange="window.ankiLibFilter('stat', this.value)">
             <option value="">Tous statuts</option>
             <option value="actif" ${S.libFilter.stat === 'actif' ? 'selected' : ''}>🟢 Actif</option>
-            <option value="attente" ${S.libFilter.stat === 'attente' ? 'selected' : ''}>⏳ Réservoir</option>
+            <option value="reservoir" ${S.libFilter.stat === 'reservoir' ? 'selected' : ''}>⏳ Réservoir</option>
           </select>
           <select class="fi" onchange="window.ankiLibFilter('profil', this.value)"><option value="">Tous profils</option>${profOpts}</select>
         </div>
@@ -914,8 +1120,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <input type="number" class="fi" min="5" max="240" value="${st.ankiSessionMin || 60}" onchange="window.D.settings.ankiSessionMin=parseInt(this.value)||60;window.save();window.renderAnki();">
         </div>
         <div class="anki-set-row">
-          <label>Nouvelles cartes / session</label>
-          <input type="number" class="fi" min="0" max="30" value="${st.ankiIncludeNew !== undefined ? st.ankiIncludeNew : 5}" onchange="window.D.settings.ankiIncludeNew=parseInt(this.value)||0;window.save();window.renderAnki();">
+          <label>Nouvelles cartes / session (legacy — réservoir activé manuellement)</label>
+          <input type="number" class="fi" min="0" max="30" value="${st.ankiIncludeNew !== undefined ? st.ankiIncludeNew : 0}" onchange="window.D.settings.ankiIncludeNew=parseInt(this.value)||0;window.save();window.renderAnki();">
         </div>
         <div class="anki-set-row">
           <label>Charge max / jour (min)</label>
@@ -925,6 +1131,49 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <label>Seuil d'urgence pour inclusion</label>
           <input type="number" class="fi" step="0.1" value="${st.ankiUrgenceSeuil || 1.5}" onchange="window.D.settings.ankiUrgenceSeuil=parseFloat(this.value)||1.5;window.save();window.renderAnki();">
         </div>
+        <div class="anki-set-row">
+          <label>Marge budget de session <code class="anki-mut">margeBudget</code> (0.5–1.0, défaut 0.92)</label>
+          <input type="number" class="fi" data-testid="input-marge-budget" min="0.5" max="1.0" step="0.01" value="${st.margeBudget != null ? st.margeBudget : 0.92}" onchange="window.D.settings.margeBudget=Math.max(0.5,Math.min(1.0,parseFloat(this.value)||0.92));window.save();window.renderAnki();">
+        </div>
+        <p class="anki-mut" style="font-size:11px;">Exemple : 0.85 → la session se limite à 85% du temps demandé pour garder de la marge.</p>
+      </div>
+
+      <div class="anki-card-block">
+        <h3>⚡ Ease élastique (anti-Ease Hell)</h3>
+        <p class="anki-mut" style="font-size:12px;">Quand tu rates une carte (qScore ≤ seuil), son ease ne baisse que très peu, mais un <b>boost d'urgence temporaire</b> la fait remonter rapidement (J+1, J+2) jusqu'à validation.</p>
+        <div class="anki-set-row">
+          <label>Baisse de fond de l'ease en cas d'échec <code class="anki-mut">EASE_DROP_FAIL</code></label>
+          <input type="number" class="fi" data-testid="input-ease-drop" min="0" max="0.5" step="0.01" value="${C.EASE_DROP_FAIL != null ? C.EASE_DROP_FAIL : 0.05}" onchange="window.D.settings.ankiCoefs.EASE_DROP_FAIL=parseFloat(this.value)||0.05;window.save();window.renderAnki();">
+        </div>
+        <div class="anki-set-row">
+          <label>qScore qui déclenche le boost de blocage <code class="anki-mut">BLOCAGE_QSCORE_TRIGGER</code></label>
+          <input type="number" class="fi" data-testid="input-bloc-trigger" min="0" max="10" step="1" value="${C.BLOCAGE_QSCORE_TRIGGER != null ? C.BLOCAGE_QSCORE_TRIGGER : 3}" onchange="window.D.settings.ankiCoefs.BLOCAGE_QSCORE_TRIGGER=parseInt(this.value);window.save();window.renderAnki();">
+        </div>
+        <div class="anki-set-row">
+          <label>qScore qui lève le blocage <code class="anki-mut">BLOCAGE_QSCORE_VALIDATE</code></label>
+          <input type="number" class="fi" data-testid="input-bloc-validate" min="1" max="10" step="1" value="${C.BLOCAGE_QSCORE_VALIDATE != null ? C.BLOCAGE_QSCORE_VALIDATE : 8}" onchange="window.D.settings.ankiCoefs.BLOCAGE_QSCORE_VALIDATE=parseInt(this.value);window.save();window.renderAnki();">
+        </div>
+        <div class="anki-set-row">
+          <label>Timeout : nb max de révisions sous blocage avant libération auto <code class="anki-mut">BLOCAGE_TIMEOUT_REV</code></label>
+          <input type="number" class="fi" data-testid="input-bloc-timeout" min="1" max="50" step="1" value="${C.BLOCAGE_TIMEOUT_REV != null ? C.BLOCAGE_TIMEOUT_REV : 5}" onchange="window.D.settings.ankiCoefs.BLOCAGE_TIMEOUT_REV=parseInt(this.value);window.save();window.renderAnki();">
+        </div>
+        <div class="anki-set-row">
+          <label>Ease "virtuelle" pendant le boost <code class="anki-mut">BLOCAGE_BOOST_EASE_VAL</code></label>
+          <input type="number" class="fi" min="1.3" max="3.0" step="0.05" value="${C.BLOCAGE_BOOST_EASE_VAL != null ? C.BLOCAGE_BOOST_EASE_VAL : 1.3}" onchange="window.D.settings.ankiCoefs.BLOCAGE_BOOST_EASE_VAL=parseFloat(this.value)||1.3;window.save();window.renderAnki();">
+        </div>
+      </div>
+
+      <div class="anki-card-block">
+        <h3>📐 Index de Délai Relatif (I_R)</h3>
+        <p class="anki-mut" style="font-size:12px;">
+          <b>I_R</b> = (jours écoulés depuis la dernière révision) / (intervalle prévu).<br>
+          · <b>I_R &lt; 1</b> (en avance) → urgence en exponentielle douce <code>exp(K · (I_R−1))</code><br>
+          · <b>I_R = 1</b> (jour J) → valeur nominale<br>
+          · <b>I_R &gt; 1</b> (en retard) → urgence linéaire <code>1 + γ · (I_R−1)</code> — les petits intervalles en retard montent vite.
+        </p>
+        ${coefRow('W_urgenceTemps', 'Poids global de la composante temporelle I_R')}
+        ${coefRow('K_PROCHE', 'K — exposant de la montée exponentielle (I_R < 1)', 0.1)}
+        ${coefRow('GAMMA_RETARD', 'γ — pente du retard linéaire (I_R > 1)', 0.1)}
       </div>
 
       <div class="anki-card-block">
@@ -1044,24 +1293,107 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
 
   // ====== SESSION ======
-  window.startAnkiSession = function () {
+  // 🆕 v4 : persistance de la session dans D.sessionEnCours pour survivre aux changements
+  // d'onglet et au refresh du navigateur.
+  function buildSessionPlan() {
     const settings = window.D.settings || {};
-    const plan = window.AnkiAlgo.buildSession(window.D.exercices, {
+    return window.AnkiAlgo.buildSession(window.D.exercices, {
       sessionMinutes: settings.ankiSessionMin || 60,
-      includeNew: settings.ankiIncludeNew !== undefined ? settings.ankiIncludeNew : 5,
+      includeNew: settings.ankiIncludeNew !== undefined ? settings.ankiIncludeNew : 0,
       selectedIds: S.selectionIds.size ? Array.from(S.selectionIds) : null,
       manualOrder: S.manualOrder
     });
+  }
+  function persistSession() {
+    if (!window.D) return;
+    window.D.sessionEnCours = {
+      queueIds:     S.queue.map(c => c.id),
+      currentId:    S.current ? S.current.id : null,
+      stats:        Object.assign({}, S.stats),
+      mode:         S.mode,
+      generatedAt:  new Date().toISOString(),
+      manualOrder:  S.manualOrder ? S.manualOrder.slice() : null,
+      selectedIds:  Array.from(S.selectionIds),
+      showAnswer:   !!S.showAnswer
+    };
+    window.save();
+  }
+  function clearPersistedSession() {
+    if (window.D) {
+      delete window.D.sessionEnCours;
+      window.save();
+    }
+  }
+  // À chaque renderAnki : si une session est persistée mais que S.queue est vide
+  // (cas refresh), on prépare la "Reprendre" sans réafficher l'overlay tant que
+  // l'utilisateur ne clique pas dessus.
+  function restoreSessionFromStorageIfAny() {
+    if (!window.D || !window.D.sessionEnCours) return;
+    const sec = window.D.sessionEnCours;
+    if (!Array.isArray(sec.queueIds) || !sec.queueIds.length) {
+      delete window.D.sessionEnCours;
+      return;
+    }
+    // Si la queue mémoire est déjà chargée (changement d'onglet simple), ne rien faire
+    if (S.queue && S.queue.length) return;
+    // Sinon : reconstruit la queue à partir des ids
+    const cards = sec.queueIds
+      .map(id => (window.D.exercices || []).find(x => x.id === id))
+      .filter(Boolean);
+    S.queue        = cards;
+    S.stats        = Object.assign({ ok: 0, mid: 0, bad: 0, total: cards.length }, sec.stats || {});
+    S.mode         = sec.mode || "normal";
+    S.manualOrder  = sec.manualOrder ? sec.manualOrder.slice() : null;
+    S.selectionIds = new Set(sec.selectedIds || []);
+    // Note : on NE relance PAS l'overlay automatiquement. L'utilisateur clique "Reprendre".
+    S.current = null;
+  }
+
+  // 🆕 v4 : Générer la session du soir = construire la file + la figer en persistance
+  window.ankiGenererSessionSoir = function () {
+    const plan = buildSessionPlan();
+    if (!plan.cartes.length) {
+      return window.sysAlert("Aucune carte à inclure dans la session du soir.", "Synchrotron");
+    }
+    // Activer les cartes du réservoir éventuellement présentes (forceIncludeReservoir)
+    plan.cartes.forEach(c => {
+      if (window.AnkiAlgo.isReservoir(c)) window.AnkiAlgo.activateFromReservoir(c);
+    });
+    S.queue   = plan.cartes.slice();
+    S.mode    = "normal";
+    S.current = null;
+    S.stats   = { ok: 0, mid: 0, bad: 0, total: plan.cartes.length };
+    S.sessionGeneree = true;
+    persistSession();
+    window.AnkiAlgo.log("session-generated", { count: plan.cartes.length, totalSec: plan.tempsTotalPrev });
+    window.sysAlert(`Session du soir générée : <b>${plan.cartes.length} cartes</b> (${window.AnkiAlgo.fmtDur(plan.tempsTotalPrev)}). Elle est sauvegardée et reprenable après refresh.`, "Session figée");
+    window.renderAnki();
+  };
+  // Bouton "Reprendre"
+  window.ankiResumeSession = function () {
+    if (!S.queue || !S.queue.length) restoreSessionFromStorageIfAny();
+    if (!S.queue || !S.queue.length) return window.sysAlert("Aucune session active à reprendre.", "Synchrotron");
+    nextCard();
+  };
+  window.ankiDiscardSession = function () {
+    window.sysConfirm("Abandonner la session du soir en cours ?", () => {
+      S.queue = []; S.current = null; S.stats = { ok: 0, mid: 0, bad: 0, total: 0 };
+      S.dernierExerciceModifie = null;
+      clearPersistedSession();
+      window.renderAnki();
+    }, "Session");
+  };
+
+  window.startAnkiSession = function () {
+    const plan = buildSessionPlan();
     if (!plan.cartes.length) return window.sysAlert("Aucune carte à réviser.", "Synchrotron");
     plan.cartes.forEach(c => {
-      if (c.statut === "attente") {
-        c.statut = "actif";
-        if (!c.dateProchaineRevision) c.dateProchaineRevision = window.AnkiAlgo.todayISO();
-      }
+      if (window.AnkiAlgo.isReservoir(c)) window.AnkiAlgo.activateFromReservoir(c);
     });
     S.queue = plan.cartes.slice();
     S.mode = "normal";
     S.stats = { ok: 0, mid: 0, bad: 0, total: plan.cartes.length };
+    persistSession();
     nextCard();
   };
   window.startAnkiSingle = function (id) {
@@ -1094,17 +1426,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!S.queue.length) return endSession();
     S.current = S.queue.shift();
     S.showAnswer = false; S.chronoElapsed = 0; S.chronoStart = Date.now();
+    S.chronoPausedAt = 0;
     S.sliderValue = 7;
+    S.sessionTempsManuel = null; // 🆕 v4 : reset à chaque carte
     if (S.chronoInt) clearInterval(S.chronoInt);
-    S.chronoInt = setInterval(() => {
-      S.chronoElapsed = (Date.now() - S.chronoStart) / 1000;
-      const el = $("ankiChrono");
-      if (el) {
-        el.textContent = fmtSec(S.chronoElapsed);
-        const cible = (S.current && S.current.tempsCible) || 60;
-        el.style.color = S.chronoElapsed > cible * 1.5 ? "var(--red)" : S.chronoElapsed > cible ? "var(--gold)" : "var(--grn)";
-      }
-    }, 200);
+    S.chronoInt = setInterval(tickChrono, 200);
+    persistSession();
     renderSessionOverlay();
   }
 
@@ -1143,25 +1470,34 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
               <span class="anki-mut">min · Reste après celle-ci : <b>${Math.max(0, (c._morceauxTotal || 1) - (c._morceauxFaits || 0) - 1)} session(s)</b></span>
             </div>
           </div>
-        ` : `<div class="anki-sess-meta">⏱ Cible ${window.AnkiAlgo.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · 🔗 ' + esc(linkedTitle) : ''}</div>`}
+        ` : `<div class="anki-sess-meta">⏱ Cible ${window.AnkiAlgo.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · 🔗 ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">⚡ BOOST blocage actif</span>' : ''}</div>`}
         ${c.titre ? `<div class="anki-sess-titre">${esc(c.titre)}</div>` : ''}
         <div class="anki-sess-q">${esc(c.question || '')}</div>
+        ${renderSourcesBox(c, false)}
         ${S.showAnswer ? `
           ${hasReponse ? `<div class="anki-sess-r"><div class="anki-mut" style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Réponse</div><div>${esc(c.reponse)}</div></div>` : '<div class="anki-sess-r-empty">Auto-évaluation libre (pas de réponse enregistrée)</div>'}
+          ${renderSourcesBox(c, true)}
+          <div class="anki-temps-manuel" data-testid="temps-manuel-wrap">
+            <label class="anki-mut" style="font-size:11px;">⏱ Temps mesuré (mn) — modifie si différent :</label>
+            <input type="number" id="ankiTempsManuel" data-testid="input-temps-manuel" min="0" max="600" step="0.5"
+                   placeholder="auto chrono" value="${S.sessionTempsManuel != null ? S.sessionTempsManuel : ''}"
+                   onchange="window._ankiSessionTempsManuel = this.value === '' ? null : parseFloat(this.value);">
+            <span class="anki-mut" style="font-size:11px;">(défaut : chrono ${fmtSec(S.chronoElapsed)})</span>
+          </div>
           ${isDevoir ? `
             <div class="anki-mut" style="text-align:center;margin:14px 0 8px;font-size:12px;">Session de DM terminée ? Indique l'avancement :</div>
             <div class="anki-evals">
-              <button class="anki-eval bad" onclick="window.evalCard(2)" title="Pas avancé ou bloqué"><span>⏸</span><small>À refaire</small></button>
-              <button class="anki-eval mid" onclick="window.evalCard(6)" title="Partiellement fait"><span>📝</span><small>Partiel</small></button>
-              <button class="anki-eval good" onclick="window.evalCard(9)" title="Session complétée"><span>✅</span><small>Fait</small></button>
+              <button class="anki-eval bad" data-testid="eval-dm-bad" onclick="window.evalCard(2)" title="Pas avancé ou bloqué"><span>⏸</span><small>À refaire</small></button>
+              <button class="anki-eval mid" data-testid="eval-dm-mid" onclick="window.evalCard(6)" title="Partiellement fait"><span>📝</span><small>Partiel</small></button>
+              <button class="anki-eval good" data-testid="eval-dm-good" onclick="window.evalCard(9)" title="Session complétée"><span>✅</span><small>Fait</small></button>
             </div>
             <p class="anki-mut" style="font-size:11px;text-align:center;margin-top:8px;">Pour un DM, on n'évalue pas la mémoire mais l'avancement. L'ease/intervalle ne changent pas.</p>
           ` : `
             <div class="anki-mut" style="text-align:center;margin:14px 0 8px;font-size:12px;">Comment ça s'est passé ?</div>
             <div class="anki-evals">
-              <button class="anki-eval bad" onclick="window.evalCard(2)"><span>❌</span><small>Blocage</small></button>
-              <button class="anki-eval mid" onclick="window.evalCard(6)"><span>🟡</span><small>Étourderie</small></button>
-              <button class="anki-eval good" onclick="window.evalCard(9)"><span>✅</span><small>Parfait</small></button>
+              <button class="anki-eval bad" data-testid="eval-bad" onclick="window.evalCard(2)"><span>❌</span><small>Blocage</small></button>
+              <button class="anki-eval mid" data-testid="eval-mid" onclick="window.evalCard(6)"><span>🟡</span><small>Étourderie</small></button>
+              <button class="anki-eval good" data-testid="eval-good" onclick="window.evalCard(9)"><span>✅</span><small>Parfait</small></button>
             </div>
             ${showSlider ? `
               <div class="anki-slider-wrap">
@@ -1171,26 +1507,105 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
                 </div>
                 <input type="range" min="1" max="10" value="${S.sliderValue}" class="anki-slider" id="ankiSlider"
                   oninput="document.getElementById('ankiSliderVal').textContent=this.value;window._ankiSlider=parseInt(this.value);">
-                <button class="bp anki-slider-btn" onclick="window.evalCard(parseInt(document.getElementById('ankiSlider').value))">Valider (score précis)</button>
+                <button class="bp anki-slider-btn" data-testid="btn-eval-slider" onclick="window.evalCard(parseInt(document.getElementById('ankiSlider').value))">Valider (score précis)</button>
               </div>
             ` : ''}
           `}
-        ` : `<button class="bp anki-reveal" onclick="window.revealAnki()">${isDevoir ? "J'ai fini cette session" : (hasReponse ? 'Afficher la réponse' : "J'ai fini · m'auto-évaluer")}</button>`}
+        ` : `<button class="bp anki-reveal" data-testid="btn-reveal" onclick="window.revealAnki()">${isDevoir ? "J'ai fini cette session" : (hasReponse ? 'Afficher la réponse' : "J'ai fini · m'auto-évaluer")}</button>`}
         <div class="anki-sess-foot">
           <span class="anki-mut">Reste : ${S.queue.length} · ✅ ${S.stats.ok} · 🟡 ${S.stats.mid} · ❌ ${S.stats.bad}</span>
-          <button class="bs anki-quit" onclick="window.abortAnkiSession()">Terminer maintenant</button>
+          <div style="display:flex;gap:6px;">
+            ${S.dernierExerciceModifie ? `<button class="bs" data-testid="btn-undo-notation" style="border-color:var(--gold);color:var(--gold);" onclick="window.ankiUndoLastEval()">↺ Annuler la dernière notation</button>` : ''}
+            <button class="bs anki-quit" data-testid="btn-abort-session" onclick="window.abortAnkiSession()">Terminer maintenant</button>
+          </div>
         </div>
       </div>
     `;
   }
 
+  // 🆕 v4 : affiche le bloc "Sources" (énoncé + corrigé) pour orienter physiquement
+  function renderSourcesBox(c, isAnswerSide) {
+    if (!c) return '';
+    const src = isAnswerSide ? c.sourceCorrection : c.sourceEnonce;
+    if (!src) return '';
+    const hasContent = (src.nom || src.details);
+    if (!hasContent) return '';
+    const labelType = (src.type || '').toString();
+    const labelTitle = isAnswerSide ? '✅ Corrigé' : '📖 Énoncé';
+    const color = isAnswerSide ? 'var(--grn)' : 'var(--gold)';
+    return `
+      <div class="anki-src-box" data-testid="src-box-${isAnswerSide ? 'cor' : 'enon'}" style="border:1px dashed ${color};background:rgba(0,0,0,0.04);padding:8px 10px;border-radius:6px;margin:6px 0;">
+        <div style="font-size:11px;color:${color};font-weight:700;letter-spacing:.4px;text-transform:uppercase;">${labelTitle} · ${esc(labelType)}</div>
+        <div style="font-size:13px;margin-top:2px;"><b>${esc(src.nom || '')}</b> ${src.details ? ' — ' + esc(src.details) : ''}</div>
+      </div>
+    `;
+  }
+
   window.revealAnki = function () { S.showAnswer = true; renderSessionOverlay(); };
+
+  // 🆕 v4 : helper deep clone (snapshot complet d'une carte pour Undo)
+  function cloneCard(c) {
+    if (!c) return null;
+    try { return JSON.parse(JSON.stringify(c)); }
+    catch (e) { return Object.assign({}, c); }
+  }
+
+  // 🆕 v4 : annule la dernière notation
+  window.ankiUndoLastEval = function () {
+    const snap = S.dernierExerciceModifie;
+    if (!snap) return window.sysAlert("Aucune notation récente à annuler.", "Undo");
+    const idx = window.D.exercices.findIndex(x => x.id === snap.card.id);
+    if (idx < 0) {
+      // La carte n'existe plus (cas extrême) : on l'ajoute en début de liste
+      window.D.exercices.unshift(cloneCard(snap.card));
+    } else {
+      // Restauration totale (ease, intervalle, repetitions, blocage, historique, etc.)
+      window.D.exercices[idx] = cloneCard(snap.card);
+    }
+    // Décrémentation des compteurs de session
+    if (snap.statBucket === 'ok')  S.stats.ok  = Math.max(0, S.stats.ok  - 1);
+    if (snap.statBucket === 'mid') S.stats.mid = Math.max(0, S.stats.mid - 1);
+    if (snap.statBucket === 'bad') S.stats.bad = Math.max(0, S.stats.bad - 1);
+    // Réinjection en tête de file
+    const restoredCard = window.D.exercices.find(x => x.id === snap.card.id);
+    if (restoredCard) {
+      S.queue.unshift(restoredCard);
+      // On rouvre la carte directement (le chrono repart de 0 pour cette tentative)
+      S.current = null;
+    }
+    window.AnkiAlgo.log("undo-eval", { id: snap.card.id, statBucket: snap.statBucket });
+    S.dernierExerciceModifie = null;
+    window.save();
+    persistSession();
+    nextCard();
+    window.sysAlert("Dernière notation annulée. La carte est replacée en tête de file.", "Undo");
+  };
+
   window.evalCard = function (qScore) {
     if (!S.current) return;
     qScore = Math.max(0, Math.min(10, qScore));
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
-    const tps = S.chronoElapsed;
+
+    // 🆕 v4 : temps réel = soit saisie manuelle (minutes), soit chrono auto (secondes)
+    const inputManuel = document.getElementById('ankiTempsManuel');
+    let tps = S.chronoElapsed; // par défaut : chrono auto (secondes)
+    if (inputManuel && inputManuel.value !== '' && !isNaN(parseFloat(inputManuel.value))) {
+      const min = Math.max(0, parseFloat(inputManuel.value));
+      tps = min * 60; // conversion minutes → secondes
+      S.sessionTempsManuel = min;
+    }
+
     const isDevoir = S.current.type === 'devoir';
+
+    // 🆕 v4 : SNAPSHOT AVANT modification (pour Undo)
+    const snapshot = {
+      card: cloneCard(S.current),
+      tps,
+      qScore,
+      isDevoir,
+      statBucket: null,    // rempli ci-dessous
+      timestamp: new Date().toISOString()
+    };
 
     if (isDevoir) {
       // ⚙️ DM : on ne touche PAS ease/intervalle/repetitions (pas une carte de mémorisation)
@@ -1213,13 +1628,19 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       });
       window.sysAlert(`📝 <b>${S.current.titre || S.current.id}</b><br>Session ${S.current._morceauxFaits}/${S.current._morceauxTotal} terminée.<br>${restants > 0 ? 'Prochaine session : <b>' + S.current.dateProchaineRevision + '</b>' : '✅ <b>DM TERMINÉ</b>'}`, "DM");
     } else {
-      // 📚 Carte normale : update ease/intervalle/repetitions
+      // 📚 Carte normale : update ease/intervalle/repetitions + flag blocage
       const easeAvant = S.current.ease || 2.5;
       const intAvant = S.current.intervalle || 0;
       const out = window.AnkiAlgo.computeNextInterval(S.current, qScore, tps);
       if (S.mode !== "colle") {
-        S.current.intervalle = out.intervalle; S.current.ease = out.ease;
-        S.current.repetitions = out.repetitions; S.current.dateProchaineRevision = out.dateProchaineRevision;
+        S.current.intervalle = out.intervalle;
+        S.current.ease = out.ease;
+        S.current.repetitions = out.repetitions;
+        S.current.dateProchaineRevision = out.dateProchaineRevision;
+        // 🆕 v4 : flags d'état pour l'ease aggressif + traçabilité I_R
+        S.current._blocageActif    = out._blocageActif;
+        S.current._blocageRevCount = out._blocageRevCount;
+        S.current._lastReviewDate  = out._lastReviewDate;
       }
       S.current.historique = S.current.historique || [];
       S.current.historique.push({ date: new Date().toISOString(), qScore, tempsReel: Math.round(tps), pen: out.penaliteVitesse, mode: S.mode });
@@ -1228,36 +1649,59 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         qScore,
         ease: easeAvant.toFixed(2) + "→" + out.ease,
         intervalle: intAvant + "→" + out.intervalle + "j",
-        next: out.dateProchaineRevision
+        next: out.dateProchaineRevision,
+        blocage: out._blocageActif ? `actif(${out._blocageRevCount})` : 'levé'
       });
       // 🆕 Confirmation visible immédiate après chaque eval (mode single / quick)
       if (S.mode === 'single' || S.queue.length === 0) {
         const deltaEase = out.ease - easeAvant;
         const easeArrow = deltaEase > 0 ? '↑' : deltaEase < 0 ? '↓' : '=';
         const easeColor = deltaEase > 0 ? 'var(--grn)' : deltaEase < 0 ? 'var(--red)' : 'var(--mut)';
+        const blocageLine = out._blocageActif
+          ? `<br>⚡ <b style="color:var(--red);">Blocage actif</b> (tentative ${out._blocageRevCount}) — la carte sera boostée jusqu'à note ≥ ${(window.AnkiAlgo.getCoefs().BLOCAGE_QSCORE_VALIDATE || 8)}.`
+          : (snapshot.card._blocageActif ? `<br>✅ <b style="color:var(--grn);">Blocage levé</b>` : '');
         window.sysAlert(
           `<b>${S.current.titre || S.current.id}</b><br><br>` +
           `🎯 Score : <b>${qScore}/10</b> (vitesse ×${out.penaliteVitesse})<br>` +
           `📊 Ease : ${easeAvant.toFixed(2)} → <b style="color:${easeColor};">${out.ease} ${easeArrow}</b><br>` +
           `📅 Intervalle : ${intAvant}j → <b>${out.intervalle}j</b><br>` +
-          `🗓 Prochaine révision : <b>${out.dateProchaineRevision}</b>`,
+          `🗓 Prochaine révision : <b>${out.dateProchaineRevision}</b>${blocageLine}`,
           "Carte évaluée"
         );
       }
     }
 
     const btn = window.AnkiAlgo.qScoreToButton(qScore);
-    if (btn === 0) S.stats.bad++; else if (btn === 1) S.stats.mid++; else S.stats.ok++;
+    if (btn === 0)      { S.stats.bad++; snapshot.statBucket = 'bad'; }
+    else if (btn === 1) { S.stats.mid++; snapshot.statBucket = 'mid'; }
+    else                { S.stats.ok++;  snapshot.statBucket = 'ok';  }
+
+    // 🆕 v4 : conserve le snapshot pour Undo
+    S.dernierExerciceModifie = snapshot;
+
     if (qScore <= 3 && S.mode !== "colle" && S.mode !== "single" && !isDevoir) S.queue.push(S.current);
     if (window.D.settings) window.D.settings.ankiLastSession = window.AnkiAlgo.todayISO();
-    window.save(); nextCard();
+    window.save();
+    persistSession();
+    nextCard();
   };
   window.abortAnkiSession = function () {
     if (S.chronoInt) clearInterval(S.chronoInt);
+    S.chronoInt = null;
     const ov = $("ovAnkiSession"); if (ov) ov.classList.add("hidden");
     const s = S.stats;
-    if (s.total) window.sysAlert(`Session terminée.<br>✅ ${s.ok} · 🟡 ${s.mid} · ❌ ${s.bad}<br>${s.total - S.queue.length}/${s.total} cartes faites.`, "Synchrotron");
-    S.queue = []; S.current = null; S.selectionIds.clear(); S.manualOrder = null;
+    const fini = !S.queue.length;
+    if (s.total) window.sysAlert(`Session ${fini ? 'terminée' : 'mise en pause'}.<br>✅ ${s.ok} · 🟡 ${s.mid} · ❌ ${s.bad}<br>${s.total - S.queue.length}/${s.total} cartes faites.${!fini ? '<br><br>📌 La file reste sauvegardée — clique "Reprendre" plus tard.' : ''}`, "Synchrotron");
+    if (fini) {
+      // Session complète → on nettoie tout
+      S.queue = []; S.current = null; S.selectionIds.clear(); S.manualOrder = null;
+      S.dernierExerciceModifie = null;
+      clearPersistedSession();
+    } else {
+      // Pause : on conserve queue + persistance, on ferme juste l'overlay
+      S.current = null;
+      persistSession();
+    }
     window.renderAnki();
   };
   function endSession() { window.abortAnkiSession(); }
@@ -1325,11 +1769,46 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           </div>
           <div class="fg"><label>Statut</label>
             <select id="exoStat">
-              <option value="attente" ${(c.statut || 'attente') === 'attente' ? 'selected' : ''}>⏳ Réservoir</option>
+              <option value="reservoir" ${(c.statut || 'reservoir') === 'reservoir' || c.statut === 'attente' ? 'selected' : ''}>⏳ Réservoir</option>
               <option value="actif" ${c.statut === 'actif' ? 'selected' : ''}>🟢 Actif</option>
             </select>
           </div>
           ${isDevoir ? `<div class="fg"><label>Date limite</label><input type="date" id="exoDateLim" value="${esc(c.dateLimite || '')}"></div>` : ''}
+        </div>
+
+        <div class="anki-src-block" style="border-top:1px dashed var(--bd);padding-top:10px;margin-top:6px;">
+          <p class="anki-mut" style="font-size:12px;margin-bottom:6px;">📚 <b>Guidage physique</b> — où trouver l'énoncé et le corrigé (facultatif, utile pour les exos qui vivent sur papier).</p>
+          <div class="anki-modal-row">
+            <div class="fg"><label>Énoncé · Type</label>
+              <select id="exoSrcEnonceType">
+                <option value="">— Aucun —</option>
+                <option value="livre"    ${(c.sourceEnonce && c.sourceEnonce.type) === 'livre'    ? 'selected' : ''}>📕 Livre</option>
+                <option value="classeur" ${(c.sourceEnonce && c.sourceEnonce.type) === 'classeur' ? 'selected' : ''}>🗂 Classeur</option>
+              </select>
+            </div>
+            <div class="fg"><label>Nom (livre / classeur)</label>
+              <input type="text" id="exoSrcEnonceNom" data-testid="src-enonce-nom" placeholder="Ex: HPrépa MP" value="${esc((c.sourceEnonce && c.sourceEnonce.nom) || '')}">
+            </div>
+            <div class="fg"><label>Détails (page, exo, onglet…)</label>
+              <input type="text" id="exoSrcEnonceDet" data-testid="src-enonce-det" placeholder="Ex: p.142 ex.7" value="${esc((c.sourceEnonce && c.sourceEnonce.details) || '')}">
+            </div>
+          </div>
+          <div class="anki-modal-row">
+            <div class="fg"><label>Corrigé · Type</label>
+              <select id="exoSrcCorType">
+                <option value="">— Aucun —</option>
+                <option value="livre"    ${(c.sourceCorrection && c.sourceCorrection.type) === 'livre'    ? 'selected' : ''}>📕 Livre</option>
+                <option value="classeur" ${(c.sourceCorrection && c.sourceCorrection.type) === 'classeur' ? 'selected' : ''}>🗂 Classeur</option>
+                <option value="app"      ${(c.sourceCorrection && c.sourceCorrection.type) === 'app'      ? 'selected' : ''}>💡 Dans l'app</option>
+              </select>
+            </div>
+            <div class="fg"><label>Nom</label>
+              <input type="text" id="exoSrcCorNom" data-testid="src-cor-nom" placeholder="Ex: Corrigé HPrépa" value="${esc((c.sourceCorrection && c.sourceCorrection.nom) || '')}">
+            </div>
+            <div class="fg"><label>Détails</label>
+              <input type="text" id="exoSrcCorDet" data-testid="src-cor-det" placeholder="Ex: p.480, vidéo, onglet jaune" value="${esc((c.sourceCorrection && c.sourceCorrection.details) || '')}">
+            </div>
+          </div>
         </div>
 
         ${isDevoir ? `
@@ -1412,17 +1891,30 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const tempsMin = parseFloat($("exoTempsMin").value) || 1;
     const temps = Math.round(tempsMin * 60);
     const prio = parseInt($("exoPri").value) || 2;
-    const stat = $("exoStat").value || "attente";
+    const stat = $("exoStat").value || "reservoir"; // 🆕 v4 : par défaut réservoir
     const coursIds = Array.from(S.coursLinkSelection);
     const decoupe = isDevoir && $("exoDecoupe") && $("exoDecoupe").checked;
     const morceaux = decoupe ? Math.max(2, parseInt($("exoMorceaux").value) || 3) : 1;
     const dateLim = isDevoir && $("exoDateLim") ? $("exoDateLim").value : null;
+
+    // 🆕 v4 : lecture des champs sources
+    function readSrc(prefix) {
+      const type = ($("exoSrc" + prefix + "Type") || {}).value || '';
+      const nom  = (($("exoSrc" + prefix + "Nom")  || {}).value || '').trim();
+      const det  = (($("exoSrc" + prefix + "Det")  || {}).value || '').trim();
+      if (!type && !nom && !det) return null;
+      return { type: type || 'livre', nom, details: det };
+    }
+    const sourceEnonce     = readSrc('Enonce');
+    const sourceCorrection = readSrc('Cor');
 
     if (!q || !matV) return window.sysAlert("Énoncé et matière obligatoires.", "Erreur");
 
     if (editingExoId) {
       const c = window.D.exercices.find(x => x.id === editingExoId); if (!c) return;
       Object.assign(c, { titre, question: q, reponse: r, mat: matV, profil, tempsCible: temps, priorite: prio, statut: stat, coursIds });
+      if (sourceEnonce)     c.sourceEnonce     = sourceEnonce;     else delete c.sourceEnonce;
+      if (sourceCorrection) c.sourceCorrection = sourceCorrection; else delete c.sourceCorrection;
       if (isDevoir) { c.type = 'devoir'; c.dateLimite = dateLim; c._morceauxTotal = morceaux; if (!c._morceauxFaits) c._morceauxFaits = 0; }
       delete c.coursId;
       if (stat === 'actif' && !c.dateProchaineRevision) c.dateProchaineRevision = window.AnkiAlgo.todayISO();
@@ -1436,6 +1928,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         repetitions: 0, dateProchaineRevision: stat === 'actif' ? window.AnkiAlgo.todayISO() : null,
         historique: [], epinglee: false, dateCreation: new Date().toISOString()
       };
+      if (sourceEnonce)     card.sourceEnonce     = sourceEnonce;
+      if (sourceCorrection) card.sourceCorrection = sourceCorrection;
       if (isDevoir) { card.type = 'devoir'; card.dateLimite = dateLim; card._morceauxTotal = morceaux; card._morceauxFaits = 0; }
       window.D.exercices.unshift(card);
       // Si découpé : crée les morceaux comme cartes virtuelles
