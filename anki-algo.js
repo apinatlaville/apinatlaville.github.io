@@ -153,23 +153,39 @@
     // Mapping continu : 0-3 reset · 4-6 doux · 7-8 normal · 9-10 bonus
     let qFactor;
     if (qScore <= QSCORE_FAIL) {
+<<<<<<< HEAD
+      // 🆕 v4.3 : Reset complet (pas de progression partielle)
+      rep = 0;
+=======
       // Reset progressif (0=reset total, 3=presque OK)
       rep = Math.max(0, rep - 2 + Math.floor(qScore / 1.5));
+>>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
       intervalle = 0;
       // 🆕 v4 : on ne casse PAS l'ease définitivement → baisse douce uniquement
       ease = Math.max(ALGO.MIN_EASE, ease - EASE_DROP_FAIL);
       qFactor = 0;
       // ⚡ Active le flag de blocage temporaire
       blocageActif    = true;
+<<<<<<< HEAD
+      // 🛡️ v4.3 : Compteur démarre à 1 en première entrée de blocage
+      blocageRevCount = card._blocageActif ? (blocageRevCount + 1) : 1;
+=======
       blocageRevCount = blocageActif === card._blocageActif ? (blocageRevCount + 1) : 1;
+>>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
     } else {
       // Succès gradué
       if (rep < steps.length) intervalle = steps[rep];
       else intervalle = Math.round(intervalle * ease);
       rep += 1;
+<<<<<<< HEAD
+      // 🆕 v4.3 : qScore 4 → 0.45 · 7 → 1.0 · 8 → 1.15 · 9 → 1.30 · 10 → 1.45 (lisse continu)
+      // Formule continue : qFactor = 0.45 + (qScore - 4) * 0.15 (au lieu du saut à 9)
+      qFactor = 0.45 + (qScore - 4) * 0.15;
+=======
       // qScore 4 → 0.45 · 7 → 1.0 · 10 → 1.4
       qFactor = 0.45 + (qScore - 4) * (0.95 / 6);
       if (qScore >= 9) qFactor = 1.2 + (qScore - 9) * 0.2;
+>>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
       // Ajustement ease (succès)
       const easeDelta = (qScore - 7) * 0.05; // <7 baisse douce, >7 monte
       ease = Math.max(ALGO.MIN_EASE, Math.min(ALGO.MAX_EASE, ease + easeDelta));
@@ -303,6 +319,35 @@
   //   · < 1  → en avance / approche (exp douce)
   //   · = 1  → jour J
   //   · > 1  → en retard linéaire
+<<<<<<< HEAD
+   // Si la carte n'a pas d'intervalle (nouvelle activation, intervalle=0), on
+   // considère un intervalle minimal de 1j pour éviter la division par zéro et on
+   // retourne directement un ratio basé sur le retard absolu (cf. cas dégradé).
+   ALGO.computeIR = function (card, refIso) {
+     if (!card) return { IR: 0, intervalleRef: 0, joursEcoules: 0 };
+     const today = refIso || ALGO.todayISO();
+     const intervalle = Math.max(0, Math.round(card.intervalle || 0));
+     // 🆕 v4.3 : Date de la dernière révision — champ explicite PRIORITAIRE
+     // Cette date est enregistrée lors de chaque révision dans _lastReviewDate
+     let lastIso = card._lastReviewDate;
+     if (!lastIso) {
+       if (card.dateProchaineRevision && intervalle > 0) {
+         lastIso = ALGO.addDays(card.dateProchaineRevision, -intervalle);
+       } else if (card.dateProchaineRevision) {
+         lastIso = card.dateProchaineRevision; // intervalle = 0 → due aujourd'hui
+       } else {
+         lastIso = today;
+       }
+     }
+     const joursEcoules = Math.max(0, ALGO.daysBetween(lastIso, today));
+     // 🆕 v4.3 : Cas dégradé LISSÉ — pas de saut abrupt entre intervalle 0 et intervalle 1
+     if (intervalle <= 0) {
+       return {
+         IR: Math.max(0.5, joursEcoules),  // Ratio direct : retard absolu (sans +1 qui créait un saut)
+         intervalleRef: 1, joursEcoules, lastIso, degraded: true
+       };
+     }
+=======
   // Si la carte n'a pas d'intervalle (nouvelle activation, intervalle=0), on
   // considère un intervalle minimal de 1j pour éviter la division par zéro et on
   // retourne directement un ratio basé sur le retard absolu (cf. cas dégradé).
@@ -330,6 +375,7 @@
         intervalleRef: 1, joursEcoules, lastIso, degraded: true
       };
     }
+>>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
     return {
       IR: joursEcoules / intervalle,
       intervalleRef: intervalle, joursEcoules, lastIso

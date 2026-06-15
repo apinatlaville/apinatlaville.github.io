@@ -124,21 +124,7 @@ window.updateCloudIndicator = function() {
   }
 };
 
-window.save = async function() { 
-  localStorage.setItem('mc_v28', JSON.stringify(window.D)); 
-  try {
-    await setDoc(window.docRef, window.D);
-    if(!window.cloudConnected) {
-      window.cloudConnected = true;
-      window.updateCloudIndicator();
-    }
-  } catch(e) {
-    if(window.cloudConnected) {
-      window.cloudConnected = false;
-      window.updateCloudIndicator();
-    }
-  }
-};
+// 🛡️ PREMIÈRE DÉFINITION DE SAVE FUSIONNÉE AVEC LA VERSION CONSOLIDÉE PLUS BAS
 
 window.triggerHaptic = function() {
   if (navigator.vibrate) {
@@ -345,6 +331,41 @@ window.genUid = function(prefixeMatiere) {
     // Formate le préfixe (ex: PH)
     const prefixe = prefixeMatiere.substring(0, 2).toUpperCase();
     nouveauCode = prefixe + "-" + suffixe;
+
+    // Vérifie partout s'il y a un doublon
+    let collisionCours = window.D.cours.some(c => c.uid === nouveauCode);
+    let collisionExos = window.D.exercices.some(e => e.id === nouveauCode);
+
+    if (!collisionCours && !collisionExos) {
+      estUnique = true; 
+    }
+  }
+  return nouveauCode;
+};
+
+// =========================================================================
+// 🛡️ GÉNÉRATEUR D'ID POUR CARTES ANKI (Format X-P-AAA)
+// =========================================================================
+window.genUidAnki = function(matiereId) {
+  const caracteres = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let nouveauCode = "";
+  let estUnique = false;
+
+  if (!window.D.cours) window.D.cours = [];
+  if (!window.D.exercices) window.D.exercices = [];
+
+  // Extrait la première lettre de la matière
+  const premiereLettreMatiere = (matiereId && matiereId.length > 0) ? matiereId.charAt(0).toUpperCase() : 'X';
+
+  while (!estUnique) {
+    let suffixe = "";
+    for (let i = 0; i < 3; i++) {
+      let indexAleatoire = Math.floor(Math.random() * caracteres.length);
+      suffixe += caracteres.charAt(indexAleatoire);
+    }
+    
+    // Format: X-P-AAA (X = lettre X, P = première lettre matière, AAA = suffixe)
+    nouveauCode = "X-" + premiereLettreMatiere + "-" + suffixe;
 
     // Vérifie partout s'il y a un doublon
     let collisionCours = window.D.cours.some(c => c.uid === nouveauCode);
