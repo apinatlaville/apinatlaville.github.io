@@ -91,21 +91,33 @@
         transform: translateX(-50%) rotate(45deg);
       }
 
-      /* Bifurcation Y du Nœud 5 */
-      #paneAnkiViz .av-fork {
-        position: relative; align-self: center; width: 70%; height: 36px;
+      /* === Bifurcation Y du Nœud 5 (refonte v4.1) === */
+      /* Approche : un wrapper qui contient (1) un tronc central tombant du haut,
+         (2) une barre horizontale au milieu de la hauteur reliant 25% à 75%,
+         (3) deux jambes verticales courtes à 25% et 75% qui descendent jusqu'aux branches. */
+      #paneAnkiViz .av-fork-wrap {
+        position: relative; width: 100%; height: 52px; margin: 0 auto;
       }
-      #paneAnkiViz .av-fork::before, #paneAnkiViz .av-fork::after {
-        content: ""; position: absolute; top: 0; width: 50%; height: 100%;
-        border-bottom: 2px solid rgba(255,255,255,0.30);
+      /* Tronc central (haut → centre vertical) */
+      #paneAnkiViz .av-fork-wrap::before {
+        content: ""; position: absolute;
+        left: 50%; top: 0; height: 28px; width: 2px;
+        transform: translateX(-50%);
+        background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.18));
       }
-      #paneAnkiViz .av-fork::before { left: 0;  border-left:  2px solid rgba(255,255,255,0.30); border-radius: 0 0 0 12px; }
-      #paneAnkiViz .av-fork::after  { right: 0; border-right: 2px solid rgba(255,255,255,0.30); border-radius: 0 0 12px 0; }
-      #paneAnkiViz .av-fork-stem {
-        position: absolute; left: 50%; top: -28px; transform: translateX(-50%);
-        width: 2px; height: 32px;
-        background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.08));
+      /* Barre horizontale (25% → 75%) */
+      #paneAnkiViz .av-fork-wrap::after {
+        content: ""; position: absolute;
+        left: 25%; right: 25%; top: 28px; height: 2px;
+        background: rgba(255,255,255,0.30);
       }
+      /* Les 2 jambes en éléments réels (les pseudos sont déjà utilisés) */
+      #paneAnkiViz .av-fork-leg {
+        position: absolute; top: 28px; width: 2px; height: 24px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.10));
+      }
+      #paneAnkiViz .av-fork-leg.l { left: 25%; transform: translateX(-50%); }
+      #paneAnkiViz .av-fork-leg.r { left: 75%; transform: translateX(-50%); }
       #paneAnkiViz .av-branches {
         display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 6px;
       }
@@ -397,6 +409,65 @@
             <button class="av-reset" data-testid="viz-reset-marge" onclick="window._ankiVizResetMarge()">↺ 0.92</button>
           </div>
           <p style="margin-top:8px; font-size:11px; color:var(--mut);">Une marge de 0.85 signifie : « j'accepte de ne planifier que 85% du temps demandé pour garder du tampon ».</p>
+
+          <div style="margin-top:14px; padding:10px 12px; background:rgba(91,141,239,0.10); border:1px solid rgba(91,141,239,0.30); border-radius:8px;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#5b8def; font-weight:700; margin-bottom:4px;">🇬🇧 Phase 2 — Remplissage anglais intercalé</div>
+            <p style="font-size:12px; margin:0;">Une fois la phase 1 (cartes par urgence) terminée, s'il reste du budget (&gt; 30s), l'algo cherche des cartes courtes (profil <code>ANGLAIS</code> ou <code>tempsCible ≤ 60s</code>) parmi les <b>actives</b> uniquement, triées par urgence, dans la limite de <code>settings.ankiMaxAnglaisFill</code> (défaut <b>5</b>).</p>
+            <p style="font-size:12px; margin:4px 0 0;">Cela permet d'occuper les 2-3 minutes de fin de session avec du vocabulaire au lieu de laisser le budget perdu — sans jamais dépasser le plafond.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Nouveau Nœud 3bis : délais de répétition (steps SM-2 par profil + qFactor)
+  function nodeDelaisRepetition() {
+    const A = window.AnkiAlgo;
+    const profiles = A.DEFAULT_PROFILES || {};
+    const profileRows = Object.keys(profiles).map(k => {
+      const p = profiles[k];
+      const steps = (p.steps || []).slice(0, 8).join(", ");
+      return `
+        <div class="av-coef-card" style="grid-column:span 2;">
+          <label>${esc(k)} — ${esc(p.label || '')}</label>
+          <div style="font-family:'Menlo','Consolas',monospace; font-size:12px; color:#ffaa33;">[${esc(steps)}${(p.steps||[]).length>8?' …':''}] j</div>
+          <div class="av-coef-desc">ease init = <b>${p.ease}</b> · ${esc(p.note || '')}</div>
+        </div>
+      `;
+    }).join("");
+    return `
+      <div class="av-node accent-core">
+        <div class="av-num">3b</div>
+        <div class="av-node-title">📅 Délais de répétition — SM-2 modifié</div>
+        <p class="av-node-sub">Comment l'intervalle progresse à chaque révision réussie</p>
+        <div class="av-node-body">
+          <p>Pour les premières répétitions, l'algorithme suit un <b>tableau de paliers fixes</b> par profil (mémoire à court terme). Au-delà, il bascule sur la <b>multiplication par l'ease</b> (mémoire à long terme façon SuperMemo-2).</p>
+
+          <div class="av-formula"><b>Si</b> repetitions &lt; nb_paliers :
+   intervalle = paliers[repetitions]   ← table fixe (chargement initial)
+<b>Sinon</b> :
+   intervalle = intervalle × <b>ease</b> × <b>qFactor</b> × pénalité_vitesse
+
+avec qFactor =
+   · qScore ≤ 3 → 0       (reset, intervalle remis à 0)
+   · qScore = 4 → 0.45    · qScore = 7 → 1.00
+   · qScore = 8 → 1.12    · qScore = 9 → 1.20
+   · qScore = 10 → 1.40   (interpolation linéaire entre)
+
+pénalité_vitesse =
+   · tempsReel &gt; 2× cible → ×0.5
+   · tempsReel &gt; 1.5× cible → ×0.7
+   · tempsReel &lt; 0.7× cible → ×1.15  (bonus rapidité)</div>
+
+          <p><b>Lecture concrète :</b> une carte cours réussie à 7/10 en temps cible passe par les paliers 1j → 3j → 7j → 14j puis double à ~2.5× son intervalle précédent à chaque réussite. À 9/10, elle accélère de 20%. À 3/10, elle est remise au début.</p>
+
+          <h4 style="font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;">Paliers par profil</h4>
+          <div class="av-coef-grid">${profileRows || '<div class="av-coef-desc">Profils non chargés.</div>'}</div>
+
+          <div style="margin-top:12px; padding:10px 12px; background:rgba(66,181,107,0.10); border:1px solid rgba(66,181,107,0.30); border-radius:8px;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#42b56b; font-weight:700;">💡 Note importante — les DM ne suivent PAS cette logique</div>
+            <p style="font-size:12px; margin:6px 0 0;">Les exos de type <code>devoir</code> sont des tâches à durée fixe (pas de mémorisation espacée). Leur <code>ease</code> et <code>intervalle</code> ne bougent jamais ; on incrémente seulement <code>_morceauxFaits</code> et la prochaine session est planifiée au lendemain (J+1).</p>
+          </div>
         </div>
       </div>
     `;
@@ -525,7 +596,10 @@
         <p class="av-node-sub">Bifurcation : la note de l'étudiant règle l'intervalle ET l'urgence future</p>
         <div class="av-node-body">
 
-          <div class="av-fork"><div class="av-fork-stem"></div></div>
+          <div class="av-fork-wrap" data-testid="viz-fork">
+            <div class="av-fork-leg l"></div>
+            <div class="av-fork-leg r"></div>
+          </div>
 
           <div class="av-branches">
             <div class="av-node av-branch-good">
@@ -545,6 +619,96 @@
           <h4 style="font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:14px 0 6px;">Paramètres de l'ease élastique</h4>
           <div class="av-coef-grid">${blocRows}</div>
           <p style="margin-top:10px; font-size:12px; color:var(--mut);"><b>Idée clé :</b> on découple le <i>traitement temporaire</i> (boost via flag) de la <i>baisse durable</i> (ease persistant). Une carte longue qui bloque ne revient pas à vie sur ta tête, mais elle revient <b>vite</b> jusqu'à ce que tu la maîtrises.</p>
+
+          <div style="margin-top:14px; padding:10px 12px; background:rgba(176,106,247,0.10); border:1px solid rgba(176,106,247,0.35); border-radius:8px;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#b06af7; font-weight:700;">🎯 Mode "single" / "quick" — révision d'une seule carte hors session</div>
+            <p style="font-size:12px; margin:6px 0 0;">Si tu cliques sur une carte spécifique (depuis la file, la bibliothèque, ou la liste du réservoir) sans avoir lancé de session complète, elle s'ouvre seule dans l'overlay. Tu la révises, tu la notes, et :</p>
+            <ul style="padding-left:18px; margin:6px 0; font-size:12px;">
+              <li>L'<b>évaluation modifie quand même</b> ease / intervalle / repetitions / dateProchaineRevision dans <code>D.exercices</code> (sauf en mode <code>colle</code> qui se contente d'enregistrer le score).</li>
+              <li>L'historique de la carte (<code>card.historique</code>) reçoit la nouvelle entrée comme dans une session classique.</li>
+              <li>En mode single, une carte ratée (qScore ≤ 3) <b>n'est PAS réinjectée</b> dans la file (puisqu'il n'y a pas de file). Elle revient via son nouveau <code>dateProchaineRevision</code>.</li>
+              <li>Le compteur de session (<code>S.stats</code>) n'est pas incrémenté, mais une <b>confirmation visuelle</b> apparaît avec le détail du calcul (ease avant/après, intervalle, blocage levé ou posé).</li>
+              <li>Le snapshot d'Undo (<code>S.dernierExerciceModifie</code>) fonctionne aussi : tu peux annuler ta dernière notation même en mode single.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Nouveau Nœud 7 : Statistiques & Diagnostic
+  function nodeStatistiques() {
+    const A = window.AnkiAlgo;
+    // Stats globales depuis la base
+    const exos = (window.D && window.D.exercices) || [];
+    let totalHist = 0, okCount = 0, midCount = 0, badCount = 0, blocages = 0;
+    exos.forEach(c => {
+      if (Array.isArray(c.historique)) {
+        c.historique.forEach(h => {
+          totalHist++;
+          if (typeof h.qScore === "number") {
+            if (h.qScore <= 3)      badCount++;
+            else if (h.qScore <= 7) midCount++;
+            else                    okCount++;
+          }
+        });
+      }
+      if (c._blocageActif) blocages++;
+    });
+    const reussite = totalHist > 0 ? Math.round((okCount / totalHist) * 100) : 0;
+    const logCount = (A && A.LOG) ? A.LOG.length : 0;
+    return `
+      <div class="av-node accent-filter">
+        <div class="av-num">7</div>
+        <div class="av-node-title">📊 Statistiques & Diagnostic</div>
+        <p class="av-node-sub">Trois échelles d'observation : globale, par carte, et journal des décisions</p>
+        <div class="av-node-body">
+
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin-bottom:14px;" data-testid="viz-stats-kpis">
+            <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:24px; font-weight:700; color:#42b56b;">${okCount}</div>
+              <div style="font-size:10px; text-transform:uppercase; color:var(--mut); letter-spacing:1px;">Réussites (≥8)</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:24px; font-weight:700; color:#ffaa33;">${midCount}</div>
+              <div style="font-size:10px; text-transform:uppercase; color:var(--mut); letter-spacing:1px;">Moyens (4-7)</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:24px; font-weight:700; color:#e94f64;">${badCount}</div>
+              <div style="font-size:10px; text-transform:uppercase; color:var(--mut); letter-spacing:1px;">Blocages (≤3)</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:24px; font-weight:700; color:#5b8def;">${reussite}%</div>
+              <div style="font-size:10px; text-transform:uppercase; color:var(--mut); letter-spacing:1px;">Taux réussite</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:24px; font-weight:700; color:#b06af7;">${blocages}</div>
+              <div style="font-size:10px; text-transform:uppercase; color:var(--mut); letter-spacing:1px;">En blocage actif</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px; text-align:center;">
+              <div style="font-size:24px; font-weight:700; color:var(--txt);">${logCount}</div>
+              <div style="font-size:10px; text-transform:uppercase; color:var(--mut); letter-spacing:1px;">Logs ALGO</div>
+            </div>
+          </div>
+
+          <p><b>Trois niveaux de lecture</b> permettent de comprendre ce qui se passe :</p>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-top:8px;">
+            <div style="background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px;">
+              <div style="font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:1px; font-weight:700;">1. Session courante</div>
+              <p style="font-size:12px; margin:6px 0 0;">L'objet <code>S.stats = {ok, mid, bad, total}</code> compte les notations <b>de la session en cours</b>. Affiché en pied de chaque carte (<i>Reste : N · ✅ x · 🟡 y · ❌ z</i>) et dans le résumé final.</p>
+            </div>
+            <div style="background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px;">
+              <div style="font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:1px; font-weight:700;">2. Historique par carte</div>
+              <p style="font-size:12px; margin:6px 0 0;">Chaque carte stocke <code>card.historique[]</code> avec à chaque entrée : <code>date</code>, <code>qScore</code>, <code>tempsReel</code>, <code>pen</code> (pénalité vitesse), <code>mode</code>. Permet de calculer ton taux personnel par matière / par carte sur l'onglet Stats.</p>
+            </div>
+            <div style="background:rgba(0,0,0,0.18); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:10px;">
+              <div style="font-size:11px; color:var(--mut); text-transform:uppercase; letter-spacing:1px; font-weight:700;">3. Journal de décisions</div>
+              <p style="font-size:12px; margin:6px 0 0;"><code>ALGO.LOG[]</code> trace les décisions du moteur : sessions générées, activations réservoir, évaluations (avec ease avant/après), décalages automatiques, levées de blocage. Visible dans l'onglet 🔬 Diagnostic.</p>
+            </div>
+          </div>
+
+          <p style="margin-top:12px; font-size:12px; color:var(--mut);"><b>Garde-fou :</b> les compteurs de la session courante sont décrémentés si tu cliques sur ↺ <i>Annuler la dernière notation</i>. L'historique de la carte n'est <b>pas</b> automatiquement nettoyé (l'entrée reste comme trace), mais l'état des champs (ease, intervalle, repetitions, flag blocage) est restauré au snapshot pré-modification.</p>
         </div>
       </div>
     `;
@@ -636,11 +800,15 @@
         <div class="av-link"></div>
         ${nodeUrgenceIR()}
         <div class="av-link"></div>
+        ${nodeDelaisRepetition()}
+        <div class="av-link"></div>
         ${nodeEntrelacement()}
         <div class="av-link"></div>
         ${nodeEvaluationEase()}
         <div class="av-link"></div>
         ${nodePersistanceSecurite()}
+        <div class="av-link"></div>
+        ${nodeStatistiques()}
 
         ${explainSection()}
       </div>

@@ -74,17 +74,26 @@
   };
 
   // ===== Date helpers =====
+  // ⚠ Fix v4.1 : on retourne la date LOCALE (pas UTC). `toISOString` convertit
+  // en UTC, ce qui décale d'un jour en zone UTC+x après minuit local.
+  function _localISO(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
   ALGO.todayISO = function () {
-    const d = new Date(); d.setHours(0,0,0,0);
-    return d.toISOString().split("T")[0];
+    return _localISO(new Date());
   };
   ALGO.addDays = function (iso, n) {
-    const d = iso ? new Date(iso) : new Date();
-    d.setHours(0,0,0,0); d.setDate(d.getDate() + Math.round(n));
-    return d.toISOString().split("T")[0];
+    const d = iso ? new Date(iso + "T00:00:00") : new Date();
+    d.setDate(d.getDate() + Math.round(n));
+    return _localISO(d);
   };
   ALGO.daysBetween = function (a, b) {
-    return Math.round((new Date(b) - new Date(a)) / 86400000);
+    const da = new Date(a + (a.length === 10 ? "T00:00:00" : ""));
+    const db = new Date(b + (b.length === 10 ? "T00:00:00" : ""));
+    return Math.round((db - da) / 86400000);
   };
 
   // ===== UID format PH-XXX avec mélange alphanum (vraiment aléatoire) =====
