@@ -180,12 +180,36 @@
     const total = plan.tempsTotalPrev;
 
     // Bloc 1 : file (auto OU manuelle selon ce que l'utilisateur a coché)
+    const counts = {
+      devoir: plan.countDevoir || 0,
+      devoirF: plan.countDevoirForce || 0,
+      devoirL: plan.countDevoirLatent || 0,
+      main:   plan.countMain   || 0,
+      quick:  plan.countQuick  || 0
+    };
+    const overloadBanner = plan.overload ? `
+      <div class="anki-overload-banner" data-testid="overload-banner"
+           style="margin:0 0 10px;padding:10px 12px;border-radius:8px;
+                  background:rgba(233,79,100,0.15);border:1px solid var(--red);color:var(--red);
+                  display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;">
+        ⚠️ <span>Pas assez de temps prévu pour les devoirs urgents : il manque
+        <b>${window.AnkiAlgo.fmtDur(plan.overloadDelta)}</b>. Pense à augmenter la durée de session,
+        ou à devancer certains DM sur les jours précédents.</span>
+      </div>
+    ` : '';
     let html = `
+      ${overloadBanner}
       <div class="anki-card-block ${isManualMode ? 'manual' : 'auto'}">
         <div class="anki-block-hdr">
           <div>
             <h3>${isManualMode ? '✋ File MANUELLE' : '🤖 File AUTOMATIQUE'} <span class="anki-mut">(${cartes.length} cartes · ${window.AnkiAlgo.fmtDur(total)})</span></h3>
-            <p class="anki-mut">${plan.countDue} dues · marge ${Math.round((plan.marge || 0.92) * 100)}% · ${isManualMode ? '<span style="color:var(--gold);">Ta sélection / ton ordre</span>' : '<span style="color:var(--grn);">L&apos;algorithme choisit pour toi</span>'}</p>
+            <p class="anki-mut" data-testid="cockpit-piles-counts">
+              <span style="color:var(--red);font-weight:700;">📌 ${counts.devoir} devoir${counts.devoir > 1 ? 's' : ''}</span>${counts.devoirF ? ` (${counts.devoirF} forcé${counts.devoirF > 1 ? 's' : ''}${counts.devoirL ? ' + ' + counts.devoirL + ' latent' + (counts.devoirL > 1 ? 's' : '') : ''})` : ''}
+              · <span style="color:var(--grn);font-weight:700;">🧠 ${counts.main} principale${counts.main > 1 ? 's' : ''}</span>
+              · <span style="color:#5b8def;font-weight:700;">🇬🇧 ${counts.quick} rapide${counts.quick > 1 ? 's' : ''}</span>
+              · marge ${Math.round((plan.marge || 0.92) * 100)}%
+              · ${isManualMode ? '<span style="color:var(--gold);">Ta sélection / ton ordre</span>' : '<span style="color:var(--grn);">L&apos;algorithme choisit pour toi</span>'}
+            </p>
           </div>
           <div class="anki-block-actions">
             <button class="bs" data-testid="btn-edit-session-min" onclick="window.ankiQuickEditSession()">⏱ ${sessionMin} min</button>
@@ -194,7 +218,7 @@
             <button class="bp" data-testid="btn-commencer-session" onclick="window.startAnkiSession()" ${cartes.length === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>▶ Commencer</button>
           </div>
         </div>
-        <p class="anki-mut" style="font-size:11px;margin:0 0 8px;">💡 Glisse-dépose les cartes pour personnaliser l'ordre. Clique sur une carte pour la réviser tout de suite. La session générée est persistée et reprenable après refresh.</p>
+        <p class="anki-mut" style="font-size:11px;margin:0 0 8px;">💡 Ordre : 📌 devoirs urgents (Phase 0) → 🧠 principales par urgence I_R (Phase 1a) → 📌 devoirs latents si budget restant (Phase 1b) → 🇬🇧 cartes rapides en comblage (Phase 2). Glisse-dépose pour personnaliser.</p>
         <div class="anki-queue" id="ankiQueueDrop">
           ${cartes.length === 0 ? '<div class="anki-empty">Aucune carte à réviser. 🎉</div>' : cartes.map((c, i) => renderQueueRow(c, i)).join('')}
         </div>

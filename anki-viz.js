@@ -333,6 +333,31 @@
       return window.D.exercices.filter(c => c.statut === "actif").length;
     } catch (e) { return 0; }
   }
+  // v4.2 : comptes par pile parmi les actives
+  function pileCounts() {
+    const A = window.AnkiAlgo;
+    if (!window.D || !Array.isArray(window.D.exercices) || !A || !A.cardKind) {
+      return { devoir: 0, main: 0, quick: 0 };
+    }
+    const out = { devoir: 0, main: 0, quick: 0 };
+    window.D.exercices.forEach(c => {
+      if (c.statut !== 'actif') return;
+      const k = A.cardKind(c);
+      if (k === 'devoir')      out.devoir++;
+      else if (k === 'quick')  out.quick++;
+      else                     out.main++;
+    });
+    return out;
+  }
+  // Liste des devoirs actifs avec leur urgence calendaire — pour l'agenda
+  function devoirsAgenda() {
+    const A = window.AnkiAlgo;
+    if (!window.D || !Array.isArray(window.D.exercices) || !A || !A.cardKind) return [];
+    return window.D.exercices
+      .filter(c => c.statut === 'actif' && A.cardKind(c) === 'devoir')
+      .map(c => ({ card: c, urg: A.urgenceDevoir(c) }))
+      .sort((a, b) => b.urg.total - a.urg.total);
+  }
 
   // Exemples simulés pour démontrer la formule I_R (recalculés en live)
   const SIM_CARDS = [
@@ -370,17 +395,47 @@
   // ------------------------------------------------------------------------------
   function nodeEntreeReservoir() {
     const n = reservoirCount();
+    const piles = pileCounts();
     return `
       <div class="av-node accent-input">
         <div class="av-num">1</div>
-        <div class="av-node-title">📥 Entrée & Réservoir</div>
-        <p class="av-node-sub">Le stock initial · isolé du moteur automatique</p>
+        <div class="av-node-title">📥 Entrée — Réservoir & les 3 piles de cartes</div>
+        <p class="av-node-sub">Une carte créée ne passe JAMAIS directement en révision. Elle dort dans le réservoir, et au moment de l'activation elle rejoint l'une des 3 piles séparées.</p>
         <div class="av-node-body">
-          <p>Toute carte créée naît avec <code>statut = "reservoir"</code>. Tant qu'elle n'est pas activée explicitement, elle n'apparaît <b>jamais</b> dans une session générée — elle ne pollue pas la file, ne déclenche pas de décalage, ne pèse pas sur le budget temps.</p>
-          <p style="margin-top:8px;">L'activation se fait depuis l'onglet <span class="av-tag">⏳ Réservoir</span> (un clic / sélection multiple / matière entière). Au moment de l'activation : <code>statut → "actif"</code> et <code>dateProchaineRevision = aujourd'hui</code>.</p>
-          <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
-            <span class="av-badge live" data-testid="viz-badge-reservoir">⏳ ${n} carte(s) en réservoir</span>
-            <span class="av-badge">🟢 ${activeCount()} actives</span>
+
+          <p>Le moteur Synchrotron v4.2 distingue strictement <b>3 catégories</b> de cartes qui suivent des règles totalement différentes :</p>
+
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-top:12px;" data-testid="viz-three-piles">
+            <div style="background:rgba(233,79,100,0.10); border:1px solid rgba(233,79,100,0.45); border-radius:10px; padding:12px;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#e94f64; font-weight:700;">📌 Pile DEVOIRS</div>
+              <div style="font-size:24px; font-weight:700; margin:4px 0;">${piles.devoir}</div>
+              <p style="font-size:11px; margin:0; color:var(--mut);"><code>type === 'devoir'</code></p>
+              <p style="font-size:12px; margin:8px 0 0;">DM, colles, exercices à rendre. <b>Date limite obligatoire.</b> Calendrier strict, <i>hors</i> du système de répétition espacée — c'est l'agenda qui dicte.</p>
+              <p style="font-size:11px; margin:6px 0 0; color:var(--mut);">→ <b>Phase 0</b> (forcés en session, prioritaires)</p>
+            </div>
+            <div style="background:rgba(66,181,107,0.10); border:1px solid rgba(66,181,107,0.45); border-radius:10px; padding:12px;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#42b56b; font-weight:700;">🧠 Pile PRINCIPALES</div>
+              <div style="font-size:24px; font-weight:700; margin:4px 0;">${piles.main}</div>
+              <p style="font-size:11px; margin:0; color:var(--mut);"><code>profil ∈ {COURS, EXO}</code></p>
+              <p style="font-size:12px; margin:8px 0 0;">Le cœur du système : exercices types, cours à mémoriser. Suivent la <b>répétition espacée</b> (I_R + ease élastique).</p>
+              <p style="font-size:11px; margin:6px 0 0; color:var(--mut);">→ <b>Phase 1a</b> (tri par urgence I_R)</p>
+            </div>
+            <div style="background:rgba(91,141,239,0.10); border:1px solid rgba(91,141,239,0.45); border-radius:10px; padding:12px;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#5b8def; font-weight:700;">🇬🇧 Pile RAPIDES</div>
+              <div style="font-size:24px; font-weight:700; margin:4px 0;">${piles.quick}</div>
+              <p style="font-size:11px; margin:0; color:var(--mut);"><code>profil ∈ {ANGLAIS, FORMULE}</code></p>
+              <p style="font-size:12px; margin:8px 0 0;">Petites cartes (~30s) créées via l'onglet <span class="av-tag">⚡ Rapide</span>. Hors algo principal — servent juste à <b>combler les trous</b> de fin de session.</p>
+              <p style="font-size:11px; margin:6px 0 0; color:var(--mut);">→ <b>Phase 2</b> (comblage)</p>
+            </div>
+          </div>
+
+          <div style="margin-top:14px; padding:10px 12px; background:rgba(255,170,51,0.10); border:1px solid rgba(255,170,51,0.35); border-radius:8px;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#ffaa33; font-weight:700;">⏳ Réservoir (toutes piles confondues)</div>
+            <p style="font-size:12px; margin:6px 0 0;">Toute nouvelle carte naît avec <code>statut = "reservoir"</code> et reste totalement <b>isolée du moteur</b>. L'activation se fait depuis l'onglet ⏳ Réservoir : un clic / sélection multiple / matière entière. À l'activation, <code>statut → "actif"</code> et <code>dateProchaineRevision = aujourd'hui</code>, puis la carte rejoint sa pile selon son <code>type</code>/<code>profil</code>.</p>
+            <div style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap;">
+              <span class="av-badge live" data-testid="viz-badge-reservoir">⏳ ${n} en réservoir</span>
+              <span class="av-badge">🟢 ${activeCount()} actives au total</span>
+            </div>
           </div>
         </div>
       </div>
@@ -392,29 +447,86 @@
       ? window.D.settings.margeBudget : 0.92;
     const sessionMin = (window.D && window.D.settings && window.D.settings.ankiSessionMin) || 60;
     const budgetReel = Math.round(sessionMin * marge * 60);
+    const seuil = (window.D && window.D.settings && window.D.settings.seuilDevoirForce) || 35;
+
+    // Mini-agenda live : devoirs urgents vs latents
+    const devs = devoirsAgenda();
+    const agendaRows = devs.slice(0, 6).map(({ card, urg }) => {
+      const isForce = urg.total >= seuil;
+      const color = isForce ? '#e94f64' : '#ffaa33';
+      const label = isForce ? 'FORCÉ Phase 0' : 'Latent Phase 1b';
+      const jr = urg.joursRestants;
+      const jrLabel = jr == null ? '?' : (jr <= 0 ? `J${jr === 0 ? '' : jr}` : `J+${jr}`);
+      return `
+        <div style="display:grid; grid-template-columns:1fr 70px 110px 80px; gap:8px; padding:6px 0; border-bottom:1px dashed rgba(255,255,255,0.08); font-size:12px;">
+          <div><b>${esc(card.titre || card.id)}</b> <span class="av-tag">${esc(card.mat || '?')}</span></div>
+          <div style="font-family:monospace; text-align:right; color:var(--mut);">${jrLabel}</div>
+          <div style="font-family:monospace; color:${color}; font-weight:700;">urg ${fmt(urg.total, 0)} (${label})</div>
+          <div style="font-size:11px; color:var(--mut); text-align:right;">${(card._morceauxTotal || 1) - (card._morceauxFaits || 0)} morceau(x)</div>
+        </div>
+      `;
+    }).join('');
+
     return `
       <div class="av-node accent-filter">
         <div class="av-num">2</div>
-        <div class="av-node-title">🎯 Sélection & Marge budget</div>
-        <p class="av-node-sub">Filtre temporel · garde-fou anti-surcharge</p>
+        <div class="av-node-title">🎯 Construction de la session du soir — 3 phases ordonnées</div>
+        <p class="av-node-sub">L'algorithme empile les 3 piles dans cet ordre exact, en respectant un budget plafond</p>
         <div class="av-node-body">
-          <p>La session prend les cartes triées par urgence et les empile tant que la somme des <code>tempsCible</code> ne dépasse pas un budget plafonné.</p>
+
           <div class="av-formula"><b>Budget Réel</b> = Temps demandé × <b>Marge Budget</b>
 = ${sessionMin} min × <b>${marge.toFixed(2)}</b>
 ≈ ${Math.floor(budgetReel/60)} min ${budgetReel%60}s</div>
+
           <div class="av-inline-input">
             <label for="avMarge">Marge Budget (0.5 → 1.0) :</label>
             <input type="number" id="avMarge" data-testid="viz-input-marge"
                    min="0.5" max="1.0" step="0.05" value="${marge.toFixed(2)}">
             <button class="av-reset" data-testid="viz-reset-marge" onclick="window._ankiVizResetMarge()">↺ 0.92</button>
           </div>
-          <p style="margin-top:8px; font-size:11px; color:var(--mut);">Une marge de 0.85 signifie : « j'accepte de ne planifier que 85% du temps demandé pour garder du tampon ».</p>
 
-          <div style="margin-top:14px; padding:10px 12px; background:rgba(91,141,239,0.10); border:1px solid rgba(91,141,239,0.30); border-radius:8px;">
-            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#5b8def; font-weight:700; margin-bottom:4px;">🇬🇧 Phase 2 — Remplissage anglais intercalé</div>
-            <p style="font-size:12px; margin:0;">Une fois la phase 1 (cartes par urgence) terminée, s'il reste du budget (&gt; 30s), l'algo cherche des cartes courtes (profil <code>ANGLAIS</code> ou <code>tempsCible ≤ 60s</code>) parmi les <b>actives</b> uniquement, triées par urgence, dans la limite de <code>settings.ankiMaxAnglaisFill</code> (défaut <b>5</b>).</p>
-            <p style="font-size:12px; margin:4px 0 0;">Cela permet d'occuper les 2-3 minutes de fin de session avec du vocabulaire au lieu de laisser le budget perdu — sans jamais dépasser le plafond.</p>
+          <h4 style="font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px;">L'ordre exact des 3 phases</h4>
+
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="background:rgba(233,79,100,0.08); border-left:3px solid #e94f64; padding:10px 12px; border-radius:0 8px 8px 0;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#e94f64; font-weight:700;">PHASE 0 — Devoirs urgents (FORCÉS)</div>
+              <p style="font-size:12px; margin:6px 0 0;">L'algo prend <b>tous</b> les devoirs dont l'urgence calendaire ≥ <code>seuilDevoirForce</code> (défaut <b>${seuil}</b>) et les met en tête, <b>même si ça dépasse le budget</b>. Dans ce cas, le bandeau rouge "Pas assez de temps" apparaît dans le Cockpit.</p>
+              <div class="av-inline-input">
+                <label>seuilDevoirForce :</label>
+                <input type="number" id="avSeuilDevoir" data-testid="viz-seuil-devoir"
+                       min="0" max="100" step="5" value="${seuil}">
+                <button class="av-reset" onclick="window._ankiVizResetSeuilDevoir()">↺ 35</button>
+              </div>
+            </div>
+            <div style="background:rgba(66,181,107,0.08); border-left:3px solid #42b56b; padding:10px 12px; border-radius:0 8px 8px 0;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#42b56b; font-weight:700;">PHASE 1a — Cartes principales (I_R)</div>
+              <p style="font-size:12px; margin:6px 0 0;">Triées par urgence I_R + ease élastique (voir Nœuds 3 et 5). On en prend autant qu'il reste de budget. <b>Le retard est toléré</b> ici : si tu n'as pas le temps ce soir, une carte de cours peut attendre demain, l'I_R s'ajustera.</p>
+            </div>
+            <div style="background:rgba(255,170,51,0.08); border-left:3px solid #ffaa33; padding:10px 12px; border-radius:0 8px 8px 0;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#ffaa33; font-weight:700;">PHASE 1b — Devoirs latents (opportunistes)</div>
+              <p style="font-size:12px; margin:6px 0 0;">Les devoirs <b>non urgents</b> (urgence &lt; ${seuil}) sont insérés ici, <i>si du budget reste</i>. C'est ce qui crée l'effet "DM dans 7 jours intercalé dans un jour creux". Pas de surcharge possible — ils sont skippés si le budget est saturé.</p>
+            </div>
+            <div style="background:rgba(91,141,239,0.08); border-left:3px solid #5b8def; padding:10px 12px; border-radius:0 8px 8px 0;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#5b8def; font-weight:700;">PHASE 2 — Cartes rapides (COMBLAGE)</div>
+              <p style="font-size:12px; margin:6px 0 0;">Les ~30s d'anglais / formules viennent boucher les 2-3 minutes de queue de session, dans la limite de <code>ankiMaxAnglaisFill</code> (défaut <b>5</b>). Triées par urgence I_R mais hors entrelacement strict.</p>
+            </div>
+            <div style="background:rgba(176,106,247,0.08); border-left:3px solid #b06af7; padding:10px 12px; border-radius:0 8px 8px 0;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#b06af7; font-weight:700;">FINAL — Entrelacement matières</div>
+              <p style="font-size:12px; margin:6px 0 0;">Appliqué <b>uniquement</b> sur Phases 1a + 1b + 2 (les devoirs forcés restent intacts en tête). Évite 2 cartes consécutives de la même matière. Détail Nœud 4.</p>
+            </div>
           </div>
+
+          ${devs.length ? `
+            <h4 style="font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px;">📅 Agenda — Devoirs actifs en cours</h4>
+            <div data-testid="viz-agenda-devoirs" style="background:rgba(0,0,0,0.22); border:1px solid rgba(255,255,255,0.10); border-radius:8px; padding:8px 12px;">
+              <div style="display:grid; grid-template-columns:1fr 70px 110px 80px; gap:8px; padding:4px 0; font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--mut); border-bottom:1px solid rgba(255,255,255,0.10);">
+                <div>Devoir</div><div style="text-align:right;">Échéance</div><div>Urgence calendaire</div><div style="text-align:right;">Restant</div>
+              </div>
+              ${agendaRows}
+            </div>
+          ` : `
+            <p class="av-coef-desc" style="margin-top:14px;">📅 Aucun devoir actif en cours. Crée un exercice avec une date limite pour le voir apparaître ici.</p>
+          `}
         </div>
       </div>
     `;
@@ -827,7 +939,6 @@ pénalité_vitesse =
       if (!window.D.settings) window.D.settings = {};
       window.D.settings.margeBudget = v;
       if (typeof window.save === "function") window.save();
-      // refresh just the budget node sentence to reflect the new value
       const sessionMin = (window.D.settings.ankiSessionMin) || 60;
       const budgetSec = Math.round(sessionMin * v * 60);
       const formulaEl = e.target.closest(".av-node-body").querySelector(".av-formula");
@@ -835,7 +946,28 @@ pénalité_vitesse =
         formulaEl.innerHTML = `<b>Budget Réel</b> = Temps demandé × <b>Marge Budget</b>\n= ${sessionMin} min × <b>${v.toFixed(2)}</b>\n≈ ${Math.floor(budgetSec/60)} min ${budgetSec%60}s`;
       }
     });
+    // Seuil devoir forcé
+    const sd = document.getElementById("avSeuilDevoir");
+    if (sd) sd.addEventListener("input", e => {
+      let v = parseInt(e.target.value, 10);
+      if (isNaN(v)) return;
+      v = Math.max(0, Math.min(100, v));
+      if (!window.D) window.D = {};
+      if (!window.D.settings) window.D.settings = {};
+      window.D.settings.seuilDevoirForce = v;
+      if (typeof window.save === "function") window.save();
+      // refresh complet pour mettre à jour les labels FORCÉ/Latent
+      window.renderAnkiViz();
+    });
   }
+
+  window._ankiVizResetSeuilDevoir = function () {
+    if (!window.D) window.D = {};
+    if (!window.D.settings) window.D.settings = {};
+    window.D.settings.seuilDevoirForce = 35;
+    if (typeof window.save === "function") window.save();
+    window.renderAnkiViz();
+  };
 
   // Handler global : changement d'un coefficient
   window._ankiVizCoefChange = function (key, raw) {

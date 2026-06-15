@@ -243,6 +243,61 @@
     return true;
   };
 
+  // ===== Classification des cartes en 3 PILES séparées (v4.2) =====
+  // 1) DEVOIR : DM, colles, exercices à rendre avec date limite
+  //              → traitement calendaire (urgenceDevoir), priorité absolue, forcés en session
+  // 2) QUICK  : petites flashcards (anglais, formules) créées via l'onglet rapide
+  //              → simple comblage de fin de session, hors I_R
+  // 3) MAIN   : cartes principales (cours, exos types)
+  //              → cœur du système de répétition espacée I_R + ease élastique
+  ALGO.QUICK_PROFILES = ['ANGLAIS', 'FORMULE'];
+  ALGO.cardKind = function (card) {
+    if (!card) return 'unknown';
+    if (card.type === 'devoir' || card.type === 'devoir-morceau') return 'devoir';
+    if (ALGO.QUICK_PROFILES.indexOf(card.profil) >= 0) return 'quick';
+    return 'main';
+  };
+
+  // ===== URGENCE CALENDAIRE (DEVOIRS) — totalement séparée d'I_R (v4.2) =====
+  // Les DM ont une dateLimite stricte : il faut absolument les terminer avant.
+  // Logique :
+  //   · si déjà dépassée                           → urgence MAX (force absolue)
+  //   · si joursRestants ≤ morceauxRestants        → URGENT (faut le faire ce soir)
+  //   · si joursRestants ≤ morceauxRestants + 2    → bientôt critique
+  //   · sinon                                      → planification douce (rampe inverse)
+  // Une carte sans dateLimite ni morceaux → urgence faible.
+  ALGO.urgenceDevoir = function (card, refIso) {
+    if (!card) return { total: 0 };
+    const today = refIso || ALGO.todayISO();
+    const dateLimite = card.dateLimite || null;
+    const morceauxRestants = Math.max(1, (card._morceauxTotal || 1) - (card._morceauxFaits || 0));
+    if (!dateLimite) {
+      // DM sans deadline explicite → on retombe sur dateProchaineRevision si dispo
+      const fallback = card.dateProchaineRevision || today;
+      const joursRestants = ALGO.daysBetween(today, fallback);
+      return {
+        total: joursRestants <= 0 ? 30 : Math.max(5, 25 - joursRestants),
+        joursRestants, morceauxRestants, dateLimite: null
+      };
+    }
+    const joursRestants = ALGO.daysBetween(today, dateLimite);
+    let urg;
+    if (joursRestants <= 0) {
+      urg = 100 + Math.abs(joursRestants) * 10;          // dépassée : monte à l'infini
+    } else if (joursRestants <= morceauxRestants) {
+      urg = 60 + (morceauxRestants - joursRestants + 1) * 12; // strict minimum non respecté
+    } else if (joursRestants <= morceauxRestants + 2) {
+      urg = 35 + (morceauxRestants + 2 - joursRestants) * 5;  // zone "à anticiper"
+    } else {
+      // Zone confortable : urgence faible mais non nulle → l'algo l'intercale dans un
+      // jour creux (settings.ankiSessionMin × overload-check de jour)
+      urg = Math.max(6, 25 - (joursRestants - morceauxRestants));
+    }
+    return { total: urg, joursRestants, morceauxRestants, dateLimite };
+  };
+
+  // ===== Cœur de l'algo : urgence I_R (déjà définie en v4) =====
+
   // ===== Calcul de l'Index de Délai Relatif (I_R) =====
   // I_R = (jours écoulés depuis la dernière révision) / (intervalle théorique prévu)
   //   · < 1  → en avance / approche (exp douce)
@@ -413,120 +468,190 @@
     return out;
   };
 
-  // ===== Build session — VERSION URGENCE FIRST (v4) =====
-  // Stratégie :
-  //  1) Tri par urgence ↓ (file naturelle, déjà fait par getCandidates)
-  //  2) On prend tant que ça rentre dans (budget × marge) — marge 100% paramétrable
-  //     via window.D.settings.margeBudget (défaut 0.92)
-  //  3) Remplissage anglais courts (≤60s) si reste du temps
-  //  4) Entrelacement matières GLOUTON : jamais 2 cartes de la même matière à la suite
-  //     sauf si plus d'autre matière disponible (doublon obligatoire toléré)
-  //  5) Si selectedIds : on respecte cette restriction
-  //  ⚠️ v4 : les cartes en réservoir (statut 'reservoir'/'attente') N'ENTRENT PLUS
-  //  AUTOMATIQUEMENT. L'option `includeNew` est conservée à 0 par défaut et n'est
-  //  utilisée que si l'utilisateur force `forceIncludeReservoir: true` (rétrocompat).
+  // ===== Build session — REFONTE 3 PILES (v4.2) =====
+  // Architecture claire et SÉPARÉE :
+  //
+  //   PHASE 0 — DEVOIRS (urgence calendaire stricte) ────────────────────────
+  //     · DM, colles, exercices à rendre (card.type === 'devoir' / 'devoir-morceau')
+  //     · Triés par ALGO.urgenceDevoir (date limite + morceaux restants)
+  //     · FORCÉS en début de session, même si ça dépasse le budget
+  //     · Si dépassement → flag overload=true (UI affiche un avertissement rouge)
+  //
+  //   PHASE 1 — CARTES PRINCIPALES (cœur I_R + ease élastique) ──────────────
+  //     · Cours, exos types (profil COURS / EXO)
+  //     · Triées par ALGO.urgenceScore (I_R + ease)
+  //     · Empilées tant que budget restant > 0
+  //     · Si retard → c'est OK, on peut sauter (la nature de l'I_R s'en occupe)
+  //
+  //   PHASE 2 — PETITES CARTES (comblage anglais / formules) ────────────────
+  //     · profil ANGLAIS ou FORMULE (créées via anki-quick.js)
+  //     · Triées par urgence simple
+  //     · Comblent les trous de fin (≤ settings.ankiMaxAnglaisFill, défaut 5)
+  //
+  // Entrelacement matières (Nœud 4) : appliqué sur PHASES 1+2 SEULEMENT.
+  // Les devoirs restent en tête, dans leur ordre d'urgence calendaire propre.
   ALGO.buildSession = function (exercices, opts) {
-    // Lecture de la marge depuis les settings utilisateur (priorité au runtime opts)
     const userMarge = (window.D && window.D.settings && typeof window.D.settings.margeBudget === 'number')
       ? window.D.settings.margeBudget
       : ALGO.DEFAULT_COEFS.MARGE_BUDGET_DEFAULT;
     const o = Object.assign({
       sessionMinutes: 60,
-      includeNew: 0,           // v4 : 0 par défaut, le réservoir ne s'invite plus tout seul
+      includeNew: 0,
       selectedIds: null,
-      marge: userMarge,        // 100% paramétrable
+      marge: userMarge,
       manualOrder: null,
       forceIncludeReservoir: false
     }, opts || {});
-    // Clamp marge [0.5 .. 1.0] pour la sécurité
     o.marge = Math.max(0.5, Math.min(1.0, o.marge));
 
     const ref = ALGO.todayISO();
-    const all = ALGO.getCandidates(exercices, ref);    // ne retourne QUE les actifs
-    let pool = all.map(x => x.card);
-
-    // Optionnel : injecter des cartes du réservoir (uniquement si explicitement demandé)
-    if (o.forceIncludeReservoir && o.includeNew > 0 && Array.isArray(exercices)) {
-      const reservoir = exercices
-        .filter(c => ALGO.isReservoir(c))
-        .map(c => ({ card: c, score: ALGO.urgenceScore(c, ref) }))
-        .sort((a, b) => b.score.total - a.score.total)
-        .map(x => x.card)
-        .slice(0, o.includeNew);
-      pool = pool.concat(reservoir);
+    const budget = (o.sessionMinutes || 60) * 60 * o.marge;
+    if (!Array.isArray(exercices)) {
+      return { cartes: [], tempsTotalPrev: 0, countDevoir: 0, countMain: 0, countQuick: 0, countDue: 0, countNew: 0, reportees: [], marge: o.marge, overload: false, overloadDelta: 0 };
     }
 
-    if (o.selectedIds && o.selectedIds.length) {
-      const set = new Set(o.selectedIds);
-      pool = pool.filter(c => set.has(c.id));
-    }
-
+    // Mode manuel : l'utilisateur a fixé un ordre via drag&drop
     if (o.manualOrder && o.manualOrder.length) {
-      const map = {};
-      pool.forEach(c => { map[c.id] = c; });
+      const allActive = exercices.filter(c => ALGO.isActive(c));
+      const map = {}; allActive.forEach(c => { map[c.id] = c; });
       const ordered = o.manualOrder.map(id => map[id]).filter(Boolean);
-      // Limite budget
-      const budget = (o.sessionMinutes || 60) * 60 * o.marge;
       const result = []; let used = 0;
       for (const c of ordered) {
-        const t = c.tempsCible || 60;
+        const t = _tempsCarte(c);
         if (used + t > budget && result.length) break;
         result.push(c); used += t;
       }
       return {
         cartes: result, tempsTotalPrev: used,
+        countDevoir: result.filter(c => ALGO.cardKind(c) === 'devoir').length,
+        countMain:   result.filter(c => ALGO.cardKind(c) === 'main').length,
+        countQuick:  result.filter(c => ALGO.cardKind(c) === 'quick').length,
         countDue: ordered.filter(c => ALGO.isActive(c)).length,
-        countNew: ordered.filter(c => ALGO.isReservoir(c)).length,
+        countNew: 0,
         reportees: ordered.filter(c => !result.includes(c)),
-        marge: o.marge
+        marge: o.marge,
+        overload: false,
+        overloadDelta: 0
       };
     }
 
-    // ===== Phase 1 : sélection par urgence + budget =====
-    const budget = (o.sessionMinutes || 60) * 60 * o.marge;
-    const selected = []; let used = 0;
-    for (const c of pool) {
-      const t = c.type === 'devoir'
-        ? Math.round(((c._dureeTotaleMin || (c.tempsCible / 60)) / (c._morceauxTotal || 1)) * 60)
-        : (c.tempsCible || 60);
-      if (used + t > budget && selected.length) continue;
-      selected.push(c); used += t;
+    // Pool de base : uniquement les cartes actives (réservoir exclus, sauf forçage)
+    let pool = exercices.filter(c => ALGO.isActive(c));
+    if (o.forceIncludeReservoir) {
+      pool = pool.concat(exercices.filter(c => ALGO.isReservoir(c)).slice(0, o.includeNew || 0));
+    }
+    if (o.selectedIds && o.selectedIds.length) {
+      const set = new Set(o.selectedIds);
+      pool = pool.filter(c => set.has(c.id));
     }
 
-    // ===== Phase 2 : remplissage anglais (cartes courtes ≤ 60s) — MAX réglable =====
+    // Classement en 3 piles distinctes
+    const pileDevoir = [];
+    const pileMain   = [];
+    const pileQuick  = [];
+    pool.forEach(c => {
+      const k = ALGO.cardKind(c);
+      if (k === 'devoir')      pileDevoir.push(c);
+      else if (k === 'quick')  pileQuick.push(c);
+      else                     pileMain.push(c);
+    });
+
+    // ===== PHASE 0 : DEVOIRS URGENTS (urgence calendaire, FORCÉS) =====
+    // Seuls les DM dont l'urgence calendaire dépasse SEUIL_DEVOIR_FORCE sont
+    // imposés en session. Les autres sont mis en attente et concourent en
+    // Phase 1b (insertion opportuniste si du budget reste).
+    const seuilDevoir = (window.D && window.D.settings && window.D.settings.seuilDevoirForce) || 35;
+    const devoirsScored = pileDevoir
+      .map(c => ({ card: c, score: ALGO.urgenceDevoir(c, ref) }))
+      .sort((a, b) => b.score.total - a.score.total);
+    const devoirsForces  = devoirsScored.filter(x => x.score.total >= seuilDevoir);
+    const devoirsLatents = devoirsScored.filter(x => x.score.total <  seuilDevoir);
+
+    const selected = [];
+    let used = 0;
+    for (const x of devoirsForces) {
+      selected.push(x.card);
+      used += _tempsCarte(x.card);
+    }
+    // Flag overload : les devoirs urgents SEULS dépassent déjà le budget ce soir
+    const overload = used > budget;
+    const overloadDelta = overload ? (used - budget) : 0;
+
+    // ===== PHASE 1a : MAIN (I_R, jusqu'au budget restant) =====
+    const mainsScored = pileMain
+      .map(c => ({ card: c, score: ALGO.urgenceScore(c, ref) }))
+      .sort((a, b) => b.score.total - a.score.total);
+    const mainsTaken = [];
+    for (const x of mainsScored) {
+      const t = _tempsCarte(x.card);
+      if (used + t > budget) continue;
+      mainsTaken.push(x.card);
+      used += t;
+    }
+
+    // ===== PHASE 1b : DEVOIRS LATENTS (insertion opportuniste si budget restant) =====
+    const latentsTaken = [];
+    for (const x of devoirsLatents) {
+      const t = _tempsCarte(x.card);
+      if (used + t > budget) continue;
+      latentsTaken.push(x.card);
+      used += t;
+    }
+
+    // ===== PHASE 2 : QUICK (comblage anglais / formules, fin de session) =====
+    const maxQuick = (window.D && window.D.settings && window.D.settings.ankiMaxAnglaisFill) || 5;
     const reste = budget - used;
-    const maxAnglais = (window.D && window.D.settings && window.D.settings.ankiMaxAnglaisFill) || 5;
+    const quicksTaken = [];
     if (reste > 30) {
-      const anglais = (exercices || [])
-        .filter(c => !selected.includes(c)
-          && (c.profil === 'ANGLAIS' || (c.tempsCible || 60) <= 60)
-          && ALGO.isActive(c))   // v4 : actif uniquement, jamais réservoir
+      const quicksScored = pileQuick
         .map(c => ({ card: c, score: ALGO.urgenceScore(c, ref) }))
         .sort((a, b) => b.score.total - a.score.total)
-        .map(x => x.card)
-        .slice(0, maxAnglais);
-      for (const c of anglais) {
-        const t = c.tempsCible || 60;
+        .slice(0, maxQuick);
+      for (const x of quicksScored) {
+        const t = _tempsCarte(x.card);
         if (used + t > budget) break;
-        selected.push(c); used += t;
+        quicksTaken.push(x.card);
+        used += t;
       }
     }
 
-    // ===== Phase 3 : entrelacement matières glouton (v4) =====
-    // L'ordre par urgence est préservé à l'intérieur de chaque matière, mais on
-    // alterne agressivement les matières au global. Doublon de matière toléré
-    // uniquement si plus aucune autre matière n'a de carte restante.
-    const arranged = ALGO.interleaveMatieres(selected);
+    // ===== Entrelacement matières (Phases 1a + 1b + 2 uniquement) =====
+    // Les devoirs forcés (Phase 0) restent en tête, dans leur ordre d'urgence
+    // calendaire propre. C'est volontaire : tu dois les voir en premier.
+    const interleavable = mainsTaken.concat(latentsTaken).concat(quicksTaken);
+    const interleaved = ALGO.interleaveMatieres(interleavable);
+
+    const arranged = selected.concat(interleaved);
+    const reportees = pool.filter(c => !arranged.includes(c));
 
     return {
       cartes: arranged,
       tempsTotalPrev: used,
-      countDue: arranged.filter(c => ALGO.isActive(c)).length,
-      countNew: arranged.filter(c => ALGO.isReservoir(c)).length,
-      reportees: pool.filter(c => !selected.includes(c)),
-      marge: o.marge
+      countDevoir:       selected.length + latentsTaken.length,
+      countDevoirForce:  selected.length,
+      countDevoirLatent: latentsTaken.length,
+      countMain:         mainsTaken.length,
+      countQuick:        quicksTaken.length,
+      countDue:          arranged.filter(c => ALGO.isActive(c)).length,
+      countNew:          arranged.filter(c => ALGO.isReservoir(c)).length,
+      reportees,
+      marge: o.marge,
+      overload,
+      overloadDelta,
+      // Méta pour la vue Agenda : tous les devoirs non sélectionnés mais à venir
+      devoirsLatentsNonInseres: devoirsLatents
+        .filter(x => !latentsTaken.includes(x.card))
+        .map(x => ({ card: x.card, urgence: x.score }))
     };
   };
+
+  // Durée par carte en secondes (gère les DM segmentés)
+  function _tempsCarte(c) {
+    if (c.type === 'devoir' || c.type === 'devoir-morceau') {
+      return Math.round(((c._dureeTotaleMin || (c.tempsCible / 60)) / (c._morceauxTotal || 1)) * 60);
+    }
+    return (c.tempsCible || 60);
+  }
 
   // ===== Entrelacement matières GLOUTON (v4) =====
   // Entrée : liste déjà triée par urgence ↓ globale.
