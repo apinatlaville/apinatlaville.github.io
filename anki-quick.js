@@ -153,9 +153,9 @@
     } else {
       // Multi : lance une session en sélection
       const ids = list.map(c => c.id);
-      // injection temporaire via sélection
-      if (window.D.settings) window.D.settings.ankiSessionMin = Math.max(15, Math.ceil(list.reduce((s, c) => s + (c.tempsCible || 60), 0) / 60));
-      window._quickQueue = ids;
+      // Calcul du temps total sans toucher aux réglages de l'utilisateur
+      const _sessionDureeCalc = Math.max(15, Math.ceil(list.reduce((s, c) => s + (c.tempsCible || 60), 0) / 60));
+      console.log(`[Atelier] Session rapide : ${list.length} cartes, ~${_sessionDureeCalc} min`);
       // Lance directement via startAnkiSession en bypassant le selectedIds
       if (window.AnkiAlgo) {
         // Construit une queue manuelle :

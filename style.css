@@ -1335,6 +1335,9 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
   height: 140px;
   padding: 14px 8px 8px;
   background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+}
 
 /* Explications dans Diagnostic */
 .anki-explain {
@@ -1382,10 +1385,6 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
   border-radius: 5px;
   vertical-align: middle;
   margin-right: 4px;
-}
-
-  border: 1px solid var(--bd);
-  border-radius: 10px;
 }
 .anki-week-col {
   flex: 1;

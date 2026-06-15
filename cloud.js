@@ -10,6 +10,12 @@ window.appLaunched = false; // 🛡️ FIX : Évite de lancer l'application deux
 let launchAttempts = 0; // Compteur pour traquer le blocage
 
 function launchAppWhenReady(payload) {
+    // 🛡️ FIX : Empêche le double lancement si les deux gardiens (handleCredentialResponse
+    // ET onAuthStateChanged) se déclenchent en même temps (cas fréquent)
+    if (window.appLaunched) {
+        console.log("⚠️ [Double lancement bloqué] L'application est déjà initialisée.");
+        return;
+    }
     launchAttempts++;
     
     // Ajout d'un log visible dans la console du navigateur
@@ -17,6 +23,7 @@ function launchAppWhenReady(payload) {
 
     if (window.initAppAfterAuth) {
         console.log("🚀 [Succès] app.js est détecté ! Lancement de l'application.");
+        window.appLaunched = true;
         window.initAppAfterAuth(payload);
     } else {
         // 🚨 SÉCURITÉ : Si après 5 secondes (50 essais de 100ms) app.js ne répond pas

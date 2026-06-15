@@ -1265,54 +1265,32 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
 
   window.ankiRebuildPieces = function () {
+    // ⚠️ v3.4+ : le système ne découpe PLUS en cartes séparées.
+    // Un DM est UN seul objet avec _morceauxTotal / _morceauxFaits.
+    // Cette fonction nettoie les anciens morceaux résiduels (éventuelles données d'avant v3.4)
+    // et réinitialise la progression de tous les devoirs actifs.
     const exos = window.D.exercices || [];
-    // Supprime tous les morceaux existants
+    const before = exos.length;
+    // Supprime les éventuels morceaux résiduels des versions précédentes
     window.D.exercices = exos.filter(c => c.type !== 'devoir-morceau');
-    // Réinitialise les parents
-    window.D.exercices.forEach(c => {
-      if (c.type === 'devoir' && (c._morceauxTotal || 1) > 1) {
-        delete c._morceauIndex;
-        delete c._isMorceauParent;
-      }
-    });
-    // Re-appelle le split (cette logique est dans app.js initData; on simule ici)
+    const removed = before - window.D.exercices.length;
     const today = window.AnkiAlgo.todayISO();
-    const devoirs = window.D.exercices.filter(c => c.type === 'devoir' && (c._morceauxTotal || 1) > 1);
+    // Réinitialise la progression des devoirs actifs
+    const devoirs = window.D.exercices.filter(c => c.type === 'devoir');
     devoirs.forEach(parent => {
-      const N = parent._morceauxTotal || 1;
-      const piecesNew = Math.ceil((parent.tempsCible || 60) / N);
-      // Si le parent a déjà été réduit auparavant, on le restore d'abord :
-      parent.tempsCible = piecesNew;
-      parent._morceauIndex = 1;
-      parent._isMorceauParent = true;
+      parent._morceauxFaits = 0;
       parent.dateProchaineRevision = today;
-      for (let i = 1; i < N; i++) {
-        const ids = window.D.exercices.map(x => x.id);
-        const pieceId = window.AnkiAlgo.genExoUid(parent.mat, ids);
-        window.D.exercices.unshift({
-          id: pieceId,
-          titre: (parent.titre || parent.question) + ' (' + (i + 1) + '/' + N + ')',
-          question: parent.question,
-          reponse: parent.reponse,
-          mat: parent.mat,
-          profil: parent.profil,
-          tempsCible: piecesNew,
-          priorite: parent.priorite,
-          statut: 'actif',
-          coursIds: parent.coursIds || [],
-          intervalle: 0, ease: parent.ease || 2.5, repetitions: 0,
-          dateProchaineRevision: window.AnkiAlgo.addDays(today, i),
-          historique: [],
-          type: 'devoir-morceau',
-          _morceauOf: parent.id,
-          _morceauIndex: i + 1,
-          _morceauTotal: N,
-          dateCreation: new Date().toISOString()
-        });
-      }
+      if (!parent._morceauxTotal || parent._morceauxTotal < 1) parent._morceauxTotal = 1;
+      // Restaure le tempsCible depuis _dureeTotaleMin si disponible
+      if (parent._dureeTotaleMin) parent.tempsCible = parent._dureeTotaleMin * 60;
+      delete parent._morceauIndex;
+      delete parent._isMorceauParent;
     });
     window.save();
-    window.sysAlert(`${devoirs.length} devoir(s) re-découpé(s) en morceaux.`, "Re-découpage");
+    window.sysAlert(
+      `${removed ? removed + ' ancien(s) morceau(x) résiduel(s) supprimé(s).<br>' : ''}${devoirs.length} devoir(s) réinitialisé(s) (progression remise à zéro, dû aujourd'hui).`,
+      "Réinitialisation devoirs"
+    );
     window.renderAnki();
   };
 
