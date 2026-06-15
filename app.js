@@ -449,6 +449,7 @@ window.switchTab = function(tab, overrideResetFilters = false) {
     notes:'paneNotes',
     flashcards:'paneFlashcards',
     anki:'paneAnki',
+    ankiViz:'paneAnkiViz',
     print:'panePrint',
     classeurs:'paneClasseurs',
     matieres:'paneMatieres',
@@ -485,6 +486,7 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   if (tab === 'notes') window.renderNotes();
   if (tab === 'flashcards') window.renderFlashcards();
   if (tab === 'anki' && typeof window.renderAnki === 'function') window.renderAnki();
+  if (tab === 'ankiViz' && typeof window.renderAnkiViz === 'function') window.renderAnkiViz();
   if (tab === 'print') window.renderPrintGrid();
   if (tab === 'classeurs') {
     window.isEditingCl = false;

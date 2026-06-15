@@ -104,6 +104,7 @@
     <button class="tab" onclick="window.switchTab('notes')" data-tab="notes">📈 Notes</button>
     <button class="tab" onclick="window.switchTab('flashcards')" data-tab="flashcards">🃏 Atelier</button>
     <button class="tab" onclick="window.switchTab('anki')" data-tab="anki" style="color:#b06af7;">🧬 Synchrotron</button>
+    <button class="tab" onclick="window.switchTab('ankiViz')" data-tab="ankiViz" style="color:#ffaa33;">🗺 Carte mentale</button>
     <button class="tab" onclick="window.switchTab('print')" data-tab="print">🖨 Impression</button>
     <button class="tab" onclick="window.switchTab('classeurs')" data-tab="classeurs">🗂 Classeurs</button>
     <button class="tab" onclick="window.switchTab('matieres')" data-tab="matieres">🏷 Matières</button>
@@ -208,6 +209,7 @@
 <div class="pane" id="paneFlashcards"></div>
 
 <div class="pane" id="paneAnki"></div>
+<div class="pane" id="paneAnkiViz"></div>
 
 <div class="pane" id="panePrint">
   <div class="pbar">
@@ -626,6 +628,12 @@
     scriptAnkiApp.src = 'anki-app.js?v=' + v;
     scriptAnkiApp.async = false;
     document.body.appendChild(scriptAnkiApp);
+
+    // 🗺 Carte mentale interactive du moteur Synchrotron v4
+    var scriptAnkiViz = document.createElement('script');
+    scriptAnkiViz.src = 'anki-viz.js?v=' + v;
+    scriptAnkiViz.async = false;
+    document.body.appendChild(scriptAnkiViz);
 
     // 🃏 Atelier de cartes rapides (onglet Bêta)
     var scriptAnkiQuick = document.createElement('script');
