@@ -67,33 +67,6 @@
     bindEnter();
   };
 
-<<<<<<< HEAD
-   function bindEnter() {
-     const r = $("qkR"); const q = $("qkQ");
-     if (r) r.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); window.quickAdd(); } });
-     if (q) q.addEventListener('keydown', e => { if (e.key === 'Enter' && r) r.focus(); });
-   }
-
-   window.quickAdd = function () {
-     const qEl = $("qkQ");
-     if (!qEl) return;
-     const q = qEl.value.trim();
-     if (!q) { qEl.focus(); return; }
-     const rEl = $("qkR");
-     const r = rEl ? rEl.value.trim() : '';
-     const matEl = $("qkMat");
-     const mat = matEl ? matEl.value : '';
-     const profEl = $("qkProf");
-     const profil = profEl ? profEl.value : '';
-     const tempsEl = $("qkTemps");
-     const temps = Math.round((parseFloat(tempsEl ? tempsEl.value : '0.5') || 0.5) * 60);
-     if (!window.quickAddAnkiCard) { window.sysAlert("Module Anki non chargé.", "Erreur"); return; }
-     window.quickAddAnkiCard({ question: q, reponse: r, mat, profil, tempsCible: temps, statut: "actif", priorite: 2 });
-     if (qEl) qEl.value = '';
-     if (rEl) rEl.value = '';
-     if (qEl) qEl.focus();
-     renderGrid();
-=======
   function bindEnter() {
     const r = $("qkR"); const q = $("qkQ");
     if (r) r.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); window.quickAdd(); } });
@@ -112,7 +85,6 @@
     $("qkQ").value = ''; $("qkR").value = '';
     $("qkQ").focus();
     renderGrid();
->>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
   };
 
   window.quickFilter = function () { renderGrid(); };

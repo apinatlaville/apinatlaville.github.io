@@ -95,71 +95,39 @@ window.demoData = {
       // ===========================================================
       // 📚 COURS LONGS (15-25 min) — démonstrations complètes
       // ===========================================================
-<<<<<<< HEAD
-      { id:'X-P-K3F', titre:"Théorème énergie cinétique (démo complète)", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Démontre le théorème de l'énergie cinétique pour un système matériel + rappelle les hypothèses + applique à l'oscillateur harmonique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen. Hypothèses : système fermé, sommation sur tous les points. Application : E_méca = Ec + Ep, conservation si forces conservatives.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], epinglee:true, dateCreation:_today },
-      { id:'X-M-7QP', titre:"Diagonalisabilité (démonstration)", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Démontre le critère de diagonalisabilité : un endomorphisme est diagonalisable ssi son polynôme caractéristique est scindé ET dim(E_λ) = mult(λ) pour tout λ.", reponse:"Sens direct : si diagonalisable, base de vecteurs propres → matrice diagonale → χ scindé et dim(E_λ) = mult(λ). Sens réciproque : si conditions remplies, somme des sous-espaces propres = E (dim) → base de vecteurs propres.", tempsCible:1500, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-C-T8R', titre:"Mécanisme SN1 vs SN2", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Compare les mécanismes SN1 et SN2 : étapes, cinétique, stéréochimie, conditions favorables.", reponse:"SN1 : 2 étapes (carbocation), cinétique d'ordre 1, racémisation, favorable substrat tertiaire+solvant polaire protique. SN2 : 1 étape concertée, ordre 2, inversion de Walden, favorable primaire+aprotique polaire.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-P-2RT', titre:"Équations de Maxwell (formes locales et intégrales)", coursIds:['PH-3K9'], mat:'PHYS', profil:'COURS', question:"Énonce les 4 équations de Maxwell sous forme locale ET intégrale, donne leur signification physique.", reponse:"Gauss (E) : div E = ρ/ε₀ ; Thomson : div B = 0 ; Faraday : rot E = -∂B/∂t ; Ampère-Maxwell : rot B = μ₀(j + ε₀∂E/∂t). Intégrales : flux/circulation.", tempsCible:900, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
-=======
       { id:'PH-K3F', titre:"Théorème énergie cinétique (démo complète)", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Démontre le théorème de l'énergie cinétique pour un système matériel + rappelle les hypothèses + applique à l'oscillateur harmonique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen. Hypothèses : système fermé, sommation sur tous les points. Application : E_méca = Ec + Ep, conservation si forces conservatives.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], epinglee:true, dateCreation:_today },
       { id:'MA-7QP', titre:"Diagonalisabilité (démonstration)", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Démontre le critère de diagonalisabilité : un endomorphisme est diagonalisable ssi son polynôme caractéristique est scindé ET dim(E_λ) = mult(λ) pour tout λ.", reponse:"Sens direct : si diagonalisable, base de vecteurs propres → matrice diagonale → χ scindé et dim(E_λ) = mult(λ). Sens réciproque : si conditions remplies, somme des sous-espaces propres = E (dim) → base de vecteurs propres.", tempsCible:1500, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'CH-T8R', titre:"Mécanisme SN1 vs SN2", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Compare les mécanismes SN1 et SN2 : étapes, cinétique, stéréochimie, conditions favorables.", reponse:"SN1 : 2 étapes (carbocation), cinétique d'ordre 1, racémisation, favorable substrat tertiaire+solvant polaire protique. SN2 : 1 étape concertée, ordre 2, inversion de Walden, favorable primaire+aprotique polaire.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'PH-2RT', titre:"Équations de Maxwell (formes locales et intégrales)", coursIds:['PH-3K9'], mat:'PHYS', profil:'COURS', question:"Énonce les 4 équations de Maxwell sous forme locale ET intégrale, donne leur signification physique.", reponse:"Gauss (E) : div E = ρ/ε₀ ; Thomson : div B = 0 ; Faraday : rot E = -∂B/∂t ; Ampère-Maxwell : rot B = μ₀(j + ε₀∂E/∂t). Intégrales : flux/circulation.", tempsCible:900, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
->>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
 
       // ===========================================================
       // 🧪 DÉMONSTRATIONS / MÉCANISMES (5-10 min)
       // ===========================================================
-<<<<<<< HEAD
-      { id:'X-M-5BD', titre:"Sous-espace vectoriel (preuve)", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Prouve que l'intersection de 2 SEV est un SEV.", reponse:"Soit F, G SEV de E. F∩G non vide (contient 0). Stabilité : ∀(x,y)∈F∩G, ∀λ : x+λy ∈ F (car F SEV) ET ∈ G → ∈ F∩G.", tempsCible:480, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-P-9XM', titre:"Démo rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'COURS', question:"Démontre la formule du rendement de Carnot à partir des 2 principes.", reponse:"Cycle ditherme réversible : ΔS_univ = 0 → -Qc/Tc - Qf/Tf = 0 → Qf = -Qc·Tf/Tc. η = W/Qc = 1 + Qf/Qc = 1 - Tf/Tc.", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-C-N7G', titre:"Loi d'Arrhenius (démo)", coursIds:['CH-8M5'], mat:'CHIM', profil:'COURS', question:"Démontre k = A·exp(-Ea/RT) à partir de la théorie des collisions.", reponse:"Fraction de molécules avec E ≥ Ea suit Boltzmann : exp(-Ea/RT). Vitesse = facteur préexp (collisions+géométrie) × fraction efficace.", tempsCible:540, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
-      { id:'X-M-D6X', titre:"Dérivation série entière", coursIds:['MA-P4L'], mat:'MATH', profil:'COURS', question:"Calcule Σ n·x^(n−1) sur ]-1,1[ par dérivation terme à terme. Justifie l'opération.", reponse:"Σ x^n = 1/(1-x) sur ]-1,1[. Dérivation terme à terme légitime (convergence normale sur tout compact) : Σ n·x^(n-1) = 1/(1-x)².", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-=======
       { id:'MA-5BD', titre:"Sous-espace vectoriel (preuve)", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Prouve que l'intersection de 2 SEV est un SEV.", reponse:"Soit F, G SEV de E. F∩G non vide (contient 0). Stabilité : ∀(x,y)∈F∩G, ∀λ : x+λy ∈ F (car F SEV) ET ∈ G → ∈ F∩G.", tempsCible:480, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'PH-9XM', titre:"Démo rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'COURS', question:"Démontre la formule du rendement de Carnot à partir des 2 principes.", reponse:"Cycle ditherme réversible : ΔS_univ = 0 → -Qc/Tc - Qf/Tf = 0 → Qf = -Qc·Tf/Tc. η = W/Qc = 1 + Qf/Qc = 1 - Tf/Tc.", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'CH-N7G', titre:"Loi d'Arrhenius (démo)", coursIds:['CH-8M5'], mat:'CHIM', profil:'COURS', question:"Démontre k = A·exp(-Ea/RT) à partir de la théorie des collisions.", reponse:"Fraction de molécules avec E ≥ Ea suit Boltzmann : exp(-Ea/RT). Vitesse = facteur préexp (collisions+géométrie) × fraction efficace.", tempsCible:540, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
       { id:'MA-D6X', titre:"Dérivation série entière", coursIds:['MA-P4L'], mat:'MATH', profil:'COURS', question:"Calcule Σ n·x^(n−1) sur ]-1,1[ par dérivation terme à terme. Justifie l'opération.", reponse:"Σ x^n = 1/(1-x) sur ]-1,1[. Dérivation terme à terme légitime (convergence normale sur tout compact) : Σ n·x^(n-1) = 1/(1-x)².", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
->>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
 
       // ===========================================================
       // 📐 EXERCICES TYPES (20-30 min) — méthodes à maîtriser
       // ===========================================================
-<<<<<<< HEAD
-      { id:'X-P-J8L', titre:"Exo : Interférences fentes d'Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Setup : λ=633nm, a=0.5mm, D=2m. (1) Calcule l'interfrange. (2) Si on plonge dans l'eau (n=1.33), nouvel interfrange ? (3) Si on bouche 1 fente, que voit-on ?", reponse:"(1) i=λD/a = 2.53 mm. (2) λ' = λ/n → i' = 1.90 mm. (3) Plus d'interférences, juste tache de diffraction d'une fente.", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
-      { id:'X-M-EXJ', titre:"Exo : Réduction d'endomorphisme", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', question:"Soit M = ((3,1),(0,2)). (1) M est-elle diagonalisable ? (2) Si oui, trouve P et D telles que M = P·D·P⁻¹.", reponse:"(1) χ_M(X) = (X-3)(X-2) scindé à racines simples → diagonalisable. (2) E_3 = Vect((1,0)), E_2 = Vect((1,-1)). P = ((1,1),(0,-1)), D = diag(3,2).", tempsCible:1800, priorite:1, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
-      { id:'X-C-EXC', titre:"Exo : Cinétique ordre 1 (régression)", coursIds:['CH-8M5'], mat:'CHIM', profil:'EXO', question:"On a [A](t=0)=0.1 M, [A](100s)=0.082 M, [A](300s)=0.055 M. (1) Vérifie que c'est bien d'ordre 1. (2) Détermine k et t½.", reponse:"(1) ln[A] vs t : (0,-2.30), (100,-2.50), (300,-2.90) → droite, ordre 1. (2) Pente = -k → k ≈ 0.002 s⁻¹. t½ = ln2/k ≈ 347 s.", tempsCible:1200, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
-=======
       { id:'PH-J8L', titre:"Exo : Interférences fentes d'Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Setup : λ=633nm, a=0.5mm, D=2m. (1) Calcule l'interfrange. (2) Si on plonge dans l'eau (n=1.33), nouvel interfrange ? (3) Si on bouche 1 fente, que voit-on ?", reponse:"(1) i=λD/a = 2.53 mm. (2) λ' = λ/n → i' = 1.90 mm. (3) Plus d'interférences, juste tache de diffraction d'une fente.", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
       { id:'MA-EXJ', titre:"Exo : Réduction d'endomorphisme", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', question:"Soit M = ((3,1),(0,2)). (1) M est-elle diagonalisable ? (2) Si oui, trouve P et D telles que M = P·D·P⁻¹.", reponse:"(1) χ_M(X) = (X-3)(X-2) scindé à racines simples → diagonalisable. (2) E_3 = Vect((1,0)), E_2 = Vect((1,-1)). P = ((1,1),(0,-1)), D = diag(3,2).", tempsCible:1800, priorite:1, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
       { id:'CH-EXC', titre:"Exo : Cinétique ordre 1 (régression)", coursIds:['CH-8M5'], mat:'CHIM', profil:'EXO', question:"On a [A](t=0)=0.1 M, [A](100s)=0.082 M, [A](300s)=0.055 M. (1) Vérifie que c'est bien d'ordre 1. (2) Détermine k et t½.", reponse:"(1) ln[A] vs t : (0,-2.30), (100,-2.50), (300,-2.90) → droite, ordre 1. (2) Pente = -k → k ≈ 0.002 s⁻¹. t½ = ln2/k ≈ 347 s.", tempsCible:1200, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
->>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
 
       // ===========================================================
       // 🎯 FORMULES COURTES (1-3 min) — rappel rapide
       // ===========================================================
-<<<<<<< HEAD
-      { id:'X-P-FRM', titre:"Maxwell-Faraday (forme locale)", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation de Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:90, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-M-FRM', titre:"Hadamard (rayon convergence)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R.", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:120, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-C-FRM', titre:"t½ ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Temps de demi-réaction d'un ordre 1.", reponse:"t½ = ln(2) / k (indépendant de [A]₀)", tempsCible:90, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-P-FR2', titre:"Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"Rendement Carnot.", reponse:"η = 1 − Tf/Tc", tempsCible:60, priorite:3, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
-      { id:'X-M-FR2', titre:"Variance Bernoulli", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Variance d'une loi de Bernoulli B(p).", reponse:"V(X) = p(1-p)", tempsCible:60, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
-=======
       { id:'PH-FRM', titre:"Maxwell-Faraday (forme locale)", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation de Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:90, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'MA-FRM', titre:"Hadamard (rayon convergence)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R.", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:120, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'CH-FRM', titre:"t½ ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Temps de demi-réaction d'un ordre 1.", reponse:"t½ = ln(2) / k (indépendant de [A]₀)", tempsCible:90, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'PH-FR2', titre:"Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"Rendement Carnot.", reponse:"η = 1 − Tf/Tc", tempsCible:60, priorite:3, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
       { id:'MA-FR2', titre:"Variance Bernoulli", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Variance d'une loi de Bernoulli B(p).", reponse:"V(X) = p(1-p)", tempsCible:60, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
->>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
 
       // ===========================================================
       // ⏳ RÉSERVOIR (nouvelles cartes en attente)
       // ===========================================================
-<<<<<<< HEAD
-      { id:'X-C-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov : addition d'H-X sur alcène asymétrique.", reponse:"H+ s'additionne sur le carbone le PLUS hydrogéné (donc X- sur le plus substitué) → carbocation le plus stable.", tempsCible:300, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
-=======
       { id:'CH-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov : addition d'H-X sur alcène asymétrique.", reponse:"H+ s'additionne sur le carbone le PLUS hydrogéné (donc X- sur le plus substitué) → carbocation le plus stable.", tempsCible:300, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
->>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
 
       // ===========================================================
       // 🇬🇧 ANGLAIS (max 3 — juste pour combler les trous)
@@ -227,22 +195,6 @@ window.demoDataXP = (function() {
     ],
     exercices: [
       // Cartes maîtrisées (ease haut, intervalle moyen, historique réussi)
-<<<<<<< HEAD
-      { id:'X-P-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen.", tempsCible:60, priorite:1, statut:'actif', intervalle:8, ease:2.75, repetitions:4, dateProchaineRevision:_shift(2), historique:histo([8,9,8,9],[55,50,48,45]), dateCreation:_dateTime(-21) },
-      { id:'X-P-9XM', titre:"Rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"η de Carnot ?", reponse:"η = 1 − Tf/Tc (T en K).", tempsCible:30, priorite:2, statut:'actif', intervalle:14, ease:2.8, repetitions:5, dateProchaineRevision:_shift(7), historique:histo([8,9,10,9,10],[28,25,22,20,18]), dateCreation:_dateTime(-25) },
-      // Cartes en difficulté (ease bas, intervalle court, historique mixte)
-      { id:'X-M-7QP', titre:"Diagonalisabilité", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Critère de diagonalisabilité d'un endomorphisme.", reponse:"⟺ Pol. car. scindé + dim(E_λ)=mult(λ) ∀λ.", tempsCible:90, priorite:1, statut:'actif', intervalle:1, ease:1.85, repetitions:3, dateProchaineRevision:_today, historique:histo([3,5,3,6],[120,100,140,95]), dateCreation:_dateTime(-15) },
-      { id:'X-M-D6X', titre:"Série dérivée", coursIds:['MA-P4L'], mat:'MATH', profil:'EXO', question:"Σ n·x^(n−1) sur ]-1,1[ ?", reponse:"= 1/(1-x)²", tempsCible:75, priorite:1, statut:'actif', intervalle:0, ease:1.7, repetitions:2, dateProchaineRevision:_today, historique:histo([2,4,3],[110,90,105]), dateCreation:_dateTime(-12) },
-      // Cartes moyennes
-      { id:'X-P-2RT', titre:"Maxwell-Faraday", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:30, priorite:2, statut:'actif', intervalle:5, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([6,7,7],[35,30,28]), dateCreation:_dateTime(-14) },
-      { id:'X-P-J8L', titre:"Interférences Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Interfrange dans les fentes d'Young ?", reponse:"i = λD/a", tempsCible:90, priorite:2, statut:'actif', intervalle:3, ease:2.2, repetitions:2, dateProchaineRevision:_shift(1), historique:histo([5,6],[100,85]), dateCreation:_dateTime(-9) },
-      { id:'X-M-5BD', titre:"Sous-espace vectoriel", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Définition d'un SEV.", reponse:"Stable par +, ·, contient 0_E.", tempsCible:45, priorite:2, statut:'actif', intervalle:21, ease:2.85, repetitions:6, dateProchaineRevision:_shift(14), historique:histo([9,10,9,10,9,10],[40,35,30,28,25,22]), dateCreation:_dateTime(-30) },
-      { id:'X-C-T8R', titre:"Oxydation alcool primaire", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Produits d'oxydation douce d'un alcool primaire ?", reponse:"Aldéhyde (puis acide carbox. si excès).", tempsCible:45, priorite:2, statut:'actif', intervalle:7, ease:2.5, repetitions:3, dateProchaineRevision:_shift(3), historique:histo([7,8,7],[50,45,40]), dateCreation:_dateTime(-10) },
-      { id:'X-C-N7G', titre:"Cinétique ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Loi d'ordre 1 intégrée et t½.", reponse:"[A]=[A]₀·exp(−kt); t½=ln2/k", tempsCible:60, priorite:1, statut:'actif', intervalle:0, ease:2.0, repetitions:1, dateProchaineRevision:_today, historique:histo([4,3],[80,75]), dateCreation:_dateTime(-7) },
-      // Réservoir : nouvelles cartes en attente
-      { id:'X-M-V4N', titre:"Rayon convergence (Hadamard)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R ?", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:50, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-2) },
-      { id:'X-C-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov.", reponse:"H+ sur le C le + hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-1) },
-=======
       { id:'PH-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen.", tempsCible:60, priorite:1, statut:'actif', intervalle:8, ease:2.75, repetitions:4, dateProchaineRevision:_shift(2), historique:histo([8,9,8,9],[55,50,48,45]), dateCreation:_dateTime(-21) },
       { id:'PH-9XM', titre:"Rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"η de Carnot ?", reponse:"η = 1 − Tf/Tc (T en K).", tempsCible:30, priorite:2, statut:'actif', intervalle:14, ease:2.8, repetitions:5, dateProchaineRevision:_shift(7), historique:histo([8,9,10,9,10],[28,25,22,20,18]), dateCreation:_dateTime(-25) },
       // Cartes en difficulté (ease bas, intervalle court, historique mixte)
@@ -257,7 +209,6 @@ window.demoDataXP = (function() {
       // Réservoir : nouvelles cartes en attente
       { id:'MA-V4N', titre:"Rayon convergence (Hadamard)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R ?", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:50, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-2) },
       { id:'CH-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov.", reponse:"H+ sur le C le + hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-1) },
->>>>>>> c0533d7795c9c4f684a7e70335e5296e31e69f11
       // Anglais (matière dédiée) — vocab + historique
       { id:'AN-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter", tempsCible:20, priorite:2, statut:'actif', intervalle:4, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([7,8,7],[18,15,14]), dateCreation:_dateTime(-12) },
       { id:'AN-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
@@ -649,23 +600,16 @@ window.updateUidPrefix = function() {
 };
 
 window.toggleManualUid = function() {
-   const toggle = window.$('fManualUidToggle');
-   if (!toggle) return;
-   const isManual = toggle.checked;
-   if (isManual) {
-     const uidBox = window.$('uidBox');
-     if(uidBox) uidBox.style.display = 'none';
-     const manualContainer = window.$('manualUidContainer');
-     if(manualContainer) manualContainer.style.display = 'flex';
-     window.updateUidPrefix();
-     const uidInput = window.$('fUidInput');
-     if(uidInput) uidInput.focus();
-   } else {
-     const uidBox = window.$('uidBox');
-     if(uidBox) uidBox.style.display = 'block';
-     const manualContainer = window.$('manualUidContainer');
-     if(manualContainer) manualContainer.style.display = 'none';
-   }
+  const isManual = window.$('fManualUidToggle').checked;
+  if (isManual) {
+    window.$('uidBox').style.display = 'none';
+    if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'flex';
+    window.updateUidPrefix();
+    if(window.$('fUidInput')) window.$('fUidInput').focus();
+  } else {
+    window.$('uidBox').style.display = 'block';
+    if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'none';
+  }
 };
 
 window.updateIntercalairesDropdown = function() {
@@ -1011,8 +955,36 @@ window.setNewColor = function(col) {
   window.renderMatieres();
 };
 
-// 🛡️ CETTE FONCTION A ÉTÉ REMPLACÉE PAR addCl() (lignes 1045+) QUI EST LA VRAIE IMPLÉMENTATION
-// newCl() reste comme référence mais n'est pas utilisée en production
+window.newCl = function() { // (Ou le nom actuel de ta fonction de création)
+  // 1. On récupère la valeur de l'input et on enlève les espaces (trim)
+  // (Remplace 'id_de_ton_input' par le vrai ID de ton champ de texte)
+  const title = window.$('id_de_ton_input').value.trim(); 
+
+  // 2. 🛡️ LE FIX EST ICI : On vérifie TOUT DE SUITE si le titre est vide
+  // Le 'return' est crucial : il empêche la création du classeur si la condition est vraie.
+  if (!title) {
+    return window.sysAlert("Le titre est obligatoire !", "Création de classeur");
+  }
+
+  // 3. Si on arrive ici, c'est que le titre est valide. On crée le classeur !
+  const newId = 'cl_' + Date.now(); // (Garde ta propre logique de création d'ID si tu en as une autre)
+  window.D.classeurs.push({
+    id: newId,
+    name: title
+    // ... garde les autres propriétés que tu avais déjà (couleur, etc.)
+  }); 
+
+  // 4. On sauvegarde et on met à jour l'interface
+  window.save(); 
+  window.renderClasseurs();
+  // window.renderCours(); (Si tu as besoin de rafraîchir les cours aussi)
+
+  // 5. On vide le champ texte SEULEMENT à la toute fin
+  window.$('id_de_ton_input').value = ''; 
+  
+  // Optionnel : tu peux même ajouter une petite alerte de succès !
+  // window.sysAlert("Classeur ajouté avec succès !", "Création de classeur");
+};
 
 // =========================================================
 // 📁 GESTION DES MATIÈRES (VERSION CORRIGÉE AVEC BORDURE ROUGE)
@@ -1101,7 +1073,7 @@ window.addCl = function() {
     return; // Bloque la création si erreur !
   }
   
-   const newId = 'CL-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  const newId = 'CL-' + Math.random().toString(36).substr(2, 5).toUpperCase();
   
   window.D.classeurs.push({
     id: newId, 
