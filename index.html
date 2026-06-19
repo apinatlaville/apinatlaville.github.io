@@ -51,13 +51,14 @@
 </style>
 <script>
   if (!window.handleCredentialResponse) {
-    window.handleCredentialResponse = function(response) {
-      setTimeout(() => {
-        if (window.handleCredentialResponse && window.handleCredentialResponse !== arguments.callee) {
+    var _gsiStub = function(response) {
+      setTimeout(function() {
+        if (window.handleCredentialResponse && window.handleCredentialResponse !== _gsiStub) {
           window.handleCredentialResponse(response);
         }
       }, 200);
     };
+    window.handleCredentialResponse = _gsiStub;
   }
 </script>
 
@@ -241,7 +242,7 @@
     <div class="fg"><label>Couleur du classeur</label>
       <div class="sws" id="swCl"></div>
     </div>
-    <button class="bp" id="btnAddCl" onclick="window.addCl()" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
+    <button class="bp" id="btnAddCl" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
   </div>
 </div>
 
@@ -254,7 +255,7 @@
     <div class="fg"><label>Couleur</label>
       <div class="sws" id="swMat"></div>
     </div>
-    <button class="bp" id="btnAddMat" onclick="window.addMat()" style="width:100%; margin-top:15px;">+ Ajouter la matière</button>
+    <button class="bp" id="btnAddMat" style="width:100%; margin-top:15px;">+ Ajouter la matière</button>
   </div>
 </div>
 
@@ -282,6 +283,7 @@
     </select>
   </div>
   <div class="set-row"><div><div class="set-lbl">Thème Sombre / Clair</div></div><button class="toggle-btn" id="btnThemeToggle">Changer</button></div>
+  <div class="set-row"><div><div class="set-lbl">Bandeau statistiques</div><div class="set-sub">Compteurs en haut de page</div></div><button class="toggle-btn" id="btnStatsToggle">Affiché</button></div>
   <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
   <div class="set-row"><div><div class="set-lbl">Filtres rapides (Bulles)</div><div class="set-sub">Affiche les boutons matières</div></div><button class="toggle-btn" id="btnChipsToggle">Affiché</button></div>
   
@@ -661,8 +663,6 @@
   })();
 </script>
 
-</body>
-
 <div id="splashScreen">
   <div class="clean-spinner"></div>
 </div>
@@ -698,5 +698,5 @@
   }
 </style>
 
-
+</body>
 </html>

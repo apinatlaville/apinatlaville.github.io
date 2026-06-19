@@ -29,9 +29,6 @@
  * =========================================================================================
  */
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-
 window.addEventListener('unhandledrejection', function(event) {
   const time = new Date().toLocaleTimeString();
   const errorMsg = event.reason ? event.reason.message || event.reason : "Erreur asynchrone inconnue";
@@ -50,21 +47,10 @@ window.addEventListener('unhandledrejection', function(event) {
   }
 });
 
-const firebaseConfig = {
-  apiKey: "AIzaSyD4pMz1ydaWgNWLX0C4HTauRE7eHkrcAfA",
-  authDomain: "cours-pc-application.firebaseapp.com",
-  projectId: "cours-pc-application",
-  storageBucket: "cours-pc-application.firebasestorage.app",
-  messagingSenderId: "889951150073",
-  appId: "1:889951150073:web:34ebc4f3c265144e3a6728",
-  measurementId: "G-T4BHM2QHZ9"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-window.docRef = doc(db, "app_data", "my_cours"); 
-
 window.$ = window.$ || (id => document.getElementById(id));
+window.escHtml = window.escHtml || function(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+};
 const bindClick = (id, fn) => { const el = window.$(id); if(el) el.addEventListener('click', fn); };
 const bindInput = (id, fn) => { const el = window.$(id); if(el) el.addEventListener('input', fn); };
 const bindChange = (id, fn) => { const el = window.$(id); if(el) el.addEventListener('change', fn); };
@@ -124,23 +110,7 @@ window.updateCloudIndicator = function() {
   }
 };
 
-window.save = async function() { 
-  localStorage.setItem('mc_v28', JSON.stringify(window.D)); 
-  try {
-    await setDoc(window.docRef, window.D);
-    if(!window.cloudConnected) {
-      window.cloudConnected = true;
-      window.updateCloudIndicator();
-    }
-  } catch(e) {
-    if(window.cloudConnected) {
-      window.cloudConnected = false;
-      window.updateCloudIndicator();
-    }
-  }
-};
-
-window.triggerHaptic = function() {
+window.updateCloudIndicator = function() {
   if (navigator.vibrate) {
     try { navigator.vibrate(50); } catch(e) {}
   }
@@ -194,10 +164,14 @@ window.closeFab = function() {
 };
 
 window.applySettings = function() {
+  if (!window.D || !window.D.settings) return;
+
   if (window.D.settings.theme === 'light') {
-    document.body.classList.add('theme-light'); 
+    document.body.classList.add('theme-light');
+    document.body.classList.remove('theme-dark');
   } else {
     document.body.classList.remove('theme-light');
+    document.body.classList.add('theme-dark');
   }
   
   document.body.classList.remove('tmpl-default', 'tmpl-glass', 'tmpl-neo');
@@ -289,6 +263,7 @@ window.updatePomoUI = function() {
 };
 
 window.pomoToggle = function() {
+  if (!window.D || !window.D.settings) return;
   if(window.pomoRunning) {
     clearInterval(window.pomoInterval);
     window.pomoRunning = false;
@@ -317,6 +292,7 @@ window.pomoToggle = function() {
 };
 
 window.pomoReset = function() {
+  if (!window.D || !window.D.settings) return;
   clearInterval(window.pomoInterval);
   window.pomoRunning = false;
   window.pomoMode = 'work';
@@ -550,10 +526,10 @@ window.renderDashboard = function() {
       window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">🎉 Rien d\'urgent ! Tout est maîtrisé.</div>';
     } else {
       window.$('todoList').innerHTML = todos.map(c => `
-        <div class="todo-item" onclick="window.doLocate('${c.uid}')" style="border-left-color: ${c.rev === 'red' ? 'var(--red)' : 'var(--gold)'};">
+        <div class="todo-item" onclick="window.doLocate('${window.escHtml(c.uid)}')" style="border-left-color: ${c.rev === 'red' ? 'var(--red)' : 'var(--gold)'};">
           <div>
-            <div class="todo-tit">${c.title}</div>
-            <div class="todo-sub">${c.mat} • ${c.type}</div>
+            <div class="todo-tit">${window.escHtml(c.title)}</div>
+            <div class="todo-sub">${window.escHtml(c.mat)} • ${window.escHtml(c.type)}</div>
           </div>
           <button class="cbt">Go ➔</button>
         </div>
@@ -589,11 +565,11 @@ window.renderNotes = function() {
     if(noteNum >= 15) colorClass = 'var(--grn)';
 
     html += `
-      <div class="chart-bar-group" onclick="window.doLocate('${c.uid}')" title="${c.title} : ${c.note}/20">
+      <div class="chart-bar-group" onclick="window.doLocate('${window.escHtml(c.uid)}')" title="${window.escHtml(c.title)} : ${window.escHtml(c.note)}/20">
         <div class="chart-bar" style="height: ${Math.max(5, heightPct)}%; background: linear-gradient(to top, transparent, ${colorClass}); border-top: 2px solid ${colorClass};">
-          <span class="chart-val" style="color:${colorClass}">${c.note}</span>
+          <span class="chart-val" style="color:${colorClass}">${window.escHtml(c.note)}</span>
         </div>
-        <div class="chart-lbl">${c.mat}</div>
+        <div class="chart-lbl">${window.escHtml(c.mat)}</div>
       </div>
     `;
   });
@@ -659,10 +635,10 @@ window.renderErrorLogs = function() {
   
   container.innerHTML = window.appErrors.map(e => `
     <div style="background:rgba(240,96,96,.1); border-left:4px solid var(--red); padding:10px; border-radius:4px;">
-      <div style="font-size:11px; color:var(--mut);">${e.time} — Source: ${e.source}</div>
-      <div style="font-family:'DM Mono', monospace; font-size:13px; color:var(--red); margin-top:4px;">${e.msg}</div>
+      <div style="font-size:11px; color:var(--mut);">${window.escHtml(e.time)} — Source: ${window.escHtml(e.source)}</div>
+      <div style="font-family:'DM Mono', monospace; font-size:13px; color:var(--red); margin-top:4px;">${window.escHtml(e.msg)}</div>
     </div>
-  `).reverse().join(''); 
+  `).reverse().join('');
 };
 
 window.clearErrorLogs = function() {
@@ -741,7 +717,11 @@ async function initApp(user) {
     if (window.isLocalMode) {
       // 🌸 MODE LOCAL INTÉGRAL
       console.log("🌸 Chargement des données locales...");
-      const localData = localStorage.getItem('backup_local_cours');
+      let localData = localStorage.getItem('backup_local_cours');
+      if (!localData) {
+        localData = localStorage.getItem('mc_v28');
+        if (localData) localStorage.setItem('backup_local_cours', localData);
+      }
       if (localData) {
         window.D = JSON.parse(localData);
       } else {
@@ -841,19 +821,18 @@ async function initApp(user) {
 }
 
 /**
- * 💾 SAUVEGARDE INTELLIGENTE
+ * 💾 SAUVEGARDE INTELLIGENTE (local + cloud)
  */
 window.save = async function() {
-  // Sauvegarde locale de secours (toujours active)
+  if (!window.D) return;
+
   localStorage.setItem('backup_local_cours', JSON.stringify(window.D));
-  
-  // Si on est en mode local, on s'arrête là !
+
   if (window.isLocalMode) {
     console.log("🌸 [Mode Local] Sauvegarde locale dans le navigateur réussie.");
-    return; 
+    return;
   }
-  
-  // Si on est connecté via Google, on envoie sur Firebase
+
   if (window.cloudConnected && window.docRef && window.setDoc) {
     try {
       await window.setDoc(window.docRef, window.D);
