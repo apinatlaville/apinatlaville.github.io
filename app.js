@@ -110,7 +110,7 @@ window.updateCloudIndicator = function() {
   }
 };
 
-window.updateCloudIndicator = function() {
+window.triggerHaptic = function() {
   if (navigator.vibrate) {
     try { navigator.vibrate(50); } catch(e) {}
   }
