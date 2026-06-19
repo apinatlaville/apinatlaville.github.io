@@ -1277,6 +1277,50 @@ body.not-logged-in > *:not(#loginOverlay):not(script):not(style) {
 .anki-q-time input:focus { outline: 1px solid var(--acc); }
 .anki-q-time .anki-mut { font-size: 10px; }
 
+/* Bandeau session / badges onglets Anki */
+.anki-tab-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--gold);
+  color: #000;
+  vertical-align: middle;
+}
+.anki-session-resume {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: rgba(91,141,247,.12);
+  border: 1px solid rgba(91,141,247,.35);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+.anki-session-resume > div:last-child {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.anki-overload-banner {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(233,79,100,0.15);
+  border: 1px solid var(--red);
+  color: var(--red);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 
 
 /* =====================================================

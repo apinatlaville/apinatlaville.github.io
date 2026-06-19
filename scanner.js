@@ -25,6 +25,9 @@
  */
 
 window.$ = window.$ || (id => document.getElementById(id));
+window.escHtml = window.escHtml || function(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+};
 window.printSel = new Set();
 window.curQRUid = null;
 window.html5QrCode = null;
@@ -54,6 +57,8 @@ window.showQR = function(uid) {
   if (!c) return;
   window.curQRUid = uid;
   
+  if(window.$('qrTitle')) window.$('qrTitle').textContent = '📱 Code-Barres';
+  if(window.$('qrSub')) window.$('qrSub').textContent = window.escHtml(c.title);
   if(window.$('qrLbl')) window.$('qrLbl').textContent = uid;
   
   if(window.$('qrBox')) {
@@ -103,8 +108,8 @@ window.renderPrintGrid = function() {
       <div class="pc-qr">
         <img src="${window.getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;">
       </div>
-      <div class="pc-uid">${c.uid}</div>
-      <div class="pc-title">${c.title}</div>
+      <div class="pc-uid">${window.escHtml(c.uid)}</div>
+      <div class="pc-title">${window.escHtml(c.title)}</div>
     </div>
   `;
 
@@ -142,8 +147,8 @@ window.executePrint = function() {
     pz.innerHTML += `
       <div class="print-label">
         <img src="${window.getBarcodeURL(c.uid)}">
-        <div class="pl-uid">${c.uid}</div>
-        <div class="pl-title">${c.title.substring(0,35)}</div>
+        <div class="pl-uid">${window.escHtml(c.uid)}</div>
+        <div class="pl-title">${window.escHtml(c.title.substring(0,35))}</div>
       </div>`;
   });
   
@@ -180,38 +185,52 @@ window.openCam = function() {
     window.$('camSt').innerHTML = 'Démarrage de la caméra arrière...';
   }
 
-  if (window.html5QrCode) { try { window.html5QrCode.clear(); } catch(e) {} }
+  const startScanner = function() {
+    try {
+      window.html5QrCode = new window.Html5Qrcode("reader");
+      const config = { fps: 15 };
 
-  try {
-    window.html5QrCode = new window.Html5Qrcode("reader");
-    const config = { fps: 15 };
-
-    window.html5QrCode.start(
-      { facingMode: "environment" },
-      config,
-      (decodedText, decodedResult) => {
+      window.html5QrCode.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText, decodedResult) => {
+          if(window.$('camSt')) {
+            window.$('camSt').style.color = 'var(--grn)';
+            window.$('camSt').innerHTML = '✅ Code-barres trouvé !';
+          }
+          window.processScan(decodedText.trim().toUpperCase());
+        },
+        (errorMessage) => {
+          if(window.$('camSt') && window.$('camSt').innerHTML.includes('Démarrage')) {
+            window.$('camSt').style.color = 'var(--mut)';
+            window.$('camSt').innerHTML = 'Analyse en cours... Place le code-barres dans le cadre.';
+          }
+        }
+      ).catch((err) => {
         if(window.$('camSt')) {
-          window.$('camSt').style.color = 'var(--grn)';
-          window.$('camSt').innerHTML = '✅ Code-barres trouvé !';
+          window.$('camSt').style.color = 'var(--red)';
+          window.$('camSt').innerHTML = `❌ Erreur d'accès à la caméra.`;
         }
-        window.processScan(decodedText.trim().toUpperCase());
-      },
-      (errorMessage) => {
-        if(window.$('camSt') && window.$('camSt').innerHTML.includes('Démarrage')) {
-          window.$('camSt').style.color = 'var(--mut)';
-          window.$('camSt').innerHTML = 'Analyse en cours... Place le code-barres dans le cadre.';
-        }
-      }
-    ).catch((err) => {
-      if(window.$('camSt')) {
-        window.$('camSt').style.color = 'var(--red)';
-        window.$('camSt').innerHTML = `❌ Erreur d'accès à la caméra.`;
-      }
-    });
+      });
 
-  } catch(e) {
-    if(window.$('camSt')) window.$('camSt').innerHTML = `❌ Erreur : ${e.message}`;
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "HTML5-QRCode: " + e.message, source: 'scanner.js', lineno: 0 });
+    } catch(e) {
+      if(window.$('camSt')) window.$('camSt').innerHTML = `❌ Erreur : ${e.message}`;
+      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "HTML5-QRCode: " + e.message, source: 'scanner.js', lineno: 0 });
+    }
+  };
+
+  if (window.html5QrCode) {
+    window.html5QrCode.stop().then(function() {
+      try { window.html5QrCode.clear(); } catch(e) {}
+      window.html5QrCode = null;
+      startScanner();
+    }).catch(function() {
+      try { window.html5QrCode.clear(); } catch(e) {}
+      window.html5QrCode = null;
+      startScanner();
+    });
+  } else {
+    startScanner();
   }
 };
 

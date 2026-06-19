@@ -31,6 +31,9 @@
  */
 
 window.$ = window.$ || (id => document.getElementById(id));
+window.escHtml = window.escHtml || function(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+};
 window.COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
 
 window.PC_FLASHCARDS = [
@@ -369,35 +372,36 @@ window.renderCours = function() {
         }
 
         let warnHtml = '';
-        if (c.stat === 'pending') {
+        const showWarn = window.D.settings.showInitWarn !== false;
+        if (showWarn && c.stat === 'pending') {
           warnHtml = '<div class="qr-warn">🔴 À imprimer</div>';
-        } else if (c.stat === 'printed') {
+        } else if (showWarn && c.stat === 'printed') {
           warnHtml = '<div class="qr-scan-req">🟠 Imprimé. Scanne pour initialiser.</div>';
         }
 
         // 🚨 BOUTON "🔄 DÉPLACER" AJOUTÉ ICI
         html += `
-        <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${c.uid}')">
+        <div class="card" style="border-left-color:${mo.color}" onclick="window.doLocate('${window.escHtml(c.uid)}')">
           <div class="rev-dot rev-${c.rev}"></div>
-          <div class="uid-badge">${c.uid}</div>
+          <div class="uid-badge">${window.escHtml(c.uid)}</div>
           <div class="ctop">
             <div class="cbadges">
-              <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${mo.label}</span>
-              <span class="bm badge-type">${c.type}</span>
+              <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${window.escHtml(mo.label)}</span>
+              <span class="bm badge-type">${window.escHtml(c.type)}</span>
             </div>
           </div>
-          <div class="ctitle">${c.title}</div>
+          <div class="ctitle">${window.escHtml(c.title)}</div>
           <div class="clocs">
-            <span class="cloc cloc-a">${co.icon} ${co.name}</span>
-            <span class="cloc cloc-b">📑 ${interNameDisplay}</span>
+            <span class="cloc cloc-a">${co.icon} ${window.escHtml(co.name)}</span>
+            <span class="cloc cloc-b">📑 ${window.escHtml(interNameDisplay)}</span>
           </div>
-          ${c.desc ? `<div class="cdesc">${c.desc}</div>` : ''}
-          ${c.note ? `<div class="cnote">Note : ${c.note}/20</div>` : ''}
+          ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
+          ${c.note ? `<div class="cnote">Note : ${window.escHtml(c.note)}/20</div>` : ''}
           <div class="cacts" onclick="event.stopPropagation();">
-              <button class="cbt" onclick="window.openMove('${c.uid}')" title="Déplacer">🔄</button>
-              <button class="cbt" onclick="window.showQR('${c.uid}')" title="Voir Code-Barres">🔳</button>
-              <button class="cbt" onclick="window.editCours('${c.uid}')" title="Modifier">✏️</button>
-              <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${c.uid}')" title="Supprimer">🗑️</button>
+              <button class="cbt" onclick="window.openMove('${window.escHtml(c.uid)}')" title="Déplacer">🔄</button>
+              <button class="cbt" onclick="window.showQR('${window.escHtml(c.uid)}')" title="Voir Code-Barres">🔳</button>
+              <button class="cbt" onclick="window.editCours('${window.escHtml(c.uid)}')" title="Modifier">✏️</button>
+              <button class="cbt" style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${window.escHtml(c.uid)}')" title="Supprimer">🗑️</button>
           </div>
           ${warnHtml}
         </div>`;
@@ -419,7 +423,7 @@ window.doLocate = function(uid) {
       window.$('locContent').innerHTML = `
         <div style="text-align:center;padding:10px 0">
           <div style="font-size:32px;margin-bottom:8px">❌</div>
-          <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${uid}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:22px;color:var(--red);margin-bottom:6px;font-weight:bold;">${window.escHtml(uid)}</div>
           <div style="color:var(--mut);font-size:13px">Code introuvable.</div>
         </div>`;
     }
@@ -435,10 +439,10 @@ window.doLocate = function(uid) {
   const interNameDisplay = window.getInterName(co, c.inter);
   
   const baseInfoHtml = `
-    <div class="loc-code">${c.uid}</div>
-    <div class="loc-title">${c.title}</div>
+    <div class="loc-code">${window.escHtml(c.uid)}</div>
+    <div class="loc-title">${window.escHtml(c.title)}</div>
     <div style="text-align:center;margin-top:5px;margin-bottom:15px;font-size:12px;font-weight:bold;color:${mo.color}">
-      ${c.type}
+      ${window.escHtml(c.type)}
     </div>
   `;
 
@@ -457,8 +461,8 @@ window.doLocate = function(uid) {
           </div>
         </div>
         <div style="display:flex; gap:8px; flex-direction:column;">
-          <button class="bp" onclick="window.confirmInit('${c.uid}')" style="background:var(--grn); color:#000; border:none;">✅ Confirmer le rangement</button>
-          <button class="bs" onclick="window.closeLocPopup(); window.openMove('${c.uid}')">🔄 Modifier l'emplacement</button>
+          <button class="bp" onclick="window.confirmInit('${window.escHtml(c.uid)}')" style="background:var(--grn); color:#000; border:none;">✅ Confirmer le rangement</button>
+          <button class="bs" onclick="window.closeLocPopup(); window.openMove('${window.escHtml(c.uid)}')">🔄 Modifier l'emplacement</button>
           <button class="bs" onclick="window.closeLocPopup()" style="border-color:var(--red); color:var(--red);">❌ Annuler</button>
         </div>
       </div>
@@ -473,10 +477,10 @@ window.doLocate = function(uid) {
             📑 ${interNameDisplay}
           </div>
         </div>
-        ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${c.note}/20</div>` : ''}
-        ${c.desc ? `<div class="loc-desc">${c.desc}</div>` : ''}
+        ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${window.escHtml(c.note)}/20</div>` : ''}
+        ${c.desc ? `<div class="loc-desc">${window.escHtml(c.desc)}</div>` : ''}
         
-        <button class="bs" onclick="window.closeLocPopup(); window.openMove('${c.uid}')" style="width:100%; margin-top:15px; padding:10px;">🔄 Déplacer ce document</button>
+        <button class="bs" onclick="window.closeLocPopup(); window.openMove('${window.escHtml(c.uid)}')" style="width:100%; margin-top:15px; padding:10px;">🔄 Déplacer ce document</button>
      `;
   }
   
@@ -750,7 +754,9 @@ window.saveCours = function() {
       }
       
       newUid = prefix + '-' + suffix;
-      if (window.D.cours.find(c => c.uid === newUid)) {
+      const uidTaken = window.D.cours.some(x => x.uid === newUid)
+        || (window.D.exercices || []).some(x => x.id === newUid);
+      if (uidTaken) {
         return window.sysAlert("Ce code (" + newUid + ") est déjà utilisé ! Trouve-en un autre.", "Erreur de code");
       }
     } else {
@@ -811,10 +817,10 @@ window.renderClasseurs = function() {
           coursesList = sortedKeys.map(k => {
             const interHeader = window.getInterName(cl, k);
             const items = groups[k].map(c => `
-              <div class="irow" onclick="window.doLocate('${c.uid}')">
+              <div class="irow" onclick="window.doLocate('${window.escHtml(c.uid)}')">
                 <div>
-                  <div style="font-size:13px; font-weight:600; color:var(--txt);">${c.title}</div>
-                  <div style="font-size:11px; color:var(--mut);">${c.type} · ${c.uid}</div>
+                  <div style="font-size:13px; font-weight:600; color:var(--txt);">${window.escHtml(c.title)}</div>
+                  <div style="font-size:11px; color:var(--mut);">${window.escHtml(c.type)} · ${window.escHtml(c.uid)}</div>
                 </div>
                 <div style="color:var(--acc); font-size:18px;">➔</div>
               </div>`).join('');
