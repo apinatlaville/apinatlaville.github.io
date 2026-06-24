@@ -203,6 +203,18 @@
   }
   function mat(id) { return (window.D.matieres || []).find(m => m.id === id) || { color: "#666", label: id || "?", name: id || "?" }; }
   const esc = s => window.escHtml(s);
+  function cardTypeKindOf(c) {
+    if (window.cardTypeKind) return window.cardTypeKind(c);
+    if (isDevoirCard(c)) return 'devoir';
+    if (isQuickCard(c)) return 'quick';
+    return 'main';
+  }
+  function cardTypeBadge(c) {
+    return window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml(cardTypeKindOf(c)) : '';
+  }
+  function cardTypeSurface(c) {
+    return window.cardTypeSurfaceClass ? window.cardTypeSurfaceClass(cardTypeKindOf(c)) : '';
+  }
   function cardAlgoStatsLine(c) {
     if (!c || !window.AnkiAlgoV2) return '';
     const today = window.AnkiAlgoV2.todayISO();
@@ -318,6 +330,7 @@
       ` : ''}
 
       <div id="ankiV2ViewContent"></div>
+      ${typeof window.renderCardCreateFab === 'function' ? window.renderCardCreateFab('paneAnkiV2') : ''}
     `;
     renderActiveView();
     renderSyncSessionDock();
@@ -702,6 +715,7 @@
             </p>
           </div>
           <div class="anki-block-actions" style="align-items:center;">
+            <button class="bs" data-testid="btn-create-card" onclick="window.openCardTypePicker()" title="Devoir, principale ou rapide">${window.iconLabel('plus', 'Créer')}</button>
             <button class="bs" data-testid="btn-generer-session-soir" onclick="window.ankiV2GenererSessionSoir()" title="Fige la file actuelle (auto ou manuelle) pour ce soir">${window.iconLabel('pin', 'Session du soir')}</button>
             <button class="bp" data-testid="btn-commencer-session" onclick="window.startAnkiV2Session()" ${cartes.length === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>${window.iconLabel('play', 'Commencer')}</button>
           </div>
@@ -805,7 +819,8 @@
       const jr = urg.joursRestants;
       const jrLabel = jr == null ? '—' : (jr <= 0 ? `Retard J${jr}` : `J+${jr}`);
       return `
-        <div class="anki-devoir-row" style="${isForce ? 'border-left:3px solid var(--red);' : ''}">
+        <div class="anki-devoir-row ${cardTypeSurface(d)}" style="${isForce ? 'border-left:3px solid var(--red);' : ''}">
+          ${cardTypeBadge(d)}
           <span class="anki-q-mat" style="background:${m.color};">${window.iconHtml('file-text', 12)}</span>
           <div class="anki-devoir-body">
             <div class="anki-devoir-title">${esc(d.titre || d.question)} ${isForce ? '<span style="color:var(--red);font-size:11px;">· FORCÉ ce soir</span>' : ''}</div>
@@ -879,10 +894,10 @@
     const kindLabel = kind === 'devoir' ? 'W' : kind === 'quick' ? 'Y' : 'X';
     const pinTag = !isManualTab && S.pinnedIds.has(c.id) ? '<span class="anki-pcard-pin">+</span>' : '';
     return `
-      <div class="pcard anki-pcard ${sel ? 'sel' : ''}" data-pickid="${c.id}" onclick="event.preventDefault();window.ankiV2TogglePick('${c.id}')">
+      <div class="pcard anki-pcard ${cardTypeSurface(c)} ${sel ? 'sel' : ''}" data-pickid="${c.id}" onclick="event.preventDefault();window.ankiV2TogglePick('${c.id}')">
         <div class="pc-check">${sel ? window.iconHtml('check', 14, 'icon-sm') : window.iconHtml('square', 14, 'icon-sm')}</div>
         ${pinTag}
-        <div class="anki-pcard-mat" style="background:${m.color}20;color:${m.color};">${m.label} · ${kindLabel}</div>
+        <div class="anki-pcard-mat" style="background:${m.color}20;color:${m.color};">${cardTypeBadge(c)} ${m.label}</div>
         <div class="pc-uid">${c.id}</div>
         <div class="pc-title">${esc(c.titre || (c.question || '').substring(0, 48))}</div>
         <div class="anki-pcard-stats anki-mut">${cardAlgoStatsLine(c)}</div>
@@ -930,13 +945,14 @@
       : ((c.tempsCible || 60) / 60).toFixed(1).replace(/\.0$/, '');
     const sessionInfo = isDevoir ? ` · session ${(dmRef._morceauxFaits || 0) + 1}/${dmRef._morceauxTotal || 1}` : '';
     return `
-      <div class="anki-q-row ${isDevoir ? 'devoir' : ''}" draggable="true" data-id="${c.id}" data-idx="${i}">
+      <div class="anki-q-row ${cardTypeSurface(c)} ${isDevoir ? 'devoir' : ''}" draggable="true" data-id="${c.id}" data-idx="${i}">
         <span class="anki-q-handle" title="Glisser">⋮⋮</span>
         <div class="anki-q-num">${i + 1}</div>
+        ${cardTypeBadge(c)}
         <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? window.iconHtml('file-text', 12) : m.label}</div>
         <div class="anki-q-body" onclick="window.startAnkiV2Single('${c.id}')">
           <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}${sessionInfo}</div>
-          <div class="anki-q-meta">${kindTag} · ${c.id} · ${cardAlgoStatsLine(c)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
+          <div class="anki-q-meta">${c.id} · ${cardAlgoStatsLine(c)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
         </div>
         <div class="anki-q-time" onclick="event.stopPropagation();">
           <input type="number" min="0.25" max="600" step="0.25" value="${tempsAffiche}" title="Temps en minutes — éditable"
@@ -988,7 +1004,7 @@
             <p class="anki-mut" style="font-size:12px;">Les cartes du réservoir n'entrent JAMAIS dans les sessions automatiques. Active-les manuellement quand tu veux les intégrer aux révisions.</p>
           </div>
           <div class="anki-block-actions">
-            <button class="bp" data-testid="btn-reservoir-new-card" onclick="window.ankiV2OpenExoModal()">+ Nouvelle carte X-</button>
+            <button class="bp" data-testid="btn-reservoir-new-card" onclick="window.openCardTypePicker()">+ Nouvelle carte</button>
           </div>
         </div>
         <div class="anki-filters">
@@ -1029,7 +1045,8 @@
     if (hasSrcE) srcChips.push(`<span class="anki-tag" style="background:#ffaa3320;color:#ffaa33;border:1px solid #ffaa33;">${window.iconLabel('book-open', `Énoncé : ${esc(c.sourceEnonce.type || '?')} · ${esc(c.sourceEnonce.nom || '')} ${esc(c.sourceEnonce.details || '')}`)}</span>`);
     if (hasSrcC) srcChips.push(`<span class="anki-tag" style="background:#42b56b20;color:#42b56b;border:1px solid #42b56b;">${window.iconLabel('check', `Corrigé : ${esc(c.sourceCorrection.type || '?')} · ${esc(c.sourceCorrection.nom || '')} ${esc(c.sourceCorrection.details || '')}`)}</span>`);
     return `
-      <div class="anki-lib-row" data-testid="reservoir-row-${c.id}">
+      <div class="anki-lib-row ${cardTypeSurface(c)}" data-testid="reservoir-row-${c.id}">
+        ${cardTypeBadge(c)}
         <label class="anki-pick ${checked ? 'on' : ''}" style="flex:0 0 auto;" data-pickid="res-${c.id}">
           <input type="checkbox" ${checked ? 'checked' : ''} data-testid="reservoir-check-${c.id}" onchange="window.ankiV2ReservoirToggleSel('${c.id}')">
         </label>
@@ -1295,7 +1312,7 @@
         <div class="anki-block-hdr">
           <h3>Bibliothèque (${list.length})</h3>
           <div class="anki-block-actions">
-            <button class="bp" onclick="window.ankiV2OpenExoModal()">+ Nouvelle carte</button>
+            <button class="bp" onclick="window.openCardTypePicker()">+ Nouvelle carte</button>
           </div>
         </div>
         <div class="anki-filters">
@@ -1364,7 +1381,8 @@
   function renderLibRow(c) {
     const m = mat(c.mat);
     return `
-      <div class="anki-lib-row">
+      <div class="anki-lib-row ${cardTypeSurface(c)}">
+        ${cardTypeBadge(c)}
         <span class="uid-badge anki-lib-id">${c.id}</span>
         <div class="anki-lib-text">
           <div class="anki-lib-title">${esc(c.titre || (c.question || '').substring(0, 70))}</div>
@@ -1495,8 +1513,9 @@
   function renderCalCard(c, i) {
     const m = mat(c.mat);
     return `
-      <div class="anki-cal-row">
+      <div class="anki-cal-row ${window.cardTypeSurfaceClass ? window.cardTypeSurfaceClass(window.cardTypeKind ? window.cardTypeKind(c) : 'main') : ''}">
         <span class="anki-day-num">${i + 1}</span>
+        ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml(window.cardTypeKind ? window.cardTypeKind(c) : 'main') : ''}
         <span class="anki-q-mat" style="background:${m.color};">${m.label}</span>
         <span class="uid-badge">${c.id}</span>
         <span class="anki-day-title">${esc(c.titre || (c.question || '').substring(0, 80))}</span>
@@ -2487,6 +2506,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           ${renderDeckProgressHtml(m.color)}
           <div class="anki-sess-top">
           <div>
+            ${cardTypeBadge(c)}
             <span class="uid-badge">${c.id}</span>
             <span class="anki-tag" style="background:${m.color}20;color:${m.color};border:1px solid ${m.color};">${m.label}</span>
             ${isDevoir ? `<span class="anki-tag" style="background:#b06af720;color:#b06af7;border:1px solid #b06af7;">${window.iconLabel('file-text', `DM ${(dmRef._morceauxFaits || 0) + 1}/${dmRef._morceauxTotal || 1}`)}</span>` : `<span class="anki-tag">${stars(c)}</span>`}
@@ -2818,13 +2838,39 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   // ====== CRUD ======
   let editingExoId = null;
 
-  window.ankiV2OpenExoModal = function () {
-    ensure(); editingExoId = null; S.coursLinkSelection = new Set(); S.coursLinkQuery = "";
-    showExoModal({});
+  window.ankiV2OpenExoModal = function (opts) {
+    opts = opts && typeof opts === 'object' ? opts : {};
+    ensure(); editingExoId = null;
+    const preset = {};
+    if (opts.mat) preset.mat = opts.mat;
+    if (opts.coursId) {
+      S.coursLinkSelection = new Set([opts.coursId]);
+      if (!preset.mat) {
+        const co = (window.D.cours || []).find(x => x.uid === opts.coursId);
+        if (co) preset.mat = co.mat;
+      }
+    } else {
+      S.coursLinkSelection = new Set();
+    }
+    S.coursLinkQuery = "";
+    showExoModal(preset);
   };
-  window.ankiV2OpenDevoirModal = function () {
-    ensure(); editingExoId = null; S.coursLinkSelection = new Set(); S.coursLinkQuery = "";
-    showDevoirModal({ type: 'devoir', tempsCible: 30 * 60, profil: 'EXO', statut: 'actif' });
+  window.ankiV2OpenDevoirModal = function (opts) {
+    opts = opts && typeof opts === 'object' ? opts : {};
+    ensure(); editingExoId = null;
+    const preset = { type: 'devoir', tempsCible: 30 * 60, profil: 'EXO', statut: 'actif' };
+    if (opts.mat) preset.mat = opts.mat;
+    if (opts.coursId) {
+      S.coursLinkSelection = new Set([opts.coursId]);
+      if (!preset.mat) {
+        const co = (window.D.cours || []).find(x => x.uid === opts.coursId);
+        if (co) preset.mat = co.mat;
+      }
+    } else {
+      S.coursLinkSelection = new Set();
+    }
+    S.coursLinkQuery = "";
+    showDevoirModal(preset);
   };
   window.ankiV2EditExo = function (id) {
     const c = ankFind(id); if (!c) return;
@@ -2864,8 +2910,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 1;
 
     ov.innerHTML = `
-      <div class="modal anki-modal-exo">
-        <h2>${editingExoId ? window.iconLabel('pencil', 'Modifier la carte') : window.iconLabel('sparkles', 'Nouvelle carte X-')}</h2>
+      <div class="modal anki-modal-exo card-type-surface card-type-main">
+        <h2>${editingExoId ? window.iconLabel('pencil', 'Modifier') : window.iconLabel('sparkles', 'Nouvelle carte')} ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('main') : ''} <span class="anki-mut" style="font-size:13px;font-weight:normal;">Principale</span></h2>
         <div id="exoFormError" class="anki-form-error" role="alert"></div>
         <div class="fg">
           <label>Titre court</label>
@@ -2968,8 +3014,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const morceauxFaits = c._morceauxFaits || 0;
 
     ov.innerHTML = `
-      <div class="modal anki-modal-devoir">
-        <h2>${editingExoId ? window.iconLabel('pencil', 'Modifier le devoir') : window.iconLabel('file-text', 'Nouveau devoir W-')}</h2>
+      <div class="modal anki-modal-devoir card-type-surface card-type-devoir">
+        <h2>${editingExoId ? window.iconLabel('pencil', 'Modifier') : window.iconLabel('file-text', 'Nouveau')} ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('devoir') : ''} <span class="anki-mut" style="font-size:13px;font-weight:normal;">Devoir</span></h2>
         <div class="modal-body-scroll">
         <div class="anki-devoir-hero">
           ${window.iconLabel('calendar', '<b>Devoir à rendre</b> — visible dans l\'Agenda, planifié selon la date limite et ton importance (étoiles). Pas de réservoir : il entre directement dans le flux de travail.')}
@@ -3298,6 +3344,119 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     S.stats = { ok: 0, mid: 0, bad: 0, total: plan.cartes.length };
     nextCard();
   };
+
+  window.ankiV2OpenQuickModal = function (opts) {
+    opts = opts && typeof opts === 'object' ? opts : {};
+    ensure();
+    editingExoId = null;
+    const preset = { profil: 'ANGLAIS', statut: 'actif', tempsCible: 30 };
+    if (opts.mat) preset.mat = opts.mat;
+    if (opts.coursId) {
+      S.coursLinkSelection = new Set([opts.coursId]);
+      if (!preset.mat) {
+        const co = (window.D.cours || []).find(x => x.uid === opts.coursId);
+        if (co) preset.mat = co.mat;
+      }
+    } else {
+      S.coursLinkSelection = new Set();
+    }
+    S.coursLinkQuery = "";
+    showQuickCreateModal(preset);
+  };
+
+  function showQuickCreateModal(c) {
+    let ov = $("ovQuickCreate");
+    if (!ov) { ov = document.createElement("div"); ov.id = "ovQuickCreate"; ov.className = "ov"; document.body.appendChild(ov); }
+    ov.classList.remove("hidden");
+    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
+    const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 0.5;
+    ov.innerHTML = `
+      <div class="modal card-type-surface card-type-quick">
+        <h2>${window.iconLabel('zap', 'Nouvelle carte')} ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('quick') : ''} <span class="anki-mut" style="font-size:13px;font-weight:normal;">Rapide</span></h2>
+        <p class="anki-mut" style="font-size:12px;margin-top:-4px;">Active directement · comblage de session</p>
+        <div id="quickFormError" class="anki-form-error" role="alert"></div>
+        <div class="fg">
+          <label>Question / recto *</label>
+          <input type="text" id="quickQ" placeholder="Ex: « to elicit »" value="${esc(c.question || '')}">
+        </div>
+        <div class="fg">
+          <label>Réponse / verso <span class="anki-mut" style="font-weight:normal;">(facultatif)</span></label>
+          <input type="text" id="quickR" placeholder="Traduction ou rappel court" value="${esc(c.reponse || '')}">
+        </div>
+        <div class="anki-modal-row">
+          <div class="fg"><label>Matière *</label><select id="quickMat">${matOpts}</select></div>
+          <div class="fg"><label>Durée (min)</label><input type="number" id="quickTempsMin" min="0.25" max="5" step="0.25" value="${tempsMin}"></div>
+        </div>
+        <div class="macts">
+          <button type="button" class="bs" onclick="document.getElementById('ovQuickCreate').classList.add('hidden')">Annuler</button>
+          <button type="button" class="bp" style="background:var(--acc);border-color:var(--acc);" onclick="window.ankiV2SaveQuick()">Créer</button>
+        </div>
+      </div>`;
+    window.hydrateIcons(ov);
+    const qEl = $("quickQ");
+    if (qEl) qEl.focus();
+  }
+
+  window.ankiV2SaveQuick = function () {
+    showFormError('quickFormError', '');
+    const q = fieldVal('quickQ');
+    const r = fieldVal('quickR');
+    const mat = fieldVal('quickMat');
+    const tempsMin = parseFloat(fieldVal('quickTempsMin')) || 0.5;
+    if (!q) return showFormError('quickFormError', 'La question est obligatoire.');
+    if (!mat) return showFormError('quickFormError', 'Choisis une matière.');
+    const coursIds = Array.from(S.coursLinkSelection || []);
+    window.quickAddAnkiCard({
+      question: q,
+      reponse: r,
+      mat,
+      profil: 'ANGLAIS',
+      tempsCible: Math.max(15, Math.round(tempsMin * 60)),
+      statut: 'actif',
+      importance: 3,
+      coursIds
+    });
+    const ov = $("ovQuickCreate");
+    if (ov) ov.classList.add('hidden');
+    window.renderAnkiV2();
+    if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+    window.sysAlert(window.iconLabel('check', 'Carte rapide créée et active.'), 'Rapide Y-');
+  };
+
+  window.quickAddAnkiCard = function (data) {
+    ensure();
+    const matV = data.mat || ((window.D.matieres[0] && window.D.matieres[0].id) || 'XX');
+    const existing = ankExistingIds();
+    const id = window.AnkiAlgoV2.genExoUid('Y', existing);
+    const profil = data.profil || 'ANGLAIS';
+    const statut = data.statut || 'actif';
+    const card = {
+      id,
+      titre: data.titre || '',
+      question: data.question || '',
+      reponse: data.reponse || '',
+      mat: matV,
+      profil,
+      tempsCible: data.tempsCible || 60,
+      importance: data.importance != null ? data.importance : 3,
+      statut,
+      coursIds: data.coursIds || [],
+      intervalle: 0,
+      ease: window.AnkiAlgoV2.getProfile(profil).ease,
+      repetitions: 0,
+      dateProchaineRevision: statut === 'actif' ? window.AnkiAlgoV2.todayISO() : null,
+      historique: [],
+      epinglee: false,
+      dateCreation: new Date().toISOString()
+    };
+    window.D.exercices.unshift(card);
+    window.save();
+    return card;
+  };
+
+  window.editExo = window.ankiV2EditExo;
+  window.delExo = window.ankiV2DelExo;
+  window.startAnkiSingle = window.startAnkiV2Single;
 
   window.cardAlgoStatsLineV2 = cardAlgoStatsLine;
   window.renderSyncSessionDock = renderSyncSessionDock;

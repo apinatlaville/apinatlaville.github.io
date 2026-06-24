@@ -438,6 +438,11 @@ window.doLocate = function(uid) {
       </div>
     `;
   } else {
+    const linkedCount = (window.D.exercices || []).filter(ex => {
+      const ids = ex.coursIds || (ex.coursId ? [ex.coursId] : []);
+      return ids.includes(c.uid);
+    }).length;
+    const uidEsc = window.escHtml(c.uid);
      window.$('locContent').innerHTML = baseInfoHtml + `
         <div class="loc-cards">
           <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
@@ -449,8 +454,14 @@ window.doLocate = function(uid) {
         </div>
         ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${window.escHtml(c.note)}/20</div>` : ''}
         ${c.desc ? `<div class="loc-desc">${window.escHtml(c.desc)}</div>` : ''}
+
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+          ${typeof window.openCardCreateForCours === 'function' ? `<button type="button" class="bp" onclick="window.openCardCreateForCours('${uidEsc}')" style="width:100%;padding:10px;">${window.iconLabel('plus', 'Créer une carte liée à ce cours')}</button>` : ''}
+          ${linkedCount ? `<p style="font-size:11px;color:var(--mut);text-align:center;margin:0;">${linkedCount} carte(s) Synchrotron liée(s)</p>` : ''}
+          ${linkedCount && typeof window.startAnkiV2Colle === 'function' ? `<button type="button" class="bs" onclick="window.closeLocPopup();window.switchTab('ankiV2');window.startAnkiV2Colle('${uidEsc}')" style="width:100%;padding:10px;">${window.iconLabel('play', 'Réviser les cartes du chapitre')}</button>` : ''}
+        </div>
         
-        <button class="bs" onclick="window.closeLocPopup(); window.openMove('${window.escHtml(c.uid)}')" style="width:100%; margin-top:15px; padding:10px;">${window.iconLabel('refresh-cw', 'Déplacer ce document')}</button>
+        <button class="bs" onclick="window.closeLocPopup(); window.openMove('${uidEsc}')" style="width:100%; margin-top:12px; padding:10px;">${window.iconLabel('refresh-cw', 'Déplacer ce document')}</button>
      `;
   }
   

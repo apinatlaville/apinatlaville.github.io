@@ -34,7 +34,7 @@
     root.innerHTML = `
       <div class="quick-head">
         <h2>${window.iconLabel('zap', 'Rapide — cartes Y-')}</h2>
-        <p>Cartes courtes (~30s) par matière. Nouvelle carte → <b>réservoir</b> (active-la ci-dessous). Révision dédiée aux Y- actives.</p>
+        <p>Cartes courtes (~30s) par matière. Nouvelle carte → <b>active directement</b> (comblage de session).</p>
       </div>
 
       <div class="quick-create">
@@ -46,7 +46,7 @@
           <select id="qkMat">${matOpts}</select>
           <input type="number" id="qkTemps" min="0.25" max="5" step="0.25" value="0.5" title="Temps cible (min)">
           <span class="anki-mut" style="align-self:center;font-size:12px;">min</span>
-          <button class="bp" onclick="window.quickAdd()">${window.iconLabel('plus', 'Créer (réservoir)')}</button>
+          <button class="bp" onclick="window.quickAdd()">${window.iconLabel('plus', 'Créer (active)')}</button>
         </div>
         <div class="quick-mut">${window.iconLabel('lightbulb', 'Entrée dans le champ Réponse pour créer rapidement.')}</div>
       </div>
@@ -61,6 +61,7 @@
       </div>
 
       <div id="qkSections"></div>
+      ${typeof window.renderCardCreateFab === 'function' ? window.renderCardCreateFab('paneFlashcards') : ''}
     `;
     renderSections();
     bindEnter();
@@ -82,7 +83,7 @@
     if (!window.quickAddAnkiCard) { window.sysAlert("Module Anki non chargé.", "Erreur"); return; }
     window.quickAddAnkiCard({
       question: q, reponse: r, mat, profil: QUICK_PROFIL,
-      tempsCible: temps, statut: "reservoir", importance: 3
+      tempsCible: temps, statut: "actif", importance: 3
     });
     $("qkQ").value = ''; $("qkR").value = '';
     $("qkQ").focus();
@@ -131,14 +132,17 @@
   function renderCard(c) {
     const m = matInfo(c.mat);
     const inRes = window.AnkiAlgo.isReservoir(c);
+    const typeCls = window.cardTypeSurfaceClass ? window.cardTypeSurfaceClass('quick') : '';
+    const typeBadge = window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('quick') : '';
     return `
-      <div class="qk-card${inRes ? ' qk-reservoir' : ''}" onclick="this.classList.toggle('flipped')">
+      <div class="qk-card ${typeCls}${inRes ? ' qk-reservoir' : ''}" onclick="this.classList.toggle('flipped')">
         <div class="qk-inner">
           <div class="qk-front">
             <div class="qk-top">
+              ${typeBadge}
               <span class="qk-mat" style="background:${m.color};">${m.label}</span>
               <span class="qk-id">${c.id}</span>
-              ${inRes ? `<span class="anki-tag" style="background:rgba(255,170,51,.15);color:var(--gold);">Réservoir</span>` : ''}
+              ${inRes ? `<span class="anki-tag" style="background:rgba(255,170,51,.15);color:var(--gold);">Ancien réservoir</span>` : ''}
             </div>
             <div class="qk-q">${esc(c.question)}</div>
             <div class="qk-foot">
@@ -216,7 +220,7 @@
 
   window.quickStartAll = function () {
     const list = getFiltered().filter(c => c.statut === 'actif');
-    if (!list.length) return window.sysAlert("Aucune carte Y- active à réviser. Active des cartes depuis le réservoir.", "Rapide");
+    if (!list.length) return window.sysAlert("Aucune carte Y- active à réviser.", "Rapide");
     window.save();
     if (window.startAnkiSingle && list.length === 1) {
       window.startAnkiSingle(list[0].id);
