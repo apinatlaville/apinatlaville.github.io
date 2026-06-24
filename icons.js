@@ -242,8 +242,9 @@
   };
 
   window.enterApp = function () {
-    if (typeof window.dismissSplash === 'function') window.dismissSplash();
-    else document.body.classList.remove('boot-active');
+    if (typeof window.unlockPage === 'function') window.unlockPage();
+    else if (typeof window.dismissSplash === 'function') window.dismissSplash();
+    else document.body.classList.remove('boot-active', 'auth-pending');
     if (window.google && window.google.accounts && window.google.accounts.id) {
       window.google.accounts.id.cancel();
     }
@@ -262,8 +263,9 @@
   };
 
   window.showLogin = function () {
-    if (typeof window.dismissSplash === 'function') window.dismissSplash();
-    else document.body.classList.remove('boot-active');
+    if (typeof window.unlockPage === 'function') window.unlockPage();
+    else if (typeof window.dismissSplash === 'function') window.dismissSplash();
+    else document.body.classList.remove('boot-active', 'auth-pending');
     document.body.classList.remove('auth-pending');
     document.documentElement.classList.add('pre-login');
     document.body.classList.add('not-logged-in');

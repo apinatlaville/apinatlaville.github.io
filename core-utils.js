@@ -23,9 +23,6 @@
   var bootDismissed = false;
 
   function splashEl() { return document.getElementById('splashScreen'); }
-  function splashBar() { return document.getElementById('splashProgressBar'); }
-  function splashLabel() { return document.getElementById('splashProgressLabel'); }
-  function splashPct() { return document.getElementById('splashProgressPct'); }
 
   window.setBootStep = function (stepId, customLabel) {
     var idx = BOOT_STEPS.findIndex(function (s) { return s.id === stepId; });
@@ -36,46 +33,50 @@
     var pct = Math.round(((bootIndex + 1) / BOOT_STEPS.length) * 100);
     var label = customLabel || BOOT_STEPS[bootIndex].label;
 
-    var bar = splashBar();
-    var lbl = splashLabel();
-    var pctEl = splashPct();
+    var bar = document.getElementById('splashProgressBar');
+    var lbl = document.getElementById('splashProgressLabel');
+    var pctEl = document.getElementById('splashProgressPct');
     if (bar) bar.style.width = pct + '%';
     if (lbl) lbl.textContent = 'Chargement — ' + label + '…';
     if (pctEl) pctEl.textContent = pct + '%';
   };
 
-  window.dismissSplash = function () {
-    if (bootDismissed) return;
-    bootDismissed = true;
-    window.setBootStep('data', 'Prêt');
-
+  /** Débloque la page : retire les classes qui masquent tout le site */
+  window.unlockPage = function () {
+    document.body.classList.remove('boot-active', 'auth-pending');
     var splash = splashEl();
-    if (splash) {
-      splash.classList.add('splash-out');
-      setTimeout(function () {
-        if (splash.parentNode) splash.remove();
-      }, 450);
-    }
-    document.body.classList.remove('boot-active');
+    if (splash && splash.parentNode) splash.remove();
+    bootDismissed = true;
   };
 
-  /* Secours : si l'auth bloque, ne pas laisser l'écran vide */
-  setTimeout(function () {
-    if (!bootDismissed && document.body && document.body.classList.contains('boot-active')) {
-      document.body.classList.remove('boot-active');
-      var splash = splashEl();
-      if (splash && splash.parentNode) splash.remove();
-      bootDismissed = true;
-    }
-  }, 15000);
+  window.dismissSplash = function () {
+    if (bootDismissed) return;
+    window.setBootStep('data', 'Prêt');
+    var splash = splashEl();
+    if (splash) splash.classList.add('splash-out');
+    setTimeout(window.unlockPage, 280);
+  };
 
-  if (document.body) {
-    document.body.classList.add('boot-active');
-  } else {
-    document.addEventListener('DOMContentLoaded', function () {
-      document.body.classList.add('boot-active');
-    });
-  }
+  /** Affiche l'écran de connexion si le boot reste bloqué */
+  window.forceLoginScreen = function () {
+    window.unlockPage();
+    document.body.classList.add('not-logged-in');
+    document.documentElement.classList.add('pre-login');
+    var loginOverlay = document.getElementById('loginOverlay');
+    if (loginOverlay) loginOverlay.style.removeProperty('display');
+    if (typeof window.initGoogleSignIn === 'function') window.initGoogleSignIn();
+  };
+
+  /* Secours : auth-pending + splash parti = écran noir → forcer login */
+  setTimeout(function () {
+    if (document.body.classList.contains('auth-pending') || document.getElementById('splashScreen')) {
+      if (!window.appReady && !window.appLaunched) {
+        window.forceLoginScreen();
+      } else {
+        window.unlockPage();
+      }
+    }
+  }, 7000);
 
   document.addEventListener('DOMContentLoaded', function () {
     var splash = document.getElementById('splashScreen');

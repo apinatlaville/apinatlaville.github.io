@@ -64,9 +64,10 @@ window.getTabsNeedingData = function () {
 };
 
 /** Rétrocompatibilité */
-window.APP_TAB_TITLES = Object.fromEntries(
-  Object.entries(window.APP_TAB_REGISTRY).map(function (e) { return [e[0], e[1].label]; })
-);
+window.APP_TAB_TITLES = {};
+Object.keys(window.APP_TAB_REGISTRY).forEach(function (id) {
+  window.APP_TAB_TITLES[id] = window.APP_TAB_REGISTRY[id].label;
+});
 
 window.APP_NAV_SECTIONS = window.APP_NAV_GROUPS.map(function (grp) {
   return {

@@ -42,8 +42,9 @@ function enterAppUi() {
   if (typeof window.setBootStep === 'function') window.setBootStep('auth', 'Connexion');
   if (typeof window.enterApp === 'function') window.enterApp();
   else {
+    if (typeof window.unlockPage === 'function') window.unlockPage();
     document.documentElement.classList.remove('pre-login');
-    document.body.classList.remove('auth-pending', 'not-logged-in');
+    document.body.classList.remove('auth-pending', 'not-logged-in', 'boot-active');
     const loginOverlay = document.getElementById('loginOverlay');
     if (loginOverlay) loginOverlay.style.setProperty('display', 'none', 'important');
   }
@@ -53,13 +54,15 @@ function showLoginUi() {
   if (typeof window.setBootStep === 'function') window.setBootStep('auth', 'Connexion');
   if (typeof window.showLogin === 'function') window.showLogin();
   else {
-    document.body.classList.remove('auth-pending');
-    const loginOverlay = document.getElementById('loginOverlay');
-    if (loginOverlay) loginOverlay.style.removeProperty('display');
-    document.body.classList.add('not-logged-in');
-    document.documentElement.classList.add('pre-login');
+    if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
+    else {
+      document.body.classList.remove('auth-pending', 'boot-active');
+      const loginOverlay = document.getElementById('loginOverlay');
+      if (loginOverlay) loginOverlay.style.removeProperty('display');
+      document.body.classList.add('not-logged-in');
+      document.documentElement.classList.add('pre-login');
+    }
   }
-  if (typeof window.dismissSplash === 'function') window.dismissSplash();
 }
 
 function launchAppWhenReady(payload) {
@@ -82,6 +85,8 @@ function launchAppWhenReady(payload) {
 
     if (attempts >= maxAttempts) {
       console.error("❌ CRITIQUE : app.js n'a pas chargé à temps.");
+      if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
+      else showLoginUi();
       const loginOverlay = document.getElementById('loginOverlay');
       if (loginOverlay) {
         let debugDiv = document.getElementById('debug-auth-error');

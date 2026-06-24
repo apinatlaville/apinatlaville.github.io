@@ -1574,6 +1574,7 @@ body.not-logged-in #splashScreen {
  margin: 0 0 6px;
  font-style: italic;
 }
+#ovAnkiSession .anki-sess-foot {
  margin-top: 8px;
  padding-top: 8px;
  border-top: 0.5px solid var(--bd);

@@ -93,7 +93,7 @@
 </script>
 
 </head>
-<body class="auth-pending tmpl-glass theme-dark ui-classic boot-active">
+<body class="auth-pending tmpl-glass theme-dark ui-classic">
 
 <div id="splashScreen" class="splash-screen" aria-live="polite" aria-busy="true">
   <div class="splash-inner">
@@ -814,17 +814,24 @@
     color: #8a94a8;
     letter-spacing: 0.05em;
   }
-  body.boot-active > *:not(#splashScreen):not(script):not(style) {
-    visibility: hidden;
-  }
-  body.boot-active #splashScreen {
-    visibility: visible;
-  }
-  /* Ne jamais masquer l'écran de connexion pendant le boot */
-  body.boot-active.not-logged-in #loginOverlay {
-    visibility: visible !important;
-  }
 </style>
+
+<script>
+/* Secours ultime — si le JS principal bloque, débloquer après 8s */
+setTimeout(function () {
+  if (!window.appReady && document.body.classList.contains('auth-pending')) {
+    if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
+    else {
+      document.body.classList.remove('auth-pending', 'boot-active');
+      var s = document.getElementById('splashScreen');
+      if (s) s.remove();
+      document.body.classList.add('not-logged-in');
+      var l = document.getElementById('loginOverlay');
+      if (l) l.style.display = 'flex';
+    }
+  }
+}, 8000);
+</script>
 
 </body>
 </html>

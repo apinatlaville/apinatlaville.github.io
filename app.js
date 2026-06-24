@@ -1035,7 +1035,8 @@ async function initApp(user) {
     window._pendingTabReset = false;
     window.switchTab(pending, reset);
   }
-  if (typeof window.dismissSplash === 'function') window.dismissSplash();
+  if (typeof window.unlockPage === 'function') window.unlockPage();
+  else if (typeof window.dismissSplash === 'function') window.dismissSplash();
 }
 
 /**
