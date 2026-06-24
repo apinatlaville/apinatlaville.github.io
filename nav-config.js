@@ -22,7 +22,7 @@ window.APP_TAB_REGISTRY = {
   matieres:    { pane: 'paneMatieres',    label: 'Matières',      icon: 'tag',            needsData: true,  onShow: 'matieres' },
   settings:    { pane: 'paneSettings',    label: 'Paramètres',    icon: 'settings',       needsData: true,  onShow: 'settings',      nav: false },
   logs:        { pane: 'paneLogs',        label: 'Logs',          icon: 'bug',            needsData: false, onShow: 'logs',          className: 'tab-logs' },
-  test:        { pane: 'paneTest',        label: 'Test Finder',   icon: 'flask-conical',  needsData: false, onShow: 'test',          className: 'tab-test' }
+  test:        { pane: 'paneTest',        label: 'Labo UI',       icon: 'flask-conical',  needsData: false, onShow: 'test',          className: 'tab-test' }
 };
 
 /** Groupes affichés dans la barre d'onglets (ordre conservé) */
