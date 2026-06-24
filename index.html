@@ -110,8 +110,15 @@
   <div class="app-backdrop-frost" aria-hidden="true"></div>
 
   <div class="page-title-float hidden" id="pageTitleFloat" aria-hidden="true">
-    <h2 class="page-title-float-txt" id="hdrPageTitle">Accueil</h2>
+    <div class="page-title-float-inner">
+      <h2 class="page-title-float-txt" id="hdrPageTitle">Accueil</h2>
+      <button type="button" class="page-title-nav-toggle" id="btnSidebarMobileToggle" aria-expanded="false" aria-controls="appSidebar" aria-label="Ouvrir la navigation" hidden>
+        <span data-icon="chevron-down" data-icon-size="22" aria-hidden="true"></span>
+      </button>
+    </div>
   </div>
+
+  <div class="mobile-nav-scrim" id="mobileNavScrim" hidden aria-hidden="true"></div>
 
   <aside class="app-sidebar app-chrome app-chrome--nav" id="appSidebar" aria-label="Navigation">
     <div class="sidebar-brand">
@@ -119,11 +126,8 @@
       <span class="sidebar-brand-txt">Mes <span>Cours</span></span>
     </div>
     <div id="navSlotSide"></div>
+    <div class="nav-mobile-extras" id="navMobileExtras" aria-label="Synchrotron et actions rapides"></div>
     <div class="sidebar-footer" id="sidebarFooter" aria-label="Actions"></div>
-    <button type="button" class="sidebar-mobile-toggle" id="btnSidebarMobileToggle" aria-expanded="false" aria-controls="navSlotSide" hidden>
-      <span data-icon="chevron-down" data-icon-size="18" aria-hidden="true"></span>
-      <span class="sidebar-mobile-toggle-txt">Navigation &amp; recherche</span>
-    </button>
   </aside>
 
   <div class="app-workspace" id="appMain">
@@ -379,22 +383,20 @@
 </div>
 
 <div class="pane ui-pane" id="paneTest">
-  <h2 style="font-family:'Inter'; margin-bottom:6px; color:var(--gold); display:flex;align-items:center;gap:8px;"><span data-icon="flask-conical"></span> Test Finder</h2>
-  <p style="color:var(--mut); font-size:13px; margin-bottom:22px;">Styles Finder + diagnostic caméra / scanner.</p>
+  <div id="styleLabRoot" class="ui-design-lab-root"></div>
 
-  <h3 style="font-family:'Inter'; font-size:15px; font-weight:600; margin:0 0 12px; display:flex;align-items:center;gap:8px;"><span data-icon="palette"></span> Styles Finder</h3>
-  <div id="styleLabRoot"></div>
-
-  <h3 style="font-family:'Inter'; font-size:15px; font-weight:600; margin:28px 0 12px; display:flex;align-items:center;gap:8px;"><span data-icon="camera"></span> Diagnostic Scanner</h3>
-  <p style="color:var(--mut); font-size:13px; margin-bottom:16px;">Scanne n'importe quel code (supermarché, QR, etc.) pour tester la caméra brute sans filtres.</p>
-  <div id="debug-reader" style="width:100%; border-radius:12px; overflow:hidden; margin-bottom:15px; border:2px dashed var(--gold);"></div>
-  <div style="display:flex; gap:10px; margin-bottom:20px;">
-    <button class="bp" onclick="window.startDebugScanner()" style="flex:1;"><span data-icon="play"></span> Démarrer Scanner</button>
-    <button class="bs" onclick="window.stopDebugScanner()" style="flex:1; border-color:var(--red); color:var(--red);"><span data-icon="square"></span> Arrêter</button>
-  </div>
-  <div id="debug-logs" style="background:var(--s2); border:1px solid var(--bd); border-radius:12px; padding:15px; display:flex; flex-direction:column; gap:8px; font-family:'DM Mono', monospace; font-size:11px; overflow-y:auto; max-height:250px; word-wrap:break-word;">
-    <div style="color:var(--mut); text-align:center; margin-top:20px;">[ Console de Diagnostic prête ]</div>
-  </div>
+  <details class="ui-lab-details">
+    <summary class="ui-lab-details-summary"><span data-icon="camera"></span> Diagnostic Scanner</summary>
+    <p class="ui-lab-section-desc">Scanne n'importe quel code pour tester la caméra brute sans filtres.</p>
+    <div id="debug-reader" class="ui-lab-scanner-view"></div>
+    <div class="ui-lab-scanner-actions">
+      <button type="button" class="bp" onclick="window.startDebugScanner()"><span data-icon="play"></span> Démarrer</button>
+      <button type="button" class="bs" onclick="window.stopDebugScanner()" style="border-color:var(--red);color:var(--red);"><span data-icon="square"></span> Arrêter</button>
+    </div>
+    <div id="debug-logs" class="ui-lab-debug-logs">
+      <div class="ui-lab-debug-placeholder">[ Console de diagnostic prête ]</div>
+    </div>
+  </details>
 </div>
 
   </div><!-- .app-content -->
@@ -679,6 +681,11 @@
     cssFinderPresets.rel = 'stylesheet';
     cssFinderPresets.href = 'ui-finder-presets.css?v=' + v;
     document.head.appendChild(cssFinderPresets);
+
+    var cssDesignLab = document.createElement('link');
+    cssDesignLab.rel = 'stylesheet';
+    cssDesignLab.href = 'ui-design-lab.css?v=' + v;
+    document.head.appendChild(cssDesignLab);
 
     var cssShell = document.createElement('link');
     cssShell.rel = 'stylesheet';
