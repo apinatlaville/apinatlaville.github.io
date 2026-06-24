@@ -1,0 +1,306 @@
+/* Form controls — Flatpickr + Choices + toggles (thème Liquid Glass) */
+
+/* —— Flatpickr —— */
+.flatpickr-calendar {
+  background: #141824 !important;
+  border: 0.5px solid rgba(130, 165, 255, 0.22) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(195, 215, 255, 0.14),
+    0 12px 40px rgba(0, 0, 0, 0.45) !important;
+  font-family: 'Inter', sans-serif !important;
+  backdrop-filter: blur(32px) saturate(1.85);
+  -webkit-backdrop-filter: blur(32px) saturate(1.85);
+  overflow: hidden;
+  z-index: 10050 !important;
+}
+.flatpickr-months .flatpickr-month,
+.flatpickr-current-month .flatpickr-monthDropdown-months,
+.flatpickr-weekdays,
+.flatpickr-days {
+  background: transparent !important;
+}
+.flatpickr-months .flatpickr-prev-month,
+.flatpickr-months .flatpickr-next-month {
+  fill: var(--mut) !important;
+}
+.flatpickr-months .flatpickr-prev-month:hover svg,
+.flatpickr-months .flatpickr-next-month:hover svg {
+  fill: var(--txt) !important;
+}
+span.flatpickr-weekday {
+  color: var(--mut) !important;
+  font-weight: 600;
+  font-size: 11px;
+}
+.flatpickr-day {
+  color: var(--txt) !important;
+  border-radius: 8px !important;
+  max-width: 36px;
+  height: 36px;
+  line-height: 36px;
+}
+.flatpickr-day:hover,
+.flatpickr-day:focus {
+  background: rgba(91, 154, 255, 0.16) !important;
+  border-color: transparent !important;
+}
+.flatpickr-day.today {
+  border-color: rgba(91, 154, 255, 0.45) !important;
+}
+.flatpickr-day.selected,
+.flatpickr-day.startRange,
+.flatpickr-day.endRange {
+  background: var(--acc) !important;
+  border-color: var(--acc) !important;
+  color: #fff !important;
+}
+.flatpickr-day.flatpickr-disabled {
+  color: rgba(138, 148, 168, 0.35) !important;
+}
+.flatpickr-current-month {
+  color: var(--txt) !important;
+  font-weight: 600;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  color: var(--txt) !important;
+}
+.numInputWrapper span.arrowUp:after { border-bottom-color: var(--mut) !important; }
+.numInputWrapper span.arrowDown:after { border-top-color: var(--mut) !important; }
+
+.fc-date-wrap {
+  position: relative;
+}
+.fc-date-wrap .fc-date-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--mut);
+  pointer-events: none;
+  z-index: 2;
+}
+.fc-date-wrap input.flatpickr-input,
+.fc-date-wrap input[type="date"] {
+  padding-right: 36px !important;
+  cursor: pointer;
+}
+
+/* —— Choices.js —— */
+.choices.fc-choices {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+.choices.fc-choices .choices__inner {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, transparent 48%),
+    rgba(155, 185, 255, 0.06);
+  border: 0.5px solid rgba(130, 165, 255, 0.18);
+  border-radius: var(--radius-control, 10px);
+  min-height: 42px;
+  padding: 6px 10px;
+  font-size: 14px;
+  backdrop-filter: blur(20px) saturate(1.75);
+  -webkit-backdrop-filter: blur(20px) saturate(1.75);
+  box-shadow: inset 0 1px 0 rgba(195, 215, 255, 0.1);
+}
+.choices.fc-choices.is-focused .choices__inner,
+.choices.fc-choices.is-open .choices__inner {
+  border-color: rgba(91, 154, 255, 0.4);
+  box-shadow: inset 0 1px 0 rgba(195, 215, 255, 0.16), 0 0 0 3px rgba(91, 154, 255, 0.1);
+}
+.choices.fc-choices .choices__list--single .choices__item {
+  color: var(--txt);
+  padding: 2px 4px;
+}
+.choices.fc-choices .choices__placeholder {
+  color: var(--mut);
+  opacity: 1;
+}
+.choices.fc-choices .choices__list--dropdown,
+.choices.fc-choices .choices__list[aria-expanded] {
+  background: #141824;
+  border: 0.5px solid rgba(130, 165, 255, 0.22);
+  border-radius: 12px;
+  margin-top: 6px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+  z-index: 1100;
+  backdrop-filter: blur(28px) saturate(1.85);
+  -webkit-backdrop-filter: blur(28px) saturate(1.85);
+  overflow: hidden;
+}
+.choices.fc-choices .choices__list--dropdown .choices__item,
+.choices.fc-choices .choices__list[aria-expanded] .choices__item {
+  color: var(--txt);
+  font-size: 13px;
+  padding: 10px 12px;
+}
+.choices.fc-choices .choices__list--dropdown .choices__item--selectable.is-highlighted,
+.choices.fc-choices .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
+  background: rgba(91, 154, 255, 0.18);
+}
+.choices.fc-choices .choices__input {
+  background: transparent;
+  color: var(--txt);
+  margin-bottom: 0;
+  font-size: 13px;
+}
+.choices.fc-choices[data-type*="select-one"]::after {
+  border-color: var(--mut) transparent transparent;
+  right: 14px;
+}
+.choices.fc-choices.is-open[data-type*="select-one"]::after {
+  border-color: transparent transparent var(--mut);
+}
+
+/* Filtres compacts */
+.filters .choices.fc-choices .choices__inner {
+  min-height: 36px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.quick-filters .choices.fc-choices .choices__inner,
+.quick-create-row .choices.fc-choices .choices__inner {
+  min-height: 38px;
+}
+
+/* —— Toggle checkbox —— */
+.fc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fc-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.fc-toggle-track {
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(138, 148, 168, 0.25);
+  border: 0.5px solid rgba(130, 165, 255, 0.16);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+.fc-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+.fc-toggle input:checked + .fc-toggle-track {
+  background: rgba(91, 154, 255, 0.55);
+  border-color: rgba(91, 154, 255, 0.45);
+}
+.fc-toggle input:checked + .fc-toggle-track::after {
+  transform: translateX(18px);
+}
+.fc-toggle-label {
+  font-size: 12px;
+  color: var(--mut);
+  text-transform: none;
+  font-weight: 500;
+}
+
+/* Petites cases (réservoir Anki) */
+.fc-toggle.fc-toggle-sm .fc-toggle-track {
+  width: 34px;
+  height: 20px;
+}
+.fc-toggle.fc-toggle-sm .fc-toggle-track::after {
+  width: 14px;
+  height: 14px;
+}
+.fc-toggle.fc-toggle-sm input:checked + .fc-toggle-track::after {
+  transform: translateX(14px);
+}
+
+/* —— Champs numériques —— */
+input.fc-number,
+input[type="number"].fi,
+.fg input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input.fc-number::-webkit-outer-spin-button,
+input.fc-number::-webkit-inner-spin-button,
+.fg input[type="number"]::-webkit-outer-spin-button,
+.fg input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* —— Modal décaler date —— */
+#fcShiftOverlay {
+  z-index: 10040 !important;
+}
+#fcShiftOverlay .modal {
+  max-width: 380px;
+}
+#fcShiftPickerMount {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+#fcShiftPickerMount .flatpickr-calendar {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  box-shadow:
+    inset 0 1px 0 rgba(195, 215, 255, 0.14),
+    0 4px 24px rgba(0, 0, 0, 0.28) !important;
+}
+.fc-shift-current {
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 15px;
+  color: var(--acc);
+  margin: 8px 0 14px;
+}
+.fc-shift-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.fc-shift-quick button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 0.5px solid var(--bd);
+  background: var(--s2);
+  color: var(--txt);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fc-shift-quick button:hover {
+  border-color: var(--acc);
+  background: rgba(91, 154, 255, 0.12);
+}
+.fc-shift-picker {
+  margin-bottom: 16px;
+}
+.fc-shift-picker label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mut);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}

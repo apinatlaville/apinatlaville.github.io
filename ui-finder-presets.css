@@ -1,0 +1,670 @@
+/* ===== 5 presets Finder — minimal Apple (Photos), sans glow classique =====
+ * Classique : ne pas modifier ici.
+ * Nav active : pilule grise plate + texte var(--acc) ou blanc.
+ */
+
+/* —— 1 · Photos — référence Apple (pilule grise, texte accent) —— */
+body.ui-finder.finder-preset-1,
+.finder-style-card.finder-preset-1 {
+  --finder-glass-blur: 48px;
+  --finder-glass-saturate: 1.1;
+  --finder-glass-surface: none;
+  --finder-glass-shadow: none;
+  --finder-sidebar-bg: rgba(28, 28, 30, 0.72);
+  --finder-sidebar-border: transparent;
+  --finder-nav-on-bg: rgba(120, 120, 128, 0.32);
+  --finder-nav-on-color: var(--acc);
+  --finder-nav-on-border: transparent;
+  --finder-nav-on-shadow: none;
+  --finder-nav-idle-opacity: 0.55;
+  --finder-primary-bg: var(--acc);
+  --finder-primary-hover: color-mix(in srgb, var(--acc) 88%, white);
+  --finder-primary-color: #fff;
+  --finder-primary-border: transparent;
+  --finder-primary-shadow: none;
+  --finder-secondary-bg: rgba(120, 120, 128, 0.2);
+  --finder-secondary-hover: rgba(120, 120, 128, 0.28);
+  --finder-secondary-border: transparent;
+  --finder-secondary-shadow: none;
+  --finder-secondary-blur: none;
+  --finder-layer-bg: rgba(120, 120, 128, 0.14);
+}
+
+/* —— 2 · Blanc — texte clair sur pilule, primaire discret —— */
+body.ui-finder.finder-preset-2,
+.finder-style-card.finder-preset-2 {
+  --finder-glass-blur: 40px;
+  --finder-glass-saturate: 1.08;
+  --finder-glass-surface: none;
+  --finder-glass-shadow: none;
+  --finder-sidebar-bg: rgba(22, 22, 24, 0.78);
+  --finder-sidebar-border: transparent;
+  --finder-nav-on-bg: rgba(255, 255, 255, 0.11);
+  --finder-nav-on-color: rgba(255, 255, 255, 0.96);
+  --finder-nav-on-border: transparent;
+  --finder-nav-on-shadow: none;
+  --finder-nav-idle-opacity: 0.5;
+  --finder-primary-bg: rgba(255, 255, 255, 0.14);
+  --finder-primary-hover: rgba(255, 255, 255, 0.2);
+  --finder-primary-color: rgba(255, 255, 255, 0.96);
+  --finder-primary-border: transparent;
+  --finder-primary-shadow: none;
+  --finder-secondary-bg: rgba(255, 255, 255, 0.06);
+  --finder-secondary-hover: rgba(255, 255, 255, 0.1);
+  --finder-secondary-border: transparent;
+  --finder-secondary-shadow: none;
+  --finder-secondary-blur: none;
+  --finder-layer-bg: rgba(255, 255, 255, 0.06);
+}
+
+/* —— 3 · Accent léger — pilule teintée accent, texte accent —— */
+body.ui-finder.finder-preset-3,
+.finder-style-card.finder-preset-3 {
+  --finder-glass-blur: 52px;
+  --finder-glass-saturate: 1.12;
+  --finder-glass-surface: none;
+  --finder-glass-shadow: none;
+  --finder-sidebar-bg: rgba(26, 28, 34, 0.65);
+  --finder-sidebar-border: transparent;
+  --finder-nav-on-bg: color-mix(in srgb, var(--acc) 22%, rgba(120, 120, 128, 0.2));
+  --finder-nav-on-color: var(--acc);
+  --finder-nav-on-border: transparent;
+  --finder-nav-on-shadow: none;
+  --finder-nav-idle-opacity: 0.52;
+  --finder-primary-bg: var(--acc);
+  --finder-primary-hover: color-mix(in srgb, var(--acc) 90%, white);
+  --finder-primary-color: #fff;
+  --finder-primary-border: transparent;
+  --finder-primary-shadow: none;
+  --finder-secondary-bg: color-mix(in srgb, var(--acc) 8%, rgba(120, 120, 128, 0.16));
+  --finder-secondary-hover: color-mix(in srgb, var(--acc) 14%, rgba(120, 120, 128, 0.22));
+  --finder-secondary-border: transparent;
+  --finder-secondary-shadow: none;
+  --finder-secondary-blur: none;
+  --finder-layer-bg: color-mix(in srgb, var(--acc) 6%, rgba(120, 120, 128, 0.12));
+}
+
+/* —— 4 · Flou — vitre légère sur sidebar + pilules —— */
+body.ui-finder.finder-preset-4,
+.finder-style-card.finder-preset-4 {
+  --finder-glass-blur: 64px;
+  --finder-glass-saturate: 1.2;
+  --finder-glass-surface: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+  --finder-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  --finder-sidebar-bg: rgba(32, 34, 40, 0.42);
+  --finder-sidebar-border: rgba(255, 255, 255, 0.06);
+  --finder-nav-on-bg: rgba(255, 255, 255, 0.1);
+  --finder-nav-on-color: var(--acc);
+  --finder-nav-on-border: transparent;
+  --finder-nav-on-shadow: none;
+  --finder-nav-idle-opacity: 0.55;
+  --finder-nav-blur: blur(20px) saturate(1.15);
+  --finder-primary-bg: var(--acc);
+  --finder-primary-hover: color-mix(in srgb, var(--acc) 86%, white);
+  --finder-primary-color: #fff;
+  --finder-primary-border: transparent;
+  --finder-primary-shadow: none;
+  --finder-secondary-bg: rgba(255, 255, 255, 0.07);
+  --finder-secondary-hover: rgba(255, 255, 255, 0.11);
+  --finder-secondary-border: rgba(255, 255, 255, 0.08);
+  --finder-secondary-shadow: none;
+  --finder-secondary-blur: blur(24px) saturate(1.12);
+  --finder-layer-bg: rgba(255, 255, 255, 0.05);
+}
+
+/* —— 5 · Plat — zéro chrome, ultra épuré —— */
+body.ui-finder.finder-preset-5,
+.finder-style-card.finder-preset-5 {
+  --finder-glass-blur: 0px;
+  --finder-glass-saturate: 1;
+  --finder-glass-surface: none;
+  --finder-glass-shadow: none;
+  --finder-sidebar-bg: rgba(18, 18, 20, 0.94);
+  --finder-sidebar-border: transparent;
+  --finder-nav-on-bg: rgba(255, 255, 255, 0.09);
+  --finder-nav-on-color: rgba(255, 255, 255, 0.95);
+  --finder-nav-on-border: transparent;
+  --finder-nav-on-shadow: none;
+  --finder-nav-idle-opacity: 0.48;
+  --finder-primary-bg: rgba(255, 255, 255, 0.12);
+  --finder-primary-hover: rgba(255, 255, 255, 0.17);
+  --finder-primary-color: rgba(255, 255, 255, 0.95);
+  --finder-primary-border: transparent;
+  --finder-primary-shadow: none;
+  --finder-secondary-bg: transparent;
+  --finder-secondary-hover: rgba(255, 255, 255, 0.06);
+  --finder-secondary-border: transparent;
+  --finder-secondary-shadow: none;
+  --finder-secondary-blur: none;
+  --finder-layer-bg: rgba(255, 255, 255, 0.04);
+}
+
+/* —— Mode clair —— */
+body.theme-light.ui-finder.finder-preset-1,
+body.theme-light.ui-finder.finder-preset-3,
+body.theme-light.ui-finder.finder-preset-4 {
+  --finder-sidebar-bg: rgba(246, 246, 248, 0.82);
+  --finder-nav-on-bg: rgba(0, 0, 0, 0.07);
+  --finder-nav-on-color: var(--acc);
+  --finder-secondary-bg: rgba(0, 0, 0, 0.05);
+  --finder-secondary-hover: rgba(0, 0, 0, 0.08);
+  --finder-layer-bg: rgba(0, 0, 0, 0.04);
+}
+body.theme-light.ui-finder.finder-preset-2,
+body.theme-light.ui-finder.finder-preset-5 {
+  --finder-sidebar-bg: rgba(250, 250, 252, 0.92);
+  --finder-nav-on-bg: rgba(0, 0, 0, 0.06);
+  --finder-nav-on-color: var(--txt);
+  --finder-primary-bg: rgba(0, 0, 0, 0.08);
+  --finder-primary-hover: rgba(0, 0, 0, 0.12);
+  --finder-primary-color: var(--txt);
+  --finder-secondary-bg: rgba(0, 0, 0, 0.04);
+  --finder-secondary-hover: rgba(0, 0, 0, 0.07);
+  --finder-layer-bg: rgba(0, 0, 0, 0.03);
+}
+
+/* —— Labo —— */
+.finder-style-lab-intro {
+  color: var(--mut);
+  font-size: 13px;
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+.finder-style-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.finder-style-card {
+  border-radius: 14px;
+  padding: 16px;
+  background: var(--finder-layer-bg, rgba(120, 120, 128, 0.14));
+  border: none;
+  box-shadow: none;
+  transition: outline 0.2s;
+}
+.finder-style-card.is-active {
+  outline: 2px solid color-mix(in srgb, var(--acc) 55%, transparent);
+  outline-offset: 2px;
+}
+.finder-style-card h3 {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.finder-style-card p {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+.finder-style-samples {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.finder-style-samples label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mut);
+  display: block;
+  margin-bottom: 4px;
+}
+.finder-style-nav-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+}
+.finder-style-card .bp,
+.finder-style-card .bs {
+  font-size: 13px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-weight: 500;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Inter', sans-serif;
+}
+.finder-style-card .ui-btn-nav-demo {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-start;
+  font-family: 'Inter', sans-serif;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--mut);
+  opacity: var(--finder-nav-idle-opacity, 0.55);
+}
+.finder-style-card .ui-btn-nav-demo.on {
+  background: var(--finder-nav-on-bg);
+  color: var(--finder-nav-on-color, var(--acc));
+  border: none;
+  box-shadow: none;
+  font-weight: 600;
+  opacity: 1;
+}
+.finder-style-pick {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* Shell : surface onglet Finder */
+body.ui-finder.finder-preset-1,
+body.ui-finder.finder-preset-2,
+body.ui-finder.finder-preset-3,
+body.ui-finder.finder-preset-4,
+body.ui-finder.finder-preset-5 {
+  --shell-pane-bg: rgba(255, 255, 255, 0.035);
+  --shell-pane-border: rgba(255, 255, 255, 0.07);
+  --shell-pane-shadow: none;
+  --shell-pane-blur: blur(28px) saturate(1.1);
+}
+
+body.theme-light.ui-finder.finder-preset-1,
+body.theme-light.ui-finder.finder-preset-2,
+body.theme-light.ui-finder.finder-preset-3,
+body.theme-light.ui-finder.finder-preset-4,
+body.theme-light.ui-finder.finder-preset-5 {
+  --shell-pane-bg: rgba(255, 255, 255, 0.78);
+  --shell-pane-border: rgba(0, 0, 0, 0.06);
+}
+
+/* Alias tokens globaux */
+body.ui-finder.finder-preset-1,
+body.ui-finder.finder-preset-2,
+body.ui-finder.finder-preset-3,
+body.ui-finder.finder-preset-4,
+body.ui-finder.finder-preset-5 {
+  --glass-blur: var(--finder-glass-blur);
+  --glass-saturate: var(--finder-glass-saturate);
+  --glass-surface: var(--finder-glass-surface);
+  --glass-shadow: var(--finder-glass-shadow);
+  --ui-on-bg: var(--finder-nav-on-bg);
+  --ui-on-border: transparent;
+  --ui-on-color: var(--finder-nav-on-color, var(--acc));
+  --ui-on-shadow: none;
+  --ui-layer-bg: var(--finder-layer-bg);
+  --ui-sidebar-bg: var(--finder-sidebar-bg);
+  --ui-accent-bg: var(--finder-primary-bg);
+  --ui-accent-bg-hover: var(--finder-primary-hover);
+  --ui-accent-border: transparent;
+  --ui-accent-color: var(--finder-primary-color);
+  --ui-accent-shadow: none;
+  --ui-surface-btn-bg: var(--finder-secondary-bg);
+  --ui-surface-btn-border: transparent;
+  --ui-surface-btn-shadow: none;
+  --ui-surface-blur: var(--finder-secondary-blur, none);
+  --ui-chip-on-bg: var(--finder-nav-on-bg);
+  --ui-chip-on-border: transparent;
+  --ui-chip-on-color: var(--finder-nav-on-color, var(--acc));
+  --ui-chip-on-shadow: none;
+  --ui-tile-bg: var(--finder-layer-bg);
+  --ui-tile-border: transparent;
+  --ui-tile-blur: var(--finder-secondary-blur, none);
+  --ui-tile-shadow: none;
+}
+
+/* Sidebar Finder — vitre floue, bord net, léger dégradé à droite */
+body.ui-finder.nav-sidebar-left {
+  --finder-sidebar-surface:
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.03) 78%, rgba(255, 255, 255, 0.07) 100%);
+  --finder-sidebar-border: rgba(255, 255, 255, 0.26);
+  --finder-sidebar-blur: 76px;
+  --finder-sidebar-saturate: 1.2;
+  --finder-sidebar-shadow:
+    0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 22px 56px rgba(0, 0, 0, 0.42),
+    0 6px 18px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+body.theme-light.ui-finder.nav-sidebar-left {
+  --finder-sidebar-surface:
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.35) 80%, rgba(255, 255, 255, 0.55) 100%);
+  --finder-sidebar-border: rgba(0, 0, 0, 0.14);
+  --finder-sidebar-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 20px 48px rgba(0, 0, 0, 0.12),
+    0 4px 14px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+body.ui-finder.nav-sidebar-left .app-sidebar {
+  background: var(--finder-sidebar-surface), var(--finder-sidebar-bg) !important;
+  border: 0.5px solid var(--finder-sidebar-border) !important;
+  backdrop-filter: blur(var(--finder-sidebar-blur, 60px)) saturate(var(--finder-sidebar-saturate, 1.22)) !important;
+  -webkit-backdrop-filter: blur(var(--finder-sidebar-blur, 60px)) saturate(var(--finder-sidebar-saturate, 1.22)) !important;
+  box-shadow: var(--finder-sidebar-shadow) !important;
+}
+
+body.ui-finder.nav-sidebar-left .sidebar-brand {
+  border-bottom: none;
+  background: transparent;
+  margin-bottom: 0;
+  padding-bottom: 6px;
+}
+
+body.ui-finder.nav-sidebar-left .sidebar-brand .app-logo-mark,
+body.ui-finder.nav-sidebar-left .sidebar-logo-mark {
+  background: rgba(255, 255, 255, 0.07);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+body.ui-finder.nav-sidebar-left .sidebar-footer {
+  border-top: 0.5px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body.theme-light.ui-finder.nav-sidebar-left .sidebar-brand {
+  border-bottom: none;
+  background: transparent;
+}
+
+body.theme-light.ui-finder.nav-sidebar-left .sidebar-brand .app-logo-mark,
+body.theme-light.ui-finder.nav-sidebar-left .sidebar-logo-mark {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+body.theme-light.ui-finder.nav-sidebar-left .sidebar-footer {
+  border-top-color: rgba(0, 0, 0, 0.08);
+  background: transparent;
+}
+
+body.ui-finder.nav-sidebar-left #appNav .search-field {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.18) !important;
+  backdrop-filter: blur(24px) saturate(1.12) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.12) !important;
+}
+
+body.theme-light.ui-finder.nav-sidebar-left #appNav .search-field {
+  background: rgba(255, 255, 255, 0.65) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 1px 3px rgba(0, 0, 0, 0.06) !important;
+}
+
+body.ui-finder.nav-sidebar-left .nav-group-label {
+  opacity: 0.65;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+/* —— Navigation sidebar : style Photos —— */
+body.ui-finder.nav-sidebar-left .tab,
+body.ui-finder.nav-sidebar-left .nav-sub-items .anki-tab {
+  border: none !important;
+  box-shadow: none !important;
+  font-weight: 500;
+  opacity: var(--finder-nav-idle-opacity, 0.55);
+  color: var(--mut) !important;
+  background: transparent !important;
+}
+body.ui-finder.nav-sidebar-left .tab:hover,
+body.ui-finder.nav-sidebar-left .nav-sub-items .anki-tab:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--txt) !important;
+  opacity: 0.82;
+  border: none !important;
+  box-shadow: none !important;
+}
+body.ui-finder.nav-sidebar-left .tab.on,
+body.ui-finder.nav-sidebar-left .nav-sub-items .anki-tab.on {
+  background: var(--finder-nav-on-bg) !important;
+  color: var(--finder-nav-on-color, var(--acc)) !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-weight: 600;
+  opacity: 1;
+}
+body.ui-finder.nav-sidebar-left .tab.on [data-icon],
+body.ui-finder.nav-sidebar-left .nav-sub-items .anki-tab.on [data-icon] {
+  color: inherit;
+}
+
+/* Onglets spéciaux (or, logs…) : inactif grisé, actif = style Finder */
+body.ui-finder .tab.tab-anki:not(.on),
+body.ui-finder .tab.tab-anki-v2:not(.on),
+body.ui-finder .tab.tab-viz:not(.on),
+body.ui-finder .tab.tab-logs:not(.on),
+body.ui-finder .tab.tab-test:not(.on),
+body.ui-finder .tab[style*="color:var(--gold)"]:not(.on) {
+  color: var(--mut) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  opacity: var(--finder-nav-idle-opacity, 0.55);
+}
+body.ui-finder .tab.tab-anki.on,
+body.ui-finder .tab.tab-anki-v2.on,
+body.ui-finder .tab.tab-viz.on,
+body.ui-finder .tab.tab-logs.on,
+body.ui-finder .tab.tab-test.on,
+body.ui-finder .tab[style*="color:var(--gold)"].on {
+  color: var(--finder-nav-on-color, var(--acc)) !important;
+  background: var(--finder-nav-on-bg) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Barre du haut (mode non-sidebar) */
+body.ui-finder:not(.nav-sidebar-left) .tab.on,
+body.ui-finder:not(.nav-sidebar-left) .anki-tab.on {
+  background: var(--finder-nav-on-bg) !important;
+  color: var(--finder-nav-on-color, var(--acc)) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Boutons */
+.finder-style-card.finder-preset-1 .bp,
+.finder-style-card.finder-preset-2 .bp,
+.finder-style-card.finder-preset-3 .bp,
+.finder-style-card.finder-preset-4 .bp,
+.finder-style-card.finder-preset-5 .bp,
+body.ui-finder .bp:not(.bp-danger):not(.bp-gold),
+body.ui-finder .ui-btn-accent:not(.bp-danger) {
+  background: var(--finder-primary-bg) !important;
+  color: var(--finder-primary-color) !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  font-weight: 500;
+}
+.finder-style-card .bp:hover,
+body.ui-finder .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
+body.ui-finder .ui-btn-accent:not(.bp-danger):hover:not(:disabled) {
+  background: var(--finder-primary-hover) !important;
+}
+.finder-style-card .bs,
+body.ui-finder .bs,
+body.ui-finder .cbt,
+body.ui-finder .ui-btn-surface,
+body.ui-finder .toggle-btn {
+  background: var(--finder-secondary-bg) !important;
+  border: 0.5px solid var(--finder-secondary-border, transparent) !important;
+  color: var(--txt) !important;
+  box-shadow: none !important;
+  backdrop-filter: var(--finder-secondary-blur, none) !important;
+  -webkit-backdrop-filter: var(--finder-secondary-blur, none) !important;
+  font-weight: 500;
+}
+.finder-style-card .bs:hover,
+body.ui-finder .bs:hover:not(:disabled),
+body.ui-finder .cbt:hover,
+body.ui-finder .toggle-btn:hover {
+  background: var(--finder-secondary-hover) !important;
+}
+
+body.ui-finder .fab-main {
+  background: var(--finder-primary-bg) !important;
+  color: var(--finder-primary-color) !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* —— Labo fond (Test Finder) —— */
+.finder-backdrop-lab-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 28px 0 8px;
+  color: var(--txt);
+}
+
+.finder-backdrop-lab-intro {
+  color: var(--mut);
+  font-size: 13px;
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
+.finder-backdrop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--finder-layer-bg, rgba(120, 120, 128, 0.14));
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.finder-backdrop-row-lbl,
+.finder-backdrop-section-lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.finder-backdrop-section {
+  margin-bottom: 16px;
+}
+
+.finder-backdrop-section-lbl {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.finder-backdrop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 8px;
+}
+
+.finder-backdrop-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px;
+  border-radius: 12px;
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(120, 120, 128, 0.1);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.finder-backdrop-swatch:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.finder-backdrop-swatch.is-active {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--acc) 40%, transparent);
+}
+
+.finder-backdrop-swatch-inner {
+  width: 100%;
+  height: 36px;
+  border-radius: 8px;
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.finder-backdrop-swatch.backdrop-tone-soft .finder-backdrop-swatch-inner {
+  background: linear-gradient(180deg, #161820, #0f1116);
+}
+.finder-backdrop-swatch.backdrop-tone-neutral .finder-backdrop-swatch-inner {
+  background: linear-gradient(180deg, #15171c, #101216);
+}
+.finder-backdrop-swatch.backdrop-tone-deep .finder-backdrop-swatch-inner {
+  background: linear-gradient(180deg, #121318, #090a0d);
+}
+.finder-backdrop-swatch.backdrop-tone-warm .finder-backdrop-swatch-inner {
+  background: linear-gradient(180deg, #181512, #100e0c);
+}
+.finder-backdrop-swatch.backdrop-tone-accent .finder-backdrop-swatch-inner {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(91, 154, 255, 0.35), transparent),
+    linear-gradient(180deg, #171c2a, #10141e);
+}
+
+.finder-backdrop-swatch-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--txt);
+}
+
+.finder-backdrop-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.finder-backdrop-chip {
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 0.5px solid rgba(255, 255, 255, 0.12);
+  background: rgba(120, 120, 128, 0.16);
+  color: var(--txt);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.finder-backdrop-chip:hover {
+  background: rgba(120, 120, 128, 0.24);
+}
+
+.finder-backdrop-chip.is-active {
+  background: var(--finder-nav-on-bg, rgba(120, 120, 128, 0.32));
+  color: var(--finder-nav-on-color, var(--acc));
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.finder-backdrop-blur-btn {
+  min-width: 88px;
+}

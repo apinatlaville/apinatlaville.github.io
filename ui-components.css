@@ -1,0 +1,276 @@
+/* ===== Composants UI réutilisables =====
+ * Thèmes : ui-themes.css · Coque : ui-shell.css
+ */
+
+:root {
+  --ui-surface-bg: transparent;
+  --ui-surface-bg-hover: rgba(255, 255, 255, 0.07);
+  --ui-surface-border: rgba(255, 255, 255, 0.1);
+  --ui-surface-color: var(--mut);
+  --ui-surface-color-hover: var(--txt);
+  --ui-notice-info-bg: rgba(91, 154, 255, 0.1);
+  --ui-notice-info-border: rgba(91, 154, 255, 0.28);
+  --ui-notice-success-bg: rgba(92, 212, 154, 0.1);
+  --ui-notice-success-border: rgba(92, 212, 154, 0.3);
+  --ui-notice-warn-bg: rgba(232, 192, 112, 0.1);
+  --ui-notice-warn-border: rgba(232, 192, 112, 0.32);
+  --ui-notice-error-bg: rgba(240, 112, 112, 0.1);
+  --ui-notice-error-border: rgba(240, 112, 112, 0.32);
+}
+
+body.theme-light {
+  --ui-surface-bg-hover: rgba(0, 0, 0, 0.05);
+  --ui-surface-border: rgba(0, 0, 0, 0.08);
+}
+
+/* —— Boutons —— */
+.ui-btn-surface,
+.ui-btn-accent {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-control, 10px);
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, opacity 0.15s;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.ui-btn-surface {
+  background: var(--ui-surface-bg);
+  border: 0.5px solid var(--ui-surface-border);
+  color: var(--ui-surface-color);
+  padding: 10px 14px;
+}
+.ui-btn-surface:hover:not(:disabled) {
+  background: var(--ui-surface-bg-hover);
+  color: var(--ui-surface-color-hover);
+}
+
+.ui-btn-accent {
+  padding: 12px 16px;
+}
+
+.ui-btn-accent:disabled,
+.bp:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.bs,
+.cbt {
+  background: var(--ui-surface-bg);
+  border-color: var(--ui-surface-border);
+  color: var(--ui-surface-color-hover);
+}
+.bs:hover,
+.cbt:hover {
+  background: var(--ui-surface-bg-hover);
+}
+
+#ovSysDialog .macts .bp,
+#ovSysDialog .macts .bs {
+  flex: 1;
+  min-width: 0;
+}
+
+/* —— Sections & panneaux —— */
+.ui-section {
+  margin-bottom: 18px;
+}
+.ui-section-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--txt);
+}
+.ui-section-title--danger { color: var(--red); }
+.ui-section-title--gold { color: var(--gold); }
+.ui-section-desc {
+  font-size: 13px;
+  color: var(--mut);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.ui-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.ui-panel {
+  background: var(--s2);
+  border: 0.5px solid var(--bd);
+  border-radius: var(--radius-surface, 14px);
+  padding: 15px;
+}
+.ui-panel--flush {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.ui-panel--logs {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+body.ui-finder .ui-panel {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+/* —— Notices / alertes inline —— */
+.ui-notice {
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 0.5px solid transparent;
+}
+.ui-notice--info {
+  background: var(--ui-notice-info-bg);
+  border-color: var(--ui-notice-info-border);
+  color: var(--txt);
+}
+.ui-notice--success {
+  background: var(--ui-notice-success-bg);
+  border-color: var(--ui-notice-success-border);
+  color: var(--txt);
+}
+.ui-notice--warn {
+  background: var(--ui-notice-warn-bg);
+  border-color: var(--ui-notice-warn-border);
+  color: var(--txt);
+}
+.ui-notice--error {
+  background: var(--ui-notice-error-bg);
+  border-color: var(--ui-notice-error-border);
+  color: var(--txt);
+}
+.ui-notice-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* —— État vide —— */
+.ui-empty {
+  text-align: center;
+  color: var(--mut);
+  padding: 40px 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ui-empty-icon {
+  display: block;
+  margin-bottom: 10px;
+  opacity: 0.7;
+}
+
+/* —— Entrée journal d'erreurs —— */
+.ui-log-entry {
+  background: var(--ui-notice-error-bg);
+  border-left: 3px solid var(--red);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.ui-log-meta {
+  font-size: 11px;
+  color: var(--mut);
+}
+.ui-log-msg {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--red);
+  margin-top: 4px;
+  word-break: break-word;
+}
+
+/* —— Badges / indicateurs —— */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  border: 0.5px solid transparent;
+}
+.ui-badge--default {
+  background: var(--s2);
+  border-color: var(--bd);
+  color: var(--mut);
+}
+.ui-badge--accent {
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+  border-color: color-mix(in srgb, var(--acc) 35%, transparent);
+  color: var(--txt);
+}
+.ui-badge--red { background: rgba(240, 112, 112, 0.14); border-color: rgba(240, 112, 112, 0.28); color: #f0a0a0; }
+.ui-badge--gold { background: rgba(232, 192, 112, 0.14); border-color: rgba(232, 192, 112, 0.28); color: #f0d090; }
+.ui-badge--green { background: rgba(92, 212, 154, 0.14); border-color: rgba(92, 212, 154, 0.28); color: #8ce8b8; }
+
+.ui-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.ui-dot--red { background: var(--red); }
+.ui-dot--green { background: var(--grn); }
+.ui-dot--gold { background: var(--gold); }
+.ui-dot--mut { background: var(--mut); }
+
+/* —— Toast flottant —— */
+.ui-toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(400px, 90vw);
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--s2);
+  border: 0.5px solid var(--ui-notice-error-border);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+.ui-toast.hidden { display: none !important; }
+.ui-toast-msg {
+  flex: 1;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+  color: var(--txt);
+  word-break: break-word;
+}
+.ui-toast-close {
+  background: none;
+  border: none;
+  color: var(--mut);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}

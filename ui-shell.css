@@ -1,0 +1,412 @@
+/* ===== Coque applicative — 3 couches indépendantes =====
+ * 1 · .app-backdrop + .app-backdrop-frost — fond du site
+ * 2 · .app-chrome — navigation (sidebar ou barre du haut)
+ * 3 · .ui-pane-frame — surface de l’onglet ouvert
+ * Bandeau titre : .page-title-float (fixe, pleine largeur, hors onglet)
+ */
+
+:root {
+  --shell-backdrop-bg: #121620;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 100% 58% at 50% -18%, rgba(91, 154, 255, 0.13), transparent 54%),
+    radial-gradient(ellipse 48% 38% at 100% 28%, rgba(70, 130, 255, 0.08), transparent 50%),
+    radial-gradient(ellipse 42% 34% at 0% 78%, rgba(91, 154, 255, 0.07), transparent 46%),
+    linear-gradient(180deg, #171c2a 0%, #141824 44%, #10141e 100%);
+  --shell-backdrop-blur: 48px;
+  --shell-chrome-bg: transparent;
+  --shell-chrome-border: var(--bd);
+  --shell-pane-bg: rgba(155, 185, 255, 0.055);
+  --shell-pane-border: rgba(130, 165, 255, 0.14);
+  --shell-pane-radius: 16px;
+  --shell-pane-shadow: var(--glass-shadow);
+  --shell-pane-blur: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  --shell-pane-padding: 14px;
+  --shell-viewport-gap: 12px;
+  --shell-workspace-inset-x: 0px;
+  --page-title-h: 68px;
+}
+
+body.theme-light {
+  --shell-backdrop-bg: #e0e6f2;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 85% 52% at 50% -12%, rgba(91, 154, 255, 0.1), transparent 52%),
+    radial-gradient(ellipse 40% 30% at 100% 60%, rgba(91, 154, 255, 0.05), transparent 48%),
+    linear-gradient(180deg, #eef1f8 0%, #e0e6f2 50%, #d8e0ee 100%);
+  --shell-pane-bg: rgba(255, 255, 255, 0.58);
+  --shell-pane-border: rgba(180, 200, 255, 0.45);
+}
+
+body.ui-classic {
+  --shell-pane-bg: rgba(155, 185, 255, 0.055);
+  --shell-pane-border: rgba(130, 165, 255, 0.14);
+  --shell-pane-shadow: var(--glass-shadow);
+  --shell-pane-blur: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+body.ui-finder {
+  --shell-pane-bg: rgba(255, 255, 255, 0.04);
+  --shell-pane-border: rgba(255, 255, 255, 0.08);
+  --shell-pane-shadow: none;
+  --shell-pane-blur: blur(32px) saturate(1.12);
+}
+
+body.theme-light.ui-finder {
+  --shell-pane-bg: rgba(255, 255, 255, 0.72);
+  --shell-pane-border: rgba(0, 0, 0, 0.07);
+}
+
+/* —— Couche 1 : fond + flou réglable —— */
+body.tmpl-glass {
+  background-color: var(--shell-backdrop-bg);
+  background-image: none;
+}
+
+.app-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: var(--shell-backdrop-bg);
+  background-image: var(--shell-backdrop-image);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.app-backdrop-frost {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  background: rgba(18, 22, 34, 0.06);
+}
+
+body.shell-backdrop-blur .app-backdrop-frost {
+  opacity: 1;
+  backdrop-filter: blur(var(--shell-backdrop-blur, 48px)) saturate(var(--glass-saturate, 1.4));
+  -webkit-backdrop-filter: blur(var(--shell-backdrop-blur, 48px)) saturate(var(--glass-saturate, 1.4));
+}
+
+body.theme-light.shell-backdrop-blur .app-backdrop-frost {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* —— Tons de fond (réglables dans Test Finder) —— */
+body.backdrop-tone-soft {
+  --shell-backdrop-bg: #13151a;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 90% 50% at 50% -20%, rgba(91, 154, 255, 0.08), transparent 58%),
+    radial-gradient(ellipse 40% 32% at 100% 40%, rgba(70, 130, 255, 0.04), transparent 52%),
+    linear-gradient(180deg, #161820 0%, #12141a 55%, #0f1116 100%);
+}
+
+body.backdrop-tone-neutral {
+  --shell-backdrop-bg: #121418;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 70% 45% at 50% 0%, rgba(255, 255, 255, 0.03), transparent 55%),
+    linear-gradient(180deg, #15171c 0%, #101216 100%);
+}
+
+body.backdrop-tone-deep {
+  --shell-backdrop-bg: #0c0d10;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 55% 40% at 50% 100%, rgba(0, 0, 0, 0.35), transparent 60%),
+    linear-gradient(180deg, #121318 0%, #090a0d 100%);
+}
+
+body.backdrop-tone-warm {
+  --shell-backdrop-bg: #141210;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 80% 48% at 20% -10%, rgba(240, 192, 96, 0.06), transparent 55%),
+    radial-gradient(ellipse 50% 36% at 90% 70%, rgba(240, 144, 96, 0.04), transparent 50%),
+    linear-gradient(180deg, #181512 0%, #100e0c 100%);
+}
+
+body.backdrop-tone-accent {
+  --shell-backdrop-bg: #121620;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 100% 58% at 50% -18%, rgba(91, 154, 255, 0.16), transparent 54%),
+    radial-gradient(ellipse 48% 38% at 100% 28%, rgba(70, 130, 255, 0.1), transparent 50%),
+    radial-gradient(ellipse 42% 34% at 0% 78%, rgba(91, 154, 255, 0.08), transparent 46%),
+    linear-gradient(180deg, #171c2a 0%, #141824 44%, #10141e 100%);
+}
+
+body.theme-light.backdrop-tone-soft {
+  --shell-backdrop-bg: #e8ecf4;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(91, 154, 255, 0.06), transparent 55%),
+    linear-gradient(180deg, #f2f4f8 0%, #e4e8f0 100%);
+}
+
+body.theme-light.backdrop-tone-neutral {
+  --shell-backdrop-bg: #e4e6ea;
+  --shell-backdrop-image: linear-gradient(180deg, #eef0f4 0%, #dde0e6 100%);
+}
+
+body.theme-light.backdrop-tone-deep {
+  --shell-backdrop-bg: #d8dce4;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 60% 40% at 50% 100%, rgba(0, 0, 0, 0.04), transparent 55%),
+    linear-gradient(180deg, #e8eaef 0%, #d4d8e0 100%);
+}
+
+body.theme-light.backdrop-tone-warm {
+  --shell-backdrop-bg: #ebe6df;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 70% 45% at 30% 0%, rgba(240, 192, 96, 0.08), transparent 55%),
+    linear-gradient(180deg, #f4f0ea 0%, #e6e0d8 100%);
+}
+
+body.theme-light.backdrop-tone-accent {
+  --shell-backdrop-bg: #e0e6f2;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 85% 52% at 50% -12%, rgba(91, 154, 255, 0.12), transparent 52%),
+    linear-gradient(180deg, #eef1f8 0%, #d8e0ee 100%);
+}
+
+/* Vignette sur le fond */
+.app-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  background: radial-gradient(ellipse 85% 75% at 50% 45%, transparent 40%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+body.backdrop-vignette-light .app-backdrop::after {
+  opacity: 0.55;
+}
+
+body.backdrop-vignette-medium .app-backdrop::after {
+  opacity: 0.85;
+  background: radial-gradient(ellipse 80% 70% at 50% 42%, transparent 32%, rgba(0, 0, 0, 0.58) 100%);
+}
+
+body.theme-light.backdrop-vignette-light .app-backdrop::after {
+  background: radial-gradient(ellipse 85% 75% at 50% 45%, transparent 42%, rgba(0, 0, 0, 0.08) 100%);
+  opacity: 1;
+}
+
+body.theme-light.backdrop-vignette-medium .app-backdrop::after {
+  background: radial-gradient(ellipse 80% 70% at 50% 42%, transparent 35%, rgba(0, 0, 0, 0.14) 100%);
+  opacity: 1;
+}
+
+/* —— Bandeau titre (fixe, pleine largeur, couche fond) —— */
+.page-title-float {
+  display: none;
+}
+
+body.nav-sidebar-left .page-title-float,
+body.nav-chrome-sidebar .page-title-float {
+  display: block !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 450;
+  margin: 0;
+  padding: calc(18px + env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right)) 14px calc(var(--sidebar-offset) + 12px);
+  box-sizing: border-box;
+  background: rgba(20, 24, 36, 0.42);
+  backdrop-filter: blur(40px) saturate(1.35);
+  -webkit-backdrop-filter: blur(40px) saturate(1.35);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+body.tmpl-glass.theme-light.nav-sidebar-left .page-title-float,
+body.tmpl-glass.theme-light.nav-chrome-sidebar .page-title-float {
+  background: rgba(250, 250, 252, 0.55);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+body.ui-finder.nav-sidebar-left .page-title-float,
+body.ui-finder.nav-chrome-sidebar .page-title-float {
+  background: rgba(22, 22, 24, 0.52);
+  backdrop-filter: blur(48px) saturate(1.15);
+  -webkit-backdrop-filter: blur(48px) saturate(1.15);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+body.theme-light.ui-finder.nav-sidebar-left .page-title-float,
+body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
+  background: rgba(250, 250, 252, 0.72);
+}
+
+.page-title-float-txt {
+  font-family: 'Inter', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--txt);
+  margin: 0;
+  line-height: 1.12;
+}
+
+/* Stats masquées en mode sidebar */
+body.nav-chrome-sidebar #statsBand {
+  display: none !important;
+}
+
+/* —— Coque —— */
+#appShell {
+  position: relative;
+  min-height: 100dvh;
+  isolation: isolate;
+}
+
+.app-workspace {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+
+body.nav-chrome-sidebar .app-workspace {
+  padding-top: calc(var(--page-title-h) + env(safe-area-inset-top, 0px));
+}
+
+/* —— Couche 2 : chrome navigation —— */
+.app-chrome--top {
+  position: relative;
+  z-index: 120;
+  flex-shrink: 0;
+}
+
+body.tmpl-glass.ui-classic .app-chrome--top .ui-chrome-bar {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-shadow);
+  border-bottom: 0.5px solid var(--shell-chrome-border);
+  background: var(--glass-surface), var(--s1);
+}
+
+body.tmpl-glass.ui-classic .app-chrome--top .ui-chrome-strip {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border-bottom: 0.5px solid var(--shell-chrome-border);
+  background: var(--glass-surface), var(--s3);
+}
+
+body.tmpl-glass.ui-classic .app-chrome--top .sticky-top {
+  background:
+    linear-gradient(180deg, rgba(91, 154, 255, 0.04) 0%, transparent 100%),
+    rgba(18, 22, 34, 0.32);
+  backdrop-filter: blur(64px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(64px) saturate(var(--glass-saturate));
+  border-bottom: 0.5px solid var(--bd);
+}
+
+body.ui-finder .app-chrome--top .ui-chrome-bar,
+body.ui-finder .app-chrome--top .ui-chrome-strip,
+body.ui-finder .app-chrome--top .sticky-top {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.06);
+}
+
+/* —— Couche 3 : viewport + onglet —— */
+.app-viewport {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--shell-viewport-gap) var(--shell-workspace-inset-x);
+  box-sizing: border-box;
+}
+
+.ui-pane-frame {
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--shell-pane-radius);
+  border: 0.5px solid var(--shell-pane-border);
+  background: var(--shell-pane-bg);
+  box-shadow: var(--shell-pane-shadow);
+  backdrop-filter: var(--shell-pane-blur);
+  -webkit-backdrop-filter: var(--shell-pane-blur);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ui-pane {
+  display: none;
+  padding: var(--shell-pane-padding);
+  animation: paneFade 0.18s ease;
+  min-height: min(100%, 320px);
+  box-sizing: border-box;
+}
+
+.ui-pane.on {
+  display: block;
+}
+
+@keyframes paneFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Sidebar : décalage unique */
+body.nav-sidebar-left .app-workspace {
+  margin-left: var(--sidebar-offset);
+  width: calc(100% - var(--sidebar-offset));
+  --shell-workspace-inset-x: 10px;
+  --shell-viewport-gap: 10px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --shell-pane-padding: 20px;
+    --shell-viewport-gap: 14px;
+    --page-title-h: 72px;
+  }
+
+  body.nav-sidebar-left .app-workspace {
+    --shell-workspace-inset-x: 14px;
+  }
+
+  .app-content .ui-pane.on {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  body.nav-sidebar-left .app-workspace {
+    margin-left: 0;
+    width: 100%;
+    --shell-workspace-inset-x: 0px;
+    --shell-viewport-gap: 0px;
+  }
+
+  body.nav-sidebar-left .page-title-float,
+  body.nav-chrome-sidebar .page-title-float {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  body.nav-sidebar-left .ui-pane-frame {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
+}
