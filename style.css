@@ -2747,6 +2747,10 @@ body.nav-sidebar-left .sidebar-brand-txt span {
 .sidebar-footer {
   display: none;
 }
+
+.sidebar-mobile-toggle {
+  display: none;
+}
 body.nav-sidebar-left .sidebar-footer {
   display: flex;
   flex-direction: column;
@@ -2906,13 +2910,75 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
 
 @media (max-width: 767px) {
   body.nav-sidebar-left .app-sidebar {
+    top: calc(var(--page-title-h, 72px) + env(safe-area-inset-top, 0px) + 8px);
     left: 10px;
     right: 10px;
     width: auto;
-    max-height: min(44vh, 380px);
     bottom: auto;
     border-radius: 16px;
+    z-index: 460;
+    transition: max-height 0.28s ease, box-shadow 0.28s ease;
   }
+
+  body.nav-sidebar-left .sidebar-mobile-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin: 0;
+    padding: 9px 12px 10px;
+    border: none;
+    border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--mut);
+    font-family: var(--font-ui, 'Inter', sans-serif);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+    border-radius: 0 0 16px 16px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.tmpl-glass.theme-light.nav-sidebar-left .sidebar-mobile-toggle {
+    border-top-color: rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  body.nav-sidebar-left .sidebar-mobile-toggle:active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  body.nav-sidebar-left:not(.mobile-sidebar-expanded) #navSlotSide,
+  body.nav-sidebar-left:not(.mobile-sidebar-expanded) .sidebar-footer {
+    display: none !important;
+  }
+
+  body.nav-sidebar-left:not(.mobile-sidebar-expanded) .app-sidebar {
+    max-height: none;
+    overflow: hidden;
+  }
+
+  body.nav-sidebar-left:not(.mobile-sidebar-expanded) .sidebar-brand {
+    padding-bottom: 4px;
+  }
+
+  body.nav-sidebar-left.mobile-sidebar-expanded .app-sidebar {
+    max-height: min(72dvh, calc(100dvh - var(--page-title-h, 72px) - env(safe-area-inset-top, 0px) - 24px));
+    box-shadow:
+      0 20px 56px rgba(0, 0, 0, 0.42),
+      0 6px 18px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  }
+
+  body.nav-sidebar-left.mobile-sidebar-expanded #navSlotSide {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   body.nav-sidebar-left .app-workspace {
     padding-left: 0;
   }

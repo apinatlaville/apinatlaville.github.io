@@ -279,6 +279,7 @@ window.applySettings = function() {
   }
   if (typeof window.renderAppNav === 'function') window.renderAppNav(window._activeTab || 'home');
   if (typeof window.syncNavSubMenu === 'function') window.syncNavSubMenu();
+  if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
 
   // 🛡️ FIX THÈME : Application de la couleur d'accent au CSS + rendu des pastilles
   if (window.D.settings.appColor) {
@@ -505,7 +506,67 @@ window.layoutChrome = function() {
     }
     document.body.classList.remove('nav-chrome-sidebar');
   }
+
+  if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
 };
+
+/** Panneau Finder mobile : replié par défaut, flèche pour étendre la recherche + navigation */
+window.setMobileSidebarExpanded = function (expanded) {
+  const btn = document.getElementById('btnSidebarMobileToggle');
+  document.body.classList.toggle('mobile-sidebar-expanded', !!expanded);
+  if (!btn) return;
+  btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  const icon = btn.querySelector('[data-icon]');
+  if (icon) icon.setAttribute('data-icon', expanded ? 'chevron-up' : 'chevron-down');
+  const txt = btn.querySelector('.sidebar-mobile-toggle-txt');
+  if (txt) txt.textContent = expanded ? 'Réduire' : 'Navigation & recherche';
+  if (typeof window.hydrateIcons === 'function') window.hydrateIcons(btn);
+};
+
+window.toggleMobileSidebarPanel = function () {
+  if (!document.body.classList.contains('nav-sidebar-left')) return;
+  window.setMobileSidebarExpanded(!document.body.classList.contains('mobile-sidebar-expanded'));
+};
+
+window.syncMobileSidebarPanel = function () {
+  const btn = document.getElementById('btnSidebarMobileToggle');
+  const mobile = window.matchMedia('(max-width: 767px)').matches;
+  const sidebar = document.body.classList.contains('nav-sidebar-left');
+  if (!btn) return;
+  if (!mobile || !sidebar) {
+    btn.hidden = true;
+    document.body.classList.remove('mobile-sidebar-expanded');
+    return;
+  }
+  btn.hidden = false;
+  if (!btn.dataset.mobileNavReady) {
+    btn.dataset.mobileNavReady = '1';
+    window.setMobileSidebarExpanded(false);
+  } else if (typeof window.hydrateIcons === 'function') {
+    window.hydrateIcons(btn);
+  }
+};
+
+(function initMobileSidebarToggle() {
+  if (window._mobileSidebarToggleInit) return;
+  window._mobileSidebarToggleInit = true;
+  const btn = document.getElementById('btnSidebarMobileToggle');
+  if (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      window.toggleMobileSidebarPanel();
+    });
+  }
+  const mq = window.matchMedia('(max-width: 767px)');
+  if (mq.addEventListener) {
+    mq.addEventListener('change', function () {
+      if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
+      if (!mq.matches && typeof window.setMobileSidebarExpanded === 'function') {
+        window.setMobileSidebarExpanded(false);
+      }
+    });
+  }
+})();
 
 window.navSidebarActive = function() {
   return window.D?.settings?.navLayout === 'sidebar-left';
@@ -628,6 +689,13 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
   if (typeof window.syncNavSubMenu === 'function') window.syncNavSubMenu();
   if (typeof window.updateHdrPageTitle === 'function') window.updateHdrPageTitle();
+  if (
+    typeof window.setMobileSidebarExpanded === 'function'
+    && window.matchMedia('(max-width: 767px)').matches
+    && document.body.classList.contains('nav-sidebar-left')
+  ) {
+    window.setMobileSidebarExpanded(false);
+  }
 };
 
 window.renderDashboard = function() {
