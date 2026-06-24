@@ -50,14 +50,24 @@
     window.setBootStep('data', 'Prêt');
 
     var splash = splashEl();
-    if (!splash) return;
-
-    splash.classList.add('splash-out');
-    setTimeout(function () {
-      splash.remove();
-      document.body.classList.remove('boot-active');
-    }, 450);
+    if (splash) {
+      splash.classList.add('splash-out');
+      setTimeout(function () {
+        if (splash.parentNode) splash.remove();
+      }, 450);
+    }
+    document.body.classList.remove('boot-active');
   };
+
+  /* Secours : si l'auth bloque, ne pas laisser l'écran vide */
+  setTimeout(function () {
+    if (!bootDismissed && document.body && document.body.classList.contains('boot-active')) {
+      document.body.classList.remove('boot-active');
+      var splash = splashEl();
+      if (splash && splash.parentNode) splash.remove();
+      bootDismissed = true;
+    }
+  }, 15000);
 
   if (document.body) {
     document.body.classList.add('boot-active');

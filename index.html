@@ -820,6 +820,10 @@
   body.boot-active #splashScreen {
     visibility: visible;
   }
+  /* Ne jamais masquer l'écran de connexion pendant le boot */
+  body.boot-active.not-logged-in #loginOverlay {
+    visibility: visible !important;
+  }
 </style>
 
 </body>

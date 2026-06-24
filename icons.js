@@ -187,13 +187,7 @@
     return `<span class="badge-type-${cls}"><span class="badge-type-dot"></span>${labels[type] || type}</span>`;
   };
 
-  window.dismissSplash = function () {
-    const splash = document.getElementById('splashScreen');
-    if (splash) {
-      splash.style.display = 'none';
-      splash.style.pointerEvents = 'none';
-    }
-  };
+  /* dismissSplash → core-utils.js (ne pas redéfinir ici) */
 
   window.GSI_CLIENT_ID = '889951150073-v91560remp86n50njmnmqhlbgn14pn65.apps.googleusercontent.com';
 
@@ -248,7 +242,8 @@
   };
 
   window.enterApp = function () {
-    window.dismissSplash();
+    if (typeof window.dismissSplash === 'function') window.dismissSplash();
+    else document.body.classList.remove('boot-active');
     if (window.google && window.google.accounts && window.google.accounts.id) {
       window.google.accounts.id.cancel();
     }
@@ -267,6 +262,8 @@
   };
 
   window.showLogin = function () {
+    if (typeof window.dismissSplash === 'function') window.dismissSplash();
+    else document.body.classList.remove('boot-active');
     document.body.classList.remove('auth-pending');
     document.documentElement.classList.add('pre-login');
     document.body.classList.add('not-logged-in');
