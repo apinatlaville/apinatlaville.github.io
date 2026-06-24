@@ -505,7 +505,7 @@ V2 mature + succès → date = début fenêtre ★</div>
     root.innerHTML = `
       <div class="av-wrap" data-testid="viz-v2-root">
         <div class="av-head">
-          <h2>${window.iconLabel('sparkles', 'Carte mentale — Synchrotron V2')}</h2>
+          <h2>${window.iconLabel('map', 'Carte mentale — Synchrotron')}</h2>
           <p>Comment l'algo choisit tes cartes le soir · fenêtres ★ · priorité · phases · sans coefficients d'urgence</p>
         </div>
         ${nodeIntro()}

@@ -1,5 +1,6 @@
 /**
- * anki-algo.js v4 — Moteur Synchrotron (PC*)
+ * anki-algo.js v4 — Moteur Synchrotron (PC*) — cœur partagé
+ * UI v1 archivée · UI active : anki-app-v2.js · fenêtres/phases : anki-algo-v2.js
  * Répétition espacée : réservoir, I_R, ease élastique
  */
 (function () {

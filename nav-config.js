@@ -6,17 +6,20 @@
  * 2. Ajouter son id dans APP_NAV_GROUPS (sauf settings → nav:false)
  * 3. Créer <div class="pane ui-pane" id="paneX"> dans index.html
  * 4. Implémenter window.renderX si besoin (ou utiliser onShow existant)
+ *
+ * Onglets archivés (Synchrotron v1) : nav:false + archived:true.
+ * Le code (anki-app.js, anki-viz.js…) reste chargé ; switchTab redirige vers la V2.
  */
 window.APP_TAB_REGISTRY = {
   home:        { pane: 'paneHome',        label: 'Accueil',       icon: 'home',           needsData: true,  onShow: 'dashboard' },
   cours:       { pane: 'paneCours',       label: 'Base Doc.',     icon: 'clipboard-list', needsData: true,  onShow: 'cours' },
   notes:       { pane: 'paneNotes',       label: 'Notes',         icon: 'trending-up',    needsData: true,  onShow: 'notes' },
   flashcards:  { pane: 'paneFlashcards',  label: 'Rapide',        icon: 'zap',            needsData: true,  onShow: 'flashcards' },
-  anki:        { pane: 'paneAnki',        label: 'Synchrotron',   icon: 'dna',            needsData: true,  onShow: 'anki',        className: 'tab-anki' },
-  ankiV2:      { pane: 'paneAnkiV2',      label: 'Sync. V2',      icon: 'sparkles',       needsData: true,  onShow: 'ankiV2',      className: 'tab-anki-v2', style: 'color:var(--gold)' },
-  ankiViz:     { pane: 'paneAnkiViz',     label: 'Carte mentale', icon: 'map',            needsData: true,  onShow: 'ankiViz',      className: 'tab-viz' },
-  ankiCompare: { pane: 'paneAnkiCompare', label: 'v1 vs V2',      icon: 'git-compare',    needsData: true,  onShow: 'ankiCompare',   className: 'tab-viz' },
-  ankiVizV2:   { pane: 'paneAnkiVizV2',   label: 'Carte V2',      icon: 'map',            needsData: true,  onShow: 'ankiVizV2',    className: 'tab-viz', style: 'color:var(--gold)' },
+  anki:        { pane: 'paneAnki',        label: 'Synchrotron v1', icon: 'dna',           needsData: true,  onShow: 'anki',        className: 'tab-anki', nav: false, archived: true, archivedRedirect: 'ankiV2' },
+  ankiV2:      { pane: 'paneAnkiV2',      label: 'Synchrotron',   icon: 'dna',            needsData: true,  onShow: 'ankiV2',      className: 'tab-anki' },
+  ankiViz:     { pane: 'paneAnkiViz',     label: 'Carte mentale v1', icon: 'map',         needsData: true,  onShow: 'ankiViz',      className: 'tab-viz', nav: false, archived: true, archivedRedirect: 'ankiVizV2' },
+  ankiCompare: { pane: 'paneAnkiCompare', label: 'v1 vs V2',      icon: 'git-compare',    needsData: true,  onShow: 'ankiCompare',   className: 'tab-viz', nav: false, archived: true, archivedRedirect: 'ankiV2' },
+  ankiVizV2:   { pane: 'paneAnkiVizV2',   label: 'Carte mentale', icon: 'map',            needsData: true,  onShow: 'ankiVizV2',    className: 'tab-viz' },
   print:       { pane: 'panePrint',       label: 'Impression',    icon: 'printer',        needsData: true,  onShow: 'print' },
   classeurs:   { pane: 'paneClasseurs',   label: 'Classeurs',     icon: 'folders',        needsData: true,  onShow: 'classeurs' },
   matieres:    { pane: 'paneMatieres',    label: 'Matières',      icon: 'tag',            needsData: true,  onShow: 'matieres' },
@@ -34,7 +37,7 @@ window.APP_NAV_GROUPS = [
   {
     id: 'Sync',
     label: 'Synchrotron',
-    tabs: ['anki', 'ankiV2', 'ankiViz', 'ankiCompare', 'ankiVizV2'],
+    tabs: ['ankiV2', 'ankiVizV2'],
     subNavAfter: 'ankiV2'
   },
   {
@@ -50,6 +53,13 @@ window.APP_NAV_GROUPS = [
 
 window.getTabDef = function (tabId) {
   return window.APP_TAB_REGISTRY[tabId] || null;
+};
+
+/** Résout un id d'onglet archivé vers son remplaçant actif (ex. anki → ankiV2). */
+window.resolveTabId = function (tabId) {
+  var def = window.getTabDef(tabId);
+  if (def && def.archived && def.archivedRedirect) return def.archivedRedirect;
+  return tabId;
 };
 
 window.getTabPaneId = function (tabId) {

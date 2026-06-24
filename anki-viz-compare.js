@@ -1,5 +1,6 @@
 /**
  * anki-viz-compare.js — Comparaison côte à côte Synchrotron v1 vs V2
+ * ARCHIVÉ — masqué de la navigation (nav-config.js).
  */
 (function () {
   const esc = s => window.escHtml(s);

@@ -1,5 +1,7 @@
 /**
- * anki-app.js v4 — UI Mode Synchrotron (PC*)
+ * anki-app.js v4 — UI Mode Synchrotron v1 (PC*)
+ * ARCHIVÉ — masqué de la navigation (nav-config.js). Moteur : anki-algo.js.
+ * Réactivation : retirer archived/nav:false sur l'entrée `anki` dans APP_TAB_REGISTRY.
  * Vues : Cockpit · Agenda · Réservoir · Bibliothèque · Prévisions · Stats · Réglages
  */
 (function () {

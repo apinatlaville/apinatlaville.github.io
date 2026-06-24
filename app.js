@@ -621,8 +621,6 @@ window.syncNavSubMenu = function() {
   let source = null;
   if (tab === 'ankiV2') {
     source = document.querySelector('#paneAnkiV2 .anki-nav');
-  } else if (tab === 'anki') {
-    source = document.querySelector('#paneAnki .anki-nav');
   }
   if (!source) {
     sub.classList.add('hidden');
@@ -667,6 +665,10 @@ window.runTabShow = function(tab, overrideResetFilters) {
 
 window.switchTab = function(tab, overrideResetFilters = false) {
   if (!tab) return;
+
+  if (typeof window.resolveTabId === 'function') {
+    tab = window.resolveTabId(tab);
+  }
 
   const def = typeof window.getTabDef === 'function' ? window.getTabDef(tab) : null;
   const paneId = def ? def.pane : (typeof window.getTabPaneId === 'function' ? window.getTabPaneId(tab) : null);

@@ -1,6 +1,8 @@
 /**
  * =========================================================================================
  * anki-viz.js — Carte mentale interactive du moteur Synchrotron v4 (PC*)
+ * ARCHIVÉ — masqué de la navigation (nav-config.js). Dépend de anki-algo.js.
+ * Réactivation : retirer archived/nav:false sur l'entrée `ankiViz` dans APP_TAB_REGISTRY.
  * =========================================================================================
  * - 100% HTML/CSS pur (aucune dépendance externe : pas de Vis.js, D3, Canvas, SVG complexe)
  * - Glassmorphism cohérent avec le reste de l'app (backdrop-filter blur)

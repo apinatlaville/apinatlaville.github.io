@@ -293,8 +293,8 @@
 
     root.innerHTML = `
       <div class="anki-head">
-        <h2>${window.iconLabel('dna', 'Synchrotron')} <span class="anki-sub" style="color:var(--gold);">V2 · beta</span></h2>
-        <p>Fenêtres ★ · Phases (apprentissage → mature) · Score de priorité · Même cartes que v1.</p>
+        <h2>${window.iconLabel('dna', 'Synchrotron')} <span class="anki-sub">— Répétition espacée PC*</span></h2>
+        <p>Fenêtres ★ · Phases (apprentissage → mature) · Score de priorité.</p>
       </div>
 
       <div class="anki-nav">
@@ -1728,7 +1728,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const av2 = window.AnkiAlgoV2.getSettings();
     return `
       <div class="anki-card-block" style="border:1px solid var(--gold);">
-        <h3>${window.iconLabel('sparkles', 'Algorithme V2')}</h3>
+        <h3>${window.iconLabel('dna', 'Algorithme Synchrotron')}</h3>
         <p class="anki-mut" style="font-size:12px;">Horizon de révision · fenêtres ★ · avance si budget large (pas de quota forcé les soirs DM).</p>
         <div class="anki-set-row">
           <label>Horizon (1 an redouble / 2 ans cycle)</label>
@@ -2411,7 +2411,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       <div class="sync-dock-panel" style="--dock-accent:${matColor}">
         <div class="sync-dock-panel-accent"></div>
         <div class="sync-dock-head">
-          <span class="sync-dock-brand">${window.iconLabel('dna', 'Synchrotron V2')}</span>
+          <span class="sync-dock-brand">${window.iconLabel('dna', 'Synchrotron')}</span>
           <button type="button" class="sync-dock-icon" onclick="window.ankiV2DockToggle()" title="Réduire">${window.iconHtml('chevron-down', 16)}</button>
         </div>
         ${idleBlock}
