@@ -2914,7 +2914,7 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
   }
   body.nav-sidebar-left .app-workspace {
     padding-left: 0;
-    padding-top: calc(var(--page-title-h, 68px) + env(safe-area-inset-top, 0px));
+    padding-top: 0;
   }
   body.nav-sidebar-left .hdr {
     display: none !important;

@@ -196,7 +196,7 @@ body.theme-light.backdrop-vignette-medium .app-backdrop::after {
   opacity: 1;
 }
 
-/* —— Bandeau titre (fixe, pleine largeur, couche fond) —— */
+/* —— Bandeau titre (mode Finder : dans .app-workspace, au-dessus de l’onglet) —— */
 .page-title-float {
   display: none;
 }
@@ -204,14 +204,15 @@ body.theme-light.backdrop-vignette-medium .app-backdrop::after {
 body.nav-sidebar-left .page-title-float,
 body.nav-chrome-sidebar .page-title-float {
   display: block !important;
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
+  left: auto;
+  right: auto;
   width: 100%;
-  z-index: 450;
+  z-index: 100;
+  flex-shrink: 0;
   margin: 0;
-  padding: calc(18px + env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right)) 14px calc(var(--sidebar-offset) + 12px);
+  padding: calc(18px + env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right)) 14px 12px;
   box-sizing: border-box;
   background: rgba(20, 24, 36, 0.42);
   backdrop-filter: blur(40px) saturate(1.35);
@@ -272,7 +273,14 @@ body.nav-chrome-sidebar #statsBand {
 }
 
 body.nav-chrome-sidebar .app-workspace {
-  padding-top: calc(var(--page-title-h) + env(safe-area-inset-top, 0px));
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-top: 0;
+}
+
+body.nav-chrome-sidebar .app-chrome--top {
+  display: none !important;
 }
 
 /* —— Couche 2 : chrome navigation —— */
@@ -396,12 +404,12 @@ body.nav-sidebar-left .app-workspace {
     width: 100%;
     --shell-workspace-inset-x: 0px;
     --shell-viewport-gap: 0px;
+    padding-top: 0;
   }
 
   body.nav-sidebar-left .page-title-float,
   body.nav-chrome-sidebar .page-title-float {
-    padding-left: 18px;
-    padding-right: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 12px 18px;
   }
 
   body.nav-sidebar-left .ui-pane-frame {
