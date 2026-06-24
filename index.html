@@ -96,15 +96,7 @@
 <body class="auth-pending tmpl-glass theme-dark ui-classic">
 
 <div id="splashScreen" class="splash-screen" aria-live="polite" aria-busy="true">
-  <div class="splash-inner">
-    <div class="splash-logo" data-app-logo aria-hidden="true"></div>
-    <h1 class="splash-title">Mes Cours <span>PC*</span></h1>
-    <p class="splash-sub" id="splashProgressLabel">Chargement — Styles…</p>
-    <div class="splash-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-      <div class="splash-progress-bar" id="splashProgressBar"></div>
-    </div>
-    <div class="splash-pct" id="splashProgressPct">0%</div>
-  </div>
+  <div class="clean-spinner" aria-hidden="true"></div>
 </div>
 
 <div id="errorToast" class="ui-toast hidden" role="alert">
@@ -117,6 +109,10 @@
   <div class="app-backdrop" aria-hidden="true"></div>
   <div class="app-backdrop-frost" aria-hidden="true"></div>
 
+  <div class="page-title-float hidden" id="pageTitleFloat" aria-hidden="true">
+    <h2 class="page-title-float-txt" id="hdrPageTitle">Accueil</h2>
+  </div>
+
   <aside class="app-sidebar app-chrome app-chrome--nav" id="appSidebar" aria-label="Navigation">
     <div class="sidebar-brand">
       <span class="app-logo-mark sidebar-logo-mark" data-app-logo></span>
@@ -127,9 +123,6 @@
   </aside>
 
   <div class="app-workspace" id="appMain">
-    <div class="page-title-float hidden" id="pageTitleFloat" aria-hidden="true">
-      <h2 class="page-title-float-txt" id="hdrPageTitle">Accueil</h2>
-    </div>
     <header class="app-chrome app-chrome--top" id="appChromeTop">
     <div class="hdr ui-chrome-bar">
       <div class="hdr-content">
@@ -758,61 +751,25 @@
     align-items: center;
     justify-content: center;
     background:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(91, 154, 255, 0.12), transparent 50%),
-      linear-gradient(180deg, #171c2a 0%, #141824 100%);
-    transition: opacity var(--transition-splash, 0.45s ease-in-out);
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(91, 154, 255, 0.1), transparent 50%),
+      linear-gradient(180deg, #171c2a, #141824);
+    transition: opacity 0.4s ease-in-out;
     pointer-events: all;
   }
   .splash-screen.splash-out {
     opacity: 0;
     pointer-events: none;
   }
-  .splash-inner {
-    text-align: center;
-    padding: 24px;
-    width: min(320px, 90vw);
+  .clean-spinner {
+    width: 44px;
+    height: 44px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: #5b9aff;
+    border-radius: 50%;
+    animation: cleanSpin 0.8s linear infinite;
   }
-  .splash-logo {
-    width: 52px;
-    height: 52px;
-    margin: 0 auto 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .splash-title {
-    font-family: var(--font-ui, 'Inter', sans-serif);
-    font-size: 22px;
-    font-weight: 700;
-    color: #e8ecf4;
-    margin: 0 0 6px;
-  }
-  .splash-title span { color: #5b9aff; }
-  .splash-sub {
-    font-family: var(--font-ui, 'Inter', sans-serif);
-    font-size: 13px;
-    color: #8a94a8;
-    margin: 0 0 20px;
-  }
-  .splash-progress-track {
-    height: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 99px;
-    overflow: hidden;
-    margin-bottom: 8px;
-  }
-  .splash-progress-bar {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #5b9aff, #50d890);
-    border-radius: 99px;
-    transition: width 0.35s ease;
-  }
-  .splash-pct {
-    font-family: var(--font-mono, 'DM Mono', monospace);
-    font-size: 11px;
-    color: #8a94a8;
-    letter-spacing: 0.05em;
+  @keyframes cleanSpin {
+    to { transform: rotate(360deg); }
   }
 </style>
 

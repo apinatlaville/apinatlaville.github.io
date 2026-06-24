@@ -242,9 +242,7 @@
   };
 
   window.enterApp = function () {
-    if (typeof window.unlockPage === 'function') window.unlockPage();
-    else if (typeof window.dismissSplash === 'function') window.dismissSplash();
-    else document.body.classList.remove('boot-active', 'auth-pending');
+    /* Ne pas retirer le splash ici — initApp dévoile tout d'un coup quand c'est prêt */
     if (window.google && window.google.accounts && window.google.accounts.id) {
       window.google.accounts.id.cancel();
     }
@@ -255,7 +253,7 @@
     document.body.style.removeProperty('overflow');
     document.body.style.removeProperty('height');
     document.body.style.removeProperty('max-height');
-    document.body.classList.remove('auth-pending', 'not-logged-in');
+    document.body.classList.remove('not-logged-in');
     const loginOverlay = document.getElementById('loginOverlay');
     if (loginOverlay) {
       loginOverlay.style.setProperty('display', 'none', 'important');
@@ -263,10 +261,8 @@
   };
 
   window.showLogin = function () {
-    if (typeof window.unlockPage === 'function') window.unlockPage();
-    else if (typeof window.dismissSplash === 'function') window.dismissSplash();
-    else document.body.classList.remove('boot-active', 'auth-pending');
-    document.body.classList.remove('auth-pending');
+    if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
+    else if (typeof window.unlockPage === 'function') window.unlockPage();
     document.documentElement.classList.add('pre-login');
     document.body.classList.add('not-logged-in');
     const loginOverlay = document.getElementById('loginOverlay');

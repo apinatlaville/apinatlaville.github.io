@@ -2915,14 +2915,9 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
   }
   body.nav-sidebar-left .app-workspace {
     padding-left: 0;
-    padding-top: 0;
   }
   body.nav-sidebar-left .hdr {
     display: none !important;
-  }
-  body.nav-sidebar-left .page-title-float,
-  body.nav-chrome-sidebar .page-title-float {
-    padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 12px 18px;
   }
   body.nav-sidebar-left .stats-band,
   body.nav-sidebar-left .app-viewport {
