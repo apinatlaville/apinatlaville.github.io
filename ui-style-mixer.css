@@ -1,0 +1,290 @@
+/* ===== Style Mixeur — axes indépendants via data-mix-* + --mix-* vars ===== */
+
+.style-mixer-sandbox {
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 8px;
+  background: var(--s1);
+  border: 0.5px solid var(--bd);
+  position: relative;
+  overflow: hidden;
+}
+
+.style-mixer-sandbox-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mut);
+  margin: 0 0 12px;
+}
+
+.style-mixer-sandbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+}
+
+.style-mixer-sandbox-block label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mut);
+  margin-bottom: 8px;
+}
+
+.style-mixer-sandbox-block .bp,
+.style-mixer-sandbox-block .bs {
+  font-size: 12px;
+  padding: 8px 12px;
+  margin-right: 6px;
+}
+
+.style-mixer-mini-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.style-mixer-mini-nav .tab {
+  font-size: 12px;
+  padding: 6px 10px;
+  justify-content: flex-start;
+}
+
+.style-mixer-axes {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.style-mixer-axis {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--s2);
+  border: 0.5px solid var(--bd);
+}
+
+.style-mixer-axis-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.style-mixer-axis-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.style-mixer-axis-val {
+  font-size: 11px;
+  color: var(--mut);
+}
+
+.style-mixer-preset-row {
+  margin-top: 8px;
+}
+
+.style-mixer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.style-mixer-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--s1) 92%, transparent);
+  backdrop-filter: blur(12px);
+  padding-bottom: 8px;
+  margin-bottom: -4px;
+}
+
+.style-mixer-export-text {
+  width: 100%;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 12px;
+  border-radius: 10px;
+  border: 0.5px solid var(--bd);
+  background: var(--s2);
+  color: var(--txt);
+  resize: vertical;
+  min-height: 200px;
+}
+
+.style-mixer-hover-demo {
+  padding: 12px;
+  cursor: default;
+}
+
+/* —— Boutons principaux —— */
+.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold),
+body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold) {
+  background: var(--mix-btnPrimary-bg, var(--acc)) !important;
+  color: var(--mix-btnPrimary-color, #fff) !important;
+  border: var(--mix-btnPrimary-border, none) !important;
+  box-shadow: var(--mix-btnPrimary-shadow, none) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  font-weight: 500;
+}
+
+.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
+body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled) {
+  background: var(--mix-btnPrimary-hover, var(--acc)) !important;
+}
+
+/* —— Boutons secondaires —— */
+.style-mixer-scope .bs,
+.style-mixer-scope .cbt,
+.style-mixer-scope .toggle-btn,
+body.style-mixer-live .bs,
+body.style-mixer-live .cbt,
+body.style-mixer-live .toggle-btn {
+  background: var(--mix-btnSecondary-bg, rgba(255, 255, 255, 0.08)) !important;
+  border: 0.5px solid var(--mix-btnSecondary-border, transparent) !important;
+  color: var(--mix-btnSecondary-color, var(--txt)) !important;
+  box-shadow: var(--mix-btnSecondary-shadow, none) !important;
+  backdrop-filter: var(--mix-btnSecondary-blur, none) !important;
+  -webkit-backdrop-filter: var(--mix-btnSecondary-blur, none) !important;
+}
+
+.style-mixer-scope .bs:hover:not(:disabled),
+body.style-mixer-live .bs:hover:not(:disabled) {
+  background: var(--mix-btnSecondary-hover, rgba(255, 255, 255, 0.12)) !important;
+}
+
+/* —— Onglets actifs —— */
+.style-mixer-scope .tab.on,
+.style-mixer-scope .anki-tab.on,
+body.style-mixer-live .tab.on,
+body.style-mixer-live .anki-tab.on {
+  background: var(--mix-tabs-onBg) !important;
+  color: var(--mix-tabs-onColor, var(--txt)) !important;
+  box-shadow: var(--mix-tabs-onShadow, none) !important;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.style-mixer-scope[data-mix-tabs-useborder="1"] .tab.on,
+body.style-mixer-live[data-mix-tabs-useborder="1"] .tab.on {
+  border: 0.5px solid var(--mix-tabs-onBorder) !important;
+}
+
+.style-mixer-scope[data-mix-tabs-useborder="0"] .tab.on,
+body.style-mixer-live[data-mix-tabs-useborder="0"] .tab.on {
+  border: none !important;
+}
+
+.style-mixer-scope[data-mix-tabs="finder"] .tab:not(.on),
+body.style-mixer-live[data-mix-tabs="finder"] .tab:not(.on) {
+  color: var(--mut) !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.style-mixer-scope[data-mix-tabs="finder"] .tab.on,
+body.style-mixer-live[data-mix-tabs="finder"] .tab.on {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* —— Chips —— */
+.style-mixer-scope .chip.on,
+.style-mixer-scope .anki-lib-chip.on,
+body.style-mixer-live .chip.on,
+body.style-mixer-live .anki-lib-chip.on {
+  background: var(--mix-chips-onBg) !important;
+  color: var(--mix-chips-onColor, var(--txt)) !important;
+  box-shadow: var(--mix-chips-onShadow, none) !important;
+}
+
+.style-mixer-scope[data-mix-chips="classic"] .chip.on,
+body.style-mixer-live[data-mix-chips="classic"] .chip.on {
+  border-color: var(--mix-chips-onBorder) !important;
+}
+
+.style-mixer-scope[data-mix-chips="finder"] .chip.on,
+body.style-mixer-live[data-mix-chips="finder"] .chip.on {
+  border: none !important;
+}
+
+/* —— Tuiles —— */
+.style-mixer-scope .kpi,
+.style-mixer-scope .dash-card,
+.style-mixer-scope .ui-tile,
+body.style-mixer-live .kpi,
+body.style-mixer-live .dash-card,
+body.style-mixer-live .ui-tile {
+  background: var(--mix-tiles-bg, var(--s2)) !important;
+  border: 0.5px solid var(--mix-tiles-border, var(--bd)) !important;
+  backdrop-filter: var(--mix-tiles-blur, none) !important;
+  -webkit-backdrop-filter: var(--mix-tiles-blur, none) !important;
+  box-shadow: var(--mix-tiles-shadow, none) !important;
+}
+
+/* —— Panneaux coque (live app) —— */
+body.style-mixer-live .ui-pane-frame {
+  background: var(--mix-panes-bg, var(--shell-pane-bg)) !important;
+  border-color: var(--mix-panes-border, var(--shell-pane-border)) !important;
+  box-shadow: var(--mix-panes-shadow, var(--shell-pane-shadow)) !important;
+  backdrop-filter: var(--mix-panes-blur, var(--shell-pane-blur)) !important;
+  -webkit-backdrop-filter: var(--mix-panes-blur, var(--shell-pane-blur)) !important;
+}
+
+/* —— Focus —— */
+.style-mixer-scope .code-box:focus,
+.style-mixer-scope .home-search:focus,
+body.style-mixer-live .code-box:focus,
+body.style-mixer-live .home-search:focus {
+  box-shadow: var(--mix-focus-ring) !important;
+  border-color: var(--mix-focus-border) !important;
+}
+
+/* —— Survol cartes —— */
+.style-mixer-scope .card:hover,
+.style-mixer-scope .dash-card:hover,
+.style-mixer-scope .pcard:hover,
+body.style-mixer-live .card:hover,
+body.style-mixer-live .dash-card:hover,
+body.style-mixer-live .pcard:hover {
+  border-color: var(--mix-hover-border) !important;
+  box-shadow: var(--mix-hover-shadow) !important;
+}
+
+/* —— Sidebar (live) —— */
+body.style-mixer-live.nav-sidebar-left .app-sidebar {
+  background: var(--mix-sidebar-bg, var(--ui-sidebar-bg)) !important;
+  border-color: var(--mix-sidebar-border, var(--bd)) !important;
+}
+
+body.style-mixer-live[data-mix-sidebar="finder"].nav-sidebar-left .app-sidebar {
+  backdrop-filter: blur(60px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(60px) saturate(1.2) !important;
+}
+
+/* —— Couches internes —— */
+body.style-mixer-live.tmpl-glass .set-row,
+body.style-mixer-live.tmpl-glass .home-hero,
+body.style-mixer-live.tmpl-glass .toggle-btn {
+  background: var(--mix-layers-bg, var(--ui-layer-bg)) !important;
+  border-color: var(--mix-layers-border, transparent) !important;
+}
+
+.style-mixer-scope .set-row,
+.style-mixer-scope .home-hero {
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--mix-layers-bg, var(--s2));
+  border: 0.5px solid var(--mix-layers-border, var(--bd));
+}

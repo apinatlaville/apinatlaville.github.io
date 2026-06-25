@@ -382,6 +382,10 @@
   <div id="errorLogContainer" class="ui-panel ui-panel--logs"></div>
 </div>
 
+<div class="pane ui-pane" id="paneStyleMixer">
+  <div id="styleMixerRoot" class="ui-design-lab-root"></div>
+</div>
+
 <div class="pane ui-pane" id="paneTest">
   <div id="styleLabRoot" class="ui-design-lab-root"></div>
 
@@ -692,6 +696,11 @@
     cssShell.href = 'ui-shell.css?v=' + v;
     document.head.appendChild(cssShell);
 
+    var cssStyleMixer = document.createElement('link');
+    cssStyleMixer.rel = 'stylesheet';
+    cssStyleMixer.href = 'ui-style-mixer.css?v=' + v;
+    document.head.appendChild(cssStyleMixer);
+
     ['flatpickr.min.css', 'choices.min.css', 'form-controls.css'].forEach(function (file) {
       var l = document.createElement('link');
       l.rel = 'stylesheet';
@@ -735,7 +744,8 @@
       'anki-smoke.js',
       'nav-config.js',
       'ui-components.js',
-      'ui-style-lab.js'
+      'ui-style-lab.js',
+      'ui-style-mixer.js'
     ];
 
     function loadNext(i) {
