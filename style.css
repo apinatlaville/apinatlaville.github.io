@@ -54,6 +54,16 @@
  linear-gradient(220deg, rgba(91, 154, 255, 0.06) 0%, transparent 55%);
  --radius-surface: 14px;
  --radius-control: 10px;
+ --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+ --font-mono: 'DM Mono', ui-monospace, 'Cascadia Code', monospace;
+ --font-size-xs: 11px;
+ --font-size-sm: 12px;
+ --font-size-md: 14px;
+ --font-size-lg: 16px;
+ --font-size-xl: 18px;
+ --transition-fast: 0.15s ease;
+ --transition-ui: 0.2s ease;
+ --transition-splash: 0.45s ease-in-out;
  --glass-shadow:
  inset 0 1px 0 rgba(195, 215, 255, 0.22),
  inset 0 -0.5px 0 rgba(0, 0, 0, 0.1),
@@ -185,7 +195,7 @@ html {
 body {
   background-color: var(--bg);
   color: var(--txt);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-ui);
   min-height: 100dvh;
   padding-bottom: 140px;
   overflow-x: hidden;
@@ -197,6 +207,19 @@ body {
 
 body.mode-compact .card { padding: 8px 12px; }
 body.mode-compact .cdesc { display: none; }
+
+.uid-badge,
+.code-box,
+.code-dash,
+.loc-code,
+.qr-lbl,
+.pc-uid,
+.inum,
+.chart-val,
+.cnote,
+.uidbox {
+  font-family: var(--font-mono);
+}
 
 .hdr {
  background: var(--s1);
@@ -2706,7 +2729,7 @@ body.anki-session-lock .fab-wrapper {
   min-height: 100dvh;
 }
 
-/* —— Mode classique —— */
+/* —— Barre du haut (sans sidebar) —— */
 body:not(.nav-sidebar-left) .app-sidebar {
   display: none;
 }
@@ -2958,7 +2981,7 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
   display: none !important;
 }
 
-/* Nav groups (mode classique) */
+/* Nav groups (barre du haut) */
 .nav-group {
   display: contents;
 }

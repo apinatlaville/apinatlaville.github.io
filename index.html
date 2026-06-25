@@ -660,11 +660,6 @@
     var v = new Date().getTime();
     if (typeof window.setBootStep === 'function') window.setBootStep('styles');
 
-    var cssTokens = document.createElement('link');
-    cssTokens.rel = 'stylesheet';
-    cssTokens.href = 'ui-tokens.css?v=' + v;
-    document.head.appendChild(cssTokens);
-    
     var cssIcons = document.createElement('link');
     cssIcons.rel = 'stylesheet';
     cssIcons.href = 'icons.css?v=' + v;
@@ -690,10 +685,10 @@
     cssFinderPresets.href = 'ui-finder-presets.css?v=' + v;
     document.head.appendChild(cssFinderPresets);
 
-    var cssDesignLab = document.createElement('link');
-    cssDesignLab.rel = 'stylesheet';
-    cssDesignLab.href = 'ui-design-lab.css?v=' + v;
-    document.head.appendChild(cssDesignLab);
+    var cssScannerDiag = document.createElement('link');
+    cssScannerDiag.rel = 'stylesheet';
+    cssScannerDiag.href = 'scanner-diag.css?v=' + v;
+    document.head.appendChild(cssScannerDiag);
 
     var cssShell = document.createElement('link');
     cssShell.rel = 'stylesheet';
