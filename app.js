@@ -213,11 +213,7 @@ window.applySettings = function() {
       document.body.classList.add('backdrop-vignette-' + backdropVignette);
     }
   }
-  } else if (typeof window.applyStyleMixerLive === 'function') {
-    window.applyStyleMixerLive();
-  }
 
-  if (!window._styleMixerLive) {
   const blurId = window.normalizeBackdropBlur(window.D.settings.backdropBlur);
   window.D.settings.backdropBlur = blurId;
   const blurLevel = window.BACKDROP_BLUR_LEVELS.find(l => l.id === blurId) || window.BACKDROP_BLUR_LEVELS[2];
@@ -237,13 +233,8 @@ window.applySettings = function() {
     const desc = window.UI_STYLE_DESCS[uiStyle] || '';
     window.$('uiStyleSub').textContent = (window.UI_STYLE_LABELS[uiStyle] || uiStyle) + ' : ' + desc;
   }
-  } else {
-  const blurIdMixer = window._styleMixerSession && window.normalizeBackdropBlur(window._styleMixerSession.backdropBlur);
-  if (blurIdMixer) {
-    const blurLevelMixer = window.BACKDROP_BLUR_LEVELS.find(l => l.id === blurIdMixer) || window.BACKDROP_BLUR_LEVELS[2];
-    document.body.classList.toggle('shell-backdrop-blur', blurLevelMixer.px > 0);
-    document.documentElement.style.setProperty('--shell-backdrop-blur', blurLevelMixer.px + 'px');
-  }
+  } else if (typeof window.applyStyleMixerLive === 'function') {
+    window.applyStyleMixerLive();
   }
 
   if (window.D.settings.compact) {
