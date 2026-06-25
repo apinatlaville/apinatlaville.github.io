@@ -24,14 +24,24 @@
     target.finderBackdropTone = window.normalizeFinderBackdropTone(session.finderBackdropTone);
     target.finderBackdropVignette = window.normalizeFinderBackdropVignette(session.finderBackdropVignette);
     target.backdropBlur = window.normalizeBackdropBlur(session.backdropBlur);
+    target.btnStyle = window.normalizeBtnStyle(session.btnStyle, session.uiStyle);
     if (session.appColor) target.appColor = session.appColor;
     if (session.navLayout) target.navLayout = session.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
+  }
+
+  function resolvedBtnStyle(session) {
+    return window.normalizeBtnStyle(session.btnStyle, session.uiStyle);
+  }
+
+  function btnStyleClass(session) {
+    return resolvedBtnStyle(session) === 'glow' ? ' btn-style-glow' : '';
   }
 
   window.styleMixerDefaultSession = function () {
     return {
       uiStyle: 'classic',
       finderPreset: '1',
+      btnStyle: 'glow',
       finderBackdropTone: 'soft',
       finderBackdropVignette: 'light',
       backdropBlur: 'medium',
@@ -43,9 +53,11 @@
   window.styleMixerSessionFromSettings = function () {
     if (!window.D || !window.D.settings) return window.styleMixerDefaultSession();
     var s = window.D.settings;
+    var uiStyle = window.normalizeUiStyle(s.uiStyle) === 'finder' ? 'finder' : 'classic';
     return {
-      uiStyle: window.normalizeUiStyle(s.uiStyle) === 'finder' ? 'finder' : 'classic',
+      uiStyle: uiStyle,
       finderPreset: window.normalizeFinderPreset(s.finderPreset),
+      btnStyle: window.normalizeBtnStyle(s.btnStyle, uiStyle),
       finderBackdropTone: window.normalizeFinderBackdropTone(s.finderBackdropTone),
       finderBackdropVignette: window.normalizeFinderBackdropVignette(s.finderBackdropVignette),
       backdropBlur: window.normalizeBackdropBlur(s.backdropBlur),
@@ -70,12 +82,12 @@
   }
 
   function sessionSummary(session) {
-    if (session.uiStyle === 'classic') return 'Classique';
-    var p = presetMeta(session.finderPreset);
-    return 'Finder · preset ' + p.id + ' — ' + p.name;
+    var base = session.uiStyle === 'classic' ? 'Classique' : ('Finder · preset ' + presetMeta(session.finderPreset).id + ' — ' + presetMeta(session.finderPreset).name);
+    var btn = resolvedBtnStyle(session) === 'glow' ? ' · boutons glow bleu' : ' · boutons plat';
+    return base + btn;
   }
 
-  function renderSamplesBlock(forFinder) {
+  function renderSamplesBlock(forFinder, session) {
     var navHtml = forFinder
       ? '<div class="finder-style-nav-row">' +
           '<button type="button" class="ui-btn-nav-demo on" tabindex="-1">Actif</button>' +
@@ -90,32 +102,33 @@
         '<div><label>Navigation</label>' + navHtml + '</div>' +
         '<div><label>Principal</label><button type="button" class="bp" tabindex="-1">Commencer</button></div>' +
         '<div><label>Secondaire</label><button type="button" class="bs" tabindex="-1">Scanner</button></div>' +
+        '<div><label>Réglage</label><button type="button" class="toggle-btn" tabindex="-1">Classique</button></div>' +
         '<div><label>Chips</label><span class="chip on">Actif</span> <span class="chip">Off</span></div>' +
         '<div><label>Tuile</label><div class="dash-card" style="max-width:120px;padding:10px;"><div class="dash-num">42</div><div class="dash-lbl">KPI</div></div></div>' +
       '</div>'
     );
   }
 
-  function renderClassicPreview() {
+  function renderClassicPreview(session) {
     return (
-      '<div class="style-theme-preview ui-classic">' +
+      '<div class="style-theme-preview ui-classic' + btnStyleClass(session) + '">' +
         '<h4 style="margin:0 0 12px;font-size:14px;font-weight:600;">Classique</h4>' +
-        renderSamplesBlock(false) +
+        renderSamplesBlock(false, session) +
       '</div>'
     );
   }
 
-  function renderFinderPreviewCard(presetId, active, clickable) {
+  function renderFinderPreviewCard(presetId, active, clickable, session) {
     var p = presetMeta(presetId);
     var activeCls = active ? ' is-active' : '';
     var attrs = clickable
       ? ' data-preset="' + presetId + '" onclick="window.styleMixerPickFinder(\'' + presetId + '\')"'
       : '';
     return (
-      '<div class="finder-style-card finder-preset-' + presetId + activeCls + '"' + attrs + '>' +
+      '<div class="finder-style-card finder-preset-' + presetId + activeCls + btnStyleClass(session) + '"' + attrs + '>' +
         '<h3>' + p.id + '. ' + p.name + '</h3>' +
         '<p>' + p.desc + '</p>' +
-        renderSamplesBlock(true) +
+        renderSamplesBlock(true, session) +
         (clickable
           ? '<button type="button" class="bp finder-style-pick style-mixer-ui" tabindex="-1">' +
               (active ? '✓ Sélectionné' : 'Choisir') +
@@ -126,8 +139,8 @@
   }
 
   function renderMainPreview(session) {
-    if (session.uiStyle === 'classic') return renderClassicPreview();
-    return renderFinderPreviewCard(session.finderPreset, true, false);
+    if (session.uiStyle === 'classic') return renderClassicPreview(session);
+    return renderFinderPreviewCard(session.finderPreset, true, false, session);
   }
 
   function renderDiffTable() {
@@ -182,6 +195,12 @@
     window.styleMixerSyncPreview();
   };
 
+  window.styleMixerSetBtnStyle = function (style) {
+    var session = ensureSession();
+    session.btnStyle = style === 'flat' ? 'flat' : 'glow';
+    styleMixerAfterChange();
+  };
+
   function styleMixerAfterChange() {
     window.styleMixerSyncPreview();
     styleMixerApplyIfLive();
@@ -225,6 +244,7 @@
       exportedAt: new Date().toISOString(),
       uiStyle: session.uiStyle,
       finderPreset: session.finderPreset,
+      btnStyle: session.btnStyle,
       finderBackdropTone: session.finderBackdropTone,
       finderBackdropVignette: session.finderBackdropVignette,
       backdropBlur: session.backdropBlur,
@@ -271,6 +291,11 @@
     var finderBtn = document.getElementById('styleMixerPickFinder');
     if (classicBtn) classicBtn.classList.toggle('is-active', session.uiStyle === 'classic');
     if (finderBtn) finderBtn.classList.toggle('is-active', session.uiStyle === 'finder');
+
+    var btnGlow = document.getElementById('styleMixerPickBtnGlow');
+    var btnFlat = document.getElementById('styleMixerPickBtnFlat');
+    if (btnGlow) btnGlow.classList.toggle('is-active', resolvedBtnStyle(session) === 'glow');
+    if (btnFlat) btnFlat.classList.toggle('is-active', resolvedBtnStyle(session) === 'flat');
 
     document.querySelectorAll('.style-mixer-preset-grid .finder-style-card').forEach(function (card) {
       var id = card.getAttribute('data-preset');
@@ -334,7 +359,8 @@
       presetCards += renderFinderPreviewCard(
         p.id,
         session.uiStyle === 'finder' && p.id === session.finderPreset,
-        true
+        true,
+        session
       );
     });
 
@@ -376,9 +402,31 @@
             '</button>' +
           '</div>' +
           '<div class="ui-lab-compare-grid">' +
-            renderClassicPreview() +
-            renderFinderPreviewCard('1', false, false) +
+            renderClassicPreview(session) +
+            renderFinderPreviewCard('1', false, false, session) +
           '</div>' +
+        '</section>' +
+
+        '<section class="ui-lab-section">' +
+          '<h3 class="ui-lab-section-title"><span data-icon="mouse-pointer-click"></span> Style des boutons</h3>' +
+          '<p class="ui-lab-section-desc">Le <b>glow bleu</b> correspond aux boutons de ta capture (Paramètres, actions principales). Fonctionne avec Classique ou Finder.</p>' +
+          '<div class="style-mixer-main-pick">' +
+            '<button type="button" id="styleMixerPickBtnGlow" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'glow' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'glow\')">' +
+              '<strong>Glow bleu</strong>' +
+              '<span>Bleu lumineux, relief 3D — toggles Paramètres, .bp, FAB.</span>' +
+            '</button>' +
+            '<button type="button" id="styleMixerPickBtnFlat" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'flat' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'flat\')">' +
+              '<strong>Plat (preset Finder)</strong>' +
+              '<span>Boutons neutres selon le preset — sans halo bleu.</span>' +
+            '</button>' +
+          '</div>' +
+          '<div class="style-mixer-btn-glow-demo' + btnStyleClass(session) + '">' +
+            '<div class="set-row" style="margin:0;"><div><div class="set-lbl">Exemple réglage</div></div>' +
+            '<button type="button" class="toggle-btn" tabindex="-1">Classique</button></div>' +
+            '<div style="display:flex;gap:8px;margin-top:10px;">' +
+            '<button type="button" class="bp" tabindex="-1">Principal</button>' +
+            '<button type="button" class="bs" tabindex="-1">Secondaire</button>' +
+            '</div></div>' +
         '</section>' +
 
         '<section class="ui-lab-section' + (session.uiStyle !== 'finder' ? ' style-mixer-section-hidden' : '') + '" id="styleMixerFinderOptions">' +

@@ -242,3 +242,16 @@
   color: var(--txt) !important;
   box-shadow: none !important;
 }
+
+/* Démo glow dans le mixeur */
+.style-mixer-btn-glow-demo {
+  margin-top: 12px;
+  padding: 4px 0;
+}
+
+.style-mixer-btn-glow-demo .set-row {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  padding: 14px;
+  border-radius: 10px;
+}

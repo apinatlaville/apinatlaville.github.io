@@ -38,6 +38,17 @@ window.normalizeFinderBackdropVignette = function (id) {
   return window.FINDER_BACKDROP_VIGNETTES.some(v => v.id === s) ? s : 'light';
 };
 
+window.BTN_STYLES = [
+  { id: 'glow', name: 'Glow bleu', desc: 'Bleu lumineux avec relief — boutons Paramètres, .bp, toggles.' },
+  { id: 'flat', name: 'Plat (preset)', desc: 'Style Finder neutre selon le preset choisi.' }
+];
+
+window.normalizeBtnStyle = function (id, uiStyle) {
+  const s = String(id == null ? '' : id);
+  if (s === 'glow' || s === 'flat') return s;
+  return window.normalizeUiStyle(uiStyle) === 'finder' ? 'flat' : 'glow';
+};
+
 function labApplySettings() {
   if (!window.D || !window.D.settings) return;
   window.save();

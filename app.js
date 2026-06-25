@@ -194,6 +194,13 @@ window.applySettings = function() {
     document.body.classList.add('finder-preset-' + finderPreset);
   }
 
+  const btnStyle = typeof window.normalizeBtnStyle === 'function'
+    ? window.normalizeBtnStyle(window.D.settings.btnStyle, uiStyle)
+    : (uiStyle === 'finder' ? 'flat' : 'glow');
+  window.D.settings.btnStyle = btnStyle;
+  document.body.classList.remove('btn-style-glow', 'btn-style-flat');
+  document.body.classList.add('btn-style-' + btnStyle);
+
   const backdropTone = typeof window.normalizeFinderBackdropTone === 'function'
     ? window.normalizeFinderBackdropTone(window.D.settings.finderBackdropTone)
     : 'soft';

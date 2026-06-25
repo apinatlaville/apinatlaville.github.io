@@ -751,3 +751,59 @@ body.ui-finder .fab-main {
 .finder-backdrop-blur-btn {
   min-width: 88px;
 }
+
+/* —— Glow bleu Classique — réutilisable en mode Finder (btn-style-glow) —— */
+body.btn-style-glow .bp:not(.bp-danger):not(.bp-gold),
+body.btn-style-glow .ui-btn-accent:not(.bp-danger),
+body.btn-style-glow .finder-style-card .bp:not(.bp-danger):not(.bp-gold),
+body.btn-style-glow .style-theme-preview .bp:not(.bp-danger):not(.bp-gold),
+.btn-style-glow .bp:not(.bp-danger):not(.bp-gold),
+.btn-style-glow .finder-style-card .bp:not(.bp-danger):not(.bp-gold),
+.btn-style-glow .style-theme-preview .bp:not(.bp-danger):not(.bp-gold) {
+  background: var(--acc) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow:
+    0 2px 14px color-mix(in srgb, var(--acc) 42%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  font-weight: 600 !important;
+}
+
+body.btn-style-glow .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
+body.btn-style-glow .ui-btn-accent:not(.bp-danger):hover:not(:disabled),
+body.btn-style-glow .finder-style-card .bp:hover:not(:disabled),
+.btn-style-glow .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
+.btn-style-glow .finder-style-card .bp:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--acc) 88%, #fff) !important;
+}
+
+body.btn-style-glow .toggle-btn,
+body.btn-style-glow .style-mixer-btn-glow-demo .toggle-btn,
+.btn-style-glow .toggle-btn,
+.style-mixer-btn-glow-demo.btn-style-glow .toggle-btn {
+  background: var(--acc) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow:
+    0 2px 12px color-mix(in srgb, var(--acc) 38%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  font-weight: 700 !important;
+}
+
+body.btn-style-glow .toggle-btn:hover,
+.btn-style-glow .toggle-btn:hover {
+  background: color-mix(in srgb, var(--acc) 90%, #fff) !important;
+}
+
+body.btn-style-glow.ui-finder .fab-main {
+  background: var(--acc) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow:
+    0 4px 20px color-mix(in srgb, var(--acc) 38%, transparent),
+    0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
