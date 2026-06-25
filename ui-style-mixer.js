@@ -1,170 +1,57 @@
 /**
- * Style Mixeur v2 — sandbox isolé, live opt-in, axes Classique / Finder 1–5.
+ * Style Mixeur v3 — mêmes classes CSS que Paramètres / Labo UI (ui-classic, ui-finder, finder-preset-N).
  */
 (function () {
   'use strict';
 
-  var AXIS_KEYS = [
-    'btnPrimary', 'btnSecondary', 'tabs', 'chips', 'tiles',
-    'panes', 'focus', 'hover', 'sidebar', 'layers'
+  var THEME_DIFFS = [
+    { aspect: 'Philosophie', classic: 'Bleu lumineux, glow sur les actions', finder: 'Neutre type Apple, zéro halo coloré' },
+    { aspect: 'Bouton principal', classic: 'Bleu accent + ombre bleue', finder: 'Selon preset (plat, blanc, accent, flou…)' },
+    { aspect: 'Bouton secondaire', classic: 'Verre léger + bordure', finder: 'Gris / vitre selon preset' },
+    { aspect: 'Onglet actif', classic: 'Pilule bleue + bordure + glow', finder: 'Pilule grise, sans bordure ni glow' },
+    { aspect: 'Chips / filtres', classic: 'Fond bleu, bordure accent', finder: 'Gris neutre, sans couleur vive' },
+    { aspect: 'Tuiles KPI', classic: 'Surface opaque (--s2)', finder: 'Vitres empilées + blur' },
+    { aspect: 'Panneaux contenu', classic: 'Verre bleuté', finder: 'Verre neutre, flou plus fort' },
+    { aspect: 'Sidebar', classic: 'Fond semi-opaque + bordure', finder: 'Preset (Photos, plat, flou…)' },
+    { aspect: 'Fond app', classic: 'Dégradé classique', finder: 'Ton + vignette + flou réglables' },
+    { aspect: 'Focus champs', classic: 'Anneau bleu (--acc)', finder: 'Anneau blanc discret' }
   ];
 
-  var AXIS_GROUPS = [
-    { id: 'buttons', label: 'Boutons', icon: 'mouse-pointer-click', keys: ['btnPrimary', 'btnSecondary'] },
-    { id: 'nav', label: 'Navigation & filtres', icon: 'layout-list', keys: ['tabs', 'chips'] },
-    { id: 'surfaces', label: 'Surfaces', icon: 'layers', keys: ['tiles', 'panes', 'layers', 'hover'] },
-    { id: 'chrome', label: 'Chrome', icon: 'settings', keys: ['sidebar', 'focus'] }
-  ];
-
-  window.STYLE_MIXER_AXIS_LABELS = {
-    btnPrimary: 'Principal (.bp)',
-    btnSecondary: 'Secondaire (.bs)',
-    tabs: 'Onglet actif',
-    chips: 'Chip actif',
-    tiles: 'Tuile KPI',
-    panes: 'Panneau contenu',
-    focus: 'Focus champ',
-    hover: 'Survol carte',
-    sidebar: 'Sidebar',
-    layers: 'Couche interne'
-  };
-
-  var FINDER_PRESET = {
-    '1': {
-      btnPrimary: { bg: 'var(--acc)', color: '#fff', border: 'none', shadow: 'none', hover: 'color-mix(in srgb, var(--acc) 88%, white)' },
-      btnSecondary: { bg: 'rgba(120, 120, 128, 0.2)', color: 'var(--txt)', border: 'transparent', shadow: 'none', blur: 'none', hover: 'rgba(120, 120, 128, 0.28)' },
-      tabs: { onBg: 'rgba(120, 120, 128, 0.32)', onColor: 'var(--acc)', onBorder: 'transparent', onShadow: 'none', useBorder: '0' },
-      chips: { onBg: 'rgba(120, 120, 128, 0.32)', onColor: 'var(--acc)', onBorder: 'transparent', onShadow: 'none' },
-      tiles: { bg: 'rgba(120, 120, 128, 0.14)', border: 'transparent', blur: 'none', shadow: 'none' },
-      panes: { bg: 'rgba(255, 255, 255, 0.035)', border: 'rgba(255, 255, 255, 0.07)', shadow: 'none', blur: 'blur(28px) saturate(1.1)' },
-      focus: { ring: '0 0 0 3px rgba(255, 255, 255, 0.1)', border: 'rgba(255, 255, 255, 0.32)' },
-      hover: { border: 'rgba(255, 255, 255, 0.14)', shadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 10px 28px rgba(0, 0, 0, 0.3)' },
-      sidebar: { bg: 'rgba(28, 28, 30, 0.72)', border: 'transparent' },
-      layers: { bg: 'rgba(120, 120, 128, 0.14)', border: 'transparent' }
-    },
-    '2': {
-      btnPrimary: { bg: 'rgba(255, 255, 255, 0.14)', color: 'rgba(255, 255, 255, 0.96)', border: 'none', shadow: 'none', hover: 'rgba(255, 255, 255, 0.2)' },
-      btnSecondary: { bg: 'rgba(255, 255, 255, 0.06)', color: 'var(--txt)', border: 'transparent', shadow: 'none', blur: 'none', hover: 'rgba(255, 255, 255, 0.1)' },
-      tabs: { onBg: 'rgba(255, 255, 255, 0.11)', onColor: 'rgba(255, 255, 255, 0.96)', onBorder: 'transparent', onShadow: 'none', useBorder: '0' },
-      chips: { onBg: 'rgba(255, 255, 255, 0.11)', onColor: 'rgba(255, 255, 255, 0.96)', onBorder: 'transparent', onShadow: 'none' },
-      tiles: { bg: 'rgba(255, 255, 255, 0.06)', border: 'transparent', blur: 'none', shadow: 'none' },
-      panes: { bg: 'rgba(255, 255, 255, 0.035)', border: 'rgba(255, 255, 255, 0.07)', shadow: 'none', blur: 'blur(28px) saturate(1.1)' },
-      focus: { ring: '0 0 0 3px rgba(255, 255, 255, 0.1)', border: 'rgba(255, 255, 255, 0.32)' },
-      hover: { border: 'rgba(255, 255, 255, 0.14)', shadow: '0 10px 28px rgba(0, 0, 0, 0.3)' },
-      sidebar: { bg: 'rgba(22, 22, 24, 0.78)', border: 'transparent' },
-      layers: { bg: 'rgba(255, 255, 255, 0.06)', border: 'transparent' }
-    },
-    '3': {
-      btnPrimary: { bg: 'var(--acc)', color: '#fff', border: 'none', shadow: 'none', hover: 'color-mix(in srgb, var(--acc) 90%, white)' },
-      btnSecondary: { bg: 'color-mix(in srgb, var(--acc) 8%, rgba(120, 120, 128, 0.16))', color: 'var(--txt)', border: 'transparent', shadow: 'none', blur: 'none', hover: 'color-mix(in srgb, var(--acc) 14%, rgba(120, 120, 128, 0.22))' },
-      tabs: { onBg: 'color-mix(in srgb, var(--acc) 22%, rgba(120, 120, 128, 0.2))', onColor: 'var(--acc)', onBorder: 'transparent', onShadow: 'none', useBorder: '0' },
-      chips: { onBg: 'color-mix(in srgb, var(--acc) 22%, rgba(120, 120, 128, 0.2))', onColor: 'var(--acc)', onBorder: 'transparent', onShadow: 'none' },
-      tiles: { bg: 'color-mix(in srgb, var(--acc) 6%, rgba(120, 120, 128, 0.12))', border: 'transparent', blur: 'none', shadow: 'none' },
-      panes: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.08)', shadow: 'none', blur: 'blur(32px) saturate(1.12)' },
-      focus: { ring: '0 0 0 3px rgba(255, 255, 255, 0.1)', border: 'rgba(255, 255, 255, 0.32)' },
-      hover: { border: 'rgba(255, 255, 255, 0.14)', shadow: '0 10px 28px rgba(0, 0, 0, 0.28)' },
-      sidebar: { bg: 'rgba(26, 28, 34, 0.65)', border: 'transparent' },
-      layers: { bg: 'color-mix(in srgb, var(--acc) 6%, rgba(120, 120, 128, 0.12))', border: 'transparent' }
-    },
-    '4': {
-      btnPrimary: { bg: 'var(--acc)', color: '#fff', border: 'none', shadow: 'none', hover: 'color-mix(in srgb, var(--acc) 86%, white)' },
-      btnSecondary: { bg: 'rgba(255, 255, 255, 0.07)', color: 'var(--txt)', border: 'rgba(255, 255, 255, 0.08)', shadow: 'none', blur: 'blur(24px) saturate(1.12)', hover: 'rgba(255, 255, 255, 0.11)' },
-      tabs: { onBg: 'rgba(255, 255, 255, 0.1)', onColor: 'var(--acc)', onBorder: 'transparent', onShadow: 'none', useBorder: '0' },
-      chips: { onBg: 'rgba(255, 255, 255, 0.1)', onColor: 'var(--acc)', onBorder: 'transparent', onShadow: 'none' },
-      tiles: { bg: 'rgba(255, 255, 255, 0.05)', border: 'rgba(255, 255, 255, 0.08)', blur: 'blur(24px) saturate(1.12)', shadow: 'none' },
-      panes: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.08)', shadow: '0 8px 32px rgba(0, 0, 0, 0.22)', blur: 'blur(32px) saturate(1.12)' },
-      focus: { ring: '0 0 0 3px rgba(255, 255, 255, 0.12)', border: 'rgba(255, 255, 255, 0.35)' },
-      hover: { border: 'rgba(255, 255, 255, 0.16)', shadow: '0 10px 28px rgba(0, 0, 0, 0.3)' },
-      sidebar: { bg: 'rgba(32, 34, 40, 0.42)', border: 'rgba(255, 255, 255, 0.06)' },
-      layers: { bg: 'rgba(255, 255, 255, 0.05)', border: 'rgba(255, 255, 255, 0.08)' }
-    },
-    '5': {
-      btnPrimary: { bg: 'rgba(255, 255, 255, 0.12)', color: 'rgba(255, 255, 255, 0.95)', border: 'none', shadow: 'none', hover: 'rgba(255, 255, 255, 0.17)' },
-      btnSecondary: { bg: 'transparent', color: 'var(--txt)', border: 'transparent', shadow: 'none', blur: 'none', hover: 'rgba(255, 255, 255, 0.06)' },
-      tabs: { onBg: 'rgba(255, 255, 255, 0.09)', onColor: 'rgba(255, 255, 255, 0.95)', onBorder: 'transparent', onShadow: 'none', useBorder: '0' },
-      chips: { onBg: 'rgba(255, 255, 255, 0.09)', onColor: 'rgba(255, 255, 255, 0.95)', onBorder: 'transparent', onShadow: 'none' },
-      tiles: { bg: 'rgba(255, 255, 255, 0.04)', border: 'transparent', blur: 'none', shadow: 'none' },
-      panes: { bg: 'rgba(18, 18, 20, 0.94)', border: 'transparent', shadow: 'none', blur: 'none' },
-      focus: { ring: '0 0 0 3px rgba(255, 255, 255, 0.08)', border: 'rgba(255, 255, 255, 0.28)' },
-      hover: { border: 'rgba(255, 255, 255, 0.1)', shadow: '0 4px 12px rgba(0, 0, 0, 0.2)' },
-      sidebar: { bg: 'rgba(18, 18, 20, 0.94)', border: 'transparent' },
-      layers: { bg: 'rgba(255, 255, 255, 0.04)', border: 'transparent' }
-    }
-  };
-
-  var CLASSIC = {
-    btnPrimary: { bg: 'var(--acc)', color: '#fff', border: 'none', shadow: '0 2px 14px rgba(91, 154, 255, 0.28)', hover: 'color-mix(in srgb, var(--acc) 88%, #fff)' },
-    btnSecondary: { bg: 'rgba(255, 255, 255, 0.08)', color: 'var(--txt)', border: 'rgba(255, 255, 255, 0.13)', shadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.11), 0 1px 4px rgba(0, 0, 0, 0.24)', blur: 'blur(28px) saturate(1.15)', hover: 'rgba(255, 255, 255, 0.12)' },
-    tabs: { onBg: 'rgba(91, 154, 255, 0.16)', onColor: 'var(--txt)', onBorder: 'rgba(130, 165, 255, 0.22)', onShadow: 'inset 0 1px 0 rgba(195, 215, 255, 0.18), 0 2px 12px rgba(91, 154, 255, 0.08)', useBorder: '1' },
-    chips: { onBg: 'rgba(91, 154, 255, 0.22)', onColor: 'var(--txt)', onBorder: 'rgba(91, 154, 255, 0.38)', onShadow: 'none' },
-    tiles: { bg: 'var(--s2)', border: 'var(--bd)', blur: 'none', shadow: 'none' },
-    panes: { bg: 'rgba(155, 185, 255, 0.055)', border: 'rgba(130, 165, 255, 0.14)', shadow: 'var(--glass-shadow)', blur: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))' },
-    focus: { ring: '0 0 0 3px color-mix(in srgb, var(--acc) 35%, transparent)', border: 'color-mix(in srgb, var(--acc) 55%, transparent)' },
-    hover: { border: 'rgba(130, 165, 255, 0.22)', shadow: '0 4px 24px rgba(0, 0, 0, 0.2)' },
-    sidebar: { bg: 'rgba(42, 42, 46, 0.48)', border: 'var(--bd)' },
-    layers: { bg: 'rgba(155, 185, 255, 0.055)', border: 'rgba(130, 165, 255, 0.14)' }
-  };
-
-  function defaultAxis(family, preset) {
-    return { family: family || 'classic', preset: preset || '1' };
-  }
-
-  function axisTokens(session, axisKey) {
-    var ax = session.axes[axisKey];
-    var preset = window.normalizeFinderPreset(ax.preset || '1');
-    if (ax.family === 'classic') return Object.assign({}, CLASSIC[axisKey]);
-    var presetBlock = FINDER_PRESET[preset] || FINDER_PRESET['1'];
-    return Object.assign({}, presetBlock[axisKey] || FINDER_PRESET['1'][axisKey]);
-  }
-
-  function axisLabel(ax) {
-    if (ax.family === 'classic') return 'Classique';
-    var p = (window.FINDER_PRESETS || []).find(function (x) { return x.id === ax.preset; });
-    return p ? 'Finder ' + p.id + ' · ' + p.name : 'Finder ' + ax.preset;
+  function patchSettingsFromSession(target, session) {
+    if (!target || !session) return;
+    target.uiStyle = session.uiStyle === 'finder' ? 'finder' : 'classic';
+    target.finderPreset = window.normalizeFinderPreset(session.finderPreset);
+    target.finderBackdropTone = window.normalizeFinderBackdropTone(session.finderBackdropTone);
+    target.finderBackdropVignette = window.normalizeFinderBackdropVignette(session.finderBackdropVignette);
+    target.backdropBlur = window.normalizeBackdropBlur(session.backdropBlur);
+    if (session.appColor) target.appColor = session.appColor;
+    if (session.navLayout) target.navLayout = session.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
   }
 
   window.styleMixerDefaultSession = function () {
     return {
-      navLayout: 'top',
-      appColor: '#5b9aff',
-      backdropTone: 'soft',
-      backdropVignette: 'light',
+      uiStyle: 'classic',
+      finderPreset: '1',
+      finderBackdropTone: 'soft',
+      finderBackdropVignette: 'light',
       backdropBlur: 'medium',
-      axes: {
-        btnPrimary: defaultAxis('classic'),
-        btnSecondary: defaultAxis('classic'),
-        tabs: defaultAxis('classic'),
-        chips: defaultAxis('classic'),
-        tiles: defaultAxis('classic'),
-        panes: defaultAxis('classic'),
-        focus: defaultAxis('classic'),
-        hover: defaultAxis('classic'),
-        sidebar: defaultAxis('finder', '1'),
-        layers: defaultAxis('finder', '1')
-      }
+      appColor: '#5b9aff',
+      navLayout: 'top'
     };
   };
 
   window.styleMixerSessionFromSettings = function () {
     if (!window.D || !window.D.settings) return window.styleMixerDefaultSession();
     var s = window.D.settings;
-    var ui = window.normalizeUiStyle(s.uiStyle);
-    var family = ui === 'finder' ? 'finder' : 'classic';
-    var preset = window.normalizeFinderPreset(s.finderPreset);
-    var ax = defaultAxis(family, preset);
-    var session = window.styleMixerDefaultSession();
-    session.navLayout = s.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
-    session.appColor = s.appColor || '#5b9aff';
-    session.backdropBlur = window.normalizeBackdropBlur(s.backdropBlur);
-    if (ui === 'finder') {
-      session.backdropTone = window.normalizeFinderBackdropTone(s.finderBackdropTone);
-      session.backdropVignette = window.normalizeFinderBackdropVignette(s.finderBackdropVignette);
-    } else {
-      session.backdropTone = 'classic';
-      session.backdropVignette = 'off';
-    }
-    AXIS_KEYS.forEach(function (k) { session.axes[k] = { family: ax.family, preset: ax.preset }; });
-    return session;
+    return {
+      uiStyle: window.normalizeUiStyle(s.uiStyle) === 'finder' ? 'finder' : 'classic',
+      finderPreset: window.normalizeFinderPreset(s.finderPreset),
+      finderBackdropTone: window.normalizeFinderBackdropTone(s.finderBackdropTone),
+      finderBackdropVignette: window.normalizeFinderBackdropVignette(s.finderBackdropVignette),
+      backdropBlur: window.normalizeBackdropBlur(s.backdropBlur),
+      appColor: s.appColor || '#5b9aff',
+      navLayout: s.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top'
+    };
   };
 
   function ensureSession() {
@@ -174,91 +61,106 @@
     return window._styleMixerSession;
   }
 
-  function setCssVar(el, name, value) {
-    if (value != null && value !== '') el.style.setProperty(name, value);
-    else el.style.removeProperty(name);
+  function presetMeta(id) {
+    var list = window.FINDER_PRESETS || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].id === id) return list[i];
+    }
+    return { id: id, name: 'Preset ' + id, desc: '' };
   }
 
-  window.applyStyleMixerToElement = function (el, session) {
-    if (!el || !session) return;
-    el.classList.add('style-mixer-scope');
-
-    AXIS_KEYS.forEach(function (axis) {
-      var ax = session.axes[axis];
-      var cap = axis.charAt(0).toUpperCase() + axis.slice(1);
-      el.dataset['mix' + cap] = ax.family;
-      el.dataset['mix' + cap + 'Preset'] = ax.preset || '1';
-      var t = axisTokens(session, axis);
-      if (!t) return;
-      if (axis === 'tabs' && t.useBorder != null) el.dataset.mixTabsUseborder = t.useBorder;
-      Object.keys(t).forEach(function (prop) {
-        setCssVar(el, '--mix-' + axis + '-' + prop, t[prop]);
-      });
-    });
-
-    if (session.appColor) el.style.setProperty('--acc', session.appColor);
-  };
-
-  function applyBackdropClasses(session) {
-    var body = document.body;
-    ['classic', 'soft', 'neutral', 'deep', 'warm', 'accent'].forEach(function (t) {
-      body.classList.remove('backdrop-tone-' + t);
-    });
-    body.classList.remove('backdrop-vignette-off', 'backdrop-vignette-light', 'backdrop-vignette-medium');
-    if (session.backdropTone && session.backdropTone !== 'classic') {
-      body.classList.add('backdrop-tone-' + session.backdropTone);
-    }
-    if (session.backdropVignette && session.backdropVignette !== 'off') {
-      body.classList.add('backdrop-vignette-' + session.backdropVignette);
-    }
-    var blurId = window.normalizeBackdropBlur(session.backdropBlur);
-    var blurLevel = window.BACKDROP_BLUR_LEVELS.find(function (l) { return l.id === blurId; }) || window.BACKDROP_BLUR_LEVELS[2];
-    body.classList.toggle('shell-backdrop-blur', blurLevel.px > 0);
-    document.documentElement.style.setProperty('--shell-backdrop-blur', blurLevel.px + 'px');
+  function sessionSummary(session) {
+    if (session.uiStyle === 'classic') return 'Classique';
+    var p = presetMeta(session.finderPreset);
+    return 'Finder · preset ' + p.id + ' — ' + p.name;
   }
 
-  function applyNavLayoutSession(session) {
-    var nav = session.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
-    document.body.classList.toggle('nav-sidebar-left', nav === 'sidebar-left');
-    var pageFloat = document.getElementById('pageTitleFloat');
-    if (pageFloat) {
-      pageFloat.classList.toggle('hidden', nav !== 'sidebar-left');
-      pageFloat.setAttribute('aria-hidden', nav === 'sidebar-left' ? 'false' : 'true');
-    }
-    if (typeof window.layoutNav === 'function') window.layoutNav();
-    if (typeof window.layoutChrome === 'function') window.layoutChrome();
-    if (typeof window.renderAppNav === 'function') window.renderAppNav(window._activeTab || 'home');
+  function renderSamplesBlock(forFinder) {
+    var navHtml = forFinder
+      ? '<div class="finder-style-nav-row">' +
+          '<button type="button" class="ui-btn-nav-demo on" tabindex="-1">Actif</button>' +
+          '<button type="button" class="ui-btn-nav-demo" tabindex="-1">Inactif</button>' +
+        '</div>'
+      : '<div class="finder-style-nav-row">' +
+          '<button type="button" class="tab on" tabindex="-1">Actif</button>' +
+          '<button type="button" class="tab" tabindex="-1">Inactif</button>' +
+        '</div>';
+    return (
+      '<div class="finder-style-samples">' +
+        '<div><label>Navigation</label>' + navHtml + '</div>' +
+        '<div><label>Principal</label><button type="button" class="bp" tabindex="-1">Commencer</button></div>' +
+        '<div><label>Secondaire</label><button type="button" class="bs" tabindex="-1">Scanner</button></div>' +
+        '<div><label>Chips</label><span class="chip on">Actif</span> <span class="chip">Off</span></div>' +
+        '<div><label>Tuile</label><div class="dash-card" style="max-width:120px;padding:10px;"><div class="dash-num">42</div><div class="dash-lbl">KPI</div></div></div>' +
+      '</div>'
+    );
+  }
+
+  function renderClassicPreview() {
+    return (
+      '<div class="style-theme-preview ui-classic">' +
+        '<h4 style="margin:0 0 12px;font-size:14px;font-weight:600;">Classique</h4>' +
+        renderSamplesBlock(false) +
+      '</div>'
+    );
+  }
+
+  function renderFinderPreviewCard(presetId, active, clickable) {
+    var p = presetMeta(presetId);
+    var activeCls = active ? ' is-active' : '';
+    var attrs = clickable
+      ? ' data-preset="' + presetId + '" onclick="window.styleMixerPickFinder(\'' + presetId + '\')"'
+      : '';
+    return (
+      '<div class="finder-style-card finder-preset-' + presetId + activeCls + '"' + attrs + '>' +
+        '<h3>' + p.id + '. ' + p.name + '</h3>' +
+        '<p>' + p.desc + '</p>' +
+        renderSamplesBlock(true) +
+        (clickable
+          ? '<button type="button" class="bp finder-style-pick style-mixer-ui" tabindex="-1">' +
+              (active ? '✓ Sélectionné' : 'Choisir') +
+            '</button>'
+          : '') +
+      '</div>'
+    );
+  }
+
+  function renderMainPreview(session) {
+    if (session.uiStyle === 'classic') return renderClassicPreview();
+    return renderFinderPreviewCard(session.finderPreset, true, false);
+  }
+
+  function renderDiffTable() {
+    var rows = THEME_DIFFS.map(function (d) {
+      return (
+        '<tr><td>' + d.aspect + '</td><td>' + d.classic + '</td><td>' + d.finder + '</td></tr>'
+      );
+    }).join('');
+    return (
+      '<table class="style-mixer-diff-table">' +
+        '<thead><tr><th>Élément</th><th>Classique</th><th>Finder</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>'
+    );
   }
 
   window.applyStyleMixerLive = function () {
-    var session = ensureSession();
-    window._styleMixerLive = true;
-    document.body.classList.add('style-mixer-live');
-    document.body.classList.remove('ui-classic', 'ui-finder', 'ui-character', 'ui-minimal');
-    document.body.classList.remove('finder-preset-1', 'finder-preset-2', 'finder-preset-3', 'finder-preset-4', 'finder-preset-5');
-
-    if (session.appColor) {
-      document.documentElement.style.setProperty('--acc', session.appColor);
-      var r = parseInt(session.appColor.slice(1, 3), 16);
-      var g = parseInt(session.appColor.slice(3, 5), 16);
-      var b = parseInt(session.appColor.slice(5, 7), 16);
-      document.documentElement.style.setProperty('--glow', 'rgba(' + r + ',' + g + ',' + b + ',0.22)');
+    if (!window.D || !window.D.settings) return;
+    if (!window._styleMixerSavedSettings) {
+      window._styleMixerSavedSettings = JSON.parse(JSON.stringify(window.D.settings));
     }
-
-    applyBackdropClasses(session);
-    applyNavLayoutSession(session);
-    window.applyStyleMixerToElement(document.body, session);
+    var session = ensureSession();
+    patchSettingsFromSession(window.D.settings, session);
+    window._styleMixerLive = true;
+    if (typeof window.applySettings === 'function') window.applySettings();
   };
 
   window.revertStyleMixerLive = function () {
+    if (window._styleMixerSavedSettings && window.D) {
+      window.D.settings = JSON.parse(JSON.stringify(window._styleMixerSavedSettings));
+      window._styleMixerSavedSettings = null;
+    }
     window._styleMixerLive = false;
-    document.body.classList.remove('style-mixer-live', 'style-mixer-scope');
-    AXIS_KEYS.forEach(function (axis) {
-      var cap = axis.charAt(0).toUpperCase() + axis.slice(1);
-      delete document.body.dataset['mix' + cap];
-      delete document.body.dataset['mix' + cap + 'Preset'];
-    });
-    delete document.body.dataset.mixTabsUseborder;
     if (typeof window.applySettings === 'function') window.applySettings();
   };
 
@@ -267,49 +169,33 @@
   };
 
   window.styleMixerEnterTab = function () {
-    window._styleMixerLive = false;
     window.renderStyleMixer();
+    window.styleMixerSyncPreview();
+  };
+
+  window.styleMixerSetUiStyle = function (style) {
+    var session = ensureSession();
+    session.uiStyle = style === 'finder' ? 'finder' : 'classic';
+    window.styleMixerSyncPreview();
+  };
+
+  window.styleMixerPickFinder = function (presetId) {
+    var session = ensureSession();
+    session.uiStyle = 'finder';
+    session.finderPreset = window.normalizeFinderPreset(presetId);
     window.styleMixerSyncPreview();
   };
 
   window.styleMixerSet = function (path, value) {
     var session = ensureSession();
-    var parts = path.split('.');
-    var obj = session;
-    for (var i = 0; i < parts.length - 1; i++) {
-      if (!obj[parts[i]]) obj[parts[i]] = {};
-      obj = obj[parts[i]];
-    }
-    obj[parts[parts.length - 1]] = value;
+    session[path] = value;
     window.styleMixerSyncPreview();
   };
 
-  window.styleMixerSetAxis = function (axis, family, preset) {
-    var session = ensureSession();
-    session.axes[axis] = {
-      family: family === 'finder' ? 'finder' : 'classic',
-      preset: window.normalizeFinderPreset(preset || '1')
-    };
-    window.styleMixerSyncPreview();
-  };
-
-  window.styleMixerLoadShortcut = function (id) {
-    if (id === 'from-settings') {
-      window._styleMixerSession = window.styleMixerSessionFromSettings();
-    } else {
-      var session = ensureSession();
-      if (id === 'classic-all') {
-        AXIS_KEYS.forEach(function (k) { session.axes[k] = defaultAxis('classic'); });
-        session.backdropTone = 'classic';
-        session.backdropVignette = 'off';
-      } else if (id.indexOf('finder-') === 0) {
-        var p = id.replace('finder-', '');
-        AXIS_KEYS.forEach(function (k) { session.axes[k] = defaultAxis('finder', p); });
-        session.backdropTone = 'soft';
-        session.backdropVignette = 'light';
-      }
-    }
-    window.styleMixerSyncPreview();
+  window.styleMixerLoadFromSettings = function () {
+    window._styleMixerSession = window.styleMixerSessionFromSettings();
+    if (window._styleMixerLive) window.applyStyleMixerLive();
+    else window.styleMixerSyncPreview();
   };
 
   window.styleMixerToggleLive = function (on) {
@@ -318,35 +204,26 @@
     window.styleMixerSyncPreview();
   };
 
-  window.styleMixerResetSession = function () {
-    window._styleMixerSession = window.styleMixerDefaultSession();
-    if (window._styleMixerLive) window.revertStyleMixerLive();
-    window.styleMixerSyncPreview();
-  };
-
   window.styleMixerExportBlock = function () {
     var session = ensureSession();
     var payload = {
-      version: 1,
+      version: 2,
       profile: 'style-mixer',
       exportedAt: new Date().toISOString(),
-      navLayout: session.navLayout,
-      appColor: session.appColor,
-      backdropTone: session.backdropTone,
-      backdropVignette: session.backdropVignette,
+      uiStyle: session.uiStyle,
+      finderPreset: session.finderPreset,
+      finderBackdropTone: session.finderBackdropTone,
+      finderBackdropVignette: session.finderBackdropVignette,
       backdropBlur: session.backdropBlur,
-      axes: session.axes,
+      appColor: session.appColor,
+      navLayout: session.navLayout,
       livePreview: !!window._styleMixerLive
     };
     var lines = [
-      '=== STYLE_MIXER_PROFILE v1 ===',
-      'Résumé : Nav ' + (session.navLayout === 'sidebar-left' ? 'sidebar' : 'haut') +
-        ' · Accent ' + session.appColor +
-        ' · Fond ' + session.backdropTone + ' / vignette ' + session.backdropVignette + ' / flou ' + session.backdropBlur,
-      'Axes :',
-      AXIS_KEYS.map(function (k) {
-        return '  - ' + window.STYLE_MIXER_AXIS_LABELS[k] + ' → ' + axisLabel(session.axes[k]);
-      }).join('\n'),
+      '=== STYLE_MIXER_PROFILE v2 ===',
+      'Choix : ' + sessionSummary(session),
+      'Fond : ton ' + session.finderBackdropTone + ' · vignette ' + session.finderBackdropVignette + ' · flou ' + session.backdropBlur,
+      'Accent : ' + session.appColor,
       '',
       'JSON (coller dans le chat Cursor) :',
       JSON.stringify(payload, null, 2),
@@ -368,59 +245,30 @@
     return '<button type="button" class="ui-lab-chip style-mixer-ui' + (active ? ' is-active' : '') + '" ' + (extra || '') + ' onclick="' + onclick + '">' + label + '</button>';
   }
 
-  function axisOptionActive(ax, family, preset) {
-    if (family === 'classic') return ax.family === 'classic';
-    return ax.family === 'finder' && ax.preset === preset;
-  }
-
-  function renderAxisRow(session, axisKey) {
-    var ax = session.axes[axisKey];
-    var html = chip(axisOptionActive(ax, 'classic'), 'Classique', "window.styleMixerSetAxis('" + axisKey + "','classic','1')");
-    (window.FINDER_PRESETS || []).forEach(function (p) {
-      html += chip(
-        axisOptionActive(ax, 'finder', p.id),
-        'F' + p.id + ' ' + p.name,
-        "window.styleMixerSetAxis('" + axisKey + "','finder','" + p.id + "')"
-      );
-    });
-    return (
-      '<div class="style-mixer-axis" data-axis="' + axisKey + '">' +
-        '<div class="style-mixer-axis-head">' +
-          '<span class="style-mixer-axis-title">' + window.STYLE_MIXER_AXIS_LABELS[axisKey] + '</span>' +
-          '<span class="style-mixer-axis-val" id="mixVal_' + axisKey + '">' + axisLabel(ax) + '</span>' +
-        '</div>' +
-        '<div class="ui-lab-chip-row style-mixer-axis-chips">' + html + '</div>' +
-      '</div>'
-    );
-  }
-
   window.styleMixerSyncPreview = function () {
     var session = ensureSession();
-    var sandbox = document.getElementById('styleMixerSandbox');
-    if (sandbox) window.applyStyleMixerToElement(sandbox, session);
+
+    var host = document.getElementById('styleMixerPreviewHost');
+    if (host) host.innerHTML = renderMainPreview(session);
 
     var summary = document.getElementById('styleMixerSummary');
-    if (summary) {
-      summary.textContent = 'Bouton principal : ' + axisLabel(session.axes.btnPrimary) +
-        ' · Onglet : ' + axisLabel(session.axes.tabs);
-    }
+    if (summary) summary.textContent = 'Sélection : ' + sessionSummary(session);
 
-    AXIS_KEYS.forEach(function (k) {
-      var el = document.getElementById('mixVal_' + k);
-      if (el) el.textContent = axisLabel(session.axes[k]);
+    var classicBtn = document.getElementById('styleMixerPickClassic');
+    var finderBtn = document.getElementById('styleMixerPickFinder');
+    if (classicBtn) classicBtn.classList.toggle('is-active', session.uiStyle === 'classic');
+    if (finderBtn) finderBtn.classList.toggle('is-active', session.uiStyle === 'finder');
+
+    document.querySelectorAll('.style-mixer-preset-grid .finder-style-card').forEach(function (card) {
+      var id = card.getAttribute('data-preset');
+      var active = session.uiStyle === 'finder' && id === session.finderPreset;
+      card.classList.toggle('is-active', active);
+      var pick = card.querySelector('.finder-style-pick');
+      if (pick) pick.textContent = active ? '✓ Sélectionné' : 'Choisir';
     });
 
-    document.querySelectorAll('.style-mixer-axis').forEach(function (row) {
-      var key = row.dataset.axis;
-      if (!key) return;
-      var ax = session.axes[key];
-      row.querySelectorAll('.style-mixer-ui').forEach(function (btn, i) {
-        var isClassic = i === 0;
-        var preset = isClassic ? null : String(i);
-        var active = isClassic ? ax.family === 'classic' : (ax.family === 'finder' && ax.preset === preset);
-        btn.classList.toggle('is-active', active);
-      });
-    });
+    var finderOpts = document.getElementById('styleMixerFinderOptions');
+    if (finderOpts) finderOpts.classList.toggle('style-mixer-section-hidden', session.uiStyle !== 'finder');
 
     syncGlobalChips(session);
 
@@ -437,20 +285,20 @@
   };
 
   function syncGlobalChips(session) {
-    document.querySelectorAll('[data-mix-nav]').forEach(function (el) {
-      el.classList.toggle('is-active', el.getAttribute('data-mix-nav') === session.navLayout);
-    });
     document.querySelectorAll('[data-mix-backdrop]').forEach(function (el) {
-      el.classList.toggle('is-active', el.getAttribute('data-mix-backdrop') === session.backdropTone);
+      el.classList.toggle('is-active', el.getAttribute('data-mix-backdrop') === session.finderBackdropTone);
     });
     document.querySelectorAll('[data-mix-vignette]').forEach(function (el) {
-      el.classList.toggle('is-active', el.getAttribute('data-mix-vignette') === session.backdropVignette);
+      el.classList.toggle('is-active', el.getAttribute('data-mix-vignette') === session.finderBackdropVignette);
     });
     document.querySelectorAll('[data-mix-blur]').forEach(function (el) {
       el.classList.toggle('is-active', el.getAttribute('data-mix-blur') === session.backdropBlur);
     });
     document.querySelectorAll('[data-mix-color]').forEach(function (el) {
       el.classList.toggle('is-active', el.getAttribute('data-mix-color') === session.appColor);
+    });
+    document.querySelectorAll('[data-mix-nav]').forEach(function (el) {
+      el.classList.toggle('is-active', el.getAttribute('data-mix-nav') === session.navLayout);
     });
   }
 
@@ -470,43 +318,28 @@
       swatches += '<button type="button" class="ui-lab-swatch style-mixer-ui' + (c === session.appColor ? ' is-active' : '') + '" data-mix-color="' + c + '" style="background:' + c + '" title="' + c + '" onclick="window.styleMixerSet(\'appColor\',\'' + c + '\')"></button>';
     });
 
-    var groupHtml = AXIS_GROUPS.map(function (grp) {
-      return (
-        '<details class="style-mixer-group" open>' +
-          '<summary><span data-icon="' + grp.icon + '"></span> ' + grp.label + '</summary>' +
-          '<div class="style-mixer-axes">' +
-            grp.keys.map(function (k) { return renderAxisRow(session, k); }).join('') +
-          '</div>' +
-        '</details>'
+    var presetCards = '';
+    (window.FINDER_PRESETS || []).forEach(function (p) {
+      presetCards += renderFinderPreviewCard(
+        p.id,
+        session.uiStyle === 'finder' && p.id === session.finderPreset,
+        true
       );
-    }).join('');
+    });
 
     root.innerHTML =
       '<div class="ui-design-lab style-mixer-lab">' +
         '<div class="ui-lab-hero">' +
           '<h2><span data-icon="palette"></span> Style Mixeur</h2>' +
-          '<p>Prépare ton profil visuel ici. <b>L\'app ne change pas</b> tant que tu n\'actives pas « Tester sur toute l\'app ». Rien n\'est sauvegardé — exporte le profil en bas quand tu es prêt.</p>' +
+          '<p>Choisis entre <b>Classique</b> et <b>Finder</b> — les aperçus utilisent les <b>mêmes styles CSS</b> que Paramètres et le Labo UI. Rien n\'est sauvegardé tant que tu n\'exportes pas le profil.</p>' +
         '</div>' +
 
         '<section class="style-mixer-preview-section">' +
           '<div class="style-mixer-preview-head">' +
-            '<h3>Aperçu instantané</h3>' +
+            '<h3>Aperçu de ta sélection</h3>' +
             '<p id="styleMixerSummary" class="style-mixer-summary">—</p>' +
           '</div>' +
-          '<div id="styleMixerSandbox" class="style-mixer-sandbox style-mixer-scope">' +
-            '<div class="style-mixer-demo-row">' +
-              '<div class="style-mixer-demo-block"><span class="style-mixer-demo-lbl">Onglets</span>' +
-                '<button type="button" class="tab on" tabindex="-1">Actif</button>' +
-                '<button type="button" class="tab" tabindex="-1">Inactif</button></div>' +
-              '<div class="style-mixer-demo-block"><span class="style-mixer-demo-lbl">Boutons</span>' +
-                '<button type="button" class="bp" tabindex="-1">Principal</button>' +
-                '<button type="button" class="bs" tabindex="-1">Secondaire</button></div>' +
-              '<div class="style-mixer-demo-block"><span class="style-mixer-demo-lbl">Chips</span>' +
-                '<span class="chip on">Actif</span><span class="chip">Off</span></div>' +
-              '<div class="style-mixer-demo-block"><span class="style-mixer-demo-lbl">Tuile</span>' +
-                '<div class="dash-card"><div class="dash-num">42</div><div class="dash-lbl">KPI</div></div></div>' +
-            '</div>' +
-          '</div>' +
+          '<div id="styleMixerPreviewHost"></div>' +
         '</section>' +
 
         '<section class="style-mixer-toolbar">' +
@@ -515,42 +348,44 @@
             '<button type="button" class="bp style-mixer-ui" onclick="window.styleMixerToggleLive(' + (!live) + ')">' +
               (live ? 'Arrêter test sur l\'app' : 'Tester sur toute l\'app') +
             '</button>' +
-            '<button type="button" class="bs style-mixer-ui" onclick="window.styleMixerLoadShortcut(\'from-settings\')">Mes paramètres actuels</button>' +
-            '<button type="button" class="bs style-mixer-ui" onclick="window.styleMixerResetSession()">Réinitialiser</button>' +
+            '<button type="button" class="bs style-mixer-ui" onclick="window.styleMixerLoadFromSettings()">Mes paramètres actuels</button>' +
           '</div>' +
         '</section>' +
 
         '<section class="ui-lab-section">' +
-          '<h3 class="ui-lab-section-title"><span data-icon="zap"></span> Départ rapide <span class="style-mixer-hint">— charge tous les axes d\'un coup</span></h3>' +
-          '<div class="ui-lab-chip-row">' +
-            chip(false, 'Tout Classique', "window.styleMixerLoadShortcut('classic-all')") +
-            (window.FINDER_PRESETS || []).map(function (p) {
-              return chip(false, 'Tout Finder ' + p.id + ' · ' + p.name, "window.styleMixerLoadShortcut('finder-" + p.id + "')");
-            }).join('') +
+          '<h3 class="ui-lab-section-title"><span data-icon="git-compare"></span> Classique ou Finder ?</h3>' +
+          '<div class="style-mixer-main-pick">' +
+            '<button type="button" id="styleMixerPickClassic" class="style-mixer-main-btn' + (session.uiStyle === 'classic' ? ' is-active' : '') + '" onclick="window.styleMixerSetUiStyle(\'classic\')">' +
+              '<strong>Classique</strong>' +
+              '<span>Bleu lumineux, glow sur onglets et boutons. Le style d\'origine du site.</span>' +
+            '</button>' +
+            '<button type="button" id="styleMixerPickFinder" class="style-mixer-main-btn' + (session.uiStyle === 'finder' ? ' is-active' : '') + '" onclick="window.styleMixerSetUiStyle(\'finder\')">' +
+              '<strong>Finder</strong>' +
+              '<span>Style Apple neutre, 5 presets. Fond réglable (ton, vignette, flou).</span>' +
+            '</button>' +
+          '</div>' +
+          '<div class="ui-lab-compare-grid">' +
+            renderClassicPreview() +
+            renderFinderPreviewCard('1', false, false) +
           '</div>' +
         '</section>' +
 
-        '<details class="style-mixer-group">' +
-          '<summary><span data-icon="sliders"></span> Fond & navigation</summary>' +
+        '<section class="ui-lab-section' + (session.uiStyle !== 'finder' ? ' style-mixer-section-hidden' : '') + '" id="styleMixerFinderOptions">' +
+          '<h3 class="ui-lab-section-title"><span data-icon="sparkles"></span> Preset Finder (1–5)</h3>' +
+          '<p class="ui-lab-section-desc">Même cartes que le Labo UI — clique pour choisir.</p>' +
+          '<div class="style-mixer-preset-grid finder-style-grid">' + presetCards + '</div>' +
+          '<h3 class="ui-lab-section-title" style="margin-top:20px;"><span data-icon="image"></span> Fond (Finder uniquement)</h3>' +
           '<div class="ui-lab-controls">' +
-            '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Navigation (test app seulement)</span>' +
+            '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Ton</span>' +
               '<div class="ui-lab-chip-row">' +
-                chip(session.navLayout === 'top', 'Barre haut', "window.styleMixerSet('navLayout','top')", 'data-mix-nav="top"') +
-                chip(session.navLayout === 'sidebar-left', 'Sidebar', "window.styleMixerSet('navLayout','sidebar-left')", 'data-mix-nav="sidebar-left"') +
-              '</div></div>' +
-            '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Accent</span>' +
-              '<div class="ui-lab-swatch-row">' + swatches + '</div></div>' +
-            '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Ton du fond</span>' +
-              '<div class="ui-lab-chip-row">' +
-                chip(session.backdropTone === 'classic', 'Classique', "window.styleMixerSet('backdropTone','classic')", 'data-mix-backdrop="classic"') +
                 (window.FINDER_BACKDROP_TONES || []).map(function (t) {
-                  return chip(session.backdropTone === t.id, t.name, "window.styleMixerSet('backdropTone','" + t.id + "')", 'data-mix-backdrop="' + t.id + '"');
+                  return chip(session.finderBackdropTone === t.id, t.name, "window.styleMixerSet('finderBackdropTone','" + t.id + "')", 'data-mix-backdrop="' + t.id + '"');
                 }).join('') +
               '</div></div>' +
             '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Vignette</span>' +
               '<div class="ui-lab-chip-row">' +
                 (window.FINDER_BACKDROP_VIGNETTES || []).map(function (v) {
-                  return chip(session.backdropVignette === v.id, v.name, "window.styleMixerSet('backdropVignette','" + v.id + "')", 'data-mix-vignette="' + v.id + '"');
+                  return chip(session.finderBackdropVignette === v.id, v.name, "window.styleMixerSet('finderBackdropVignette','" + v.id + "')", 'data-mix-vignette="' + v.id + '"');
                 }).join('') +
               '</div></div>' +
             '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Flou fond</span>' +
@@ -560,17 +395,30 @@
                 }).join('') +
               '</div></div>' +
           '</div>' +
-        '</details>' +
+        '</section>' +
 
         '<section class="ui-lab-section">' +
-          '<h3 class="ui-lab-section-title"><span data-icon="layers"></span> Mix fin par élément</h3>' +
-          '<p class="ui-lab-section-desc">Une ligne = Classique ou Finder 1 à 5. Ex. boutons Classique + onglets Finder 2.</p>' +
-          groupHtml +
+          '<h3 class="ui-lab-section-title"><span data-icon="list"></span> Toutes les différences</h3>' +
+          renderDiffTable() +
         '</section>' +
+
+        '<details class="style-mixer-group">' +
+          '<summary><span data-icon="sliders"></span> Options test app</summary>' +
+          '<div class="ui-lab-controls">' +
+            '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Accent (couleur principale)</span>' +
+              '<div class="ui-lab-swatch-row">' + swatches + '</div></div>' +
+            '<div class="ui-lab-control-group"><span class="ui-lab-control-label">Navigation (test app seulement)</span>' +
+              '<div class="ui-lab-chip-row">' +
+                chip(session.navLayout === 'top', 'Barre haut', "window.styleMixerSet('navLayout','top')", 'data-mix-nav="top"') +
+                chip(session.navLayout === 'sidebar-left', 'Sidebar', "window.styleMixerSet('navLayout','sidebar-left')", 'data-mix-nav="sidebar-left"') +
+              '</div></div>' +
+          '</div>' +
+        '</details>' +
 
         '<section class="ui-lab-section style-mixer-export">' +
           '<h3 class="ui-lab-section-title"><span data-icon="clipboard-list"></span> Export</h3>' +
-          '<textarea id="styleMixerExportText" class="style-mixer-export-text" readonly rows="12"></textarea>' +
+          '<p class="ui-lab-section-desc">Colle ce bloc dans le chat quand tu as choisi — j\'appliquerai le profil définitivement.</p>' +
+          '<textarea id="styleMixerExportText" class="style-mixer-export-text" readonly rows="14"></textarea>' +
           '<button type="button" class="bp style-mixer-ui" onclick="window.styleMixerCopyExport()">Copier le profil</button>' +
         '</section>' +
       '</div>';

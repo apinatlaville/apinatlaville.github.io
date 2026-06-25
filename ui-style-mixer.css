@@ -1,97 +1,7 @@
-/* ===== Style Mixeur v2 — sandbox isolé + live opt-in ===== */
+/* ===== Style Mixeur — aperçu = mêmes classes CSS que l'app ===== */
 
 .style-mixer-lab .ui-lab-hero p {
   line-height: 1.55;
-}
-
-.style-mixer-hint {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--mut);
-}
-
-.style-mixer-preview-section {
-  margin-bottom: 20px;
-}
-
-.style-mixer-preview-head {
-  margin-bottom: 10px;
-}
-
-.style-mixer-preview-head h3 {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0 0 4px;
-}
-
-.style-mixer-summary {
-  font-size: 12px;
-  color: var(--mut);
-  margin: 0;
-}
-
-/* Panneau aperçu — fond sombre fixe, indépendant du thème app */
-#styleMixerSandbox.style-mixer-sandbox {
-  border-radius: 16px;
-  padding: 18px;
-  background: #141824;
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
-  color: #e8ecf4;
-  --txt: #e8ecf4;
-  --mut: rgba(232, 236, 244, 0.62);
-  --s2: rgba(255, 255, 255, 0.06);
-  --bd: rgba(255, 255, 255, 0.1);
-  isolation: isolate;
-}
-
-.style-mixer-demo-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 16px;
-}
-
-.style-mixer-demo-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
-}
-
-.style-mixer-demo-lbl {
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--mut);
-}
-
-#styleMixerSandbox .tab {
-  font-size: 12px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: default;
-}
-
-#styleMixerSandbox .bp,
-#styleMixerSandbox .bs {
-  font-size: 12px;
-  padding: 9px 14px;
-  cursor: default;
-}
-
-#styleMixerSandbox .chip {
-  font-size: 11px;
-  padding: 5px 10px;
-  border-radius: 8px;
-}
-
-#styleMixerSandbox .dash-card {
-  padding: 12px;
-  border-radius: 10px;
-  min-width: 80px;
 }
 
 .style-mixer-toolbar {
@@ -99,7 +9,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  margin: 16px 0 20px;
   padding: 12px 14px;
   border-radius: 12px;
   background: var(--s2);
@@ -112,69 +22,193 @@
   color: var(--acc);
 }
 
-.style-mixer-group {
-  margin-bottom: 16px;
-  border-radius: 12px;
-  background: var(--s2);
-  border: 0.5px solid var(--bd);
-  padding: 0 14px 14px;
-}
-
-.style-mixer-group summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 14px;
-  padding: 14px 0;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.style-mixer-group summary::-webkit-details-marker {
-  display: none;
-}
-
-.style-mixer-axes {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.style-mixer-axis {
-  padding: 12px;
-  border-radius: 10px;
-  background: var(--s1);
-  border: 0.5px solid var(--bd);
-}
-
-.style-mixer-axis-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-
-.style-mixer-axis-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.style-mixer-axis-val {
-  font-size: 11px;
-  color: var(--mut);
-}
-
-.style-mixer-axis-chips {
-  flex-wrap: wrap;
-}
-
 .style-mixer-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* —— Choix principal Classique / Finder —— */
+.style-mixer-main-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 560px) {
+  .style-mixer-main-pick {
+    grid-template-columns: 1fr;
+  }
+}
+
+.style-mixer-main-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 0.5px solid var(--bd);
+  background: var(--s2);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--txt);
+  transition: outline 0.15s, border-color 0.15s;
+}
+
+.style-mixer-main-btn:hover {
+  border-color: color-mix(in srgb, var(--acc) 40%, var(--bd));
+}
+
+.style-mixer-main-btn.is-active {
+  outline: 2px solid color-mix(in srgb, var(--acc) 55%, transparent);
+  outline-offset: 2px;
+  border-color: color-mix(in srgb, var(--acc) 45%, var(--bd));
+}
+
+.style-mixer-main-btn strong {
+  font-size: 16px;
+}
+
+.style-mixer-main-btn span {
+  font-size: 12px;
+  color: var(--mut);
+  line-height: 1.45;
+}
+
+/* —— Grille presets Finder (réutilise finder-style-card) —— */
+.style-mixer-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.style-mixer-preset-grid .finder-style-card {
+  cursor: pointer;
+}
+
+.style-mixer-preset-grid .finder-style-card.is-active {
+  outline: 2px solid color-mix(in srgb, var(--acc) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.style-mixer-preset-grid .finder-style-pick {
+  pointer-events: none;
+}
+
+/* —— Aperçu sélection actuelle —— */
+.style-mixer-preview-section {
+  margin-bottom: 20px;
+}
+
+.style-mixer-preview-head h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.style-mixer-summary {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 0 0 10px;
+}
+
+#styleMixerPreviewHost {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+#styleMixerPreviewHost .finder-style-card,
+#styleMixerPreviewHost .style-theme-preview {
+  margin: 0;
+  border-radius: 16px;
+}
+
+/* —— Classique : mêmes règles que body.ui-classic (ui-themes.css) —— */
+.style-theme-preview.ui-classic {
+  --ui-on-bg: rgba(91, 154, 255, 0.16);
+  --ui-on-border: rgba(130, 165, 255, 0.22);
+  --ui-on-color: var(--txt);
+  --ui-on-shadow: inset 0 1px 0 rgba(195, 215, 255, 0.18), 0 2px 12px rgba(91, 154, 255, 0.08);
+  --ui-chip-on-bg: rgba(91, 154, 255, 0.22);
+  --ui-chip-on-border: rgba(91, 154, 255, 0.38);
+  --ui-chip-on-color: var(--txt);
+  --ui-tile-bg: var(--s2);
+  --ui-tile-border: var(--bd);
+  --ui-accent-bg: var(--acc);
+  --ui-accent-shadow: 0 2px 14px rgba(91, 154, 255, 0.28);
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(91, 154, 255, 0.08), rgba(91, 154, 255, 0.02));
+  border: 0.5px solid rgba(130, 165, 255, 0.18);
+}
+
+.style-theme-preview.ui-classic .tab.on {
+  background: var(--ui-on-bg) !important;
+  color: var(--ui-on-color) !important;
+  border-color: var(--ui-on-border) !important;
+  box-shadow: var(--ui-on-shadow) !important;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.style-theme-preview.ui-classic .chip.on {
+  background: var(--ui-chip-on-bg) !important;
+  border-color: var(--ui-chip-on-border) !important;
+  color: var(--ui-chip-on-color) !important;
+}
+
+.style-theme-preview.ui-classic .dash-card,
+.style-theme-preview.ui-classic .kpi {
+  background: var(--ui-tile-bg);
+  border: 1px solid var(--ui-tile-border);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.style-theme-preview.ui-classic .bp:not(.bp-danger):not(.bp-gold) {
+  background: var(--ui-accent-bg) !important;
+  border: none !important;
+  color: #fff !important;
+  box-shadow: var(--ui-accent-shadow) !important;
+  backdrop-filter: none;
+}
+
+.style-theme-preview.ui-classic .bs {
+  background: rgba(255, 255, 255, 0.08);
+  border: 0.5px solid rgba(255, 255, 255, 0.13);
+}
+
+/* —— Tableau différences —— */
+.style-mixer-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.style-mixer-diff-table th,
+.style-mixer-diff-table td {
+  padding: 8px 10px;
+  border-bottom: 0.5px solid var(--bd);
+  text-align: left;
+  vertical-align: top;
+}
+
+.style-mixer-diff-table th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mut);
+  font-weight: 600;
+}
+
+.style-mixer-diff-table td:first-child {
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .style-mixer-export-text {
@@ -188,132 +222,14 @@
   background: var(--s2);
   color: var(--txt);
   resize: vertical;
-  min-height: 180px;
+  min-height: 160px;
   margin-bottom: 10px;
 }
 
-/* —— Styles mixés : sandbox + app (live) —— */
-#styleMixerSandbox.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold),
-body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold):not(.style-mixer-ui) {
-  background: var(--mix-btnPrimary-bg, var(--acc)) !important;
-  color: var(--mix-btnPrimary-color, #fff) !important;
-  border: var(--mix-btnPrimary-border, none) !important;
-  box-shadow: var(--mix-btnPrimary-shadow, none) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+.style-mixer-section-hidden {
+  display: none;
 }
 
-#styleMixerSandbox.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold):hover,
-body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold):not(.style-mixer-ui):hover:not(:disabled) {
-  background: var(--mix-btnPrimary-hover, var(--acc)) !important;
-}
-
-#styleMixerSandbox.style-mixer-scope .bs,
-body.style-mixer-live .bs:not(.style-mixer-ui),
-body.style-mixer-live .cbt,
-body.style-mixer-live .toggle-btn {
-  background: var(--mix-btnSecondary-bg, rgba(255, 255, 255, 0.08)) !important;
-  border: 0.5px solid var(--mix-btnSecondary-border, transparent) !important;
-  color: var(--mix-btnSecondary-color, var(--txt)) !important;
-  box-shadow: var(--mix-btnSecondary-shadow, none) !important;
-  backdrop-filter: var(--mix-btnSecondary-blur, none) !important;
-  -webkit-backdrop-filter: var(--mix-btnSecondary-blur, none) !important;
-}
-
-#styleMixerSandbox.style-mixer-scope .tab.on,
-body.style-mixer-live .tab.on:not(.style-mixer-ui),
-body.style-mixer-live .anki-tab.on,
-body.style-mixer-live .anki-cockpit-tab.on {
-  background: var(--mix-tabs-onBg) !important;
-  color: var(--mix-tabs-onColor, var(--txt)) !important;
-  box-shadow: var(--mix-tabs-onShadow, none) !important;
-  opacity: 1 !important;
-  font-weight: 600;
-}
-
-#styleMixerSandbox.style-mixer-scope[data-mix-tabs-useborder="1"] .tab.on,
-body.style-mixer-live[data-mix-tabs-useborder="1"] .tab.on {
-  border: 0.5px solid var(--mix-tabs-onBorder) !important;
-}
-
-#styleMixerSandbox.style-mixer-scope[data-mix-tabs-useborder="0"] .tab.on,
-body.style-mixer-live[data-mix-tabs-useborder="0"] .tab.on {
-  border: none !important;
-}
-
-#styleMixerSandbox.style-mixer-scope[data-mix-tabs="finder"] .tab:not(.on),
-body.style-mixer-live[data-mix-tabs="finder"] .tab:not(.on) {
-  color: var(--mut) !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-#styleMixerSandbox.style-mixer-scope .chip.on,
-body.style-mixer-live .chip.on,
-body.style-mixer-live .anki-lib-chip.on {
-  background: var(--mix-chips-onBg) !important;
-  color: var(--mix-chips-onColor, var(--txt)) !important;
-  box-shadow: var(--mix-chips-onShadow, none) !important;
-}
-
-#styleMixerSandbox.style-mixer-scope[data-mix-chips="classic"] .chip.on,
-body.style-mixer-live[data-mix-chips="classic"] .chip.on {
-  border-color: var(--mix-chips-onBorder) !important;
-}
-
-#styleMixerSandbox.style-mixer-scope[data-mix-chips="finder"] .chip.on,
-body.style-mixer-live[data-mix-chips="finder"] .chip.on {
-  border: none !important;
-}
-
-#styleMixerSandbox.style-mixer-scope .dash-card,
-body.style-mixer-live .kpi,
-body.style-mixer-live .dash-card,
-body.style-mixer-live .ui-tile {
-  background: var(--mix-tiles-bg, var(--s2)) !important;
-  border: 0.5px solid var(--mix-tiles-border, var(--bd)) !important;
-  backdrop-filter: var(--mix-tiles-blur, none) !important;
-  -webkit-backdrop-filter: var(--mix-tiles-blur, none) !important;
-  box-shadow: var(--mix-tiles-shadow, none) !important;
-}
-
-body.style-mixer-live .ui-pane-frame {
-  background: var(--mix-panes-bg, var(--shell-pane-bg)) !important;
-  border-color: var(--mix-panes-border, var(--shell-pane-border)) !important;
-  box-shadow: var(--mix-panes-shadow, var(--shell-pane-shadow)) !important;
-  backdrop-filter: var(--mix-panes-blur, var(--shell-pane-blur)) !important;
-  -webkit-backdrop-filter: var(--mix-panes-blur, var(--shell-pane-blur)) !important;
-}
-
-body.style-mixer-live .code-box:focus,
-body.style-mixer-live .home-search:focus,
-body.style-mixer-live #mainSearchText:focus,
-body.style-mixer-live .search-field input:focus {
-  box-shadow: var(--mix-focus-ring) !important;
-  border-color: var(--mix-focus-border) !important;
-}
-
-body.style-mixer-live .card:hover,
-body.style-mixer-live .dash-card:hover,
-body.style-mixer-live .pcard:hover {
-  border-color: var(--mix-hover-border) !important;
-  box-shadow: var(--mix-hover-shadow) !important;
-}
-
-body.style-mixer-live.nav-sidebar-left .app-sidebar {
-  background: var(--mix-sidebar-bg, var(--ui-sidebar-bg)) !important;
-  border-color: var(--mix-sidebar-border, var(--bd)) !important;
-}
-
-body.style-mixer-live.tmpl-glass .set-row,
-body.style-mixer-live.tmpl-glass .home-hero,
-body.style-mixer-live.tmpl-glass .toggle-btn {
-  background: var(--mix-layers-bg, var(--ui-layer-bg)) !important;
-  border-color: var(--mix-layers-border, transparent) !important;
-}
-
-/* Contrôles du mixeur : jamais stylés par le mix */
 .style-mixer-lab .style-mixer-ui.bp {
   background: var(--acc) !important;
   box-shadow: 0 2px 14px rgba(91, 154, 255, 0.28) !important;

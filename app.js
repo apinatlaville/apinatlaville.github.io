@@ -168,7 +168,6 @@ window.closeFab = function() {
 window.applySettings = function() {
   if (!window.D || !window.D.settings) return;
 
-  if (!window._styleMixerLive) {
   if (window.D.settings.theme === 'light') {
     document.body.classList.add('theme-light');
     document.body.classList.remove('theme-dark');
@@ -176,13 +175,11 @@ window.applySettings = function() {
     document.body.classList.remove('theme-light');
     document.body.classList.add('theme-dark');
   }
-  }
   
   window.D.settings.template = 'glass';
   document.body.classList.remove('tmpl-default', 'tmpl-neo');
   document.body.classList.add('tmpl-glass');
 
-  if (!window._styleMixerLive) {
   const uiStyle = window.normalizeUiStyle(window.D.settings.uiStyle);
   window.D.settings.uiStyle = uiStyle;
   document.body.classList.remove('ui-character', 'ui-minimal', 'ui-classic', 'ui-finder');
@@ -233,9 +230,6 @@ window.applySettings = function() {
     const desc = window.UI_STYLE_DESCS[uiStyle] || '';
     window.$('uiStyleSub').textContent = (window.UI_STYLE_LABELS[uiStyle] || uiStyle) + ' : ' + desc;
   }
-  } else if (typeof window.applyStyleMixerLive === 'function') {
-    window.applyStyleMixerLive();
-  }
 
   if (window.D.settings.compact) {
     document.body.classList.add('mode-compact'); 
@@ -259,7 +253,6 @@ window.applySettings = function() {
   if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
 
   if (window.D.settings.navLayout === 'sidebar-right') window.D.settings.navLayout = 'sidebar-left';
-  if (!window._styleMixerLive) {
   const navLayout = window.D.settings.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
   window.D.settings.navLayout = navLayout;
   document.body.classList.remove('nav-sidebar-right');
@@ -287,10 +280,9 @@ window.applySettings = function() {
   if (typeof window.renderAppNav === 'function') window.renderAppNav(window._activeTab || 'home');
   if (typeof window.syncNavSubMenu === 'function') window.syncNavSubMenu();
   if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
-  }
 
   // 🛡️ FIX THÈME : Application de la couleur d'accent au CSS + rendu des pastilles
-  if (!window._styleMixerLive && window.D.settings.appColor) {
+  if (window.D.settings.appColor) {
     document.documentElement.style.setProperty('--acc', window.D.settings.appColor);
     const glowR = parseInt(window.D.settings.appColor.slice(1,3),16);
     const glowG = parseInt(window.D.settings.appColor.slice(3,5),16);
@@ -308,7 +300,7 @@ window.applySettings = function() {
     `).join('');
   }
   if (window._activeTab === 'test' && typeof window.renderStyleLab === 'function') window.renderStyleLab();
-  if (window._styleMixerLive && typeof window.applyStyleMixerLive === 'function') window.applyStyleMixerLive();
+  if (window._activeTab === 'styleMixer' && typeof window.styleMixerSyncPreview === 'function') window.styleMixerSyncPreview();
 };
 
 window.loadDemoPCStar = function() {
