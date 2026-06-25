@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="core-utils.js"></script>
+<script src="boot-profiler.js"></script>
 <script src="icons.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -627,6 +628,7 @@
   };
 
   if (firebaseConfig.apiKey) {
+    if (window.bootMark) window.bootMark('firebase.init.start');
     window.firebaseReady = (async () => {
       const app = initializeApp(firebaseConfig);
       const db = getFirestore(app);
@@ -641,12 +643,17 @@
       window.GoogleAuthProvider = GoogleAuthProvider;
       window.onAuthStateChanged = onAuthStateChanged;
 
-      // Attendre la restauration de session (évite le faux user=null au rechargement)
+      if (window.bootMark) window.bootMark('firebase.authStateReady.start');
       await auth.authStateReady();
+      if (window.bootMark) window.bootMark('firebase.authStateReady.done');
       console.log("Firebase & Firestore & Auth sont initialisés.");
+      if (window.bootMark) window.bootMark('firebase.init.done');
       return { app, db, auth };
     })();
-    window.firebaseReady.catch(err => console.error("Erreur initialisation Firebase:", err));
+    window.firebaseReady.catch(function (err) {
+      console.error("Erreur initialisation Firebase:", err);
+      if (window.bootMark) window.bootMark('firebase.init.error', { error: String(err && err.message ? err.message : err) });
+    });
   } else {
     console.warn("Firebase non configuré.");
   }
@@ -714,10 +721,19 @@
     });
 
     function appendScript(src, next) {
+      var name = src.split('/').pop();
+      if (window.bootProfiler) window.bootProfiler.scriptStart(name);
       var s = document.createElement('script');
       s.src = src + '?v=' + v;
       s.async = false;
-      s.onload = next || null;
+      s.onload = function () {
+        if (window.bootProfiler) window.bootProfiler.scriptEnd(name);
+        if (next) next();
+      };
+      s.onerror = function () {
+        if (window.bootProfiler) window.bootProfiler.scriptError(name);
+        if (next) next();
+      };
       document.body.appendChild(s);
     }
 
@@ -755,9 +771,16 @@
 
     function loadNext(i) {
       if (i >= scripts.length) {
+        if (window.bootProfiler) window.bootProfiler.scriptStart('app.js');
         var appScript = document.createElement('script');
         appScript.type = 'module';
         appScript.src = 'app.js?v=' + v;
+        appScript.onload = function () {
+          if (window.bootProfiler) window.bootProfiler.scriptEnd('app.js');
+        };
+        appScript.onerror = function () {
+          if (window.bootProfiler) window.bootProfiler.scriptError('app.js');
+        };
         document.body.appendChild(appScript);
         return;
       }

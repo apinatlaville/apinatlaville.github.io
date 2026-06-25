@@ -6,21 +6,35 @@ window.isLocalMode = false;
 window.appLaunched = false;
 
 window.waitForFirebase = function(maxMs = 20000) {
+  if (window.bootMark) window.bootMark('firebase.wait.start', { maxMs: maxMs });
   return new Promise((resolve, reject) => {
     const start = Date.now();
     function tick() {
       if (window.firebaseReady) {
-        window.firebaseReady.then(resolve).catch(reject);
+        window.firebaseReady.then(function (r) {
+          if (window.bootMark) window.bootMark('firebase.wait.done', { ms: Date.now() - start });
+          resolve(r);
+        }).catch(function (e) {
+          if (window.bootMark) window.bootMark('firebase.wait.error', { ms: Date.now() - start, error: e.message });
+          reject(e);
+        });
         return;
       }
       if (window.auth && window.onAuthStateChanged && window.db && window.getDoc) {
         const ready = window.auth.authStateReady
           ? window.auth.authStateReady()
           : Promise.resolve();
-        ready.then(resolve).catch(reject);
+        ready.then(function (r) {
+          if (window.bootMark) window.bootMark('firebase.wait.done', { ms: Date.now() - start, via: 'direct' });
+          resolve(r);
+        }).catch(function (e) {
+          if (window.bootMark) window.bootMark('firebase.wait.error', { ms: Date.now() - start, error: e.message });
+          reject(e);
+        });
         return;
       }
       if (Date.now() - start > maxMs) {
+        if (window.bootMark) window.bootMark('firebase.wait.timeout', { ms: maxMs });
         reject(new Error('Firebase non disponible après ' + maxMs + 'ms'));
         return;
       }
@@ -75,15 +89,20 @@ function launchAppWhenReady(payload) {
   function tryLaunch() {
     if (window.appLaunched) return;
     attempts++;
+    if (window.bootMark && (attempts === 1 || attempts % 10 === 0 || attempts >= maxAttempts)) {
+      window.bootMark('launchApp.attempt', { n: attempts, hasInit: !!window.initAppAfterAuth });
+    }
 
     if (window.initAppAfterAuth) {
       window.appLaunched = true;
       window._pendingAuthPayload = null;
+      if (window.bootMark) window.bootMark('launchApp.success', { attempts: attempts });
       window.initAppAfterAuth(payload);
       return;
     }
 
     if (attempts >= maxAttempts) {
+      if (window.bootMark) window.bootMark('launchApp.timeout', { attempts: attempts });
       console.error("❌ CRITIQUE : app.js n'a pas chargé à temps.");
       if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
       else showLoginUi();
@@ -134,6 +153,7 @@ function handleNoUser() {
 
 // 1️⃣ FONCTION DÉCLENCHÉE PAR GOOGLE
 window.handleCredentialResponse = async function(response) {
+  if (window.bootMark) window.bootMark('auth.google.start');
   console.log("✅ Authentification Google réussie, liaison Firebase Auth...");
 
   try {
@@ -144,9 +164,11 @@ window.handleCredentialResponse = async function(response) {
     localStorage.removeItem('active_mode');
 
     if (userCredential.user) {
+      if (window.bootMark) window.bootMark('auth.google.ok', { email: userCredential.user.email });
       handleAuthenticatedUser(userCredential.user);
     }
   } catch (authError) {
+    if (window.bootMark) window.bootMark('auth.google.error', { error: authError.message });
     console.error("❌ Échec de la liaison Firebase Auth:", authError);
     alert("Erreur d'authentification Firebase : " + authError.message);
   }
@@ -179,8 +201,10 @@ window.signOut = async function() {
 
 // 3️⃣ GARDIEN DE SESSION (authStateReady + onAuthStateChanged)
 window.checkSavedSession = async function() {
+  if (window.bootMark) window.bootMark('auth.checkSavedSession.start');
   if (localStorage.getItem('active_mode') === 'local') {
     console.log("🌸 Reprise automatique du Mode Local.");
+    if (window.bootMark) window.bootMark('auth.mode.local');
     window.startLocalMode();
     return;
   }
@@ -188,12 +212,15 @@ window.checkSavedSession = async function() {
   try {
     await window.waitForFirebase();
     console.log("🔒 Firebase prêt — vérification de session...");
+    if (window.bootMark) window.bootMark('auth.session.check');
 
     const user = window.auth.currentUser;
     if (user) {
       console.log("Session Firebase restaurée pour :", user.email);
+      if (window.bootMark) window.bootMark('auth.session.restored', { email: user.email });
       handleAuthenticatedUser(user);
     } else {
+      if (window.bootMark) window.bootMark('auth.session.none');
       handleNoUser();
     }
 
@@ -213,6 +240,7 @@ window.checkSavedSession = async function() {
     }
   } catch (e) {
     console.error("Firebase indisponible :", e);
+    if (window.bootMark) window.bootMark('auth.checkSavedSession.error', { error: e.message });
     showLoginUi();
   }
 };
@@ -220,6 +248,7 @@ window.checkSavedSession = async function() {
 // 4️⃣ MODE LOCAL
 window.startLocalMode = function() {
   console.log("Mode Local activé !");
+  if (window.bootMark) window.bootMark('auth.startLocalMode');
   window.isLocalMode = true;
   localStorage.setItem('active_mode', 'local');
   enterAppUi();

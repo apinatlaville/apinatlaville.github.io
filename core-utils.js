@@ -37,6 +37,7 @@
 
   /** Écran de connexion si le boot reste bloqué */
   window.forceLoginScreen = function () {
+    if (window.bootMark) window.bootMark('boot.forceLoginScreen');
     window.unlockPage();
     document.body.classList.add('not-logged-in');
     document.documentElement.classList.add('pre-login');
@@ -45,9 +46,9 @@
     if (typeof window.initGoogleSignIn === 'function') window.initGoogleSignIn();
   };
 
-  /* Secours : si init ne finit pas, afficher login après 12s */
   setTimeout(function () {
     if (!window.appReady && document.body.classList.contains('auth-pending')) {
+      if (window.bootMark) window.bootMark('boot.timeout12s.forceLogin');
       window.forceLoginScreen();
     }
   }, 12000);

@@ -1009,29 +1009,36 @@ async function fetchCloudDoc(docRef, retries = 3) {
 }
 
 async function initApp(user) {
+  if (window.bootMark) window.bootMark('initApp.start', { local: !!window.isLocalMode, email: user && user.email });
   try {
     if (window.isLocalMode) {
       // 🌸 MODE LOCAL INTÉGRAL
       console.log("🌸 Chargement des données locales...");
+      if (window.bootMark) window.bootMark('initApp.local.read.start');
       let localData = localStorage.getItem('backup_local_cours');
       if (!localData) {
         localData = localStorage.getItem('mc_v28');
         if (localData) localStorage.setItem('backup_local_cours', localData);
       }
       if (localData) {
-        window.D = JSON.parse(localData);
+        window.D = window.bootProfiler
+          ? window.bootProfiler.measureSync('initApp.local.parse', function () { return JSON.parse(localData); })
+          : JSON.parse(localData);
       } else {
         window.D = null;
       }
+      if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
       window.cloudConnected = false; // On coupe le Cloud
       
     } else {
       // ☁️ MODE GOOGLE MULTI-COMPTES (Étape 1)
       if (window.doc && window.db && window.getDoc) {
         // 🔥 On utilise maintenant l'email exact pour séparer les comptes !
-        window.docRef = window.doc(window.db, "utilisateurs", user.email); 
-        
-        const docSnap = await fetchCloudDoc(window.docRef);
+        window.docRef = window.doc(window.db, "utilisateurs", user.email);
+        if (window.bootMark) window.bootMark('initApp.cloud.fetch.start', { email: user.email });
+        const docSnap = await (window.bootProfiler
+          ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () { return fetchCloudDoc(window.docRef); })
+          : fetchCloudDoc(window.docRef));
         if (docSnap.exists()) {
           window.D = docSnap.data();
           window.cloudConnected = true;
@@ -1041,12 +1048,14 @@ async function initApp(user) {
           window.cloudConnected = true;
           console.log("☁️ Nouveau compte créé pour : " + user.email);
         }
+        if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: docSnap.exists() });
       } else {
         throw new Error("Modules Firebase manquants.");
       }
     }
   } catch (e) {
     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
+    if (window.bootMark) window.bootMark('initApp.error', { error: e.message });
     console.error("Erreur d'initialisation :", e);
     window.cloudConnected = false;
   }
@@ -1057,7 +1066,8 @@ async function initApp(user) {
   if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if(!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
   if (window.AnkiAlgo && typeof window.AnkiAlgo.migrateData === 'function') {
-    window.AnkiAlgo.migrateData(window.D);
+    if (window.bootProfiler) window.bootProfiler.measureSync('initApp.migrateData', function () { window.AnkiAlgo.migrateData(window.D); });
+    else window.AnkiAlgo.migrateData(window.D);
   }
   // Migration coursId (string) → coursIds (array) pour les anciennes cartes Anki
   const _allCardsMigr = window.AnkiAlgo ? window.AnkiAlgo.allCards(window.D) : (window.D.exercices || []).concat(window.D.devoirs || []);
@@ -1140,15 +1150,25 @@ async function initApp(user) {
   }
 
   window.setupCodeBoxes();
+  if (window.bootMark) window.bootMark('initApp.render.start');
   window.applySettings();
+  if (window.bootMark) window.bootMark('initApp.render.applySettings');
   window.renderMatieres();
+  if (window.bootMark) window.bootMark('initApp.render.matieres');
   window.renderClasseurs();
+  if (window.bootMark) window.bootMark('initApp.render.classeurs');
   window.renderStats();
+  if (window.bootMark) window.bootMark('initApp.render.stats');
   window.renderDashboard();
+  if (window.bootMark) window.bootMark('initApp.render.dashboard');
   window.switchTab('home');
+  if (window.bootMark) window.bootMark('initApp.render.switchTab');
   if (typeof window.hydrateIcons === 'function') window.hydrateIcons();
+  if (window.bootMark) window.bootMark('initApp.render.hydrateIcons');
   if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
   window.appReady = true;
+  if (window.bootMark) window.bootMark('initApp.done');
+  if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
   if (typeof window.setBootStep === 'function') window.setBootStep('data');
   if (window._pendingTab) {
     const pending = window._pendingTab;
@@ -1192,6 +1212,7 @@ window.onload = function() {
     console.log("⏳ En attente de l'authentification...");
 };
 window.initAppAfterAuth = function(user) {
+    if (window.bootMark) window.bootMark('initAppAfterAuth', { email: user && user.email });
     initApp(user);
 };
 
