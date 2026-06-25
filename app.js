@@ -300,7 +300,7 @@ window.applySettings = function() {
     `).join('');
   }
   if (window._activeTab === 'test' && typeof window.renderStyleLab === 'function') window.renderStyleLab();
-  if (window._activeTab === 'styleMixer' && typeof window.styleMixerSyncPreview === 'function') window.styleMixerSyncPreview();
+  if (window._activeTab === 'styleMixer' && !window._styleMixerApplying && typeof window.styleMixerSyncPreview === 'function') window.styleMixerSyncPreview();
 };
 
 window.loadDemoPCStar = function() {

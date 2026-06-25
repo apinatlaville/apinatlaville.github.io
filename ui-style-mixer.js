@@ -144,15 +144,22 @@
     );
   }
 
+  function styleMixerApplyIfLive() {
+    if (!window._styleMixerLive || !window.D || !window.D.settings) return;
+    var session = ensureSession();
+    patchSettingsFromSession(window.D.settings, session);
+    window._styleMixerApplying = true;
+    if (typeof window.applySettings === 'function') window.applySettings();
+    window._styleMixerApplying = false;
+  }
+
   window.applyStyleMixerLive = function () {
     if (!window.D || !window.D.settings) return;
     if (!window._styleMixerSavedSettings) {
       window._styleMixerSavedSettings = JSON.parse(JSON.stringify(window.D.settings));
     }
-    var session = ensureSession();
-    patchSettingsFromSession(window.D.settings, session);
     window._styleMixerLive = true;
-    if (typeof window.applySettings === 'function') window.applySettings();
+    styleMixerApplyIfLive();
   };
 
   window.revertStyleMixerLive = function () {
@@ -161,7 +168,9 @@
       window._styleMixerSavedSettings = null;
     }
     window._styleMixerLive = false;
+    window._styleMixerApplying = true;
     if (typeof window.applySettings === 'function') window.applySettings();
+    window._styleMixerApplying = false;
   };
 
   window.styleMixerLeaveTab = function () {
@@ -173,29 +182,33 @@
     window.styleMixerSyncPreview();
   };
 
+  function styleMixerAfterChange() {
+    window.styleMixerSyncPreview();
+    styleMixerApplyIfLive();
+  }
+
   window.styleMixerSetUiStyle = function (style) {
     var session = ensureSession();
     session.uiStyle = style === 'finder' ? 'finder' : 'classic';
-    window.styleMixerSyncPreview();
+    styleMixerAfterChange();
   };
 
   window.styleMixerPickFinder = function (presetId) {
     var session = ensureSession();
     session.uiStyle = 'finder';
     session.finderPreset = window.normalizeFinderPreset(presetId);
-    window.styleMixerSyncPreview();
+    styleMixerAfterChange();
   };
 
   window.styleMixerSet = function (path, value) {
     var session = ensureSession();
     session[path] = value;
-    window.styleMixerSyncPreview();
+    styleMixerAfterChange();
   };
 
   window.styleMixerLoadFromSettings = function () {
     window._styleMixerSession = window.styleMixerSessionFromSettings();
-    if (window._styleMixerLive) window.applyStyleMixerLive();
-    else window.styleMixerSyncPreview();
+    styleMixerAfterChange();
   };
 
   window.styleMixerToggleLive = function (on) {
@@ -280,8 +293,6 @@
 
     var exportTa = document.getElementById('styleMixerExportText');
     if (exportTa) exportTa.value = window.styleMixerExportBlock();
-
-    if (window._styleMixerLive) window.applyStyleMixerLive();
   };
 
   function syncGlobalChips(session) {
