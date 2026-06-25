@@ -701,6 +701,11 @@
     cssStyleMixer.href = 'ui-style-mixer.css?v=' + v;
     document.head.appendChild(cssStyleMixer);
 
+    var cssStyleMixerIce = document.createElement('link');
+    cssStyleMixerIce.rel = 'stylesheet';
+    cssStyleMixerIce.href = 'ui-style-mixer-ice.css?v=' + v;
+    document.head.appendChild(cssStyleMixerIce);
+
     ['flatpickr.min.css', 'choices.min.css', 'form-controls.css'].forEach(function (file) {
       var l = document.createElement('link');
       l.rel = 'stylesheet';

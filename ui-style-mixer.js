@@ -24,17 +24,27 @@
     target.finderBackdropTone = window.normalizeFinderBackdropTone(session.finderBackdropTone);
     target.finderBackdropVignette = window.normalizeFinderBackdropVignette(session.finderBackdropVignette);
     target.backdropBlur = window.normalizeBackdropBlur(session.backdropBlur);
-    target.btnStyle = window.normalizeBtnStyle(session.btnStyle, session.uiStyle);
+    target.btnStyle = session.btnStyle === 'ice'
+      ? 'flat'
+      : window.normalizeBtnStyle(session.btnStyle, session.uiStyle);
     if (session.appColor) target.appColor = session.appColor;
     if (session.navLayout) target.navLayout = session.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
   }
 
   function resolvedBtnStyle(session) {
+    if (session.btnStyle === 'ice') return 'ice';
     return window.normalizeBtnStyle(session.btnStyle, session.uiStyle);
   }
 
   function btnStyleClass(session) {
-    return resolvedBtnStyle(session) === 'glow' ? ' btn-style-glow' : '';
+    var s = resolvedBtnStyle(session);
+    if (s === 'glow') return ' btn-style-glow';
+    if (s === 'ice') return ' btn-style-ice';
+    return '';
+  }
+
+  function isIcePrototype(session) {
+    return resolvedBtnStyle(session) === 'ice';
   }
 
   window.styleMixerDefaultSession = function () {
@@ -83,8 +93,40 @@
 
   function sessionSummary(session) {
     var base = session.uiStyle === 'classic' ? 'Classique' : ('Finder · preset ' + presetMeta(session.finderPreset).id + ' — ' + presetMeta(session.finderPreset).name);
-    var btn = resolvedBtnStyle(session) === 'glow' ? ' · boutons glow bleu' : ' · boutons plat';
+    var btn = resolvedBtnStyle(session) === 'ice'
+      ? ' · glace liquide (aperçu mixeur)'
+      : (resolvedBtnStyle(session) === 'glow' ? ' · boutons glow bleu' : ' · boutons plat');
     return base + btn;
+  }
+
+  function renderIceShowcase(session) {
+    var iceCls = 'style-mixer-ice-stage btn-style-ice' + btnStyleClass(session);
+    return (
+      '<div class="' + iceCls + '">' +
+        '<p class="style-mixer-ice-tag">Prototype — effet glace liquide, visible uniquement dans cet onglet</p>' +
+        '<div class="style-mixer-ice-showcase">' +
+          '<div class="liquid-glass liquid-glass--panel style-mixer-ice-sidebar">' +
+            '<span class="liquid-glass__glint liquid-glass__glint--tr" aria-hidden="true"></span>' +
+            '<span class="liquid-glass__glint liquid-glass__glint--tl" aria-hidden="true"></span>' +
+            '<p class="style-mixer-ice-sidebar-title">Barre latérale</p>' +
+            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--nav is-on" tabindex="-1">Accueil</button>' +
+            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--nav" tabindex="-1">Révisions</button>' +
+            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--nav" tabindex="-1">Paramètres</button>' +
+          '</div>' +
+          '<div class="style-mixer-ice-stack">' +
+            '<button type="button" class="liquid-glass liquid-glass--circle" tabindex="-1" aria-label="Action"></button>' +
+            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w1" tabindex="-1">Léger</button>' +
+            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w2" tabindex="-1">Classique</button>' +
+            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w3" tabindex="-1">Barre latérale</button>' +
+            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w4" tabindex="-1">Commencer</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="style-mixer-ice-samples">' +
+          '<h4>Composants du site</h4>' +
+          renderSamplesBlock(session.uiStyle === 'finder', session) +
+        '</div>' +
+      '</div>'
+    );
   }
 
   function renderSamplesBlock(forFinder, session) {
@@ -139,6 +181,7 @@
   }
 
   function renderMainPreview(session) {
+    if (isIcePrototype(session)) return renderIceShowcase(session);
     if (session.uiStyle === 'classic') return renderClassicPreview(session);
     return renderFinderPreviewCard(session.finderPreset, true, false, session);
   }
@@ -197,7 +240,9 @@
 
   window.styleMixerSetBtnStyle = function (style) {
     var session = ensureSession();
-    session.btnStyle = style === 'flat' ? 'flat' : 'glow';
+    if (style === 'flat') session.btnStyle = 'flat';
+    else if (style === 'ice') session.btnStyle = 'ice';
+    else session.btnStyle = 'glow';
     styleMixerAfterChange();
   };
 
@@ -252,6 +297,7 @@
       navLayout: session.navLayout,
       livePreview: !!window._styleMixerLive
     };
+    if (session.btnStyle === 'ice') payload.btnStyleNote = 'prototype-mixer-only';
     var lines = [
       '=== STYLE_MIXER_PROFILE v2 ===',
       'Choix : ' + sessionSummary(session),
@@ -294,8 +340,19 @@
 
     var btnGlow = document.getElementById('styleMixerPickBtnGlow');
     var btnFlat = document.getElementById('styleMixerPickBtnFlat');
+    var btnIce = document.getElementById('styleMixerPickBtnIce');
     if (btnGlow) btnGlow.classList.toggle('is-active', resolvedBtnStyle(session) === 'glow');
     if (btnFlat) btnFlat.classList.toggle('is-active', resolvedBtnStyle(session) === 'flat');
+    if (btnIce) btnIce.classList.toggle('is-active', resolvedBtnStyle(session) === 'ice');
+
+    var iceNotice = document.getElementById('styleMixerIceNotice');
+    if (iceNotice) iceNotice.classList.toggle('style-mixer-section-hidden', !isIcePrototype(session));
+
+    var glowDemo = document.getElementById('styleMixerBtnGlowDemo');
+    if (glowDemo) glowDemo.classList.toggle('style-mixer-section-hidden', isIcePrototype(session));
+
+    var labRoot = document.querySelector('.style-mixer-lab');
+    if (labRoot) labRoot.classList.toggle('style-mixer-lab--ice', isIcePrototype(session));
 
     document.querySelectorAll('.style-mixer-preset-grid .finder-style-card').forEach(function (card) {
       var id = card.getAttribute('data-preset');
@@ -312,7 +369,9 @@
 
     var liveBadge = document.getElementById('styleMixerLiveBadge');
     if (liveBadge) {
-      liveBadge.textContent = window._styleMixerLive ? 'Test app : ON' : 'Test app : OFF';
+      var liveLabel = window._styleMixerLive ? 'Test app : ON' : 'Test app : OFF';
+      if (window._styleMixerLive && isIcePrototype(session)) liveLabel += ' (sans glace)';
+      liveBadge.textContent = liveLabel;
       liveBadge.classList.toggle('is-on', !!window._styleMixerLive);
     }
 
@@ -409,18 +468,27 @@
 
         '<section class="ui-lab-section">' +
           '<h3 class="ui-lab-section-title"><span data-icon="mouse-pointer-click"></span> Style des boutons</h3>' +
-          '<p class="ui-lab-section-desc">Le <b>glow bleu</b> correspond aux boutons de ta capture (Paramètres, actions principales). Fonctionne avec Classique ou Finder.</p>' +
-          '<div class="style-mixer-main-pick">' +
+          '<p class="ui-lab-section-desc' + (isIcePrototype(session) ? '' : ' style-mixer-section-hidden') + '" id="styleMixerIceNotice">' +
+            '<b>Glace liquide</b> : prototype visible uniquement ici. « Tester sur toute l\'app » applique le reste de ton profil, pas encore cet effet.' +
+          '</p>' +
+          '<p class="ui-lab-section-desc' + (isIcePrototype(session) ? ' style-mixer-section-hidden' : '') + '" id="styleMixerBtnStyleDesc">' +
+            'Le <b>glow bleu</b> correspond aux boutons Paramètres. Le <b>plat</b> suit le preset Finder.' +
+          '</p>' +
+          '<div class="style-mixer-btn-pick">' +
             '<button type="button" id="styleMixerPickBtnGlow" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'glow' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'glow\')">' +
               '<strong>Glow bleu</strong>' +
-              '<span>Bleu lumineux, relief 3D — toggles Paramètres, .bp, FAB.</span>' +
+              '<span>Bleu lumineux, relief 3D — site entier.</span>' +
             '</button>' +
             '<button type="button" id="styleMixerPickBtnFlat" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'flat' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'flat\')">' +
-              '<strong>Plat (preset Finder)</strong>' +
-              '<span>Boutons neutres selon le preset — sans halo bleu.</span>' +
+              '<strong>Plat (preset)</strong>' +
+              '<span>Boutons neutres selon le preset Finder.</span>' +
+            '</button>' +
+            '<button type="button" id="styleMixerPickBtnIce" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'ice' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'ice\')">' +
+              '<strong>Glace liquide</strong>' +
+              '<span>Verre givré type Apple — aperçu mixeur seulement.</span>' +
             '</button>' +
           '</div>' +
-          '<div class="style-mixer-btn-glow-demo' + btnStyleClass(session) + '">' +
+          '<div id="styleMixerBtnGlowDemo" class="style-mixer-btn-glow-demo' + btnStyleClass(session) + (isIcePrototype(session) ? ' style-mixer-section-hidden' : '') + '">' +
             '<div class="set-row" style="margin:0;"><div><div class="set-lbl">Exemple réglage</div></div>' +
             '<button type="button" class="toggle-btn" tabindex="-1">Classique</button></div>' +
             '<div style="display:flex;gap:8px;margin-top:10px;">' +
