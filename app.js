@@ -168,61 +168,32 @@ window.closeFab = function() {
 window.applySettings = function() {
   if (!window.D || !window.D.settings) return;
 
-  if (window.D.settings.theme === 'light') {
+  window.D.settings.template = 'glass';
+  document.body.classList.remove('tmpl-default', 'tmpl-neo');
+  document.body.classList.add('tmpl-glass');
+
+  if (window.D.settings.navLayout === 'sidebar-right') window.D.settings.navLayout = 'sidebar-left';
+  const navLayout = window.D.settings.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
+  window.D.settings.navLayout = navLayout;
+  document.body.classList.remove('nav-sidebar-right');
+  document.body.classList.toggle('nav-sidebar-left', navLayout === 'sidebar-left');
+
+  if (typeof window.applyAppearance === 'function') {
+    window.applyAppearance(window.D.settings);
+  } else if (window.D.settings.theme === 'light') {
     document.body.classList.add('theme-light');
     document.body.classList.remove('theme-dark');
   } else {
     document.body.classList.remove('theme-light');
     document.body.classList.add('theme-dark');
   }
-  
-  window.D.settings.template = 'glass';
-  document.body.classList.remove('tmpl-default', 'tmpl-neo');
-  document.body.classList.add('tmpl-glass');
 
   const uiStyle = window.normalizeUiStyle(window.D.settings.uiStyle);
   window.D.settings.uiStyle = uiStyle;
-  document.body.classList.remove('ui-character', 'ui-minimal', 'ui-classic', 'ui-finder');
-  document.body.classList.add('ui-' + uiStyle);
-
-  const finderPreset = typeof window.normalizeFinderPreset === 'function'
-    ? window.normalizeFinderPreset(window.D.settings.finderPreset)
-    : '1';
-  window.D.settings.finderPreset = finderPreset;
-  document.body.classList.remove('finder-preset-1', 'finder-preset-2', 'finder-preset-3', 'finder-preset-4', 'finder-preset-5');
-  if (uiStyle === 'finder') {
-    document.body.classList.add('finder-preset-' + finderPreset);
-  }
-
-  const btnStyle = typeof window.normalizeBtnStyle === 'function'
-    ? window.normalizeBtnStyle(window.D.settings.btnStyle, uiStyle)
-    : (uiStyle === 'finder' ? 'flat' : 'glow');
-  window.D.settings.btnStyle = btnStyle;
-  document.body.classList.remove('btn-style-glow', 'btn-style-flat');
-  document.body.classList.add('btn-style-' + btnStyle);
-
-  const backdropTone = typeof window.normalizeFinderBackdropTone === 'function'
-    ? window.normalizeFinderBackdropTone(window.D.settings.finderBackdropTone)
-    : 'soft';
-  window.D.settings.finderBackdropTone = backdropTone;
-  const backdropVignette = typeof window.normalizeFinderBackdropVignette === 'function'
-    ? window.normalizeFinderBackdropVignette(window.D.settings.finderBackdropVignette)
-    : 'light';
-  window.D.settings.finderBackdropVignette = backdropVignette;
-  document.body.classList.remove('backdrop-tone-soft', 'backdrop-tone-neutral', 'backdrop-tone-deep', 'backdrop-tone-warm', 'backdrop-tone-accent');
-  document.body.classList.remove('backdrop-vignette-off', 'backdrop-vignette-light', 'backdrop-vignette-medium');
-  if (uiStyle === 'finder') {
-    document.body.classList.add('backdrop-tone-' + backdropTone);
-    if (backdropVignette !== 'off') {
-      document.body.classList.add('backdrop-vignette-' + backdropVignette);
-    }
-  }
 
   const blurId = window.normalizeBackdropBlur(window.D.settings.backdropBlur);
   window.D.settings.backdropBlur = blurId;
   const blurLevel = window.BACKDROP_BLUR_LEVELS.find(l => l.id === blurId) || window.BACKDROP_BLUR_LEVELS[2];
-  document.body.classList.toggle('shell-backdrop-blur', blurLevel.px > 0);
-  document.documentElement.style.setProperty('--shell-backdrop-blur', blurLevel.px + 'px');
   if (window.$('btnBackdropBlurToggle')) window.$('btnBackdropBlurToggle').textContent = blurLevel.label;
   if (window.$('backdropBlurSub')) {
     window.$('backdropBlurSub').textContent = blurLevel.px > 0
@@ -259,11 +230,6 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
   if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
 
-  if (window.D.settings.navLayout === 'sidebar-right') window.D.settings.navLayout = 'sidebar-left';
-  const navLayout = window.D.settings.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
-  window.D.settings.navLayout = navLayout;
-  document.body.classList.remove('nav-sidebar-right');
-  document.body.classList.toggle('nav-sidebar-left', navLayout === 'sidebar-left');
   if (window.$('btnNavLayoutToggle')) {
     window.$('btnNavLayoutToggle').textContent = navLayout === 'sidebar-left' ? 'Barre latérale' : 'Barre du haut';
   }
@@ -288,14 +254,7 @@ window.applySettings = function() {
   if (typeof window.syncNavSubMenu === 'function') window.syncNavSubMenu();
   if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
 
-  // 🛡️ FIX THÈME : Application de la couleur d'accent au CSS + rendu des pastilles
-  if (window.D.settings.appColor) {
-    document.documentElement.style.setProperty('--acc', window.D.settings.appColor);
-    const glowR = parseInt(window.D.settings.appColor.slice(1,3),16);
-    const glowG = parseInt(window.D.settings.appColor.slice(3,5),16);
-    const glowB = parseInt(window.D.settings.appColor.slice(5,7),16);
-    document.documentElement.style.setProperty('--glow', `rgba(${glowR},${glowG},${glowB},0.22)`);
-  }
+  // 🛡️ FIX THÈME : pastilles couleur d'accent (tokens appliqués par applyAppearance)
   const colorContainer = window.$('appColorContainer');
   if (colorContainer && window.COLORS) {
     colorContainer.innerHTML = window.COLORS.map(c => `
@@ -1163,6 +1122,10 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.start');
   window.applySettings();
   if (window.bootMark) window.bootMark('initApp.render.applySettings');
+  if (window.D.settings._needsAppearanceSave) {
+    delete window.D.settings._needsAppearanceSave;
+    window.save();
+  }
   window.renderMatieres();
   if (window.bootMark) window.bootMark('initApp.render.matieres');
   window.renderClasseurs();

@@ -115,7 +115,8 @@
     if (typeof window.setBootStep === 'function') window.setBootStep('scripts');
     if (window.bootMark) window.bootMark('boot.loader.start');
 
-    return loadParallel(['cloud.js', 'data.js'])
+    return loadScript('ui-appearance.js')
+      .then(function () { return loadParallel(['cloud.js', 'data.js']); })
       .then(function () {
         return loadParallel(['anki-algo.js', 'anki-algo-v2.js', 'nav-config.js']);
       })

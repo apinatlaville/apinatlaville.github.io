@@ -18,7 +18,7 @@ window.PC_FLASHCARDS = [
 ];
 
 window.emptyData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', uiStyle: 'classic', finderPreset: '1', backdropBlur: 'medium', finderBackdropTone: 'soft', finderBackdropVignette: 'light', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', uiStyle: 'finder', finderPreset: '1', btnStyle: 'flat', backdropBlur: 'medium', finderBackdropTone: 'soft', finderBackdropVignette: 'light', navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
@@ -37,7 +37,7 @@ window.emptyData = {
 };
 
 window.demoData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', uiStyle: 'classic', finderPreset: '1', backdropBlur: 'medium', finderBackdropTone: 'soft', finderBackdropVignette: 'light', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', uiStyle: 'finder', finderPreset: '1', btnStyle: 'flat', backdropBlur: 'medium', finderBackdropTone: 'soft', finderBackdropVignette: 'light', navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
