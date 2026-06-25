@@ -8,7 +8,7 @@
   var _lazyLoaded = {};
   var _lazyLoading = {};
 
-  var TAB_SCRIPTS = {
+  var TAB_BUNDLES = {
     flashcards: ['anki-quick.js'],
     anki: ['anki-app.js'],
     ankiViz: ['anki-viz.js'],
@@ -17,7 +17,7 @@
     print: ['scanner.js'],
     cours: ['scanner.js'],
     test: ['ui-components.js', 'ui-style-lab.js'],
-    styleMixer: ['ui-style-mixer.js']
+    styleMixer: ['ui-style-lab.js', 'ui-style-mixer.js']
   };
 
   var DEFERRED_AFTER_BOOT = [
@@ -76,12 +76,12 @@
   window.ensureFormLibs = loadFormLibs;
 
   window.ensureScriptsForTab = function (tab) {
-    var list = TAB_SCRIPTS[tab];
+    var list = TAB_BUNDLES[tab];
     if (!list || !list.length) return Promise.resolve();
     var key = tab;
     if (_lazyLoading[key]) return _lazyLoading[key];
     if (window.bootMark) window.bootMark('lazy.tab.start', { tab: tab, files: list });
-    _lazyLoading[key] = loadParallel(list).then(function () {
+    _lazyLoading[key] = loadSequential(list).then(function () {
       if (window.bootMark) window.bootMark('lazy.tab.done', { tab: tab });
       delete _lazyLoading[key];
     });
