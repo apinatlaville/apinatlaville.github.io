@@ -1,4 +1,4 @@
-/* ===== Glace liquide — prototype Style Mixeur uniquement ===== */
+/* ===== Glace liquide — prototype Style Mixeur uniquement (sans glow) ===== */
 
 .style-mixer-btn-pick {
   display: grid;
@@ -22,258 +22,402 @@
   overflow: hidden;
 }
 
-/* —— Scène : fond accentué (teinté --acc du site) —— */
+/* —— Scène neutre (profondeur, pas de halo accent) —— */
 .style-mixer-lab .style-mixer-ice-stage {
-  --ice-accent: var(--acc, #5b9aff);
   position: relative;
-  padding: 24px 22px 20px;
+  padding: 22px 20px 18px;
   border-radius: 20px;
   background:
-    radial-gradient(ellipse 90% 70% at 12% 8%, color-mix(in srgb, var(--ice-accent) 28%, transparent), transparent 58%),
-    radial-gradient(ellipse 75% 55% at 88% 92%, rgba(40, 56, 88, 0.55), transparent 52%),
-    linear-gradient(155deg, #1c2438 0%, #141b2c 42%, #0f1524 100%);
-  border: 0.5px solid color-mix(in srgb, var(--ice-accent) 22%, rgba(255, 255, 255, 0.12));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 16px 48px rgba(0, 0, 0, 0.35);
+    linear-gradient(168deg, #1a2130 0%, #121824 48%, #0e131c 100%);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .style-mixer-lab .style-mixer-ice-tag {
   font-size: 11px;
-  color: rgba(220, 228, 244, 0.72);
-  margin: 0 0 16px;
+  color: rgba(220, 228, 244, 0.65);
+  margin: 0 0 14px;
   letter-spacing: 0.02em;
 }
 
-/* —— Vitrine sidebar + pilules (inspirée liquid glass) —— */
-.style-mixer-lab .style-mixer-ice-showcase {
-  display: grid;
-  grid-template-columns: minmax(140px, 200px) 1fr;
-  gap: 28px;
-  align-items: center;
-  margin-bottom: 22px;
+.style-mixer-lab .style-mixer-ice-theme-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  margin-bottom: 14px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
 }
 
-@media (max-width: 560px) {
+/* —— Layout sidebar + contenu —— */
+.style-mixer-lab .style-mixer-ice-showcase {
+  display: grid;
+  grid-template-columns: 218px 1fr;
+  gap: 20px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 640px) {
   .style-mixer-lab .style-mixer-ice-showcase {
     grid-template-columns: 1fr;
-    gap: 20px;
   }
 }
 
-.style-mixer-lab .style-mixer-ice-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-/* —— Base verre —— */
+/* —— Liquid glass : couches, plat, sans glow coloré —— */
 .style-mixer-lab .liquid-glass {
   position: relative;
   isolation: isolate;
-  color: rgba(255, 255, 255, 0.94);
+  overflow: hidden;
+  color: var(--txt);
   font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 13px;
   border: none;
   cursor: default;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.04) 38%, transparent 62%),
-    color-mix(in srgb, var(--ice-accent, var(--acc)) 8%, rgba(255, 255, 255, 0.07));
-  backdrop-filter: blur(42px) saturate(1.45);
-  -webkit-backdrop-filter: blur(42px) saturate(1.45);
-  border: 0.5px solid rgba(255, 255, 255, 0.36);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.03) 28%, transparent 58%),
+    rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(52px) saturate(1.22);
+  -webkit-backdrop-filter: blur(52px) saturate(1.22);
+  border: 0.5px solid rgba(255, 255, 255, 0.28);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.48),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.14),
-    inset 1px 0 0 rgba(255, 255, 255, 0.12),
-    0 10px 32px rgba(0, 0, 0, 0.32),
-    0 2px 8px rgba(0, 0, 0, 0.18);
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.08),
+    0 6px 20px rgba(0, 0, 0, 0.24);
 }
 
-.style-mixer-lab .liquid-glass__glint {
+.style-mixer-lab .liquid-glass::before {
+  content: '';
   position: absolute;
+  inset: 0;
+  border-radius: inherit;
   pointer-events: none;
-  z-index: 2;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.55);
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.1) 0%, transparent 42%);
+  opacity: 0.85;
 }
 
-.style-mixer-lab .liquid-glass__glint--tr {
-  top: 10px;
-  right: 12px;
-  width: 28px;
-  height: 2px;
-  transform: rotate(-8deg);
+.style-mixer-lab .liquid-glass::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.12);
 }
 
-.style-mixer-lab .liquid-glass__glint--tl {
-  top: 14px;
-  left: 14px;
-  width: 14px;
-  height: 2px;
-  opacity: 0.55;
-  transform: rotate(12deg);
-}
-
-.style-mixer-lab .liquid-glass--panel {
+/* —— Sidebar réelle (218px, comme app-sidebar Finder) —— */
+.style-mixer-lab .style-mixer-ice-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 220px;
-  padding: 16px 14px;
-  border-radius: 22px;
+  min-height: 360px;
+  padding: 8px 6px 10px;
+  border-radius: 16px;
+  background: rgba(18, 22, 34, 0.92);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.style-mixer-lab .style-mixer-ice-sidebar-title {
-  font-size: 11px;
+.style-mixer-lab .style-mixer-ice-stage.ui-finder .style-mixer-ice-sidebar {
+  background:
+    var(--finder-sidebar-surface, none),
+    var(--finder-sidebar-bg, rgba(24, 30, 48, 0.58));
+  border: 0.5px solid var(--finder-sidebar-border, rgba(255, 255, 255, 0.14));
+  backdrop-filter: blur(var(--finder-sidebar-blur, 52px)) saturate(var(--finder-sidebar-saturate, 1.15));
+  -webkit-backdrop-filter: blur(var(--finder-sidebar-blur, 52px)) saturate(var(--finder-sidebar-saturate, 1.15));
+  box-shadow: var(--finder-sidebar-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.1));
+}
+
+.style-mixer-lab .style-mixer-ice-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+}
+
+.style-mixer-lab .style-mixer-ice-nav .nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.style-mixer-lab .style-mixer-ice-nav .nav-group-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.5);
-  margin: 0 0 6px;
+  color: rgba(232, 236, 244, 0.55);
+  padding: 8px 11px 4px;
+  opacity: 0.85;
 }
 
-.style-mixer-lab .liquid-glass--pill {
+.style-mixer-lab .style-mixer-ice-sync > .nav-group-label {
+  color: var(--pur);
+  opacity: 1;
+  text-transform: none;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+.style-mixer-lab .style-mixer-ice-nav .nav-sub-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--acc);
+  padding: 10px 11px 4px;
+  opacity: 0.95;
+}
+
+.style-mixer-lab .style-mixer-ice-nav .nav-sub-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 4px;
+}
+
+/* Tailles Finder sidebar desktop */
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .tab,
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 6px 11px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  min-height: 34px !important;
+  border-radius: 8px !important;
+  line-height: 1.2;
+  border: 0.5px solid transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  cursor: default;
+  font-family: 'Inter', sans-serif;
+}
+
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab {
+  padding-left: 18px !important;
+  font-size: 12px !important;
+  min-height: 32px !important;
+}
+
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab .anki-tab-badge {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 11px 18px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.style-mixer-lab .liquid-glass--nav {
-  width: 100%;
-  justify-content: flex-start;
-  padding: 9px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.78);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.1) 0%, transparent 55%),
-    rgba(255, 255, 255, 0.04);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 4px 14px rgba(0, 0, 0, 0.2);
-}
-
-.style-mixer-lab .liquid-glass--nav.is-on {
-  color: color-mix(in srgb, var(--ice-accent, var(--acc)) 75%, #fff);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
-    color-mix(in srgb, var(--ice-accent, var(--acc)) 18%, rgba(255, 255, 255, 0.1));
-  border-color: color-mix(in srgb, var(--ice-accent, var(--acc)) 35%, rgba(255, 255, 255, 0.4));
-}
-
-.style-mixer-lab .liquid-glass--circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  padding: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--gold);
+  color: #000;
   flex-shrink: 0;
 }
 
-.style-mixer-lab .liquid-glass--w1 { min-width: 88px; }
-.style-mixer-lab .liquid-glass--w2 { min-width: 112px; }
-.style-mixer-lab .liquid-glass--w3 { min-width: 136px; }
-.style-mixer-lab .liquid-glass--w4 { min-width: 168px; }
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .tab [data-icon] svg,
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab [data-icon] svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
 
-/* —— Composants site sous la vitrine —— */
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab [data-icon] svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Sync : or / violet comme la sidebar réelle */
+.style-mixer-lab .style-mixer-ice-sync .tab.tab-anki,
+.style-mixer-lab .style-mixer-ice-sync .tab.tab-viz {
+  color: #c9a050 !important;
+}
+
+.style-mixer-lab .style-mixer-ice-sync .tab.tab-anki [data-icon],
+.style-mixer-lab .style-mixer-ice-sync .tab.tab-viz [data-icon] {
+  color: inherit;
+}
+
+.style-mixer-lab .style-mixer-ice-sync .nav-sub-items .anki-tab:not(.on) {
+  color: rgba(232, 236, 244, 0.88) !important;
+}
+
+/* Organisation : neutre */
+.style-mixer-lab .style-mixer-ice-org .tab {
+  color: rgba(232, 236, 244, 0.88) !important;
+}
+
+/* Pilule active : verre en couches, sans glow accent */
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .tab.on,
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab.on {
+  font-weight: 600 !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 40%, transparent 70%),
+    rgba(255, 255, 255, 0.09) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.06) !important;
+  backdrop-filter: blur(20px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.15) !important;
+}
+
+.style-mixer-lab .style-mixer-ice-sync .tab.tab-anki.on {
+  color: #e8c878 !important;
+}
+
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab.on {
+  color: rgba(255, 255, 255, 0.96) !important;
+}
+
+.style-mixer-lab .style-mixer-ice-stage.ui-classic .style-mixer-ice-sync .tab.tab-anki.on {
+  color: #e8c878 !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 48%),
+    rgba(232, 192, 112, 0.12) !important;
+  border-color: rgba(232, 192, 112, 0.22) !important;
+}
+
+.style-mixer-lab .style-mixer-ice-stage.ui-finder .style-mixer-ice-org .tab.on {
+  color: rgba(255, 255, 255, 0.96) !important;
+}
+
+.style-mixer-lab .style-mixer-ice-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.style-mixer-lab .liquid-glass--layer {
+  padding: 14px;
+  border-radius: 14px;
+}
+
+.style-mixer-lab .style-mixer-ice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* —— Composants sous la vitrine —— */
 .style-mixer-lab .style-mixer-ice-samples {
   padding: 14px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.18);
-  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.14);
+  border: 0.5px solid rgba(255, 255, 255, 0.07);
 }
 
 .style-mixer-lab .style-mixer-ice-samples h4 {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.48);
   margin: 0 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .style-mixer-lab .style-mixer-ice-samples label {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
 }
 
-/* —— Glace sur .bp / .bs / .toggle / nav / tuiles (aperçu mixeur) —— */
+/* —— Glace sur boutons / tuiles (mixeur) —— */
 .style-mixer-lab .btn-style-ice .bp:not(.bp-danger):not(.bp-gold),
 .style-mixer-lab .btn-style-ice .ui-btn-accent:not(.bp-danger),
-.style-mixer-lab .btn-style-ice .toggle-btn {
-  position: relative;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 42%, transparent 68%),
-    color-mix(in srgb, var(--acc) 12%, rgba(255, 255, 255, 0.08)) !important;
-  color: rgba(255, 255, 255, 0.95) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.38) !important;
-  border-radius: 999px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.46),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
-    0 8px 24px rgba(0, 0, 0, 0.28),
-    0 0 20px color-mix(in srgb, var(--acc) 18%, transparent) !important;
-  backdrop-filter: blur(36px) saturate(1.4) !important;
-  -webkit-backdrop-filter: blur(36px) saturate(1.4) !important;
-  font-weight: 600 !important;
-}
-
+.style-mixer-lab .btn-style-ice .toggle-btn,
 .style-mixer-lab .btn-style-ice .bs,
 .style-mixer-lab .btn-style-ice .cbt,
 .style-mixer-lab .btn-style-ice .ui-btn-surface {
+  position: relative;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.12) 0%, transparent 55%),
-    rgba(255, 255, 255, 0.05) !important;
-  color: rgba(255, 255, 255, 0.88) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.28) !important;
-  border-radius: 999px !important;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.03) 32%, transparent 62%),
+    rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.26) !important;
+  border-radius: 10px !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 6px 18px rgba(0, 0, 0, 0.22) !important;
-  backdrop-filter: blur(32px) saturate(1.3) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(1.3) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.08),
+    0 3px 10px rgba(0, 0, 0, 0.18) !important;
+  backdrop-filter: blur(40px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(1.2) !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
 }
 
-.style-mixer-lab .btn-style-ice .tab.on,
-.style-mixer-lab .btn-style-ice .ui-btn-nav-demo.on,
-.style-mixer-lab .btn-style-ice .chip.on {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
-    color-mix(in srgb, var(--acc) 16%, rgba(255, 255, 255, 0.1)) !important;
-  color: color-mix(in srgb, var(--acc) 70%, #fff) !important;
-  border: 0.5px solid color-mix(in srgb, var(--acc) 30%, rgba(255, 255, 255, 0.35)) !important;
-  border-radius: 999px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.35),
-    0 4px 16px color-mix(in srgb, var(--acc) 15%, transparent) !important;
-  backdrop-filter: blur(28px) saturate(1.35) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(1.35) !important;
+.style-mixer-lab .btn-style-ice .bp:not(.bp-danger):not(.bp-gold),
+.style-mixer-lab .btn-style-ice .ui-btn-accent:not(.bp-danger) {
+  padding: 12px 16px !important;
 }
 
-.style-mixer-lab .btn-style-ice .tab,
+.style-mixer-lab .btn-style-ice .toggle-btn,
+.style-mixer-lab .btn-style-ice .bs {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 8px 14px !important;
+}
+
+.style-mixer-lab .btn-style-ice .finder-style-samples .tab,
+.style-mixer-lab .btn-style-ice .finder-style-nav-row .tab,
 .style-mixer-lab .btn-style-ice .ui-btn-nav-demo,
 .style-mixer-lab .btn-style-ice .chip {
-  border-radius: 999px !important;
-  backdrop-filter: blur(24px) saturate(1.25);
-  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  border-radius: 8px !important;
+  backdrop-filter: blur(28px) saturate(1.18);
+  -webkit-backdrop-filter: blur(28px) saturate(1.18);
+  border: 0.5px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+
+.style-mixer-lab .btn-style-ice.ui-finder .finder-style-samples .tab.on,
+.style-mixer-lab .btn-style-ice.ui-finder .finder-style-nav-row .tab.on,
+.style-mixer-lab .btn-style-ice.ui-finder .ui-btn-nav-demo.on,
+.style-mixer-lab .btn-style-ice .finder-style-card .ui-btn-nav-demo.on {
+  color: var(--acc) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    rgba(120, 120, 128, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+}
+
+.style-mixer-lab .btn-style-ice.ui-classic .finder-style-samples .tab.on,
+.style-mixer-lab .btn-style-ice.ui-classic .finder-style-nav-row .tab.on,
+.style-mixer-lab .btn-style-ice.ui-classic .chip.on {
+  color: var(--txt) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+    rgba(91, 154, 255, 0.16) !important;
+  border-color: rgba(130, 165, 255, 0.24) !important;
 }
 
 .style-mixer-lab .btn-style-ice .dash-card,
 .style-mixer-lab .btn-style-ice .kpi {
   background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.1) 0%, transparent 55%),
-    color-mix(in srgb, var(--acc) 6%, rgba(255, 255, 255, 0.05)) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.22) !important;
-  border-radius: 16px !important;
+    linear-gradient(165deg, rgba(255, 255, 255, 0.09) 0%, transparent 55%),
+    rgba(255, 255, 255, 0.045) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 14px !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 8px 24px rgba(0, 0, 0, 0.25) !important;
-  backdrop-filter: blur(40px) saturate(1.35) !important;
-  -webkit-backdrop-filter: blur(40px) saturate(1.35) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 4px 14px rgba(0, 0, 0, 0.2) !important;
+  backdrop-filter: blur(44px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(44px) saturate(1.2) !important;
 }
 
 .style-mixer-lab .btn-style-ice .finder-style-card,
@@ -281,4 +425,16 @@
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* Comparaison Classique / Finder sous glace */
+.style-mixer-lab .style-mixer-ice-compare .ui-lab-compare-grid {
+  margin-top: 10px;
+}
+
+.style-mixer-lab .style-mixer-ice-compare .style-theme-preview,
+.style-mixer-lab .style-mixer-ice-compare .finder-style-card {
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.12) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
 }

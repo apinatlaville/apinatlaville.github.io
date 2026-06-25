@@ -51,7 +51,7 @@
     return {
       uiStyle: 'classic',
       finderPreset: '1',
-      btnStyle: 'glow',
+      btnStyle: 'ice',
       finderBackdropTone: 'soft',
       finderBackdropVignette: 'light',
       backdropBlur: 'medium',
@@ -99,31 +99,108 @@
     return base + btn;
   }
 
-  function renderIceShowcase(session) {
-    var iceCls = 'style-mixer-ice-stage btn-style-ice' + btnStyleClass(session);
+  function iceThemeClasses(session) {
+    if (session.uiStyle === 'finder') {
+      return ' ui-finder finder-preset-' + window.normalizeFinderPreset(session.finderPreset) + ' nav-sidebar-left';
+    }
+    return ' ui-classic';
+  }
+
+  function renderClassicPreviewIce(session) {
     return (
-      '<div class="' + iceCls + '">' +
-        '<p class="style-mixer-ice-tag">Prototype — effet glace liquide, visible uniquement dans cet onglet</p>' +
-        '<div class="style-mixer-ice-showcase">' +
-          '<div class="liquid-glass liquid-glass--panel style-mixer-ice-sidebar">' +
-            '<span class="liquid-glass__glint liquid-glass__glint--tr" aria-hidden="true"></span>' +
-            '<span class="liquid-glass__glint liquid-glass__glint--tl" aria-hidden="true"></span>' +
-            '<p class="style-mixer-ice-sidebar-title">Barre latérale</p>' +
-            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--nav is-on" tabindex="-1">Accueil</button>' +
-            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--nav" tabindex="-1">Révisions</button>' +
-            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--nav" tabindex="-1">Paramètres</button>' +
+      '<div class="style-theme-preview ui-classic btn-style-ice">' +
+        '<h4 style="margin:0 0 12px;font-size:14px;font-weight:600;">Classique</h4>' +
+        renderSamplesBlock(false, session) +
+      '</div>'
+    );
+  }
+
+  function renderFinderPreviewIce(session) {
+    var pid = window.normalizeFinderPreset(session.finderPreset);
+    return (
+      '<div class="finder-style-card finder-preset-' + pid + ' ui-finder btn-style-ice" style="padding:16px;margin:0;">' +
+        '<h4 style="margin:0 0 12px;font-size:14px;font-weight:600;">Finder · preset ' + pid + '</h4>' +
+        renderSamplesBlock(true, session) +
+      '</div>'
+    );
+  }
+
+  function renderIceSidebarNav() {
+    return (
+      '<aside class="style-mixer-ice-sidebar">' +
+        '<nav class="style-mixer-ice-nav" aria-label="Navigation démo">' +
+          '<div class="nav-group style-mixer-ice-sync" id="navGroupSync">' +
+            '<div class="nav-group-label">Synchrotron</div>' +
+            '<button type="button" class="tab tab-anki on" tabindex="-1">' +
+              '<span data-icon="dna"></span> Synchrotron' +
+            '</button>' +
+            '<button type="button" class="tab tab-viz" tabindex="-1">' +
+              '<span data-icon="map"></span> Carte mentale' +
+            '</button>' +
+            '<div class="nav-sub">' +
+              '<div class="nav-sub-label">Sync. V2</div>' +
+              '<div class="nav-sub-items">' +
+                '<button type="button" class="anki-tab on" tabindex="-1">' +
+                  '<span data-icon="sliders"></span> Cockpit' +
+                '</button>' +
+                '<button type="button" class="anki-tab" tabindex="-1">' +
+                  '<span data-icon="clipboard-list"></span> Agenda' +
+                '</button>' +
+                '<button type="button" class="anki-tab" tabindex="-1">' +
+                  '<span data-icon="hourglass"></span> Réservoir' +
+                  '<span class="anki-tab-badge">17</span>' +
+                '</button>' +
+                '<button type="button" class="anki-tab" tabindex="-1">' +
+                  '<span data-icon="book-open"></span> Bibliothèque' +
+                '</button>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
-          '<div class="style-mixer-ice-stack">' +
-            '<button type="button" class="liquid-glass liquid-glass--circle" tabindex="-1" aria-label="Action"></button>' +
-            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w1" tabindex="-1">Léger</button>' +
-            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w2" tabindex="-1">Classique</button>' +
-            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w3" tabindex="-1">Barre latérale</button>' +
-            '<button type="button" class="liquid-glass liquid-glass--pill liquid-glass--w4" tabindex="-1">Commencer</button>' +
+          '<div class="nav-group style-mixer-ice-org">' +
+            '<div class="nav-group-label">Organisation</div>' +
+            '<button type="button" class="tab" tabindex="-1">' +
+              '<span data-icon="printer"></span> Impression' +
+            '</button>' +
+            '<button type="button" class="tab" tabindex="-1">' +
+              '<span data-icon="folders"></span> Classeurs' +
+            '</button>' +
+            '<button type="button" class="tab" tabindex="-1">' +
+              '<span data-icon="tag"></span> Matières' +
+            '</button>' +
+          '</div>' +
+        '</nav>' +
+      '</aside>'
+    );
+  }
+
+  function renderIceShowcase(session) {
+    var badge = session.uiStyle === 'classic'
+      ? 'Classique + glace liquide'
+      : ('Finder · preset ' + presetMeta(session.finderPreset).id + ' · ' + presetMeta(session.finderPreset).name);
+    return (
+      '<div class="style-mixer-ice-stage btn-style-ice' + iceThemeClasses(session) + '">' +
+        '<span class="style-mixer-ice-theme-badge">' + badge + '</span>' +
+        '<p class="style-mixer-ice-tag">Sidebar réelle · groupes Sync / Organisation · verre en couches sans glow</p>' +
+        '<div class="style-mixer-ice-showcase">' +
+          renderIceSidebarNav() +
+          '<div class="style-mixer-ice-content">' +
+            '<div class="liquid-glass liquid-glass--layer style-mixer-ice-actions">' +
+              '<button type="button" class="bp" tabindex="-1">Principal</button>' +
+              '<button type="button" class="bs" tabindex="-1">Secondaire</button>' +
+              '<button type="button" class="toggle-btn" tabindex="-1">Classique</button>' +
+            '</div>' +
+            '<div class="style-mixer-ice-samples">' +
+              '<h4>Détail · ' + (session.uiStyle === 'finder' ? 'Finder' : 'Classique') + '</h4>' +
+              renderSamplesBlock(session.uiStyle === 'finder', session) +
+            '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="style-mixer-ice-samples">' +
-          '<h4>Composants du site</h4>' +
-          renderSamplesBlock(session.uiStyle === 'finder', session) +
+        '<div class="style-mixer-ice-compare">' +
+          '<h4 style="font-size:12px;font-weight:600;color:var(--mut);margin:14px 0 8px;">Classique vs Finder — même traitement glace</h4>' +
+          '<div class="ui-lab-compare-grid">' +
+            renderClassicPreviewIce(session) +
+            renderFinderPreviewIce(session) +
+          '</div>' +
         '</div>' +
       '</div>'
     );
@@ -167,7 +244,7 @@
       ? ' data-preset="' + presetId + '" onclick="window.styleMixerPickFinder(\'' + presetId + '\')"'
       : '';
     return (
-      '<div class="finder-style-card finder-preset-' + presetId + activeCls + btnStyleClass(session) + '"' + attrs + '>' +
+      '<div class="finder-style-card finder-preset-' + presetId + ' ui-finder' + activeCls + btnStyleClass(session) + '"' + attrs + '>' +
         '<h3>' + p.id + '. ' + p.name + '</h3>' +
         '<p>' + p.desc + '</p>' +
         renderSamplesBlock(true, session) +
@@ -450,42 +527,43 @@
 
         '<section class="ui-lab-section">' +
           '<h3 class="ui-lab-section-title"><span data-icon="git-compare"></span> Classique ou Finder ?</h3>' +
+          '<p class="ui-lab-section-desc">Choisis la famille de chrome — l\'aperçu principal suit ton choix. En mode glace, la comparaison détaillée est en bas de l\'aperçu.</p>' +
           '<div class="style-mixer-main-pick">' +
             '<button type="button" id="styleMixerPickClassic" class="style-mixer-main-btn' + (session.uiStyle === 'classic' ? ' is-active' : '') + '" onclick="window.styleMixerSetUiStyle(\'classic\')">' +
               '<strong>Classique</strong>' +
-              '<span>Bleu lumineux, glow sur onglets et boutons. Le style d\'origine du site.</span>' +
+              '<span>Pilules bleutées, verre coloré. Barre du haut par défaut.</span>' +
             '</button>' +
             '<button type="button" id="styleMixerPickFinder" class="style-mixer-main-btn' + (session.uiStyle === 'finder' ? ' is-active' : '') + '" onclick="window.styleMixerSetUiStyle(\'finder\')">' +
               '<strong>Finder</strong>' +
-              '<span>Style Apple neutre, 5 presets. Fond réglable (ton, vignette, flou).</span>' +
+              '<span>Pilules grises neutres, presets 1–5, sidebar vitrée.</span>' +
             '</button>' +
           '</div>' +
-          '<div class="ui-lab-compare-grid">' +
+          '<div class="ui-lab-compare-grid' + (isIcePrototype(session) ? ' style-mixer-section-hidden' : '') + '">' +
             renderClassicPreview(session) +
-            renderFinderPreviewCard('1', false, false, session) +
+            renderFinderPreviewCard(session.finderPreset || '1', false, false, session) +
           '</div>' +
         '</section>' +
 
         '<section class="ui-lab-section">' +
           '<h3 class="ui-lab-section-title"><span data-icon="mouse-pointer-click"></span> Style des boutons</h3>' +
           '<p class="ui-lab-section-desc' + (isIcePrototype(session) ? '' : ' style-mixer-section-hidden') + '" id="styleMixerIceNotice">' +
-            '<b>Glace liquide</b> : prototype visible uniquement ici. « Tester sur toute l\'app » applique le reste de ton profil, pas encore cet effet.' +
+            '<b>Glace liquide</b> : verre en couches, sans glow. Visible uniquement ici — « Tester sur toute l\'app » n\'applique pas encore la glace.' +
           '</p>' +
           '<p class="ui-lab-section-desc' + (isIcePrototype(session) ? ' style-mixer-section-hidden' : '') + '" id="styleMixerBtnStyleDesc">' +
-            'Le <b>glow bleu</b> correspond aux boutons Paramètres. Le <b>plat</b> suit le preset Finder.' +
+            'Le <b>plat</b> suit le preset Finder. Le <b>glow bleu</b> est l\'ancien style lumineux (site entier).' +
           '</p>' +
           '<div class="style-mixer-btn-pick">' +
-            '<button type="button" id="styleMixerPickBtnGlow" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'glow' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'glow\')">' +
-              '<strong>Glow bleu</strong>' +
-              '<span>Bleu lumineux, relief 3D — site entier.</span>' +
+            '<button type="button" id="styleMixerPickBtnIce" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'ice' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'ice\')">' +
+              '<strong>Glace liquide</strong>' +
+              '<span>Verre givré en couches — prototype mixeur.</span>' +
             '</button>' +
             '<button type="button" id="styleMixerPickBtnFlat" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'flat' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'flat\')">' +
               '<strong>Plat (preset)</strong>' +
               '<span>Boutons neutres selon le preset Finder.</span>' +
             '</button>' +
-            '<button type="button" id="styleMixerPickBtnIce" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'ice' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'ice\')">' +
-              '<strong>Glace liquide</strong>' +
-              '<span>Verre givré type Apple — aperçu mixeur seulement.</span>' +
+            '<button type="button" id="styleMixerPickBtnGlow" class="style-mixer-main-btn' + (resolvedBtnStyle(session) === 'glow' ? ' is-active' : '') + '" onclick="window.styleMixerSetBtnStyle(\'glow\')">' +
+              '<strong>Glow bleu</strong>' +
+              '<span>Ancien style lumineux — site entier.</span>' +
             '</button>' +
           '</div>' +
           '<div id="styleMixerBtnGlowDemo" class="style-mixer-btn-glow-demo' + btnStyleClass(session) + (isIcePrototype(session) ? ' style-mixer-section-hidden' : '') + '">' +
