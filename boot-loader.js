@@ -16,8 +16,7 @@
     ankiCompare: ['anki-viz-compare.js'],
     print: ['scanner.js'],
     cours: ['scanner.js'],
-    test: ['ui-components.js', 'ui-style-lab.js'],
-    styleMixer: ['ui-style-lab.js', 'ui-style-mixer.js']
+    test: ['scanner.js']
   };
 
   var DEFERRED_AFTER_BOOT = [

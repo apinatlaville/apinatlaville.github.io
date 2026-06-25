@@ -55,6 +55,23 @@ body.theme-light {
   padding: 12px 16px;
 }
 
+.bp.ui-btn-sm,
+.bs.ui-btn-sm,
+.ui-btn-accent.ui-btn-sm,
+.ui-btn-surface.ui-btn-sm {
+  padding: 8px 12px;
+  font-size: 12px;
+  min-height: 34px;
+}
+
+.bp.ui-btn-lg,
+.bs.ui-btn-lg,
+.ui-btn-accent.ui-btn-lg,
+.ui-btn-surface.ui-btn-lg {
+  padding: 14px 18px;
+  font-size: 15px;
+}
+
 .ui-btn-accent:disabled,
 .bp:disabled {
   opacity: 0.42;

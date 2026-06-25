@@ -95,7 +95,7 @@
 </script>
 
 </head>
-<body class="auth-pending tmpl-glass theme-dark ui-classic">
+<body class="auth-pending tmpl-glass theme-dark ui-finder">
 
 <div id="splashScreen" class="splash-screen" aria-live="polite" aria-busy="true">
   <div class="clean-spinner" aria-hidden="true"></div>
@@ -321,31 +321,27 @@
 <div class="pane ui-pane" id="paneSettings">
   
   <h3 style="font-family:'Inter'; margin-bottom:15px; color:var(--txt); font-size:15px;">Profil & Personnalisation</h3>
-  <div class="set-row">
-    <div><div class="set-lbl">Ton Prénom</div><div class="set-sub">Affiché sur l'écran d'accueil</div></div>
-    <input type="text" id="setUserName" placeholder="Prénom" style="width:120px; background:var(--s3); border:1px solid var(--bd); color:var(--txt); padding:8px; border-radius:8px; outline:none; text-align:center;">
-  </div>
-  
   <div class="set-row" style="flex-direction:column; align-items:flex-start;">
-    <div style="margin-bottom:10px;"><div class="set-lbl">Couleur de l'application</div><div class="set-sub">Personnalise ton thème</div></div>
-    <div style="display:flex; gap:12px;" id="appColorContainer"></div>
+    <div style="margin-bottom:12px;"><div class="set-lbl">Ton Prénom</div><div class="set-sub">Affiché sur l'écran d'accueil</div></div>
+    <input type="text" id="setUserName" placeholder="Prénom" style="width:100%; max-width:220px; background:var(--s3); border:1px solid var(--bd); color:var(--txt); padding:8px 12px; border-radius:8px; outline:none;">
+  </div>
+
+  <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Thème du site</h3>
+  <div class="set-row" style="flex-direction:column; align-items:stretch;">
+    <div style="margin-bottom:12px;"><div class="set-lbl">Apparence</div><div class="set-sub">Minimaliste ou Classique — appliqué à toute l'interface</div></div>
+    <div class="settings-theme-row" id="settingsThemeRow">
+      <button type="button" class="settings-theme-card" data-theme-preset="minimaliste">
+        <span class="settings-theme-label">Minimaliste</span>
+        <span class="settings-theme-hint">Pilule accent, boutons pleins, fond doux</span>
+      </button>
+      <button type="button" class="settings-theme-card" data-theme-preset="classique">
+        <span class="settings-theme-label">Classique</span>
+        <span class="settings-theme-hint">Liquid glass bleu, fond accent</span>
+      </button>
+    </div>
   </div>
 
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Interface</h3>
-  <div class="set-row">
-    <div>
-      <div class="set-lbl">Thème des boutons</div>
-      <div class="set-sub" id="uiStyleSub">Classique : surbrillance bleue (barre du haut)</div>
-      <div class="ui-style-preview" id="uiStylePreview" aria-hidden="true">
-        <span class="ui-preview-pill ui-preview-classic">Classique</span>
-        <span class="ui-preview-pill ui-preview-finder">Finder</span>
-      </div>
-    </div>
-    <button class="toggle-btn" id="btnUiStyleToggle" type="button">Classique</button>
-  </div>
-  <div class="set-row"><div><div class="set-lbl">Barre latérale (style Finder)</div><div class="set-sub">Panneau flottant arrondi · flou par-dessus le site</div></div><button class="toggle-btn" id="btnNavLayoutToggle">Barre du haut</button></div>
-  <div class="set-row"><div><div class="set-lbl">Flou du fond</div><div class="set-sub" id="backdropBlurSub">Adoucit le dégradé d'arrière-plan</div></div><button class="toggle-btn" id="btnBackdropBlurToggle">Moyen</button></div>
-  <div class="set-row"><div><div class="set-lbl">Thème Sombre / Clair</div></div><button class="toggle-btn" id="btnThemeToggle">Changer</button></div>
   <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
   <div class="set-row"><div><div class="set-lbl">Filtres rapides (Bulles)</div><div class="set-sub">Affiche les boutons matières</div></div><button class="toggle-btn" id="btnChipsToggle">Affiché</button></div>
   
@@ -384,25 +380,19 @@
   <div id="errorLogContainer" class="ui-panel ui-panel--logs"></div>
 </div>
 
-<div class="pane ui-pane" id="paneStyleMixer">
-  <div id="styleMixerRoot" class="ui-design-lab-root"></div>
-</div>
-
 <div class="pane ui-pane" id="paneTest">
-  <div id="styleLabRoot" class="ui-design-lab-root"></div>
-
-  <details class="ui-lab-details">
-    <summary class="ui-lab-details-summary"><span data-icon="camera"></span> Diagnostic Scanner</summary>
-    <p class="ui-lab-section-desc">Scanne n'importe quel code pour tester la caméra brute sans filtres.</p>
-    <div id="debug-reader" class="ui-lab-scanner-view"></div>
-    <div class="ui-lab-scanner-actions">
+  <div class="scanner-diag-pane">
+    <h2 class="scanner-diag-title"><span data-icon="camera"></span> Diagnostic Scanner</h2>
+    <p class="scanner-diag-desc">Scanne n'importe quel code pour tester la caméra brute sans filtres.</p>
+    <div id="debug-reader" class="scanner-diag-view"></div>
+    <div class="scanner-diag-actions">
       <button type="button" class="bp" onclick="window.startDebugScanner()"><span data-icon="play"></span> Démarrer</button>
       <button type="button" class="bs" onclick="window.stopDebugScanner()" style="border-color:var(--red);color:var(--red);"><span data-icon="square"></span> Arrêter</button>
     </div>
-    <div id="debug-logs" class="ui-lab-debug-logs">
-      <div class="ui-lab-debug-placeholder">[ Console de diagnostic prête ]</div>
+    <div id="debug-logs" class="scanner-diag-logs">
+      <div class="scanner-diag-placeholder">[ Console de diagnostic prête ]</div>
     </div>
-  </details>
+  </div>
 </div>
 
   </div><!-- .app-content -->
@@ -709,16 +699,6 @@
     cssShell.rel = 'stylesheet';
     cssShell.href = 'ui-shell.css?v=' + v;
     document.head.appendChild(cssShell);
-
-    var cssStyleMixer = document.createElement('link');
-    cssStyleMixer.rel = 'stylesheet';
-    cssStyleMixer.href = 'ui-style-mixer.css?v=' + v;
-    document.head.appendChild(cssStyleMixer);
-
-    var cssStyleMixerIce = document.createElement('link');
-    cssStyleMixerIce.rel = 'stylesheet';
-    cssStyleMixerIce.href = 'ui-style-mixer-ice.css?v=' + v;
-    document.head.appendChild(cssStyleMixerIce);
 
     ['flatpickr.min.css', 'choices.min.css', 'form-controls.css'].forEach(function (file) {
       var l = document.createElement('link');

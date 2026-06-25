@@ -1,46 +1,84 @@
 /**
  * Composants UI réutilisables — HTML cohérent, thème via classes CSS.
- * Utilitaires : window.escHtml (core-utils.js)
- * Familles : boutons · notices · panneaux · badges · sections · logs
+ * Boutons : .bp (principal) · .bs (secondaire) · --btn-accent pour la couleur
  */
 (function () {
   function esc(s) {
     return window.escHtml(s);
   }
 
-  window.uiBtnSurface = function (label, opts) {
+  /** Noms sémantiques → variable CSS */
+  window.UI_BTN_COLORS = {
+    accent: 'var(--acc)',
+    blue: 'var(--acc)',
+    green: 'var(--grn-btn)',
+    grn: 'var(--grn-btn)',
+    red: 'var(--red)',
+    gold: 'var(--gold)'
+  };
+
+  window.resolveUiBtnColor = function (value) {
+    if (!value) return '';
+    if (window.UI_BTN_COLORS[value]) return window.UI_BTN_COLORS[value];
+    return value;
+  };
+
+  window.uiBtnStyleAttrs = function (opts) {
     opts = opts || {};
-    const on = opts.on ? ' on' : '';
-    const extra = opts.className ? ' ' + opts.className : '';
-    const attrs = opts.attrs || '';
-    const click = opts.onclick ? ' onclick="' + esc(opts.onclick) + '"' : '';
-    const testid = opts.testid ? ' data-testid="' + esc(opts.testid) + '"' : '';
-    return '<button type="button" class="ui-btn-surface bs' + on + extra + '"' + click + testid + attrs + '>' + label + '</button>';
+    var parts = [];
+    var color = window.resolveUiBtnColor(opts.color);
+    if (color) parts.push('--btn-accent:' + color);
+    if (opts.width) parts.push('width:' + opts.width);
+    if (opts.style) parts.push(opts.style);
+    return parts.join('');
+  };
+
+  /**
+   * Bouton unifié — variant: 'primary' (.bp) | 'secondary' (.bs)
+   * color: 'green' | 'red' | '#50d890' | 'var(--grn)' …
+   * size: 'sm' | 'lg'
+   * danger / gold : raccourcis sur .bp
+   */
+  window.uiBtn = function (label, opts) {
+    opts = opts || {};
+    var isSecondary = opts.variant === 'secondary';
+    var base = isSecondary ? 'bs ui-btn-surface' : 'bp ui-btn-accent';
+    var size = opts.size === 'sm' ? ' ui-btn-sm' : (opts.size === 'lg' ? ' ui-btn-lg' : '');
+    var mods = '';
+    if (!isSecondary) {
+      if (opts.danger || opts.color === 'red') mods += ' bp-danger';
+      if (opts.gold || opts.color === 'gold') mods += ' bp-gold';
+    }
+    var extra = opts.className ? ' ' + opts.className : '';
+    var attrs = opts.attrs || '';
+    var click = opts.onclick ? ' onclick="' + esc(opts.onclick) + '"' : '';
+    var testid = opts.testid ? ' data-testid="' + esc(opts.testid) + '"' : '';
+    var styleStr = window.uiBtnStyleAttrs(opts);
+    var style = styleStr ? ' style="' + esc(styleStr) + '"' : '';
+    var disabled = opts.disabled ? ' disabled' : '';
+    return '<button type="button" class="' + base + size + mods + extra + '"' + click + testid + style + disabled + attrs + '>' + label + '</button>';
+  };
+
+  window.uiBtnSurface = function (label, opts) {
+    return window.uiBtn(label, Object.assign({}, opts || {}, { variant: 'secondary' }));
   };
 
   window.uiBtnAccent = function (label, opts) {
-    opts = opts || {};
-    const extra = opts.className ? ' ' + opts.className : '';
-    const attrs = opts.attrs || '';
-    const click = opts.onclick ? ' onclick="' + esc(opts.onclick) + '"' : '';
-    const testid = opts.testid ? ' data-testid="' + esc(opts.testid) + '"' : '';
-    const style = opts.style ? ' style="' + esc(opts.style) + '"' : '';
-    const disabled = opts.disabled ? ' disabled' : '';
-    return '<button type="button" class="ui-btn-accent bp' + extra + '"' + click + testid + style + disabled + attrs + '>' + label + '</button>';
+    return window.uiBtn(label, Object.assign({}, opts || {}, { variant: 'primary' }));
   };
 
   window.uiDialogActions = function (opts) {
     opts = opts || {};
-    const cancelLabel = opts.cancelLabel || 'Annuler';
-    const confirmLabel = opts.confirmLabel || 'Confirmer';
-    const cancelClick = opts.cancelClick || 'window.closeSysDialog()';
-    const confirmClick = opts.confirmClick || '';
+    var cancelLabel = opts.cancelLabel || 'Annuler';
+    var confirmLabel = opts.confirmLabel || 'Confirmer';
+    var cancelClick = opts.cancelClick || 'window.closeSysDialog()';
+    var confirmClick = opts.confirmClick || '';
     return (
       window.uiBtnSurface(cancelLabel, { onclick: cancelClick, className: 'ui-dialog-cancel' }) +
       window.uiBtnAccent(confirmLabel, {
         onclick: confirmClick,
         className: 'ui-dialog-confirm',
-        style: opts.confirmDanger ? 'background:var(--red);border-color:var(--red);' : ''
+        color: opts.confirmColor || (opts.confirmDanger ? 'red' : '')
       })
     );
   };
@@ -57,7 +95,6 @@
     );
   };
 
-  /** Alerte / info inline — variant: info | success | warn | error */
   window.uiNotice = function (msg, opts) {
     opts = opts || {};
     const variant = opts.variant || 'info';
@@ -67,7 +104,6 @@
     return '<div class="ui-notice ui-notice--' + esc(variant) + '" role="status">' + title + msg + '</div>';
   };
 
-  /** État vide centré */
   window.uiEmpty = function (msg, opts) {
     opts = opts || {};
     const icon = opts.icon
@@ -76,7 +112,6 @@
     return '<div class="ui-empty">' + icon + esc(msg) + '</div>';
   };
 
-  /** Panneau conteneur */
   window.uiPanel = function (innerHtml, opts) {
     opts = opts || {};
     const extra = opts.className ? ' ' + opts.className : '';
@@ -84,7 +119,6 @@
     return '<div class="ui-panel' + extra + '"' + id + '>' + innerHtml + '</div>';
   };
 
-  /** Badge / indicateur */
   window.uiBadge = function (label, opts) {
     opts = opts || {};
     const variant = opts.variant || 'default';
@@ -92,7 +126,6 @@
     return '<span class="ui-badge ui-badge--' + esc(variant) + '">' + dot + esc(label) + '</span>';
   };
 
-  /** Section titre + description */
   window.uiSection = function (title, desc, opts) {
     opts = opts || {};
     const tone = opts.tone ? ' ui-section-title--' + opts.tone : '';
@@ -107,7 +140,6 @@
     );
   };
 
-  /** Entrée journal d'erreurs */
   window.uiLogEntry = function (entry) {
     return (
       '<div class="ui-log-entry">' +

@@ -25,8 +25,7 @@ window.APP_TAB_REGISTRY = {
   matieres:    { pane: 'paneMatieres',    label: 'Matières',      icon: 'tag',            needsData: true,  onShow: 'matieres' },
   settings:    { pane: 'paneSettings',    label: 'Paramètres',    icon: 'settings',       needsData: true,  onShow: 'settings',      nav: false },
   logs:        { pane: 'paneLogs',        label: 'Logs',          icon: 'bug',            needsData: false, onShow: 'logs',          className: 'tab-logs' },
-  test:        { pane: 'paneTest',        label: 'Labo UI',       icon: 'flask-conical',  needsData: false, onShow: 'test',          className: 'tab-test' },
-  styleMixer:  { pane: 'paneStyleMixer',  label: 'Style Mixeur',  icon: 'palette',        needsData: false, onShow: 'styleMixer',    className: 'tab-style-mixer' }
+  test:        { pane: 'paneTest',        label: 'Diagnostic Scanner', icon: 'camera',    needsData: false, onShow: 'test',          className: 'tab-test' }
 };
 
 /** Groupes affichés dans la barre d'onglets (ordre conservé) */
@@ -43,7 +42,7 @@ window.APP_NAV_GROUPS = [
   },
   {
     label: 'Organisation',
-    tabs: ['print', 'classeurs', 'matieres', 'styleMixer']
+    tabs: ['print', 'classeurs', 'matieres']
   },
   {
     label: 'Système',

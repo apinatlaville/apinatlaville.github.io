@@ -36,13 +36,6 @@ body.theme-light {
   --shell-pane-border: rgba(180, 200, 255, 0.45);
 }
 
-body.ui-classic {
-  --shell-pane-bg: rgba(155, 185, 255, 0.055);
-  --shell-pane-border: rgba(130, 165, 255, 0.14);
-  --shell-pane-shadow: var(--glass-shadow);
-  --shell-pane-blur: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-}
-
 body.ui-finder {
   --shell-pane-bg: rgba(255, 255, 255, 0.04);
   --shell-pane-border: rgba(255, 255, 255, 0.08);
@@ -492,30 +485,6 @@ body.nav-chrome-sidebar .app-chrome--top {
   position: relative;
   z-index: 120;
   flex-shrink: 0;
-}
-
-body.tmpl-glass.ui-classic .app-chrome--top .ui-chrome-bar {
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  box-shadow: var(--glass-shadow);
-  border-bottom: 0.5px solid var(--shell-chrome-border);
-  background: var(--glass-surface), var(--s1);
-}
-
-body.tmpl-glass.ui-classic .app-chrome--top .ui-chrome-strip {
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
-  border-bottom: 0.5px solid var(--shell-chrome-border);
-  background: var(--glass-surface), var(--s3);
-}
-
-body.tmpl-glass.ui-classic .app-chrome--top .sticky-top {
-  background:
-    linear-gradient(180deg, rgba(91, 154, 255, 0.04) 0%, transparent 100%),
-    rgba(18, 22, 34, 0.32);
-  backdrop-filter: blur(64px) saturate(var(--glass-saturate));
-  -webkit-backdrop-filter: blur(64px) saturate(var(--glass-saturate));
-  border-bottom: 0.5px solid var(--bd);
 }
 
 body.ui-finder .app-chrome--top .ui-chrome-bar,

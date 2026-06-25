@@ -24,32 +24,12 @@ const bindKey = (id, key, fn) => { const el = window.$(id); if(el) el.addEventLi
 /** Bloque les actions UI tant que window.D n'est pas initialisé (race auth Cloud) */
 const withD = fn => (...args) => { if (!window.D || !window.D.settings) return; return fn(...args); };
 
-window.normalizeUiStyle = function(style) {
-  if (style === 'minimal' || style === 'finder') return 'finder';
-  if (style === 'character' || style === 'classic') return 'classic';
-  return 'classic';
-};
-
-window.UI_STYLE_LABELS = {
-  classic: 'Classique',
-  finder: 'Finder'
-};
-
-window.UI_STYLE_DESCS = {
-  classic: 'surbrillance bleue (barre du haut)',
-  finder: 'style Finder choisi dans l\'onglet Test Finder'
-};
-
 window.BACKDROP_BLUR_LEVELS = [
   { id: 'off', label: 'Désactivé', px: 0 },
   { id: 'light', label: 'Léger', px: 24 },
   { id: 'medium', label: 'Moyen', px: 48 },
   { id: 'strong', label: 'Fort', px: 72 }
 ];
-
-window.normalizeBackdropBlur = function (v) {
-  return window.BACKDROP_BLUR_LEVELS.some(l => l.id === v) ? v : 'medium';
-};
 
 window.D = null; 
 window.appReady = false;
@@ -188,27 +168,6 @@ window.applySettings = function() {
     document.body.classList.add('theme-dark');
   }
 
-  const uiStyle = window.normalizeUiStyle(window.D.settings.uiStyle);
-  window.D.settings.uiStyle = uiStyle;
-
-  const blurId = window.normalizeBackdropBlur(window.D.settings.backdropBlur);
-  window.D.settings.backdropBlur = blurId;
-  const blurLevel = window.BACKDROP_BLUR_LEVELS.find(l => l.id === blurId) || window.BACKDROP_BLUR_LEVELS[2];
-  if (window.$('btnBackdropBlurToggle')) window.$('btnBackdropBlurToggle').textContent = blurLevel.label;
-  if (window.$('backdropBlurSub')) {
-    window.$('backdropBlurSub').textContent = blurLevel.px > 0
-      ? 'Flou ' + blurLevel.label.toLowerCase() + ' (' + blurLevel.px + 'px)'
-      : 'Fond net, sans flou';
-  }
-
-  if (window.$('btnUiStyleToggle')) {
-    window.$('btnUiStyleToggle').textContent = window.UI_STYLE_LABELS[uiStyle] || uiStyle;
-  }
-  if (window.$('uiStyleSub')) {
-    const desc = window.UI_STYLE_DESCS[uiStyle] || '';
-    window.$('uiStyleSub').textContent = (window.UI_STYLE_LABELS[uiStyle] || uiStyle) + ' : ' + desc;
-  }
-
   if (window.D.settings.compact) {
     document.body.classList.add('mode-compact'); 
   } else {
@@ -219,7 +178,6 @@ window.applySettings = function() {
   if(window.$('dashHeroArea')) window.$('dashHeroArea').style.display = window.D.settings.showDashHero ? 'block' : 'none';
   if(window.$('dashRevArea')) window.$('dashRevArea').style.display = window.D.settings.showDashRev ? 'block' : 'none';
   if(window.$('dashOverviewArea')) window.$('dashOverviewArea').style.display = window.D.settings.showDashOver ? 'block' : 'none';
-  if(window.$('btnThemeToggle')) window.$('btnThemeToggle').textContent = window.D.settings.theme === 'light' ? 'Passer Sombre' : 'Passer Clair';
   if(window.$('btnCompactToggle')) window.$('btnCompactToggle').textContent = window.D.settings.compact ? 'Activé' : 'Désactivé';
   if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
   if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
@@ -230,9 +188,11 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
   if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
 
-  if (window.$('btnNavLayoutToggle')) {
-    window.$('btnNavLayoutToggle').textContent = navLayout === 'sidebar-left' ? 'Barre latérale' : 'Barre du haut';
-  }
+  var activeTheme = window.D.settings.themePreset === 'classique' ? 'classique' : 'minimaliste';
+  document.querySelectorAll('[data-theme-preset]').forEach(function (el) {
+    el.classList.toggle('is-active', el.getAttribute('data-theme-preset') === activeTheme);
+  });
+
   const searchTxt = window.$('mainSearchText');
   const searchCode = window.$('mainSearchCode');
   if (searchTxt) searchTxt.placeholder = navLayout === 'sidebar-left' ? 'Rechercher…' : 'Titre, Note, Mots...';
@@ -254,19 +214,6 @@ window.applySettings = function() {
   if (typeof window.syncNavSubMenu === 'function') window.syncNavSubMenu();
   if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
 
-  // 🛡️ FIX THÈME : pastilles couleur d'accent (tokens appliqués par applyAppearance)
-  const colorContainer = window.$('appColorContainer');
-  if (colorContainer && window.COLORS) {
-    colorContainer.innerHTML = window.COLORS.map(c => `
-      <div class="theme-swatch ${c === window.D.settings.appColor ? 'on' : ''}" 
-           style="background:${c}" 
-           title="${c}"
-           onclick="window.D.settings.appColor='${c}'; window.save(); window.applySettings();">
-      </div>
-    `).join('');
-  }
-  if (window._activeTab === 'test' && typeof window.renderStyleLab === 'function') window.renderStyleLab();
-  if (window._activeTab === 'styleMixer' && !window._styleMixerApplying && typeof window.styleMixerSyncPreview === 'function') window.styleMixerSyncPreview();
 };
 
 window.loadDemoPCStar = function() {
@@ -625,20 +572,13 @@ window.runTabShow = function(tab, overrideResetFilters) {
       break;
     case 'settings': window.applySettings(); break;
     case 'logs': window.renderErrorLogs(); break;
-    case 'test': if (typeof window.renderStyleLab === 'function') window.renderStyleLab(); break;
-    case 'styleMixer':
-      if (typeof window.styleMixerEnterTab === 'function') window.styleMixerEnterTab();
-      break;
+    case 'test': break;
     default: break;
   }
 };
 
 window.switchTab = function(tab, overrideResetFilters = false) {
   if (!tab) return;
-
-  if (window._activeTab === 'styleMixer' && tab !== 'styleMixer' && typeof window.styleMixerLeaveTab === 'function') {
-    window.styleMixerLeaveTab();
-  }
 
   if (typeof window.resolveTabId === 'function') {
     tab = window.resolveTabId(tab);
@@ -884,35 +824,17 @@ window.clearErrorLogs = function() {
 // ATTACHEMENT DYNAMIQUE DES ÉVÉNEMENTS
 bindClick('btnOpenSettings', withD(() => window.switchTab('settings')));
 bindClick('btnRefresh', () => location.reload());
-bindClick('btnThemeToggle', withD(() => { window.D.settings.theme = window.D.settings.theme === 'light' ? 'dark' : 'light'; window.save(); window.applySettings(); }));
 bindClick('btnCompactToggle', withD(() => { window.D.settings.compact = !window.D.settings.compact; window.save(); window.applySettings(); }));
-bindClick('btnBackdropBlurToggle', withD(() => {
-  const levels = window.BACKDROP_BLUR_LEVELS;
-  const cur = window.normalizeBackdropBlur(window.D.settings.backdropBlur);
-  const idx = levels.findIndex(l => l.id === cur);
-  window.D.settings.backdropBlur = levels[(idx + 1) % levels.length].id;
-  window.save();
-  window.applySettings();
-}));
 bindClick('btnStatsToggle', withD(() => { window.D.settings.showStats = !window.D.settings.showStats; window.save(); window.applySettings(); }));
 bindClick('btnChipsToggle', withD(() => { window.D.settings.showChips = !window.D.settings.showChips; window.save(); window.applySettings(); }));
 bindClick('btnDashHeroToggle', withD(() => { window.D.settings.showDashHero = !window.D.settings.showDashHero; window.save(); window.applySettings(); }));
 bindClick('btnDashRevToggle', withD(() => { window.D.settings.showDashRev = !window.D.settings.showDashRev; window.save(); window.applySettings(); }));
 bindClick('btnDashOverToggle', withD(() => { window.D.settings.showDashOver = !window.D.settings.showDashOver; window.save(); window.applySettings(); }));
 bindClick('btnInitWarnToggle', withD(() => { window.D.settings.showInitWarn = !window.D.settings.showInitWarn; window.save(); window.applySettings(); }));
-bindClick('btnNavLayoutToggle', withD(() => {
-  window.D.settings.navLayout = window.D.settings.navLayout === 'sidebar-left' ? 'top' : 'sidebar-left';
-  window.save();
-  window.applySettings();
-}));
-bindClick('btnUiStyleToggle', withD(() => {
-  const cur = window.normalizeUiStyle(window.D.settings.uiStyle);
-  window.D.settings.uiStyle = cur === 'finder' ? 'classic' : 'finder';
-  window.save();
-  window.applySettings();
-}));
 
 bindInput('setUserName', withD((e) => { window.D.settings.userName = e.target.value.trim() || "Étudiant"; window.save(); window.applySettings(); }));
+
+if (typeof window.bindSettingsThemePicker === 'function') window.bindSettingsThemePicker();
 
 bindClick('btnHomeCam', () => window.openCam());
 bindClick('btnKholleDraw', () => window.drawKholle());
@@ -1086,8 +1008,6 @@ async function initApp(user) {
   }
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
-  if(!window.D.settings.finderBackdropTone) window.D.settings.finderBackdropTone = 'soft';
-  if(!window.D.settings.finderBackdropVignette) window.D.settings.finderBackdropVignette = 'light';
   if(!window.D.settings.navLayout) window.D.settings.navLayout = 'top';
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b9aff';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
