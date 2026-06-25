@@ -8,6 +8,7 @@
   border: 0.5px solid var(--bd);
   position: relative;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .style-mixer-sandbox-label {
@@ -126,8 +127,8 @@
   cursor: default;
 }
 
-/* —— Boutons principaux —— */
-.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold),
+/* —— Sandbox (#id) bat ui-classic / ui-finder sur le body —— */
+#styleMixerSandbox.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold),
 body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold) {
   background: var(--mix-btnPrimary-bg, var(--acc)) !important;
   color: var(--mix-btnPrimary-color, #fff) !important;
@@ -138,15 +139,14 @@ body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold) {
   font-weight: 500;
 }
 
-.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
+#styleMixerSandbox.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
 body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled) {
   background: var(--mix-btnPrimary-hover, var(--acc)) !important;
 }
 
-/* —— Boutons secondaires —— */
-.style-mixer-scope .bs,
-.style-mixer-scope .cbt,
-.style-mixer-scope .toggle-btn,
+#styleMixerSandbox.style-mixer-scope .bs,
+#styleMixerSandbox.style-mixer-scope .cbt,
+#styleMixerSandbox.style-mixer-scope .toggle-btn,
 body.style-mixer-live .bs,
 body.style-mixer-live .cbt,
 body.style-mixer-live .toggle-btn {
@@ -158,34 +158,34 @@ body.style-mixer-live .toggle-btn {
   -webkit-backdrop-filter: var(--mix-btnSecondary-blur, none) !important;
 }
 
-.style-mixer-scope .bs:hover:not(:disabled),
+#styleMixerSandbox.style-mixer-scope .bs:hover:not(:disabled),
 body.style-mixer-live .bs:hover:not(:disabled) {
   background: var(--mix-btnSecondary-hover, rgba(255, 255, 255, 0.12)) !important;
 }
 
-/* —— Onglets actifs —— */
-.style-mixer-scope .tab.on,
-.style-mixer-scope .anki-tab.on,
+#styleMixerSandbox.style-mixer-scope .tab.on,
+#styleMixerSandbox.style-mixer-scope .anki-tab.on,
 body.style-mixer-live .tab.on,
-body.style-mixer-live .anki-tab.on {
+body.style-mixer-live .anki-tab.on,
+body.style-mixer-live .anki-cockpit-tab.on {
   background: var(--mix-tabs-onBg) !important;
   color: var(--mix-tabs-onColor, var(--txt)) !important;
   box-shadow: var(--mix-tabs-onShadow, none) !important;
-  opacity: 1;
+  opacity: 1 !important;
   font-weight: 600;
 }
 
-.style-mixer-scope[data-mix-tabs-useborder="1"] .tab.on,
+#styleMixerSandbox.style-mixer-scope[data-mix-tabs-useborder="1"] .tab.on,
 body.style-mixer-live[data-mix-tabs-useborder="1"] .tab.on {
   border: 0.5px solid var(--mix-tabs-onBorder) !important;
 }
 
-.style-mixer-scope[data-mix-tabs-useborder="0"] .tab.on,
+#styleMixerSandbox.style-mixer-scope[data-mix-tabs-useborder="0"] .tab.on,
 body.style-mixer-live[data-mix-tabs-useborder="0"] .tab.on {
   border: none !important;
 }
 
-.style-mixer-scope[data-mix-tabs="finder"] .tab:not(.on),
+#styleMixerSandbox.style-mixer-scope[data-mix-tabs="finder"] .tab:not(.on),
 body.style-mixer-live[data-mix-tabs="finder"] .tab:not(.on) {
   color: var(--mut) !important;
   background: transparent !important;
@@ -193,15 +193,8 @@ body.style-mixer-live[data-mix-tabs="finder"] .tab:not(.on) {
   box-shadow: none !important;
 }
 
-.style-mixer-scope[data-mix-tabs="finder"] .tab.on,
-body.style-mixer-live[data-mix-tabs="finder"] .tab.on {
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* —— Chips —— */
-.style-mixer-scope .chip.on,
-.style-mixer-scope .anki-lib-chip.on,
+#styleMixerSandbox.style-mixer-scope .chip.on,
+#styleMixerSandbox.style-mixer-scope .anki-lib-chip.on,
 body.style-mixer-live .chip.on,
 body.style-mixer-live .anki-lib-chip.on {
   background: var(--mix-chips-onBg) !important;
@@ -209,20 +202,19 @@ body.style-mixer-live .anki-lib-chip.on {
   box-shadow: var(--mix-chips-onShadow, none) !important;
 }
 
-.style-mixer-scope[data-mix-chips="classic"] .chip.on,
+#styleMixerSandbox.style-mixer-scope[data-mix-chips="classic"] .chip.on,
 body.style-mixer-live[data-mix-chips="classic"] .chip.on {
   border-color: var(--mix-chips-onBorder) !important;
 }
 
-.style-mixer-scope[data-mix-chips="finder"] .chip.on,
+#styleMixerSandbox.style-mixer-scope[data-mix-chips="finder"] .chip.on,
 body.style-mixer-live[data-mix-chips="finder"] .chip.on {
   border: none !important;
 }
 
-/* —— Tuiles —— */
-.style-mixer-scope .kpi,
-.style-mixer-scope .dash-card,
-.style-mixer-scope .ui-tile,
+#styleMixerSandbox.style-mixer-scope .kpi,
+#styleMixerSandbox.style-mixer-scope .dash-card,
+#styleMixerSandbox.style-mixer-scope .ui-tile,
 body.style-mixer-live .kpi,
 body.style-mixer-live .dash-card,
 body.style-mixer-live .ui-tile {
@@ -233,7 +225,6 @@ body.style-mixer-live .ui-tile {
   box-shadow: var(--mix-tiles-shadow, none) !important;
 }
 
-/* —— Panneaux coque (live app) —— */
 body.style-mixer-live .ui-pane-frame {
   background: var(--mix-panes-bg, var(--shell-pane-bg)) !important;
   border-color: var(--mix-panes-border, var(--shell-pane-border)) !important;
@@ -242,19 +233,19 @@ body.style-mixer-live .ui-pane-frame {
   -webkit-backdrop-filter: var(--mix-panes-blur, var(--shell-pane-blur)) !important;
 }
 
-/* —— Focus —— */
-.style-mixer-scope .code-box:focus,
-.style-mixer-scope .home-search:focus,
+#styleMixerSandbox.style-mixer-scope .code-box:focus,
+#styleMixerSandbox.style-mixer-scope .home-search:focus,
 body.style-mixer-live .code-box:focus,
-body.style-mixer-live .home-search:focus {
+body.style-mixer-live .home-search:focus,
+body.style-mixer-live #mainSearchText:focus,
+body.style-mixer-live .search-field input:focus {
   box-shadow: var(--mix-focus-ring) !important;
   border-color: var(--mix-focus-border) !important;
 }
 
-/* —— Survol cartes —— */
-.style-mixer-scope .card:hover,
-.style-mixer-scope .dash-card:hover,
-.style-mixer-scope .pcard:hover,
+#styleMixerSandbox.style-mixer-scope .card:hover,
+#styleMixerSandbox.style-mixer-scope .dash-card:hover,
+#styleMixerSandbox.style-mixer-scope .pcard:hover,
 body.style-mixer-live .card:hover,
 body.style-mixer-live .dash-card:hover,
 body.style-mixer-live .pcard:hover {
@@ -262,7 +253,6 @@ body.style-mixer-live .pcard:hover {
   box-shadow: var(--mix-hover-shadow) !important;
 }
 
-/* —— Sidebar (live) —— */
 body.style-mixer-live.nav-sidebar-left .app-sidebar {
   background: var(--mix-sidebar-bg, var(--ui-sidebar-bg)) !important;
   border-color: var(--mix-sidebar-border, var(--bd)) !important;
@@ -273,7 +263,6 @@ body.style-mixer-live[data-mix-sidebar="finder"].nav-sidebar-left .app-sidebar {
   -webkit-backdrop-filter: blur(60px) saturate(1.2) !important;
 }
 
-/* —— Couches internes —— */
 body.style-mixer-live.tmpl-glass .set-row,
 body.style-mixer-live.tmpl-glass .home-hero,
 body.style-mixer-live.tmpl-glass .toggle-btn {
@@ -281,8 +270,8 @@ body.style-mixer-live.tmpl-glass .toggle-btn {
   border-color: var(--mix-layers-border, transparent) !important;
 }
 
-.style-mixer-scope .set-row,
-.style-mixer-scope .home-hero {
+#styleMixerSandbox.style-mixer-scope .set-row,
+#styleMixerSandbox.style-mixer-scope .home-hero {
   padding: 10px;
   border-radius: 10px;
   background: var(--mix-layers-bg, var(--s2));

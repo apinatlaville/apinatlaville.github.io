@@ -668,7 +668,9 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'settings': window.applySettings(); break;
     case 'logs': window.renderErrorLogs(); break;
     case 'test': if (typeof window.renderStyleLab === 'function') window.renderStyleLab(); break;
-    case 'styleMixer': if (typeof window.renderStyleMixer === 'function') window.renderStyleMixer(); break;
+    case 'styleMixer':
+      if (typeof window.styleMixerEnterTab === 'function') window.styleMixerEnterTab();
+      break;
     default: break;
   }
 };

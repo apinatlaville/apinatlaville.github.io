@@ -100,40 +100,14 @@
     layers: { bg: 'rgba(155, 185, 255, 0.055)', border: 'rgba(130, 165, 255, 0.14)' }
   };
 
-  var CLASSIC_LIGHT = {
-    btnPrimary: { bg: 'var(--acc)', color: '#fff', border: 'none', shadow: '0 2px 14px rgba(75, 138, 235, 0.22)', hover: 'color-mix(in srgb, var(--acc) 88%, #fff)' },
-    tabs: { onBg: 'rgba(75, 138, 235, 0.14)', onColor: 'var(--txt)', onBorder: 'rgba(75, 138, 235, 0.28)', onShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 2px 10px rgba(75, 138, 235, 0.1)', useBorder: '1' },
-    chips: { onBg: 'rgba(75, 138, 235, 0.18)', onColor: 'var(--txt)', onBorder: 'rgba(75, 138, 235, 0.32)', onShadow: 'none' },
-    panes: { bg: 'rgba(255, 255, 255, 0.58)', border: 'rgba(180, 200, 255, 0.45)', shadow: 'var(--glass-shadow)', blur: 'blur(var(--glass-blur)) saturate(var(--glass-saturate))' },
-    tiles: { bg: 'rgba(255, 255, 255, 0.65)', border: 'rgba(0, 0, 0, 0.07)', blur: 'none', shadow: 'none' },
-    focus: { ring: '0 0 0 3px color-mix(in srgb, var(--acc) 30%, transparent)', border: 'color-mix(in srgb, var(--acc) 50%, transparent)' },
-    hover: { border: 'rgba(75, 138, 235, 0.28)', shadow: '0 8px 24px rgba(0, 0, 0, 0.09)' },
-    sidebar: { bg: 'rgba(248, 248, 250, 0.62)', border: 'rgba(0, 0, 0, 0.08)' }
-  };
-
-  var FINDER_LIGHT = {
-    '1': { tabs: { onBg: 'rgba(0, 0, 0, 0.07)', onColor: 'var(--acc)' }, sidebar: { bg: 'rgba(246, 246, 248, 0.82)' }, btnSecondary: { bg: 'rgba(0, 0, 0, 0.05)', hover: 'rgba(0, 0, 0, 0.08)' }, tiles: { bg: 'rgba(0, 0, 0, 0.04)' }, panes: { bg: 'rgba(255, 255, 255, 0.78)', border: 'rgba(0, 0, 0, 0.06)' } },
-    '2': { sidebar: { bg: 'rgba(250, 250, 252, 0.92)' }, panes: { bg: 'rgba(255, 255, 255, 0.78)', border: 'rgba(0, 0, 0, 0.06)' } },
-    '3': { sidebar: { bg: 'rgba(246, 246, 248, 0.82)' }, panes: { bg: 'rgba(255, 255, 255, 0.78)', border: 'rgba(0, 0, 0, 0.06)' } },
-    '4': { sidebar: { bg: 'rgba(246, 246, 248, 0.82)' }, panes: { bg: 'rgba(255, 255, 255, 0.78)', border: 'rgba(0, 0, 0, 0.06)' } },
-    '5': { sidebar: { bg: 'rgba(250, 250, 252, 0.92)' }, panes: { bg: 'rgba(255, 255, 255, 0.78)', border: 'rgba(0, 0, 0, 0.06)' } }
-  };
-
   function axisTokens(session, axisKey) {
     var ax = session.axes[axisKey];
     var preset = window.normalizeFinderPreset(ax.preset || '1');
-    var isLight = session.theme === 'light';
     if (ax.family === 'classic') {
-      var classicTok = Object.assign({}, CLASSIC[axisKey]);
-      if (isLight && CLASSIC_LIGHT[axisKey]) Object.assign(classicTok, CLASSIC_LIGHT[axisKey]);
-      return classicTok;
+      return Object.assign({}, CLASSIC[axisKey]);
     }
     var presetBlock = FINDER_PRESET[preset] || FINDER_PRESET['1'];
-    var tok = Object.assign({}, presetBlock[axisKey] || FINDER_PRESET['1'][axisKey]);
-    if (isLight && FINDER_LIGHT[preset] && FINDER_LIGHT[preset][axisKey]) {
-      Object.assign(tok, FINDER_LIGHT[preset][axisKey]);
-    }
-    return tok;
+    return Object.assign({}, presetBlock[axisKey] || FINDER_PRESET['1'][axisKey]);
   }
 
   function defaultAxis(family, preset) {
@@ -142,7 +116,7 @@
 
   window.styleMixerDefaultSession = function () {
     return {
-      theme: 'light',
+      theme: 'dark',
       navLayout: 'top',
       appColor: '#5b9aff',
       backdropTone: 'soft',
@@ -171,7 +145,7 @@
     var preset = window.normalizeFinderPreset(s.finderPreset);
     var ax = defaultAxis(family, preset);
     var session = window.styleMixerDefaultSession();
-    session.theme = s.theme === 'dark' ? 'dark' : 'light';
+    session.theme = 'dark';
     session.navLayout = s.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
     session.appColor = s.appColor || '#5b9aff';
     session.backdropBlur = window.normalizeBackdropBlur(s.backdropBlur);
@@ -200,9 +174,8 @@
 
   window.applyStyleMixerToElement = function (el, session) {
     if (!el || !session) return;
-    el.classList.add('style-mixer-scope');
-    el.classList.toggle('theme-light', session.theme === 'light');
-    el.classList.toggle('theme-dark', session.theme !== 'light');
+    el.classList.add('style-mixer-scope', 'theme-dark');
+    el.classList.remove('theme-light');
 
     AXIS_KEYS.forEach(function (axis) {
       var ax = session.axes[axis];
@@ -265,13 +238,8 @@
     document.body.classList.remove('ui-classic', 'ui-finder', 'ui-character', 'ui-minimal');
     document.body.classList.remove('finder-preset-1', 'finder-preset-2', 'finder-preset-3', 'finder-preset-4', 'finder-preset-5');
 
-    if (session.theme === 'light') {
-      document.body.classList.add('theme-light');
-      document.body.classList.remove('theme-dark');
-    } else {
-      document.body.classList.remove('theme-light');
-      document.body.classList.add('theme-dark');
-    }
+    document.body.classList.remove('theme-light');
+    document.body.classList.add('theme-dark');
 
     if (session.appColor) {
       document.documentElement.style.setProperty('--acc', session.appColor);
@@ -305,7 +273,14 @@
     if (window._styleMixerLive) window.revertStyleMixerLive();
   };
 
+  window.styleMixerEnterTab = function () {
+    ensureSession().theme = 'dark';
+    window._styleMixerLive = true;
+    window.renderStyleMixer();
+  };
+
   window.styleMixerSet = function (path, value) {
+    if (path === 'theme') return;
     var session = ensureSession();
     var parts = path.split('.');
     var obj = session;
@@ -334,13 +309,13 @@
       AXIS_KEYS.forEach(function (k) { session.axes[k] = defaultAxis('classic'); });
       session.backdropTone = 'classic';
       session.backdropVignette = 'off';
-      session.theme = 'light';
+      session.theme = 'dark';
     } else if (id.indexOf('finder-') === 0) {
       var p = id.replace('finder-', '');
       AXIS_KEYS.forEach(function (k) { session.axes[k] = defaultAxis('finder', p); });
       session.backdropTone = 'soft';
       session.backdropVignette = 'light';
-      session.theme = 'light';
+      session.theme = 'dark';
     }
     window.styleMixerRefresh();
   };
@@ -437,7 +412,7 @@
 
   function renderSandbox(session) {
     return (
-      '<div id="styleMixerSandbox" class="style-mixer-sandbox theme-' + session.theme + '">' +
+      '<div id="styleMixerSandbox" class="style-mixer-sandbox theme-dark style-mixer-scope">' +
         '<p class="style-mixer-sandbox-label">Aperçu sandbox (isolé)</p>' +
         '<div class="style-mixer-sandbox-grid">' +
           '<div class="style-mixer-sandbox-block">' +
@@ -474,14 +449,17 @@
   }
 
   window.styleMixerRefresh = function (rerender) {
-    if (rerender !== false && window._activeTab === 'styleMixer') window.renderStyleMixer();
-    else {
+    var session = ensureSession();
+    session.theme = 'dark';
+    if (rerender !== false && window._activeTab === 'styleMixer') {
+      window.renderStyleMixer();
+    } else {
       var sandbox = document.getElementById('styleMixerSandbox');
-      if (sandbox) window.applyStyleMixerToElement(sandbox, ensureSession());
-      if (window._styleMixerLive) window.applyStyleMixerLive();
+      if (sandbox) window.applyStyleMixerToElement(sandbox, session);
       var exportTa = document.getElementById('styleMixerExportText');
       if (exportTa) exportTa.value = window.styleMixerExportBlock();
     }
+    if (window._styleMixerLive) window.applyStyleMixerLive();
   };
 
   window.renderStyleMixer = function () {
@@ -508,18 +486,18 @@
       '<div class="ui-design-lab style-mixer-lab">' +
         '<div class="ui-lab-hero">' +
           '<h2><span data-icon="palette"></span> Style Mixeur</h2>' +
-          '<p>Combine Classique et Finder axe par axe. Session temporaire — rien n\'est sauvegardé tant que vous n\'envoyez pas le profil exporté. Thème clair privilégié pour les tests.</p>' +
+          '<p>Combine Classique et Finder axe par axe (thème sombre uniquement). Session temporaire — rien n\'est sauvegardé tant que vous n\'envoyez pas le profil exporté. L\'aperçu live s\'active automatiquement dans cet onglet.</p>' +
         '</div>' +
 
         '<section class="ui-lab-section style-mixer-toolbar">' +
           '<div class="ui-lab-status-row">' +
-            '<span class="ui-lab-badge">' + (session.theme === 'light' ? 'Clair' : 'Sombre') + '</span>' +
+            '<span class="ui-lab-badge">Sombre</span>' +
             '<span class="ui-lab-badge">' + (session.navLayout === 'sidebar-left' ? 'Sidebar' : 'Barre haut') + '</span>' +
-            '<span class="ui-lab-badge">' + (live ? 'Live ON' : 'Sandbox seule') + '</span>' +
+            '<span class="ui-lab-badge">' + (live ? 'Aperçu live actif' : 'Aperçu en pause') + '</span>' +
           '</div>' +
           '<div class="style-mixer-actions">' +
             '<button type="button" class="bp" onclick="window.styleMixerToggleLive(' + (!live) + ')">' +
-              (live ? 'Arrêter aperçu live' : 'Aperçu live sur toute l\'app') +
+              (live ? 'Pause aperçu live' : 'Reprendre aperçu live') +
             '</button>' +
             '<button type="button" class="bs" onclick="window.styleMixerLoadShortcut(\'from-settings\')">Depuis mes paramètres</button>' +
             '<button type="button" class="bs" onclick="window.styleMixerResetSession()">Réinitialiser session</button>' +
@@ -539,13 +517,6 @@
         '<section class="ui-lab-section">' +
           '<h3 class="ui-lab-section-title"><span data-icon="sliders"></span> Global</h3>' +
           '<div class="ui-lab-controls">' +
-            '<div class="ui-lab-control-group">' +
-              '<span class="ui-lab-control-label">Thème (clair recommandé)</span>' +
-              '<div class="ui-lab-chip-row">' +
-                chip(session.theme === 'light', 'Clair', "window.styleMixerSet('theme','light')") +
-                chip(session.theme === 'dark', 'Sombre', "window.styleMixerSet('theme','dark')") +
-              '</div>' +
-            '</div>' +
             '<div class="ui-lab-control-group">' +
               '<span class="ui-lab-control-label">Navigation</span>' +
               '<div class="ui-lab-chip-row">' +
@@ -610,11 +581,15 @@
 
     var exportTa = document.getElementById('styleMixerExportText');
     if (exportTa) exportTa.value = window.styleMixerExportBlock();
+
+    if (window._styleMixerLive) window.applyStyleMixerLive();
   };
 
   (function boot() {
     document.addEventListener('DOMContentLoaded', function () {
-      if (window._activeTab === 'styleMixer') window.renderStyleMixer();
+      if (window._activeTab === 'styleMixer' && typeof window.styleMixerEnterTab === 'function') {
+        window.styleMixerEnterTab();
+      }
     });
   })();
 })();
