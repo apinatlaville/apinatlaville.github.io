@@ -328,7 +328,7 @@
 
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Thème du site</h3>
   <div class="set-row" style="flex-direction:column; align-items:stretch;">
-    <div style="margin-bottom:12px;"><div class="set-lbl">Apparence</div><div class="set-sub">Minimaliste ou Classique — appliqué à toute l'interface</div></div>
+    <div style="margin-bottom:12px;"><div class="set-lbl">Apparence</div><div class="set-sub">Quatre styles — appliqués à toute l'interface</div></div>
     <div class="settings-theme-row" id="settingsThemeRow">
       <button type="button" class="settings-theme-card" data-theme-preset="minimaliste">
         <span class="settings-theme-label">Minimaliste</span>
@@ -338,10 +338,19 @@
         <span class="settings-theme-label">Classique</span>
         <span class="settings-theme-hint">Liquid glass bleu, fond accent</span>
       </button>
+      <button type="button" class="settings-theme-card" data-theme-preset="origine">
+        <span class="settings-theme-label">Origine</span>
+        <span class="settings-theme-hint">Liquid Glass initial, sidebar, surbrillance bleue</span>
+      </button>
+      <button type="button" class="settings-theme-card" data-theme-preset="juin20">
+        <span class="settings-theme-label">20 juin</span>
+        <span class="settings-theme-hint">Glass navy, surbrillance bleue, Synchrotron</span>
+      </button>
     </div>
   </div>
 
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Interface</h3>
+  <div class="set-row"><div><div class="set-lbl">Barre latérale</div><div class="set-sub">Navigation à gauche ou barre du haut</div></div><button class="toggle-btn" id="btnNavLayoutToggle" type="button">Barre latérale</button></div>
   <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
   <div class="set-row"><div><div class="set-lbl">Filtres rapides (Bulles)</div><div class="set-sub">Affiche les boutons matières</div></div><button class="toggle-btn" id="btnChipsToggle">Affiché</button></div>
   
@@ -674,6 +683,11 @@
     cssUi.rel = 'stylesheet';
     cssUi.href = 'ui-themes.css?v=' + v;
     document.head.appendChild(cssUi);
+
+    var cssUiJuin20 = document.createElement('link');
+    cssUiJuin20.rel = 'stylesheet';
+    cssUiJuin20.href = 'ui-theme-juin20.css?v=' + v;
+    document.head.appendChild(cssUiJuin20);
 
     var cssUiComp = document.createElement('link');
     cssUiComp.rel = 'stylesheet';

@@ -1,5 +1,5 @@
 /**
- * ui-appearance.js — Deux thèmes : Minimaliste ou Classique.
+ * ui-appearance.js — Quatre thèmes : Minimaliste, Classique, Origine, 20 juin.
  */
 (function () {
   'use strict';
@@ -34,6 +34,24 @@
       navLayout: 'sidebar-left',
       accentColor: '#5b9aff',
       theme: 'dark'
+    },
+    origine: {
+      themePreset: 'origine',
+      backdropTone: 'soft',
+      backdropVignette: 'light',
+      backdropBlur: 'medium',
+      navLayout: 'sidebar-left',
+      accentColor: '#5b9aff',
+      theme: 'dark'
+    },
+    juin20: {
+      themePreset: 'juin20',
+      backdropTone: 'soft',
+      backdropVignette: 'light',
+      backdropBlur: 'medium',
+      navLayout: 'sidebar-left',
+      accentColor: '#5b9aff',
+      theme: 'dark'
     }
   };
 
@@ -49,6 +67,18 @@
       label: 'Classique',
       hint: 'Liquid glass bleu, fond accent',
       profile: PRESET_PROFILES.classique
+    },
+    {
+      id: 'origine',
+      label: 'Origine',
+      hint: 'Liquid Glass initial, sidebar, surbrillance bleue',
+      profile: PRESET_PROFILES.origine
+    },
+    {
+      id: 'juin20',
+      label: '20 juin',
+      hint: 'Glass navy, surbrillance bleue, dashboard Synchrotron',
+      profile: PRESET_PROFILES.juin20
     }
   ];
 
@@ -192,23 +222,33 @@
   }
 
   function normalizeThemePreset(id) {
-    return id === 'classique' ? 'classique' : 'minimaliste';
+    if (id === 'retro') return 'minimaliste';
+    if (id === 'classique') return 'classique';
+    if (id === 'origine') return 'origine';
+    if (id === 'juin20') return 'juin20';
+    return 'minimaliste';
   }
 
   function inferLegacyThemePreset(settings) {
     var s = settings || {};
-    if (s.appearance && s.appearance.themePreset === 'classique') return 'classique';
-    if (s.appearance && s.appearance.themePreset === 'minimaliste') return 'minimaliste';
+    if (s.themePreset === 'origine' || s.themePreset === 'classique'
+      || s.themePreset === 'minimaliste' || s.themePreset === 'juin20') {
+      return s.themePreset;
+    }
+    if (s.appearance && s.appearance.themePreset) {
+      return normalizeThemePreset(s.appearance.themePreset);
+    }
     if (s.appearance && (s.appearance.btnPrimaryStyle === 'classic-blue' || s.appearance.navActiveStyle === 'classic-blue')) {
       return 'classique';
     }
-    if (s.uiStyle === 'classic' || s.uiStyle === 'character') return 'classique';
+    if (s.uiStyle === 'classic' || s.uiStyle === 'character') return 'origine';
     return 'minimaliste';
   }
 
   function buildAppearance(settings) {
     var presetId = normalizeThemePreset(settings.themePreset || inferLegacyThemePreset(settings));
-    var appearance = Object.assign({}, PRESET_PROFILES[presetId], { themePreset: presetId });
+    var base = PRESET_PROFILES[presetId] || PRESET_PROFILES.minimaliste;
+    var appearance = Object.assign({}, base, { themePreset: presetId });
     appearance.navLayout = settings.navLayout === 'sidebar-left' ? 'sidebar-left' : 'top';
     appearance.theme = settings.theme === 'light' ? 'light' : 'dark';
     appearance.accentColor = settings.appColor || '#5b9aff';
@@ -280,10 +320,19 @@
     settings.theme = appearance.theme;
 
     document.body.classList.remove(
-      'ui-character', 'ui-minimal', 'ui-classic',
+      'ui-character', 'ui-minimal', 'ui-classic', 'ui-finder', 'ui-juin20',
       'finder-preset-1', 'finder-preset-2', 'finder-preset-3', 'finder-preset-4', 'finder-preset-5'
     );
-    document.body.classList.add('ui-finder');
+
+    var preset = appearance.themePreset;
+    var isLegacyCss = preset === 'origine' || preset === 'juin20';
+    if (preset === 'juin20') {
+      document.body.classList.add('ui-classic', 'ui-juin20');
+    } else if (preset === 'origine') {
+      document.body.classList.add('ui-classic');
+    } else {
+      document.body.classList.add('ui-finder');
+    }
 
     document.body.classList.remove(
       'backdrop-tone-soft', 'backdrop-tone-neutral', 'backdrop-tone-deep', 'backdrop-tone-warm', 'backdrop-tone-accent',
@@ -306,12 +355,21 @@
       'appearance-primary-solid', 'appearance-primary-soft',
       'appearance-primary-glow', 'appearance-primary-classic-blue'
     );
-    document.body.classList.add('btn-style-flat');
-    document.body.classList.toggle('appearance-toggle-classic', false);
 
-    var primaryStyle = appearance.btnPrimaryStyle || 'solid';
-    if (primaryStyle === 'solid' || primaryStyle === 'classic-blue') {
-      document.body.classList.add('appearance-primary-' + primaryStyle);
+    if (isLegacyCss) {
+      document.body.classList.add('btn-style-flat');
+      var legacyStyleEl = document.getElementById('ui-appearance-vars');
+      if (legacyStyleEl) legacyStyleEl.textContent = '';
+    } else {
+      document.body.classList.add('btn-style-flat');
+      document.body.classList.toggle('appearance-toggle-classic', false);
+
+      var primaryStyle = appearance.btnPrimaryStyle || 'solid';
+      if (primaryStyle === 'solid' || primaryStyle === 'classic-blue') {
+        document.body.classList.add('appearance-primary-' + primaryStyle);
+      }
+
+      injectAppearanceCss(aliasUiTokens(mergeTokens(appearance)), appearance);
     }
 
     if (appearance.accentColor) {
@@ -324,8 +382,6 @@
         document.documentElement.style.setProperty('--glow', 'rgba(' + r + ',' + g + ',' + b + ',0.22)');
       }
     }
-
-    injectAppearanceCss(aliasUiTokens(mergeTokens(appearance)), appearance);
   };
 
   window.applyThemePreset = function (presetId) {

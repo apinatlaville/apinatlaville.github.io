@@ -1,0 +1,134 @@
+/* ===== 20 juin 2026 — ui-classic, glass navy (#141824)
+ * Basé sur commit 5df75c8 / capture écran du 20 juin 18:20.
+ */
+
+body.ui-juin20 {
+  --bg: #141824;
+  --s1: rgba(155, 185, 255, 0.055);
+  --s2: rgba(155, 185, 255, 0.085);
+  --s3: rgba(155, 185, 255, 0.12);
+  --bd: rgba(130, 165, 255, 0.14);
+  --bd-hi: rgba(185, 210, 255, 0.28);
+  --acc: #5b9aff;
+  --glow: rgba(91, 154, 255, 0.14);
+  --glass-blur: 56px;
+  --glass-saturate: 2.05;
+  --glass-surface:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.07) 0%, transparent 48%),
+    linear-gradient(220deg, rgba(91, 154, 255, 0.06) 0%, transparent 55%);
+  --glass-shadow:
+    inset 0 1px 0 rgba(195, 215, 255, 0.22),
+    inset 0 -0.5px 0 rgba(0, 0, 0, 0.1),
+    inset 0 0 24px rgba(91, 154, 255, 0.04),
+    0 4px 28px rgba(0, 0, 0, 0.24),
+    0 1px 2px rgba(0, 0, 0, 0.12);
+  --radius-surface: 14px;
+  --radius-control: 10px;
+
+  --shell-backdrop-bg: #121620;
+  --shell-backdrop-image:
+    radial-gradient(ellipse 100% 58% at 50% -18%, rgba(91, 154, 255, 0.13), transparent 54%),
+    radial-gradient(ellipse 48% 38% at 100% 28%, rgba(70, 130, 255, 0.08), transparent 50%),
+    radial-gradient(ellipse 42% 34% at 0% 78%, rgba(91, 154, 255, 0.07), transparent 46%),
+    linear-gradient(180deg, #171c2a 0%, #141824 44%, #10141e 100%);
+  --shell-pane-bg: rgba(155, 185, 255, 0.055);
+  --shell-pane-border: rgba(130, 165, 255, 0.14);
+  --shell-pane-shadow: var(--glass-shadow);
+  --shell-pane-blur: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+body.ui-juin20.tmpl-glass .card,
+body.ui-juin20.tmpl-glass .pcard,
+body.ui-juin20.tmpl-glass .cl-card,
+body.ui-juin20.tmpl-glass .home-hero,
+body.ui-juin20.tmpl-glass .pbar,
+body.ui-juin20.tmpl-glass .modal,
+body.ui-juin20.tmpl-glass .loc-popup,
+body.ui-juin20.tmpl-glass .set-row,
+body.ui-juin20.tmpl-glass .dash-card,
+body.ui-juin20.tmpl-glass .fi,
+body.ui-juin20.tmpl-glass .chart-container,
+body.ui-juin20.tmpl-glass .mr,
+body.ui-juin20.tmpl-glass .fc-front,
+body.ui-juin20.tmpl-glass .todo-item,
+body.ui-juin20.tmpl-glass .stc,
+body.ui-juin20.tmpl-glass .chip,
+body.ui-juin20.tmpl-glass .cbt,
+body.ui-juin20.tmpl-glass .uid-badge,
+body.ui-juin20.tmpl-glass .ov .modal,
+body.ui-juin20.tmpl-glass .fab-mini,
+body.ui-juin20.tmpl-glass .toggle-btn,
+body.ui-juin20.tmpl-glass .anki-card-block,
+body.ui-juin20.tmpl-glass .kpi,
+body.ui-juin20.tmpl-glass .search-field,
+body.ui-juin20.tmpl-glass .ui-panel {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-shadow);
+  border: 0.5px solid var(--bd);
+  background: var(--glass-surface), var(--s1);
+}
+
+body.ui-juin20.tmpl-glass .sticky-top,
+body.ui-juin20 .app-chrome--top .sticky-top {
+  background:
+    linear-gradient(180deg, rgba(91, 154, 255, 0.04) 0%, transparent 100%),
+    rgba(18, 22, 34, 0.32);
+  backdrop-filter: blur(64px) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(64px) saturate(var(--glass-saturate));
+  border-bottom: 0.5px solid var(--bd);
+  box-shadow:
+    inset 0 1px 0 rgba(195, 215, 255, 0.1),
+    0 1px 0 rgba(0, 0, 0, 0.12);
+}
+
+body.ui-juin20.tmpl-glass .app-chrome--top .ui-chrome-bar,
+body.ui-juin20.tmpl-glass .app-chrome--top .ui-chrome-strip {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  box-shadow: var(--glass-shadow);
+  border-bottom: 0.5px solid var(--bd);
+  background: var(--glass-surface), var(--s1);
+}
+
+body.ui-juin20 .tabs {
+  background: var(--s1);
+}
+
+body.ui-juin20 .tab,
+body.ui-juin20 .anki-tab,
+body.ui-juin20 .anki-cockpit-tab {
+  border-radius: 10px 10px 0 0 !important;
+}
+
+body.ui-juin20 .tab.on,
+body.ui-juin20 .anki-tab.on,
+body.ui-juin20 .anki-cockpit-tab.on {
+  background: rgba(91, 154, 255, 0.16) !important;
+  color: var(--txt) !important;
+  border-color: rgba(130, 165, 255, 0.22) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(195, 215, 255, 0.18),
+    0 2px 12px rgba(91, 154, 255, 0.08) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.ui-juin20 .bp:not(.bp-danger):not(.bp-gold),
+body.ui-juin20 .ui-btn-accent:not(.bp-danger) {
+  box-shadow: 0 2px 14px rgba(91, 154, 255, 0.28) !important;
+}
+
+body.ui-juin20 .fab-main {
+  box-shadow: 0 2px 14px rgba(91, 154, 255, 0.35) !important;
+}
+
+body.ui-juin20 .kpi,
+body.ui-juin20 .dash-card {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+body.ui-juin20:not(.nav-sidebar-left) .page-title-float {
+  display: none !important;
+}

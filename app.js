@@ -157,6 +157,9 @@ window.applySettings = function() {
   window.D.settings.navLayout = navLayout;
   document.body.classList.remove('nav-sidebar-right');
   document.body.classList.toggle('nav-sidebar-left', navLayout === 'sidebar-left');
+  if (window.$('btnNavLayoutToggle')) {
+    window.$('btnNavLayoutToggle').textContent = navLayout === 'sidebar-left' ? 'Barre latérale' : 'Barre du haut';
+  }
 
   if (typeof window.applyAppearance === 'function') {
     window.applyAppearance(window.D.settings);
@@ -188,7 +191,11 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
   if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
 
-  var activeTheme = window.D.settings.themePreset === 'classique' ? 'classique' : 'minimaliste';
+  var activeTheme = window.D.settings.themePreset || 'minimaliste';
+  if (activeTheme !== 'minimaliste' && activeTheme !== 'classique'
+    && activeTheme !== 'origine' && activeTheme !== 'juin20') {
+    activeTheme = 'minimaliste';
+  }
   document.querySelectorAll('[data-theme-preset]').forEach(function (el) {
     el.classList.toggle('is-active', el.getAttribute('data-theme-preset') === activeTheme);
   });
@@ -824,6 +831,11 @@ window.clearErrorLogs = function() {
 // ATTACHEMENT DYNAMIQUE DES ÉVÉNEMENTS
 bindClick('btnOpenSettings', withD(() => window.switchTab('settings')));
 bindClick('btnRefresh', () => location.reload());
+bindClick('btnNavLayoutToggle', withD(() => {
+  window.D.settings.navLayout = window.D.settings.navLayout === 'sidebar-left' ? 'top' : 'sidebar-left';
+  window.save();
+  window.applySettings();
+}));
 bindClick('btnCompactToggle', withD(() => { window.D.settings.compact = !window.D.settings.compact; window.save(); window.applySettings(); }));
 bindClick('btnStatsToggle', withD(() => { window.D.settings.showStats = !window.D.settings.showStats; window.save(); window.applySettings(); }));
 bindClick('btnChipsToggle', withD(() => { window.D.settings.showChips = !window.D.settings.showChips; window.save(); window.applySettings(); }));
@@ -1008,7 +1020,11 @@ async function initApp(user) {
   }
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
-  if(!window.D.settings.navLayout) window.D.settings.navLayout = 'top';
+  if(!window.D.settings.navLayout) window.D.settings.navLayout = 'sidebar-left';
+  if (!window.D.settings.navLayoutVersion) {
+    window.D.settings.navLayout = 'sidebar-left';
+    window.D.settings.navLayoutVersion = 1;
+  }
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b9aff';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
   if(!window.D.settings.ankiSessionMin) window.D.settings.ankiSessionMin = 60;
