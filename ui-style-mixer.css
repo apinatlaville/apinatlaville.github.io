@@ -1,70 +1,150 @@
-/* ===== Style Mixeur — axes indépendants via data-mix-* + --mix-* vars ===== */
+/* ===== Style Mixeur v2 — sandbox isolé + live opt-in ===== */
 
-.style-mixer-sandbox {
+.style-mixer-lab .ui-lab-hero p {
+  line-height: 1.55;
+}
+
+.style-mixer-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mut);
+}
+
+.style-mixer-preview-section {
+  margin-bottom: 20px;
+}
+
+.style-mixer-preview-head {
+  margin-bottom: 10px;
+}
+
+.style-mixer-preview-head h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.style-mixer-summary {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 0;
+}
+
+/* Panneau aperçu — fond sombre fixe, indépendant du thème app */
+#styleMixerSandbox.style-mixer-sandbox {
   border-radius: 16px;
-  padding: 16px;
-  margin-bottom: 8px;
-  background: var(--s1);
-  border: 0.5px solid var(--bd);
-  position: relative;
-  overflow: hidden;
+  padding: 18px;
+  background: #141824;
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  color: #e8ecf4;
+  --txt: #e8ecf4;
+  --mut: rgba(232, 236, 244, 0.62);
+  --s2: rgba(255, 255, 255, 0.06);
+  --bd: rgba(255, 255, 255, 0.1);
   isolation: isolate;
 }
 
-.style-mixer-sandbox-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--mut);
-  margin: 0 0 12px;
-}
-
-.style-mixer-sandbox-grid {
+.style-mixer-demo-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
 }
 
-.style-mixer-sandbox-block label {
-  display: block;
+.style-mixer-demo-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.style-mixer-demo-lbl {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--mut);
-  margin-bottom: 8px;
 }
 
-.style-mixer-sandbox-block .bp,
-.style-mixer-sandbox-block .bs {
+#styleMixerSandbox .tab {
   font-size: 12px;
-  padding: 8px 12px;
-  margin-right: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
 }
 
-.style-mixer-mini-nav {
+#styleMixerSandbox .bp,
+#styleMixerSandbox .bs {
+  font-size: 12px;
+  padding: 9px 14px;
+  cursor: default;
+}
+
+#styleMixerSandbox .chip {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+#styleMixerSandbox .dash-card {
+  padding: 12px;
+  border-radius: 10px;
+  min-width: 80px;
+}
+
+.style-mixer-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--s2);
+  border: 0.5px solid var(--bd);
 }
 
-.style-mixer-mini-nav .tab {
-  font-size: 12px;
-  padding: 6px 10px;
-  justify-content: flex-start;
+.style-mixer-live-badge.is-on {
+  background: color-mix(in srgb, var(--acc) 18%, var(--s2));
+  border-color: color-mix(in srgb, var(--acc) 35%, var(--bd));
+  color: var(--acc);
+}
+
+.style-mixer-group {
+  margin-bottom: 16px;
+  border-radius: 12px;
+  background: var(--s2);
+  border: 0.5px solid var(--bd);
+  padding: 0 14px 14px;
+}
+
+.style-mixer-group summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 14px 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.style-mixer-group summary::-webkit-details-marker {
+  display: none;
 }
 
 .style-mixer-axes {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .style-mixer-axis {
-  padding: 14px;
-  border-radius: 12px;
-  background: var(--s2);
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--s1);
   border: 0.5px solid var(--bd);
 }
 
@@ -73,7 +153,7 @@
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   flex-wrap: wrap;
 }
 
@@ -87,25 +167,14 @@
   color: var(--mut);
 }
 
-.style-mixer-preset-row {
-  margin-top: 8px;
+.style-mixer-axis-chips {
+  flex-wrap: wrap;
 }
 
 .style-mixer-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 10px;
-}
-
-.style-mixer-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: color-mix(in srgb, var(--s1) 92%, transparent);
-  backdrop-filter: blur(12px);
-  padding-bottom: 8px;
-  margin-bottom: -4px;
 }
 
 .style-mixer-export-text {
@@ -119,35 +188,28 @@
   background: var(--s2);
   color: var(--txt);
   resize: vertical;
-  min-height: 200px;
+  min-height: 180px;
+  margin-bottom: 10px;
 }
 
-.style-mixer-hover-demo {
-  padding: 12px;
-  cursor: default;
-}
-
-/* —— Sandbox (#id) bat ui-classic / ui-finder sur le body —— */
+/* —— Styles mixés : sandbox + app (live) —— */
 #styleMixerSandbox.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold),
-body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold) {
+body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold):not(.style-mixer-ui) {
   background: var(--mix-btnPrimary-bg, var(--acc)) !important;
   color: var(--mix-btnPrimary-color, #fff) !important;
   border: var(--mix-btnPrimary-border, none) !important;
   box-shadow: var(--mix-btnPrimary-shadow, none) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  font-weight: 500;
 }
 
-#styleMixerSandbox.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
-body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled) {
+#styleMixerSandbox.style-mixer-scope .bp:not(.bp-danger):not(.bp-gold):hover,
+body.style-mixer-live .bp:not(.bp-danger):not(.bp-gold):not(.style-mixer-ui):hover:not(:disabled) {
   background: var(--mix-btnPrimary-hover, var(--acc)) !important;
 }
 
 #styleMixerSandbox.style-mixer-scope .bs,
-#styleMixerSandbox.style-mixer-scope .cbt,
-#styleMixerSandbox.style-mixer-scope .toggle-btn,
-body.style-mixer-live .bs,
+body.style-mixer-live .bs:not(.style-mixer-ui),
 body.style-mixer-live .cbt,
 body.style-mixer-live .toggle-btn {
   background: var(--mix-btnSecondary-bg, rgba(255, 255, 255, 0.08)) !important;
@@ -158,14 +220,8 @@ body.style-mixer-live .toggle-btn {
   -webkit-backdrop-filter: var(--mix-btnSecondary-blur, none) !important;
 }
 
-#styleMixerSandbox.style-mixer-scope .bs:hover:not(:disabled),
-body.style-mixer-live .bs:hover:not(:disabled) {
-  background: var(--mix-btnSecondary-hover, rgba(255, 255, 255, 0.12)) !important;
-}
-
 #styleMixerSandbox.style-mixer-scope .tab.on,
-#styleMixerSandbox.style-mixer-scope .anki-tab.on,
-body.style-mixer-live .tab.on,
+body.style-mixer-live .tab.on:not(.style-mixer-ui),
 body.style-mixer-live .anki-tab.on,
 body.style-mixer-live .anki-cockpit-tab.on {
   background: var(--mix-tabs-onBg) !important;
@@ -194,7 +250,6 @@ body.style-mixer-live[data-mix-tabs="finder"] .tab:not(.on) {
 }
 
 #styleMixerSandbox.style-mixer-scope .chip.on,
-#styleMixerSandbox.style-mixer-scope .anki-lib-chip.on,
 body.style-mixer-live .chip.on,
 body.style-mixer-live .anki-lib-chip.on {
   background: var(--mix-chips-onBg) !important;
@@ -212,9 +267,7 @@ body.style-mixer-live[data-mix-chips="finder"] .chip.on {
   border: none !important;
 }
 
-#styleMixerSandbox.style-mixer-scope .kpi,
 #styleMixerSandbox.style-mixer-scope .dash-card,
-#styleMixerSandbox.style-mixer-scope .ui-tile,
 body.style-mixer-live .kpi,
 body.style-mixer-live .dash-card,
 body.style-mixer-live .ui-tile {
@@ -233,8 +286,6 @@ body.style-mixer-live .ui-pane-frame {
   -webkit-backdrop-filter: var(--mix-panes-blur, var(--shell-pane-blur)) !important;
 }
 
-#styleMixerSandbox.style-mixer-scope .code-box:focus,
-#styleMixerSandbox.style-mixer-scope .home-search:focus,
 body.style-mixer-live .code-box:focus,
 body.style-mixer-live .home-search:focus,
 body.style-mixer-live #mainSearchText:focus,
@@ -243,9 +294,6 @@ body.style-mixer-live .search-field input:focus {
   border-color: var(--mix-focus-border) !important;
 }
 
-#styleMixerSandbox.style-mixer-scope .card:hover,
-#styleMixerSandbox.style-mixer-scope .dash-card:hover,
-#styleMixerSandbox.style-mixer-scope .pcard:hover,
 body.style-mixer-live .card:hover,
 body.style-mixer-live .dash-card:hover,
 body.style-mixer-live .pcard:hover {
@@ -258,11 +306,6 @@ body.style-mixer-live.nav-sidebar-left .app-sidebar {
   border-color: var(--mix-sidebar-border, var(--bd)) !important;
 }
 
-body.style-mixer-live[data-mix-sidebar="finder"].nav-sidebar-left .app-sidebar {
-  backdrop-filter: blur(60px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(60px) saturate(1.2) !important;
-}
-
 body.style-mixer-live.tmpl-glass .set-row,
 body.style-mixer-live.tmpl-glass .home-hero,
 body.style-mixer-live.tmpl-glass .toggle-btn {
@@ -270,10 +313,16 @@ body.style-mixer-live.tmpl-glass .toggle-btn {
   border-color: var(--mix-layers-border, transparent) !important;
 }
 
-#styleMixerSandbox.style-mixer-scope .set-row,
-#styleMixerSandbox.style-mixer-scope .home-hero {
-  padding: 10px;
-  border-radius: 10px;
-  background: var(--mix-layers-bg, var(--s2));
-  border: 0.5px solid var(--mix-layers-border, var(--bd));
+/* Contrôles du mixeur : jamais stylés par le mix */
+.style-mixer-lab .style-mixer-ui.bp {
+  background: var(--acc) !important;
+  box-shadow: 0 2px 14px rgba(91, 154, 255, 0.28) !important;
+  color: #fff !important;
+}
+
+.style-mixer-lab .style-mixer-ui.bs {
+  background: var(--s2) !important;
+  border: 0.5px solid var(--bd) !important;
+  color: var(--txt) !important;
+  box-shadow: none !important;
 }
