@@ -396,9 +396,9 @@ body.ui-finder.nav-sidebar-left .sidebar-brand {
 
 body.ui-finder.nav-sidebar-left .sidebar-brand .app-logo-mark,
 body.ui-finder.nav-sidebar-left .sidebar-logo-mark {
-  background: rgba(255, 255, 255, 0.07);
-  border: 0.5px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: var(--acc, #5b9aff);
+  border: none;
+  box-shadow: none;
 }
 
 body.ui-finder.nav-sidebar-left .sidebar-footer {
@@ -414,9 +414,7 @@ body.theme-light.ui-finder.nav-sidebar-left .sidebar-brand {
 
 body.theme-light.ui-finder.nav-sidebar-left .sidebar-brand .app-logo-mark,
 body.theme-light.ui-finder.nav-sidebar-left .sidebar-logo-mark {
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--acc, #5b9aff) 22%, transparent);
 }
 
 body.theme-light.ui-finder.nav-sidebar-left .sidebar-footer {

@@ -78,29 +78,14 @@
     'cloud-check': '<path d="m17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m9 15 2 2 4-4"/>'
   };
 
-  /** Logo site — feuilles empilées, minimal (lisible à 15px) */
-  const APP_LOGO_INNER =
-    '<rect class="logo-sheet logo-sheet-back" x="3.8" y="10.2" width="12.8" height="9.2" rx="1.8" opacity="0.32"/>' +
-    '<rect class="logo-sheet logo-sheet-mid" x="5.2" y="7.6" width="12.8" height="9.2" rx="1.8" opacity="0.52"/>' +
-    '<rect class="logo-sheet logo-sheet-front" x="6.8" y="5" width="12.8" height="9.2" rx="1.8"/>' +
-    '<path class="logo-fold" d="M16.2 5v2.4a1.1 1.1 0 0 0 1.1 1.1H19.6" opacity="0.38"/>' +
-    '<line class="logo-line" x1="9.2" y1="8.6" x2="16.8" y2="8.6" opacity="0.42"/>' +
-    '<line class="logo-line" x1="9.2" y1="10.8" x2="14.6" y2="10.8" opacity="0.28"/>' +
-    '<circle class="logo-accent" cx="18.6" cy="6.2" r="1.15" fill="currentColor" stroke="none"/>';
-
-  window.appLogoSvg = function (extraAttrs) {
-    const attrs = extraAttrs ? ' ' + extraAttrs : '';
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"' + attrs + '>' + APP_LOGO_INNER + '</svg>';
-  };
-
   window.appLogoMark = function () {
-    return '<div class="app-logo-mark" aria-hidden="true">' + window.appLogoSvg() + '</div>';
+    return '<div class="app-logo-mark" aria-hidden="true"></div>';
   };
 
   window.hydrateAppLogos = function (root) {
     const scope = root || document;
     scope.querySelectorAll('[data-app-logo]').forEach(function (el) {
-      el.innerHTML = window.appLogoSvg('aria-hidden="true"');
+      el.innerHTML = '';
       if (!el.classList.contains('sidebar-logo-mark') && !el.classList.contains('hdr-logo-mark')) {
         el.classList.add('app-logo-mark');
       }

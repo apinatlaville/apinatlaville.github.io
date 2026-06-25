@@ -200,9 +200,8 @@ body.mode-compact .cdesc { display: none; }
  margin-bottom: 0;
  flex-shrink: 0;
 }
-.hdr-logo-mark svg {
- width: 18px;
- height: 18px;
+.hdr-logo-mark::before {
+ font-size: 15px;
 }
 .hdr h1 span { color: var(--acc); }
 .btn-settings { background: var(--s2); border: 1px solid var(--bd); border-radius: 50%; width: 36px; height: 36px; font-size: 16px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; color: var(--txt); }
@@ -2719,13 +2718,8 @@ body.nav-sidebar-left .sidebar-brand .app-logo-mark {
 body.nav-sidebar-left .sidebar-logo-mark {
   opacity: 0.92;
 }
-body.nav-sidebar-left .sidebar-brand .app-logo-mark svg .logo-accent {
-  fill: var(--acc);
-}
-body.nav-sidebar-left .sidebar-brand .app-logo-mark svg {
-  width: 15px;
-  height: 15px;
-  display: block;
+body.nav-sidebar-left .sidebar-brand .app-logo-mark::before {
+  font-size: 13px;
 }
 body.nav-sidebar-left .sidebar-brand-txt {
   font-family: 'Inter', sans-serif;
