@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="core-utils.js"></script>
 <script src="boot-profiler.js"></script>
+<script src="boot-loader.js"></script>
 <script src="icons.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
@@ -627,7 +628,10 @@
     measurementId: "G-T4BHM2QHZ9"
   };
 
-  if (firebaseConfig.apiKey) {
+  var skipFirebase = false;
+  try { skipFirebase = localStorage.getItem('active_mode') === 'local'; } catch (e) { /* ignore */ }
+
+  if (firebaseConfig.apiKey && !skipFirebase) {
     if (window.bootMark) window.bootMark('firebase.init.start');
     window.firebaseReady = (async () => {
       const app = initializeApp(firebaseConfig);
@@ -654,6 +658,9 @@
       console.error("Erreur initialisation Firebase:", err);
       if (window.bootMark) window.bootMark('firebase.init.error', { error: String(err && err.message ? err.message : err) });
     });
+  } else if (skipFirebase) {
+    window.firebaseReady = Promise.resolve(null);
+    if (window.bootMark) window.bootMark('firebase.skipped.local');
   } else {
     console.warn("Firebase non configuré.");
   }
@@ -720,74 +727,17 @@
       document.head.appendChild(l);
     });
 
-    function appendScript(src, next) {
-      var name = src.split('/').pop();
-      if (window.bootProfiler) window.bootProfiler.scriptStart(name);
-      var s = document.createElement('script');
-      s.src = src + '?v=' + v;
-      s.async = false;
-      s.onload = function () {
-        if (window.bootProfiler) window.bootProfiler.scriptEnd(name);
-        if (next) next();
-      };
-      s.onerror = function () {
-        if (window.bootProfiler) window.bootProfiler.scriptError(name);
-        if (next) next();
-      };
-      document.body.appendChild(s);
-    }
+    window.__bootCacheV = v;
 
-    appendScript('flatpickr.min.js', function () {
-      appendScript('flatpickr-fr.js', function () {
-        appendScript('choices.min.js', function () {
-          appendScript('form-controls.js', loadAppScripts);
-        });
-      });
-    });
-
-    function loadAppScripts() {
-    if (typeof window.setBootStep === 'function') window.setBootStep('scripts');
-
-    var scripts = [
-      'cloud.js',
-      'data.js',
-      'demo-pcstar.js',
-      'scanner.js',
-      'anki-algo.js',
-      'anki-app.js',
-      'anki-algo-v2.js',
-      'anki-card-ui.js',
-      'anki-app-v2.js',
-      'anki-viz.js',
-      'anki-viz-v2.js',
-      'anki-viz-compare.js',
-      'anki-quick.js',
-      'anki-smoke.js',
-      'nav-config.js',
-      'ui-components.js',
-      'ui-style-lab.js',
-      'ui-style-mixer.js'
-    ];
-
-    function loadNext(i) {
-      if (i >= scripts.length) {
-        if (window.bootProfiler) window.bootProfiler.scriptStart('app.js');
-        var appScript = document.createElement('script');
-        appScript.type = 'module';
-        appScript.src = 'app.js?v=' + v;
-        appScript.onload = function () {
-          if (window.bootProfiler) window.bootProfiler.scriptEnd('app.js');
-        };
-        appScript.onerror = function () {
-          if (window.bootProfiler) window.bootProfiler.scriptError('app.js');
-        };
-        document.body.appendChild(appScript);
-        return;
+    function startBoot() {
+      if (typeof window.bootLoadApplication === 'function') {
+        window.bootLoadApplication();
       }
-      appendScript(scripts[i], function () { loadNext(i + 1); });
     }
-
-    loadNext(0);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startBoot);
+    } else {
+      startBoot();
     }
   })();
 </script>

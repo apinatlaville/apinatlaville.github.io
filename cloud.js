@@ -263,8 +263,4 @@ window.startLocalMode = function() {
 };
 window._startLocalModeImpl = window.startLocalMode;
 
-if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', window.checkSavedSession);
-} else {
-  window.checkSavedSession();
-}
+/* Auth déclenchée par boot-loader.js après chargement de app.js */

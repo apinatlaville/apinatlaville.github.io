@@ -720,14 +720,24 @@ window.switchTab = function(tab, overrideResetFilters = false) {
     ? window.getTabsNeedingData()
     : [];
 
-  if (dataReady && (def ? def.needsData !== false : needsData.includes(tab))) {
-    window.runTabShow(tab, overrideResetFilters);
-  } else if (!dataReady && needsData.includes(tab)) {
-    window._pendingTab = tab;
-    window._pendingTabReset = overrideResetFilters;
-  } else if (def && def.needsData === false) {
-    window.runTabShow(tab, overrideResetFilters);
+  function runTabShowNow() {
+    if (dataReady && (def ? def.needsData !== false : needsData.includes(tab))) {
+      window.runTabShow(tab, overrideResetFilters);
+    } else if (!dataReady && needsData.includes(tab)) {
+      window._pendingTab = tab;
+      window._pendingTabReset = overrideResetFilters;
+    } else if (def && def.needsData === false) {
+      window.runTabShow(tab, overrideResetFilters);
+    }
   }
+
+  var prep = [];
+  if (typeof window.ensureScriptsForTab === 'function') prep.push(window.ensureScriptsForTab(tab));
+  if (['cours', 'notes', 'settings', 'ankiV2'].indexOf(tab) >= 0 && typeof window.ensureFormLibs === 'function') {
+    prep.push(window.ensureFormLibs());
+  }
+  if (prep.length) Promise.all(prep).then(runTabShowNow);
+  else runTabShowNow();
 
   if (window._activeTab !== tab) {
     window._activeTab = tab;

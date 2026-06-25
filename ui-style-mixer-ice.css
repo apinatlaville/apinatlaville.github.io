@@ -1,4 +1,7 @@
-/* ===== Glace liquide — prototype Style Mixeur uniquement (sans glow) ===== */
+/* ===== Minimal + verre — prototype Style Mixeur uniquement =====
+ * Mélange preset Finder épuré (pilules grises) + vitre légère visionOS.
+ * Pas de glow, pas de dégradés glossy, pas de pseudo-éléments décoratifs.
+ */
 
 .style-mixer-btn-pick {
   display: grid;
@@ -18,49 +21,60 @@
 }
 
 #styleMixerPreviewHost .style-mixer-ice-stage {
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
-/* —— Scène neutre (profondeur, pas de halo accent) —— */
+/* —— Tokens locaux —— */
 .style-mixer-lab .style-mixer-ice-stage {
+  --ice-bg: #13151a;
+  --ice-surface: rgba(255, 255, 255, 0.04);
+  --ice-surface-raised: rgba(255, 255, 255, 0.06);
+  --ice-border: rgba(255, 255, 255, 0.08);
+  --ice-blur: blur(24px) saturate(1.06);
+  --ice-nav-idle: rgba(235, 238, 245, 0.62);
+  --ice-nav-on-bg: rgba(120, 120, 128, 0.28);
+  --ice-nav-on-color: var(--acc);
+  --ice-subnav-on-bg: rgba(120, 120, 128, 0.22);
+  --ice-subnav-on-color: rgba(255, 255, 255, 0.94);
+  --ice-sync-gold: #c9a050;
+  --ice-sync-gold-on: #e0c070;
+
   position: relative;
-  padding: 22px 20px 18px;
-  border-radius: 20px;
-  background:
-    linear-gradient(168deg, #1a2130 0%, #121824 48%, #0e131c 100%);
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: 20px 18px 16px;
+  border-radius: 16px;
+  background: var(--ice-bg);
+  border: 0.5px solid var(--ice-border);
 }
 
 .style-mixer-lab .style-mixer-ice-tag {
   font-size: 11px;
-  color: rgba(220, 228, 244, 0.65);
+  color: rgba(235, 238, 245, 0.5);
   margin: 0 0 14px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  line-height: 1.45;
 }
 
 .style-mixer-lab .style-mixer-ice-theme-badge {
   display: inline-block;
   font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 4px 10px;
-  margin-bottom: 14px;
-  border-radius: 999px;
-  color: rgba(255, 255, 255, 0.72);
-  background: rgba(255, 255, 255, 0.06);
-  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  background: var(--ice-surface);
+  border: 0.5px solid var(--ice-border);
 }
 
-/* —— Layout sidebar + contenu —— */
+/* —— Layout —— */
 .style-mixer-lab .style-mixer-ice-showcase {
   display: grid;
   grid-template-columns: 218px 1fr;
-  gap: 20px;
+  gap: 16px;
   align-items: stretch;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 @media (max-width: 640px) {
@@ -69,121 +83,86 @@
   }
 }
 
-/* —— Liquid glass : couches, plat, sans glow coloré —— */
-.style-mixer-lab .liquid-glass {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  color: var(--txt);
-  font-family: 'Inter', sans-serif;
-  border: none;
-  cursor: default;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.03) 28%, transparent 58%),
-    rgba(255, 255, 255, 0.055);
-  backdrop-filter: blur(52px) saturate(1.22);
-  -webkit-backdrop-filter: blur(52px) saturate(1.22);
-  border: 0.5px solid rgba(255, 255, 255, 0.28);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    inset 0 -0.5px 0 rgba(0, 0, 0, 0.08),
-    0 6px 20px rgba(0, 0, 0, 0.24);
+/* —— Surface vitrée (une seule couche, discrète) —— */
+.style-mixer-lab .glass-panel {
+  background: var(--ice-surface);
+  border: 0.5px solid var(--ice-border);
+  border-radius: 12px;
+  backdrop-filter: var(--ice-blur);
+  -webkit-backdrop-filter: var(--ice-blur);
 }
 
-.style-mixer-lab .liquid-glass::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.1) 0%, transparent 42%);
-  opacity: 0.85;
-}
-
-.style-mixer-lab .liquid-glass::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 1px;
-  pointer-events: none;
-  background: rgba(0, 0, 0, 0.12);
-}
-
-/* —— Sidebar réelle (218px, comme app-sidebar Finder) —— */
+/* —— Sidebar —— */
 .style-mixer-lab .style-mixer-ice-sidebar {
   display: flex;
   flex-direction: column;
-  min-height: 360px;
-  padding: 8px 6px 10px;
-  border-radius: 16px;
-  background: rgba(18, 22, 34, 0.92);
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  min-height: 340px;
+  padding: 6px 4px 8px;
+  border-radius: 12px;
+  background: var(--ice-surface);
+  border: 0.5px solid var(--ice-border);
+  backdrop-filter: var(--ice-blur);
+  -webkit-backdrop-filter: var(--ice-blur);
 }
 
 .style-mixer-lab .style-mixer-ice-stage.ui-finder .style-mixer-ice-sidebar {
   background:
     var(--finder-sidebar-surface, none),
-    var(--finder-sidebar-bg, rgba(24, 30, 48, 0.58));
-  border: 0.5px solid var(--finder-sidebar-border, rgba(255, 255, 255, 0.14));
-  backdrop-filter: blur(var(--finder-sidebar-blur, 52px)) saturate(var(--finder-sidebar-saturate, 1.15));
-  -webkit-backdrop-filter: blur(var(--finder-sidebar-blur, 52px)) saturate(var(--finder-sidebar-saturate, 1.15));
-  box-shadow: var(--finder-sidebar-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.1));
+    var(--finder-sidebar-bg, var(--ice-surface));
+  border-color: var(--finder-sidebar-border, var(--ice-border));
+  backdrop-filter: blur(var(--finder-sidebar-blur, 24px)) saturate(var(--finder-sidebar-saturate, 1.06));
+  -webkit-backdrop-filter: blur(var(--finder-sidebar-blur, 24px)) saturate(var(--finder-sidebar-saturate, 1.06));
 }
 
 .style-mixer-lab .style-mixer-ice-nav {
   display: flex;
   flex-direction: column;
-  gap: 0;
   flex: 1;
 }
 
 .style-mixer-lab .style-mixer-ice-nav .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 8px;
+  gap: 1px;
+  margin-bottom: 6px;
 }
 
 .style-mixer-lab .style-mixer-ice-nav .nav-group-label {
   display: block;
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: rgba(232, 236, 244, 0.55);
-  padding: 8px 11px 4px;
-  opacity: 0.85;
+  color: rgba(235, 238, 245, 0.42);
+  padding: 8px 10px 3px;
 }
 
 .style-mixer-lab .style-mixer-ice-sync > .nav-group-label {
   color: var(--pur);
-  opacity: 1;
   text-transform: none;
   font-size: 11px;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
+  opacity: 0.9;
 }
 
 .style-mixer-lab .style-mixer-ice-nav .nav-sub-label {
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--acc);
-  padding: 10px 11px 4px;
-  opacity: 0.95;
+  padding: 8px 10px 3px;
+  opacity: 0.85;
 }
 
 .style-mixer-lab .style-mixer-ice-nav .nav-sub-items {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 2px 0 4px;
+  gap: 1px;
+  padding: 0 0 4px;
 }
 
-/* Tailles Finder sidebar desktop */
+/* Onglets — tailles Finder desktop */
 .style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .tab,
 .style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab {
   display: inline-flex;
@@ -192,23 +171,26 @@
   width: 100%;
   justify-content: flex-start;
   text-align: left;
-  padding: 6px 11px !important;
+  padding: 6px 10px !important;
   font-size: 13px !important;
   font-weight: 500 !important;
   min-height: 34px !important;
   border-radius: 8px !important;
   line-height: 1.2;
-  border: 0.5px solid transparent !important;
+  border: none !important;
   background: transparent !important;
   box-shadow: none !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  color: var(--ice-nav-idle) !important;
   cursor: default;
   font-family: 'Inter', sans-serif;
+  letter-spacing: -0.01em;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab {
-  padding-left: 18px !important;
+  padding-left: 16px !important;
   font-size: 12px !important;
   min-height: 32px !important;
 }
@@ -224,7 +206,6 @@
   border-radius: 9px;
   font-size: 10px;
   font-weight: 700;
-  line-height: 1;
   background: var(--gold);
   color: #000;
   flex-shrink: 0;
@@ -232,20 +213,21 @@
 
 .style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .tab [data-icon] svg,
 .style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab [data-icon] svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
+  opacity: 0.92;
 }
 
 .style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab [data-icon] svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
-/* Sync : or / violet comme la sidebar réelle */
+/* Sync : accents or discrets */
 .style-mixer-lab .style-mixer-ice-sync .tab.tab-anki,
 .style-mixer-lab .style-mixer-ice-sync .tab.tab-viz {
-  color: #c9a050 !important;
+  color: var(--ice-sync-gold) !important;
 }
 
 .style-mixer-lab .style-mixer-ice-sync .tab.tab-anki [data-icon],
@@ -253,59 +235,33 @@
   color: inherit;
 }
 
-.style-mixer-lab .style-mixer-ice-sync .nav-sub-items .anki-tab:not(.on) {
-  color: rgba(232, 236, 244, 0.88) !important;
-}
-
-/* Organisation : neutre */
-.style-mixer-lab .style-mixer-ice-org .tab {
-  color: rgba(232, 236, 244, 0.88) !important;
-}
-
-/* Pilule active : verre en couches, sans glow accent */
-.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .tab.on,
-.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab.on {
+/* Pilule active — minimal Apple (pas de verre empilé) */
+.style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .tab.on {
   font-weight: 600 !important;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.04) 40%, transparent 70%),
-    rgba(255, 255, 255, 0.09) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.22) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 -0.5px 0 rgba(0, 0, 0, 0.06) !important;
-  backdrop-filter: blur(20px) saturate(1.15) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(1.15) !important;
+  background: var(--ice-nav-on-bg) !important;
+  color: var(--ice-nav-on-color) !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .style-mixer-lab .style-mixer-ice-sync .tab.tab-anki.on {
-  color: #e8c878 !important;
+  color: var(--ice-sync-gold-on) !important;
+  background: rgba(201, 160, 80, 0.14) !important;
 }
 
 .style-mixer-lab .style-mixer-ice-stage .style-mixer-ice-nav .anki-tab.on {
-  color: rgba(255, 255, 255, 0.96) !important;
+  font-weight: 600 !important;
+  background: var(--ice-subnav-on-bg) !important;
+  color: var(--ice-subnav-on-color) !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-.style-mixer-lab .style-mixer-ice-stage.ui-classic .style-mixer-ice-sync .tab.tab-anki.on {
-  color: #e8c878 !important;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 48%),
-    rgba(232, 192, 112, 0.12) !important;
-  border-color: rgba(232, 192, 112, 0.22) !important;
-}
-
-.style-mixer-lab .style-mixer-ice-stage.ui-finder .style-mixer-ice-org .tab.on {
-  color: rgba(255, 255, 255, 0.96) !important;
-}
-
+/* —— Zone contenu —— */
 .style-mixer-lab .style-mixer-ice-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.style-mixer-lab .liquid-glass--layer {
-  padding: 14px;
-  border-radius: 14px;
+  gap: 10px;
 }
 
 .style-mixer-lab .style-mixer-ice-actions {
@@ -313,111 +269,106 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  padding: 12px;
 }
 
-/* —— Composants sous la vitrine —— */
 .style-mixer-lab .style-mixer-ice-samples {
-  padding: 14px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.14);
-  border: 0.5px solid rgba(255, 255, 255, 0.07);
+  padding: 12px;
 }
 
 .style-mixer-lab .style-mixer-ice-samples h4 {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.48);
-  margin: 0 0 12px;
+  color: rgba(235, 238, 245, 0.4);
+  margin: 0 0 10px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .style-mixer-lab .style-mixer-ice-samples label {
-  color: rgba(255, 255, 255, 0.42);
+  color: rgba(235, 238, 245, 0.38);
   font-size: 11px;
 }
 
-/* —— Glace sur boutons / tuiles (mixeur) —— */
-.style-mixer-lab .btn-style-ice .bp:not(.bp-danger):not(.bp-gold),
-.style-mixer-lab .btn-style-ice .ui-btn-accent:not(.bp-danger),
-.style-mixer-lab .btn-style-ice .toggle-btn,
-.style-mixer-lab .btn-style-ice .bs,
-.style-mixer-lab .btn-style-ice .cbt,
-.style-mixer-lab .btn-style-ice .ui-btn-surface {
-  position: relative;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.03) 32%, transparent 62%),
-    rgba(255, 255, 255, 0.06) !important;
-  color: rgba(255, 255, 255, 0.92) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.26) !important;
-  border-radius: 10px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 0 -0.5px 0 rgba(0, 0, 0, 0.08),
-    0 3px 10px rgba(0, 0, 0, 0.18) !important;
-  backdrop-filter: blur(40px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(40px) saturate(1.2) !important;
-  font-weight: 600 !important;
-  font-size: 14px !important;
-}
-
+/* —— Boutons & composants (minimal + touche vitrée) —— */
 .style-mixer-lab .btn-style-ice .bp:not(.bp-danger):not(.bp-gold),
 .style-mixer-lab .btn-style-ice .ui-btn-accent:not(.bp-danger) {
-  padding: 12px 16px !important;
+  background: var(--acc) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 9px !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  letter-spacing: -0.01em;
+  padding: 10px 15px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
+.style-mixer-lab .btn-style-ice .bs,
 .style-mixer-lab .btn-style-ice .toggle-btn,
-.style-mixer-lab .btn-style-ice .bs {
+.style-mixer-lab .btn-style-ice .cbt,
+.style-mixer-lab .btn-style-ice .ui-btn-surface {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 9px !important;
+  font-weight: 500 !important;
   font-size: 12px !important;
-  font-weight: 700 !important;
-  padding: 8px 14px !important;
+  padding: 8px 13px !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
+.style-mixer-lab .btn-style-ice .toggle-btn {
+  background: var(--ice-surface-raised) !important;
+  backdrop-filter: var(--ice-blur) !important;
+  -webkit-backdrop-filter: var(--ice-blur) !important;
+}
+
+/* Nav démo & chips */
 .style-mixer-lab .btn-style-ice .finder-style-samples .tab,
 .style-mixer-lab .btn-style-ice .finder-style-nav-row .tab,
 .style-mixer-lab .btn-style-ice .ui-btn-nav-demo,
 .style-mixer-lab .btn-style-ice .chip {
   border-radius: 8px !important;
-  backdrop-filter: blur(28px) saturate(1.18);
-  -webkit-backdrop-filter: blur(28px) saturate(1.18);
-  border: 0.5px solid rgba(255, 255, 255, 0.18) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--ice-nav-idle) !important;
+  font-weight: 500 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-.style-mixer-lab .btn-style-ice.ui-finder .finder-style-samples .tab.on,
-.style-mixer-lab .btn-style-ice.ui-finder .finder-style-nav-row .tab.on,
-.style-mixer-lab .btn-style-ice.ui-finder .ui-btn-nav-demo.on,
-.style-mixer-lab .btn-style-ice .finder-style-card .ui-btn-nav-demo.on {
-  color: var(--acc) !important;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-    rgba(120, 120, 128, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.16) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+.style-mixer-lab .btn-style-ice .finder-style-samples .tab.on,
+.style-mixer-lab .btn-style-ice .finder-style-nav-row .tab.on,
+.style-mixer-lab .btn-style-ice .ui-btn-nav-demo.on,
+.style-mixer-lab .btn-style-ice .chip.on {
+  background: var(--ice-nav-on-bg) !important;
+  color: var(--ice-nav-on-color) !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
 }
 
 .style-mixer-lab .btn-style-ice.ui-classic .finder-style-samples .tab.on,
-.style-mixer-lab .btn-style-ice.ui-classic .finder-style-nav-row .tab.on,
-.style-mixer-lab .btn-style-ice.ui-classic .chip.on {
+.style-mixer-lab .btn-style-ice.ui-classic .finder-style-nav-row .tab.on {
   color: var(--txt) !important;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-    rgba(91, 154, 255, 0.16) !important;
-  border-color: rgba(130, 165, 255, 0.24) !important;
+  background: rgba(91, 154, 255, 0.18) !important;
 }
 
+/* Tuiles KPI */
 .style-mixer-lab .btn-style-ice .dash-card,
 .style-mixer-lab .btn-style-ice .kpi {
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.09) 0%, transparent 55%),
-    rgba(255, 255, 255, 0.045) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 14px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 4px 14px rgba(0, 0, 0, 0.2) !important;
-  backdrop-filter: blur(44px) saturate(1.2) !important;
-  -webkit-backdrop-filter: blur(44px) saturate(1.2) !important;
+  background: var(--ice-surface) !important;
+  border: 0.5px solid var(--ice-border) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  backdrop-filter: var(--ice-blur) !important;
+  -webkit-backdrop-filter: var(--ice-blur) !important;
 }
 
 .style-mixer-lab .btn-style-ice .finder-style-card,
@@ -427,14 +378,16 @@
   box-shadow: none !important;
 }
 
-/* Comparaison Classique / Finder sous glace */
+/* Comparaison */
 .style-mixer-lab .style-mixer-ice-compare .ui-lab-compare-grid {
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .style-mixer-lab .style-mixer-ice-compare .style-theme-preview,
 .style-mixer-lab .style-mixer-ice-compare .finder-style-card {
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.12) !important;
-  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px;
+  background: var(--ice-surface) !important;
+  border: 0.5px solid var(--ice-border) !important;
+  backdrop-filter: var(--ice-blur);
+  -webkit-backdrop-filter: var(--ice-blur);
 }
