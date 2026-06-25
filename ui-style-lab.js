@@ -4,7 +4,7 @@
 window.FINDER_PRESETS = [
   { id: '1', name: 'Photos', desc: 'Comme Apple Photos : pilule grise, texte couleur principale, zéro bordure.' },
   { id: '2', name: 'Blanc', desc: 'Texte clair sur pilule discrète, boutons très neutres.' },
-  { id: '3', name: 'Accent', desc: 'Pilule légèrement teintée avec la couleur principale des paramètres.' },
+  { id: '3', name: 'Accent', desc: 'Pilule teintée accent · boutons verre chaleureux (glow léger, relief).' },
   { id: '4', name: 'Flou', desc: 'Sidebar vitrée + flou léger, même minimalisme sur les pilules.' },
   { id: '5', name: 'Plat', desc: 'Ultra épuré, fond quasi opaque, aucun effet décoratif.' }
 ];

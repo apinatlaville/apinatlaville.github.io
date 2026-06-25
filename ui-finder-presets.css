@@ -57,30 +57,32 @@ body.ui-finder.finder-preset-2,
   --finder-layer-bg: rgba(255, 255, 255, 0.06);
 }
 
-/* —— 3 · Accent léger — pilule teintée accent, texte accent —— */
+/* —— 3 · Accent léger — pilule teintée accent, boutons verre chaleureux —— */
 body.ui-finder.finder-preset-3,
 .finder-style-card.finder-preset-3 {
   --finder-glass-blur: 52px;
   --finder-glass-saturate: 1.12;
-  --finder-glass-surface: none;
-  --finder-glass-shadow: none;
-  --finder-sidebar-bg: rgba(26, 28, 34, 0.65);
-  --finder-sidebar-border: transparent;
+  --finder-glass-surface: linear-gradient(180deg, rgba(91, 154, 255, 0.07) 0%, transparent 55%);
+  --finder-glass-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+  --finder-sidebar-bg: rgba(24, 30, 48, 0.58);
+  --finder-sidebar-border: rgba(130, 165, 255, 0.2);
   --finder-nav-on-bg: color-mix(in srgb, var(--acc) 22%, rgba(120, 120, 128, 0.2));
   --finder-nav-on-color: var(--acc);
-  --finder-nav-on-border: transparent;
-  --finder-nav-on-shadow: none;
+  --finder-nav-on-border: rgba(130, 165, 255, 0.2);
+  --finder-nav-on-shadow: 0 2px 12px color-mix(in srgb, var(--acc) 20%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   --finder-nav-idle-opacity: 0.52;
-  --finder-primary-bg: var(--acc);
-  --finder-primary-hover: color-mix(in srgb, var(--acc) 90%, white);
+  --finder-primary-bg: color-mix(in srgb, var(--acc) 58%, rgba(28, 36, 54, 0.9));
+  --finder-primary-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 40%, transparent 68%);
+  --finder-primary-hover: color-mix(in srgb, var(--acc) 68%, rgba(34, 44, 64, 0.92));
   --finder-primary-color: #fff;
-  --finder-primary-border: transparent;
-  --finder-primary-shadow: none;
-  --finder-secondary-bg: color-mix(in srgb, var(--acc) 8%, rgba(120, 120, 128, 0.16));
-  --finder-secondary-hover: color-mix(in srgb, var(--acc) 14%, rgba(120, 120, 128, 0.22));
-  --finder-secondary-border: transparent;
-  --finder-secondary-shadow: none;
-  --finder-secondary-blur: none;
+  --finder-primary-border: rgba(130, 165, 255, 0.34);
+  --finder-primary-shadow: 0 2px 18px color-mix(in srgb, var(--acc) 40%, transparent), 0 1px 3px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  --finder-primary-blur: blur(22px) saturate(1.14);
+  --finder-secondary-bg: color-mix(in srgb, var(--acc) 12%, rgba(36, 44, 62, 0.72));
+  --finder-secondary-hover: color-mix(in srgb, var(--acc) 18%, rgba(42, 50, 70, 0.78));
+  --finder-secondary-border: rgba(130, 165, 255, 0.26);
+  --finder-secondary-shadow: 0 2px 14px color-mix(in srgb, var(--acc) 24%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --finder-secondary-blur: blur(24px) saturate(1.12);
   --finder-layer-bg: color-mix(in srgb, var(--acc) 6%, rgba(120, 120, 128, 0.12));
 }
 
@@ -298,19 +300,19 @@ body.ui-finder.finder-preset-5 {
   --glass-surface: var(--finder-glass-surface);
   --glass-shadow: var(--finder-glass-shadow);
   --ui-on-bg: var(--finder-nav-on-bg);
-  --ui-on-border: transparent;
+  --ui-on-border: var(--finder-nav-on-border, transparent);
   --ui-on-color: var(--finder-nav-on-color, var(--acc));
-  --ui-on-shadow: none;
+  --ui-on-shadow: var(--finder-nav-on-shadow, none);
   --ui-layer-bg: var(--finder-layer-bg);
   --ui-sidebar-bg: var(--finder-sidebar-bg);
   --ui-accent-bg: var(--finder-primary-bg);
   --ui-accent-bg-hover: var(--finder-primary-hover);
-  --ui-accent-border: transparent;
+  --ui-accent-border: var(--finder-primary-border, transparent);
   --ui-accent-color: var(--finder-primary-color);
-  --ui-accent-shadow: none;
+  --ui-accent-shadow: var(--finder-primary-shadow, none);
   --ui-surface-btn-bg: var(--finder-secondary-bg);
-  --ui-surface-btn-border: transparent;
-  --ui-surface-btn-shadow: none;
+  --ui-surface-btn-border: var(--finder-secondary-border, transparent);
+  --ui-surface-btn-shadow: var(--finder-secondary-shadow, none);
   --ui-surface-blur: var(--finder-secondary-blur, none);
   --ui-chip-on-bg: var(--finder-nav-on-bg);
   --ui-chip-on-border: transparent;
@@ -320,6 +322,33 @@ body.ui-finder.finder-preset-5 {
   --ui-tile-border: transparent;
   --ui-tile-blur: var(--finder-secondary-blur, none);
   --ui-tile-shadow: none;
+}
+
+/* Sidebar preset 3 — vitre accent chaleureuse */
+body.ui-finder.finder-preset-3.nav-sidebar-left {
+  --finder-sidebar-surface:
+    linear-gradient(180deg, rgba(91, 154, 255, 0.1) 0%, transparent 46%),
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.04) 76%, rgba(130, 165, 255, 0.1) 100%);
+  --finder-sidebar-bg: rgba(22, 28, 44, 0.56);
+  --finder-sidebar-border: rgba(130, 165, 255, 0.24);
+  --finder-sidebar-shadow:
+    0 0 0 0.5px rgba(130, 165, 255, 0.14),
+    0 22px 56px rgba(0, 0, 0, 0.4),
+    0 6px 22px color-mix(in srgb, var(--acc) 16%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+body.theme-light.ui-finder.finder-preset-3.nav-sidebar-left {
+  --finder-sidebar-surface:
+    linear-gradient(180deg, rgba(91, 154, 255, 0.08) 0%, transparent 50%),
+    linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.42) 80%, rgba(130, 165, 255, 0.12) 100%);
+  --finder-sidebar-bg: rgba(244, 246, 252, 0.78);
+  --finder-sidebar-border: rgba(91, 154, 255, 0.22);
+  --finder-sidebar-shadow:
+    0 0 0 0.5px rgba(91, 154, 255, 0.1),
+    0 20px 48px rgba(30, 50, 100, 0.1),
+    0 4px 16px color-mix(in srgb, var(--acc) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
 }
 
 /* Sidebar Finder — vitre floue, bord net, léger dégradé à droite */
@@ -476,8 +505,8 @@ body.ui-finder.nav-sidebar-left .tab.on,
 body.ui-finder.nav-sidebar-left .nav-sub-items .anki-tab.on {
   background: var(--finder-nav-on-bg) !important;
   color: var(--finder-nav-on-color, var(--acc)) !important;
-  border: none !important;
-  box-shadow: none !important;
+  border: 0.5px solid var(--finder-nav-on-border, transparent) !important;
+  box-shadow: var(--finder-nav-on-shadow, none) !important;
   font-weight: 600;
   opacity: 1;
 }
@@ -574,28 +603,30 @@ body.ui-finder:not(.nav-sidebar-left) .anki-tab.on {
 .finder-style-card.finder-preset-5 .bp,
 body.ui-finder .bp:not(.bp-danger):not(.bp-gold),
 body.ui-finder .ui-btn-accent:not(.bp-danger) {
-  background: var(--finder-primary-bg) !important;
+  background-color: var(--finder-primary-bg) !important;
+  background-image: var(--finder-primary-surface, none) !important;
   color: var(--finder-primary-color) !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  font-weight: 500;
+  border: 0.5px solid var(--finder-primary-border, transparent) !important;
+  box-shadow: var(--finder-primary-shadow, none) !important;
+  backdrop-filter: var(--finder-primary-blur, none) !important;
+  -webkit-backdrop-filter: var(--finder-primary-blur, none) !important;
+  font-weight: 600;
 }
 .finder-style-card .bp:hover,
 body.ui-finder .bp:not(.bp-danger):not(.bp-gold):hover:not(:disabled),
 body.ui-finder .ui-btn-accent:not(.bp-danger):hover:not(:disabled) {
-  background: var(--finder-primary-hover) !important;
+  background-color: var(--finder-primary-hover) !important;
+  background-image: var(--finder-primary-surface, none) !important;
 }
 .finder-style-card .bs,
 body.ui-finder .bs,
 body.ui-finder .cbt,
 body.ui-finder .ui-btn-surface,
 body.ui-finder .toggle-btn {
-  background: var(--finder-secondary-bg) !important;
+  background-color: var(--finder-secondary-bg) !important;
   border: 0.5px solid var(--finder-secondary-border, transparent) !important;
   color: var(--txt) !important;
-  box-shadow: none !important;
+  box-shadow: var(--finder-secondary-shadow, none) !important;
   backdrop-filter: var(--finder-secondary-blur, none) !important;
   -webkit-backdrop-filter: var(--finder-secondary-blur, none) !important;
   font-weight: 500;
@@ -604,14 +635,17 @@ body.ui-finder .toggle-btn {
 body.ui-finder .bs:hover:not(:disabled),
 body.ui-finder .cbt:hover,
 body.ui-finder .toggle-btn:hover {
-  background: var(--finder-secondary-hover) !important;
+  background-color: var(--finder-secondary-hover) !important;
 }
 
 body.ui-finder .fab-main {
-  background: var(--finder-primary-bg) !important;
+  background-color: var(--finder-primary-bg) !important;
+  background-image: var(--finder-primary-surface, none) !important;
   color: var(--finder-primary-color) !important;
-  border: none !important;
-  box-shadow: none !important;
+  border: 0.5px solid var(--finder-primary-border, transparent) !important;
+  box-shadow: var(--finder-primary-shadow, none) !important;
+  backdrop-filter: var(--finder-primary-blur, none) !important;
+  -webkit-backdrop-filter: var(--finder-primary-blur, none) !important;
 }
 
 /* —— Labo fond (Test Finder) —— */
