@@ -3402,18 +3402,26 @@ body.tmpl-glass.theme-light.nav-sidebar-left .sidebar-footer {
 }
 body.nav-sidebar-left .sidebar-footer .hdr-actions {
   width: 100%;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status-chip {
   width: auto;
-  flex-shrink: 0;
+  min-width: 0;
+  flex: 0 1 auto;
   overflow: hidden;
-  transition: max-width 0.28s ease, padding-right 0.28s ease;
+  transition: max-width 0.28s ease;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus .cloud-status-txt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online {
   max-width: 5.5rem;
@@ -3421,9 +3429,11 @@ body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online {
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover,
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible {
-  max-width: min(200px, calc(var(--sidebar-w, 220px) - 108px));
+  /* 3 boutons ronds (36px) + 3 interstices (8px) */
+  max-width: calc(100% - 132px);
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus:not(.cloud-status--online) {
+  flex-shrink: 0;
   max-width: none;
 }
 
