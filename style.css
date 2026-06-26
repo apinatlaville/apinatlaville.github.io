@@ -256,7 +256,27 @@ body.mode-compact .cdesc { display: none; }
  flex-shrink: 0;
 }
 .hdr h1 span { color: var(--acc); }
-.btn-settings { background: var(--s2); border: 1px solid var(--bd); border-radius: 50%; width: 36px; height: 36px; font-size: 16px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; color: var(--txt); }
+.btn-settings {
+ background: var(--s2);
+ border: 1px solid var(--bd);
+ border-radius: 50%;
+ width: 36px;
+ height: 36px;
+ min-width: 36px;
+ max-width: 36px;
+ min-height: 36px;
+ max-height: 36px;
+ aspect-ratio: 1;
+ padding: 0;
+ flex-shrink: 0;
+ font-size: 16px;
+ display: flex;
+ justify-content: center;
+ align-items: center;
+ cursor: pointer;
+ transition: 0.2s;
+ color: var(--txt);
+}
 
 .cloud-status-chip {
  display: inline-flex;
@@ -3387,6 +3407,7 @@ body.nav-sidebar-left .sidebar-footer .hdr-actions {
   justify-content: flex-start;
   flex-wrap: nowrap;
   gap: 8px;
+  min-width: 0;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status-chip {
   width: auto;
