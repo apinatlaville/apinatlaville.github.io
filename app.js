@@ -106,7 +106,46 @@ window.updateCloudIndicator = function() {
       box.title = 'Données en local · non synchronisées';
     }
   }
+  if (typeof window.syncCloudStatusMarquee === 'function') window.syncCloudStatusMarquee();
 };
+
+window.syncCloudStatusMarquee = function() {
+  const box = window.$('cloudStatus');
+  if (!box) return;
+  const viewport = box.querySelector('.cloud-status-txt');
+  const track = box.querySelector('.cloud-status-txt-track');
+  if (!viewport || !track) return;
+
+  if (!box.classList.contains('cloud-status--online') || !box.matches(':hover')) {
+    box.classList.remove('cloud-status--scroll');
+    track.style.removeProperty('--cloud-scroll');
+    return;
+  }
+
+  const overflow = Math.ceil(track.scrollWidth - viewport.clientWidth);
+  if (overflow > 2) {
+    track.style.setProperty('--cloud-scroll', '-' + overflow + 'px');
+    box.classList.add('cloud-status--scroll');
+  } else {
+    box.classList.remove('cloud-status--scroll');
+    track.style.removeProperty('--cloud-scroll');
+  }
+};
+
+(function initCloudStatusHover() {
+  const box = document.getElementById('cloudStatus');
+  if (!box || box.dataset.hoverBound) return;
+  box.dataset.hoverBound = '1';
+  box.addEventListener('mouseenter', function() {
+    requestAnimationFrame(function() { window.syncCloudStatusMarquee(); });
+  });
+  box.addEventListener('mouseleave', function() {
+    box.classList.remove('cloud-status--scroll');
+    const track = box.querySelector('.cloud-status-txt-track');
+    if (track) track.style.removeProperty('--cloud-scroll');
+  });
+  window.addEventListener('resize', function() { window.syncCloudStatusMarquee(); });
+})();
 
 window.triggerHaptic = function() {
   if (navigator.vibrate) {

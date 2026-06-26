@@ -305,6 +305,10 @@ body.mode-compact .cdesc { display: none; }
  align-items: center;
  min-width: 0;
 }
+.cloud-status-txt-track {
+ display: inline-block;
+ white-space: nowrap;
+}
 .cloud-status-extra {
  display: inline;
 }
@@ -3410,27 +3414,50 @@ body.nav-sidebar-left .sidebar-footer .hdr-actions {
   gap: 8px;
   min-width: 0;
   overflow: hidden;
+  --sidebar-footer-btn-size: 28px;
+  --sidebar-footer-actions-reserve: calc(3 * var(--sidebar-footer-btn-size) + 3 * 8px);
+}
+body.nav-sidebar-left .sidebar-footer .hdr-actions .btn-settings {
+  width: var(--sidebar-footer-btn-size);
+  height: var(--sidebar-footer-btn-size);
+  min-width: var(--sidebar-footer-btn-size);
+  max-width: var(--sidebar-footer-btn-size);
+  min-height: var(--sidebar-footer-btn-size);
+  max-height: var(--sidebar-footer-btn-size);
+  font-size: 14px;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status-chip {
   width: auto;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   overflow: hidden;
-  transition: max-width 0.28s ease;
+  transition: max-width 0.28s ease, flex 0.28s ease;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus .cloud-status-txt {
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online {
-  max-width: 5.5rem;
+  max-width: 4.5rem;
   cursor: default;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover,
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible {
-  /* 3 boutons ronds (36px) + 3 interstices (8px) */
-  max-width: calc(100% - 132px);
+  flex: 1 1 0;
+  max-width: calc(100% - var(--sidebar-footer-actions-reserve));
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover .cloud-status-txt,
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible .cloud-status-txt {
+  text-overflow: clip;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--scroll .cloud-status-txt-track {
+  animation: cloud-status-marquee 3.5s ease-in-out infinite alternate;
+}
+@keyframes cloud-status-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--cloud-scroll, 0)); }
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus:not(.cloud-status--online) {
   flex-shrink: 0;
