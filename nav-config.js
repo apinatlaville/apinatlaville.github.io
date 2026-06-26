@@ -1,24 +1,18 @@
 /**
  * nav-config.js — REGISTRE UNIQUE DES ONGLETS
  *
- * Pour ajouter un onglet :
- * 1. Ajouter une entrée dans APP_TAB_REGISTRY
- * 2. Ajouter son id dans APP_NAV_GROUPS (sauf settings → nav:false)
- * 3. Créer <div class="pane ui-pane" id="paneX"> dans index.html
- * 4. Implémenter window.renderX si besoin (ou utiliser onShow existant)
- *
- * Onglets archivés (Synchrotron v1) : nav:false + archived:true.
- * Le code (anki-app.js, anki-viz.js…) reste chargé ; switchTab redirige vers la V2.
+ * Ajouter un onglet : entrée dans APP_TAB_REGISTRY + APP_NAV_GROUPS + pane dans index.html.
+ * Onglets v1 archivés : alias redirigés vers la V2 (code dans archive/anki-v1/).
  */
 window.APP_TAB_REGISTRY = {
   home:        { pane: 'paneHome',        label: 'Accueil',       icon: 'home',           needsData: true,  onShow: 'dashboard' },
-  cours:       { pane: 'paneCours',       label: 'Base Doc.',     icon: 'clipboard-list', needsData: true,  onShow: 'cours' },
+  cours:       { pane: 'paneCours',       label: 'Base Doc',     icon: 'clipboard-list', needsData: true,  onShow: 'cours' },
   notes:       { pane: 'paneNotes',       label: 'Notes',         icon: 'trending-up',    needsData: true,  onShow: 'notes' },
   flashcards:  { pane: 'paneFlashcards',  label: 'Rapide',        icon: 'zap',            needsData: true,  onShow: 'flashcards' },
-  anki:        { pane: 'paneAnki',        label: 'Synchrotron v1', icon: 'dna',           needsData: true,  onShow: 'anki',        className: 'tab-anki', nav: false, archived: true, archivedRedirect: 'ankiV2' },
+  anki:        { label: 'Synchrotron v1', nav: false, archived: true, archivedRedirect: 'ankiV2' },
   ankiV2:      { pane: 'paneAnkiV2',      label: 'Synchrotron',   icon: 'dna',            needsData: true,  onShow: 'ankiV2',      className: 'tab-anki' },
-  ankiViz:     { pane: 'paneAnkiViz',     label: 'Carte mentale v1', icon: 'map',         needsData: true,  onShow: 'ankiViz',      className: 'tab-viz', nav: false, archived: true, archivedRedirect: 'ankiVizV2' },
-  ankiCompare: { pane: 'paneAnkiCompare', label: 'v1 vs V2',      icon: 'git-compare',    needsData: true,  onShow: 'ankiCompare',   className: 'tab-viz', nav: false, archived: true, archivedRedirect: 'ankiV2' },
+  ankiViz:     { label: 'Carte mentale v1', nav: false, archived: true, archivedRedirect: 'ankiVizV2' },
+  ankiCompare: { label: 'v1 vs V2',      nav: false, archived: true, archivedRedirect: 'ankiV2' },
   ankiVizV2:   { pane: 'paneAnkiVizV2',   label: 'Carte mentale', icon: 'map',            needsData: true,  onShow: 'ankiVizV2',    className: 'tab-viz' },
   print:       { pane: 'panePrint',       label: 'Impression',    icon: 'printer',        needsData: true,  onShow: 'print' },
   classeurs:   { pane: 'paneClasseurs',   label: 'Classeurs',     icon: 'folders',        needsData: true,  onShow: 'classeurs' },

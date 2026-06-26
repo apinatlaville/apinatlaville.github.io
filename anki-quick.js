@@ -61,7 +61,6 @@
       </div>
 
       <div id="qkSections"></div>
-      ${typeof window.renderCardCreateFab === 'function' ? window.renderCardCreateFab('paneFlashcards') : ''}
     `;
     renderSections();
     bindEnter();
@@ -224,8 +223,9 @@
     window.save();
     if (window.startAnkiSingle && list.length === 1) {
       window.startAnkiSingle(list[0].id);
-    } else if (typeof window.ankiSetQuickQueue === 'function') {
-      window.ankiSetQuickQueue(list.map(c => c.id));
+    } else if (typeof window.ankiV2SetQuickQueue === 'function') {
+      window.ankiV2SetQuickQueue(list.map(c => c.id));
+      window.switchTab('ankiV2');
     } else if (window.startAnkiSingle) {
       window.startAnkiSingle(list[0].id);
     }

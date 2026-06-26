@@ -78,17 +78,25 @@
     'cloud-check': '<path d="m17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m9 15 2 2 4-4"/>'
   };
 
+  function appLogoSvg(size) {
+    const svg = window.icon('graduation-cap', size);
+    return svg.replace(
+      '<svg ',
+      '<svg stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '
+    );
+  }
+
   window.appLogoMark = function () {
-    return '<div class="app-logo-mark" aria-hidden="true"></div>';
+    return '<div class="app-logo-mark app-logo-mark--svg" aria-hidden="true">' + appLogoSvg(34) + '</div>';
   };
 
-  window.hydrateAppLogos = function (root) {
-    const scope = root || document;
-    scope.querySelectorAll('[data-app-logo]').forEach(function (el) {
-      el.innerHTML = '';
-      if (!el.classList.contains('sidebar-logo-mark') && !el.classList.contains('hdr-logo-mark')) {
-        el.classList.add('app-logo-mark');
-      }
+  window.hydrateAppLogos = function () {
+    document.querySelectorAll('[data-app-logo]').forEach(function (el) {
+      const isSidebar = el.classList.contains('sidebar-logo-mark');
+      const isHdr = el.classList.contains('hdr-logo-mark');
+      const size = isSidebar ? 15 : (isHdr ? 18 : 32);
+      el.innerHTML = appLogoSvg(size);
+      el.classList.add('app-logo-mark', 'app-logo-mark--svg');
     });
   };
 

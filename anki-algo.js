@@ -19,6 +19,15 @@
     EXO:      { steps: [1, 2, 5, 12, 25, 50], ease: 2.4, label: "Exercice type" }
   };
 
+  /** Paliers SM-2 pour cartes rapides Y- (selon ★, pas le profil Cours/Anglais). */
+  ALGO.DEFAULT_QUICK_STAR_STEPS = {
+    1: { steps: [1, 4, 10, 21, 45], ease: 2.2, label: "★1 — faible" },
+    2: { steps: [1, 3, 7, 14, 30], ease: 2.3, label: "★2" },
+    3: { steps: [1, 2, 4, 8, 15], ease: 2.3, label: "★3 — standard" },
+    4: { steps: [1, 2, 3, 6, 12], ease: 2.4, label: "★4" },
+    5: { steps: [1, 1, 2, 4, 8], ease: 2.5, label: "★5 — prioritaire" }
+  };
+
   // ===== Coefficients du score d'urgence (modifiables dans Réglages) =====
   // v4 : refonte autour de l'Index de Délai Relatif I_R = joursÉcoulés / intervallePrévu
   ALGO.DEFAULT_COEFS = {
@@ -84,6 +93,11 @@
   ALGO.getProfile = function (name) {
     const user = (window.D && window.D.settings && window.D.settings.ankiProfiles) || {};
     return user[name] || ALGO.DEFAULT_PROFILES[name] || ALGO.DEFAULT_PROFILES.COURS;
+  };
+  ALGO.getQuickStarProfile = function (importance) {
+    const imp = Math.max(1, Math.min(5, importance || ALGO.DEFAULT_IMPORTANCE));
+    const user = (window.D && window.D.settings && window.D.settings.ankiQuickStarSteps) || {};
+    return user[imp] || user[String(imp)] || ALGO.DEFAULT_QUICK_STAR_STEPS[imp] || ALGO.DEFAULT_QUICK_STAR_STEPS[3];
   };
   ALGO.getCoefs = function () {
     const user = (window.D && window.D.settings && window.D.settings.ankiCoefs) || {};
@@ -158,10 +172,18 @@
   //         de BLOCAGE_TIMEOUT_REV révisions consécutives (timeout réglable).
   ALGO.computeNextInterval = function (card, qScore, tempsReel) {
     const profileName = (card && card.profil) || "COURS";
-    const profile = ALGO.getProfile(profileName);
-    const steps = profile.steps;
+    let steps;
+    let ease;
+    if (ALGO.cardKind(card) === "quick") {
+      const qs = ALGO.getQuickStarProfile(ALGO.getImportance(card));
+      steps = qs.steps;
+      ease = card.ease || qs.ease || ALGO.DEFAULT_EASE;
+    } else {
+      const profile = ALGO.getProfile(profileName);
+      steps = profile.steps;
+      ease = card.ease || profile.ease || ALGO.DEFAULT_EASE;
+    }
     const C = ALGO.getCoefs();
-    let ease = card.ease || profile.ease || ALGO.DEFAULT_EASE;
     let rep = card.repetitions || 0;
     let intervalle = card.intervalle || 0;
     const cible = card.tempsCible || 60;
@@ -275,7 +297,7 @@
   };
 
   // ===== Classification des cartes en 3 PILES séparées (v4.2) =====
-  // Source de vérité : préfixe d'ID W- / X- / Y- (cf. anki-viz.js nœud 1)
+  // Source de vérité : préfixe d'ID W- / X- / Y- (cf. archive/anki-v1/anki-viz.js nœud 1)
   //   W- → DEVOIR  : agenda calendaire (urgenceDevoir), forcés en Phase 0
   //   X- → MAIN    : répétition espacée I_R + ease élastique (Phase 1a)
   //   Y- → QUICK   : comblage fin de session (Phase 2), tri I_R + entrelacement

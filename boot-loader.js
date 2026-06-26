@@ -10,10 +10,7 @@
 
   var TAB_BUNDLES = {
     flashcards: ['anki-quick.js'],
-    anki: ['anki-app.js'],
-    ankiViz: ['anki-viz.js'],
     ankiVizV2: ['anki-viz-v2.js'],
-    ankiCompare: ['anki-viz-compare.js'],
     print: ['scanner.js'],
     cours: ['scanner.js'],
     test: ['scanner.js']
@@ -115,6 +112,7 @@
     if (window.bootMark) window.bootMark('boot.loader.start');
 
     return loadScript('ui-appearance.js')
+      .then(function () { return loadScript('ui-components.js'); })
       .then(function () { return loadParallel(['cloud.js', 'data.js']); })
       .then(function () {
         return loadParallel(['anki-algo.js', 'anki-algo-v2.js', 'nav-config.js']);

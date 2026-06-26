@@ -94,9 +94,90 @@
 .card-type-badge.card-type-main   { background: rgba(76,175,125,0.12); color: var(--grn); border: 1px solid rgba(76,175,125,0.30); }
 .card-type-badge.card-type-quick  { background: rgba(91,141,247,0.12); color: var(--acc); border: 1px solid rgba(91,141,247,0.30); }
 
-.card-type-surface.card-type-devoir { background: rgba(233,79,100,0.055) !important; border-color: rgba(233,79,100,0.20) !important; }
-.card-type-surface.card-type-main   { background: rgba(76,175,125,0.055) !important; border-color: rgba(76,175,125,0.20) !important; }
-.card-type-surface.card-type-quick  { background: rgba(91,141,247,0.055) !important; border-color: rgba(91,141,247,0.20) !important; }
+.modal.card-type-surface {
+  backdrop-filter: blur(64px) saturate(var(--glass-saturate, 2.05));
+  -webkit-backdrop-filter: blur(64px) saturate(var(--glass-saturate, 2.05));
+  overflow: hidden;
+}
+.modal.card-type-surface.anki-modal-exo,
+.modal.card-type-surface.anki-modal-devoir,
+#ovQuickCreate .modal.card-type-surface {
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: min(92vh, 920px);
+  -webkit-overflow-scrolling: touch;
+}
+
+.card-type-surface.card-type-devoir,
+body.tmpl-glass .ov .modal.card-type-surface.card-type-devoir,
+body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-devoir {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09) 0%, transparent 46%),
+    linear-gradient(220deg, rgba(233, 79, 100, 0.2) 0%, transparent 56%),
+    linear-gradient(180deg, rgba(233, 79, 100, 0.09) 0%, transparent 40%),
+    var(--glass-surface),
+    rgba(28, 18, 22, 0.36) !important;
+  border: 0.5px solid rgba(255, 130, 150, 0.3) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 218, 0.26),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+    inset 0 0 44px rgba(233, 79, 100, 0.08),
+    0 24px 64px rgba(0, 0, 0, 0.36),
+    0 8px 28px rgba(233, 79, 100, 0.14) !important;
+}
+.card-type-surface.card-type-main,
+body.tmpl-glass .ov .modal.card-type-surface.card-type-main,
+body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-main {
+  background:
+    linear-gradient(180deg, rgba(76, 175, 125, 0.07) 0%, transparent 22%),
+    var(--glass-surface),
+    rgba(14, 20, 18, 0.9) !important;
+  border: 2px solid rgba(76, 175, 125, 0.58) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(210, 255, 230, 0.22),
+    0 0 0 1px rgba(76, 175, 125, 0.18),
+    0 24px 64px rgba(0, 0, 0, 0.42),
+    0 0 36px rgba(76, 175, 125, 0.14) !important;
+}
+.card-type-surface.card-type-quick,
+body.tmpl-glass .ov .modal.card-type-surface.card-type-quick,
+body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-quick {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09) 0%, transparent 46%),
+    linear-gradient(220deg, rgba(91, 141, 247, 0.2) 0%, transparent 56%),
+    linear-gradient(180deg, rgba(91, 141, 247, 0.09) 0%, transparent 40%),
+    var(--glass-surface),
+    rgba(18, 22, 32, 0.36) !important;
+  border: 0.5px solid rgba(130, 165, 255, 0.32) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(210, 225, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+    inset 0 0 44px rgba(91, 154, 255, 0.08),
+    0 24px 64px rgba(0, 0, 0, 0.36),
+    0 8px 28px rgba(91, 154, 255, 0.14) !important;
+}
+
+body.theme-light .modal.card-type-surface.card-type-devoir {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82) 0%, transparent 50%),
+    linear-gradient(220deg, rgba(233, 79, 100, 0.12) 0%, transparent 58%),
+    var(--glass-surface),
+    rgba(255, 248, 250, 0.72) !important;
+}
+body.theme-light .modal.card-type-surface.card-type-main {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82) 0%, transparent 50%),
+    linear-gradient(220deg, rgba(76, 175, 125, 0.14) 0%, transparent 58%),
+    var(--glass-surface),
+    rgba(248, 255, 252, 0.72) !important;
+}
+body.theme-light .modal.card-type-surface.card-type-quick {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.82) 0%, transparent 50%),
+    linear-gradient(220deg, rgba(91, 141, 247, 0.12) 0%, transparent 58%),
+    var(--glass-surface),
+    rgba(248, 250, 255, 0.72) !important;
+}
 
 .card-type-picker-modal { max-width: 520px; }
 .card-type-picker-modal h2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -132,33 +213,40 @@
 .card-type-picker-opt .card-type-badge { width: 1.6rem; height: 1.6rem; font-size: 11px; }
 
 .anki-fab-create {
-  position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  right: calc(20px + env(safe-area-inset-right, 0px));
-  z-index: 140;
-  width: 48px;
-  height: 48px;
+  position: static;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  border: 1px solid var(--bd);
-  background: var(--s2);
-  color: var(--txt);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.22);
+  border: 0.5px solid rgba(40, 110, 68, 0.55);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12) 0%, transparent 42%),
+    linear-gradient(160deg, #3d9460 0%, #2d7349 52%, #1f5c3a 100%);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 2px 6px rgba(0, 0, 0, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1;
-  transition: transform 0.12s, box-shadow 0.12s, background 0.12s;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 .anki-fab-create:hover {
   transform: scale(1.04);
-  box-shadow: 0 6px 22px rgba(0,0,0,0.28);
-  background: var(--s3);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14) 0%, transparent 42%),
+    linear-gradient(160deg, #448f65 0%, #327a50 52%, #256341 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.26),
+    0 3px 8px rgba(0, 0, 0, 0.32);
 }
-body.nav-sidebar-left .anki-fab-create { right: calc(24px + env(safe-area-inset-right, 0px)); }
-#paneFlashcards .anki-fab-create { background: rgba(91,141,247,0.12); border-color: rgba(91,141,247,0.35); color: var(--acc); }
-#paneAnkiV2 .anki-fab-create { background: rgba(76,175,125,0.10); border-color: rgba(76,175,125,0.32); color: var(--grn); }
+.anki-fab-create [data-icon] svg,
+.anki-fab-create svg {
+  filter: none;
+}
 
 .anki-q-row .card-type-badge,
 .anki-devoir-row .card-type-badge,
@@ -242,11 +330,32 @@ body.nav-sidebar-left .anki-fab-create { right: calc(24px + env(safe-area-inset-
     window.openCardTypePicker({ coursId: coursUid, mat: co.mat });
   };
 
-  window.renderCardCreateFab = function (paneId, onclick) {
+  window.ensureCardCreateFab = function () {
     injectStyles();
-    const fn = onclick || 'window.openCardTypePicker()';
-    return `<button type="button" class="anki-fab-create" aria-label="Créer une carte" title="Créer une carte" onclick="${fn}">${window.iconHtml ? window.iconHtml('plus', 22) : '+'}</button>`;
+    const bar = document.getElementById('syncDockBar');
+    if (!bar) return;
+    let btn = document.getElementById('ankiFabCreate');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'ankiFabCreate';
+      btn.className = 'anki-fab-create';
+      btn.setAttribute('aria-label', 'Créer une carte');
+      btn.title = 'Créer une carte';
+      btn.addEventListener('click', function () {
+        window.openCardTypePicker();
+      });
+      bar.appendChild(btn);
+    }
+    btn.innerHTML = window.iconHtml ? window.iconHtml('plus', 22) : '+';
+    if (window.hydrateIcons) window.hydrateIcons(btn);
+  };
+
+  window.renderCardCreateFab = function () {
+    window.ensureCardCreateFab();
+    return '';
   };
 
   injectStyles();
+  window.ensureCardCreateFab();
 })();

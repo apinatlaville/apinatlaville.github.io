@@ -255,9 +255,6 @@ body.mode-compact .cdesc { display: none; }
  margin-bottom: 0;
  flex-shrink: 0;
 }
-.hdr-logo-mark::before {
- font-size: 15px;
-}
 .hdr h1 span { color: var(--acc); }
 .btn-settings { background: var(--s2); border: 1px solid var(--bd); border-radius: 50%; width: 36px; height: 36px; font-size: 16px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; color: var(--txt); }
 
@@ -323,15 +320,26 @@ body.mode-compact .cdesc { display: none; }
 @keyframes paneFade { from { opacity: 0; } to { opacity: 1; } }
 
 .sync-dock {
- position: fixed;
- left: 16px;
- bottom: 20px;
+ position: relative;
+ left: auto;
+ bottom: auto;
  top: auto;
  transform: none;
- z-index: 650;
+ z-index: auto;
  transition: width 0.25s ease, opacity 0.2s ease;
+ pointer-events: auto;
+}
+.sync-dock-bar {
+ position: fixed;
+ left: 16px;
+ bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+ z-index: 650;
+ display: flex;
+ align-items: flex-end;
+ gap: 10px;
  pointer-events: none;
 }
+.sync-dock-bar > * { pointer-events: auto; }
 .sync-dock > * { pointer-events: auto; }
 .sync-dock.hidden { display: block !important; }
 .sync-dock.mini { width: auto; max-width: min(340px, calc(100vw - 100px)); }
@@ -539,7 +547,7 @@ body.mode-compact .cdesc { display: none; }
 .sync-dock-btn-ghost { background: var(--s2) !important; border: 0.5px solid var(--bd) !important; color: var(--txt) !important; }
 
 @media (max-width: 640px) {
- .sync-dock { left: 10px; bottom: 14px; }
+ .sync-dock-bar { left: 10px; bottom: 14px; }
  .sync-dock.expanded { width: min(340px, calc(100vw - 20px)); }
  .sync-dock-pill { min-width: 220px; padding: 8px 12px 8px 8px; }
  .sync-dock-pill-icon-wrap { width: 40px; height: 40px; }
@@ -727,6 +735,16 @@ body.mode-compact .cdesc { display: none; }
 .toggle-btn { background: var(--s3); border: 1px solid var(--bd); color: var(--txt); padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: bold; }
 
 .ov { position: fixed; inset: 0; background: rgba(10, 14, 28, 0.52); backdrop-filter: blur(40px) saturate(1.85); -webkit-backdrop-filter: blur(40px) saturate(1.85); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 14px; }
+.ov.ov-scroll,
+#ovExo.ov,
+#ovDevoir.ov,
+#ovQuickCreate.ov {
+ align-items: flex-start;
+ justify-content: center;
+ overflow-y: auto;
+ -webkit-overflow-scrolling: touch;
+ padding: max(14px, 2vh) 14px max(28px, 4vh);
+}
 body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
 #ovSysDialog { z-index: 2000; }
 .anki-ov-devoir { background: rgba(8, 10, 22, 0.72); }
@@ -753,6 +771,7 @@ body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
 .fg { margin-bottom: 12px; }
 .fg label { display: block; font-size: 11px; font-weight: 700; color: var(--mut); margin-bottom: 6px; text-transform: uppercase; }
 .fg input, .fg textarea, .fg select { width: 100%; background: var(--s2); border: 0.5px solid var(--bd); border-radius: var(--radius-control); padding: 10px 12px; color: var(--txt); font-family: 'Inter', sans-serif; font-size: 14px; outline: none; }
+.fg textarea { resize: none; overflow-y: hidden; line-height: 1.45; min-height: 2.75rem; }
 .uidbox { background: var(--s3); border: 1px solid var(--bd); border-radius: 8px; padding: 12px; font-family: 'DM Mono', monospace; font-size: 16px; letter-spacing: 2px; color: var(--acc); text-align: center; margin-bottom: 15px; font-weight: bold; }
 .macts { display: flex; gap: 10px; margin-top: 20px; }
 .bp { flex: 1; background: var(--acc); border: none; border-radius: var(--radius-control); padding: 12px; color: #fff; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -1023,11 +1042,24 @@ body.not-logged-in #splashScreen {
 /* KPIs */
 .anki-kpis {
  display: grid;
- grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
- gap: 10px;
- margin-bottom: 16px;
+ grid-template-columns: repeat(4, minmax(0, 1fr));
+ gap: 6px;
+ margin-bottom: 10px;
 }
-#paneAnki {
+.anki-kpis .kpi {
+ padding: 8px 6px;
+ border-radius: 8px;
+}
+.anki-kpis .kpi-n {
+ font-size: 20px;
+ font-weight: 700;
+}
+.anki-kpis .kpi-l {
+ font-size: 9px;
+ margin-top: 2px;
+ letter-spacing: 0.35px;
+}
+#paneAnkiV2 {
  overflow-anchor: none;
 }
 .anki-pick-grid,
@@ -1129,13 +1161,11 @@ body.not-logged-in #splashScreen {
  padding: 4px;
  margin-bottom: 4px;
 }
-#paneAnkiV2 .anki-pick-grid,
-#paneAnki .anki-pick-grid {
+#paneAnkiV2 .anki-pick-grid {
   max-height: 420px;
   overflow-y: auto;
 }
-#paneAnkiV2 .anki-queue-fixed,
-#paneAnki .anki-queue-fixed {
+#paneAnkiV2 .anki-queue-fixed {
   max-height: none;
   overflow: visible;
 }
@@ -1482,25 +1512,26 @@ body.not-logged-in #splashScreen {
  position: relative;
  width: min(860px, 96vw);
  margin: 0 auto;
- padding-top: 22px;
+ padding-top: calc(14px + var(--stack-layers, 0) * 8px);
  padding-bottom: 8px;
 }
-/* Bandeau de pile au-dessus de la carte — pas derrière tout le contenu */
+.anki-deck-pile {
+ position: relative;
+}
 .anki-deck-stack {
  position: absolute;
- top: 0;
- left: 28px;
- right: 28px;
- height: 18px;
+ inset: 0;
  pointer-events: none;
- z-index: 1;
- overflow: visible;
+ z-index: 0;
 }
 .anki-deck-stack-empty {
+ position: relative;
+ inset: auto;
  display: flex;
  align-items: center;
  justify-content: center;
- height: 18px;
+ height: 22px;
+ margin-bottom: 6px;
 }
 .anki-deck-last-hint {
  font-size: 10px;
@@ -1512,47 +1543,96 @@ body.not-logged-in #splashScreen {
 }
 .anki-deck-ghost {
  position: absolute;
- left: 0;
- right: 0;
+ left: 14px;
+ right: 14px;
  top: 0;
- height: 10px;
- border-radius: 12px 12px 0 0;
- background: rgba(34, 38, 50, 0.94);
- border: 0.5px solid rgba(255, 255, 255, 0.1);
- border-bottom: none;
- box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.15) inset;
- transform: translateY(calc((var(--layer) - 1) * -4px));
- opacity: calc(1 - (var(--layer) - 1) * 0.14);
- z-index: calc(6 - var(--layer));
- transition: opacity 0.35s ease, transform 0.35s ease;
+ bottom: 0;
+ border-radius: 16px;
+ background:
+ repeating-linear-gradient(
+  -45deg,
+  transparent,
+  transparent 5px,
+  rgba(255, 255, 255, 0.018) 5px,
+  rgba(255, 255, 255, 0.018) 6px
+ ),
+ linear-gradient(
+  165deg,
+  color-mix(in srgb, var(--accent, var(--acc)) 14%, rgba(22, 26, 36, 0.97)) 0%,
+  rgba(16, 20, 30, 0.98) 38%,
+  rgba(12, 15, 24, 0.99) 100%
+ );
+ border: 0.5px solid rgba(255, 255, 255, 0.09);
+ border-top: 4px solid var(--accent, var(--acc));
+ box-shadow:
+  inset 0 1px 0 rgba(255, 255, 255, 0.08),
+  0 10px 28px rgba(0, 0, 0, 0.28),
+  0 2px 6px rgba(0, 0, 0, 0.2);
+ transform:
+  translateY(calc((var(--layer) - 1) * -9px))
+  translateX(var(--layer-x, 0px))
+  scale(calc(1 - (var(--layer) - 1) * 0.018))
+  rotate(calc(var(--layer-rot, 0) * 1deg));
+ transform-origin: center bottom;
+ opacity: calc(1 - (var(--layer) - 1) * 0.1);
+ z-index: var(--layer);
+ transition: opacity 0.35s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.anki-deck-ghost::before {
- content: '';
+.anki-deck-ghost-edge {
  position: absolute;
- top: 0;
- left: 10%;
- right: 10%;
- height: 2px;
- border-radius: 2px;
- background: var(--accent, var(--acc));
- opacity: 0.55;
+ inset: 10px;
+ border-radius: 10px;
+ border: 0.5px dashed rgba(255, 255, 255, 0.07);
+ pointer-events: none;
 }
-.anki-deck-ghost-tag { display: none; }
+.anki-deck-ghost-back {
+ position: absolute;
+ top: 42%;
+ left: 50%;
+ transform: translate(-50%, -50%);
+ font-size: 11px;
+ font-weight: 800;
+ letter-spacing: 0.14em;
+ text-transform: uppercase;
+ color: var(--accent, var(--acc));
+ opacity: 0.28;
+ white-space: nowrap;
+ pointer-events: none;
+ user-select: none;
+}
 .anki-deck-pile-badge {
  position: absolute;
- top: -2px;
- right: 0;
- z-index: 8;
+ top: calc(-6px - var(--stack-layers, 1) * 8px);
+ right: 18px;
+ z-index: 12;
+ display: inline-flex;
+ align-items: center;
+ gap: 4px;
  font-size: 10px;
  font-weight: 700;
- letter-spacing: 0.04em;
- padding: 2px 7px;
+ letter-spacing: 0.03em;
+ padding: 3px 9px;
  border-radius: 999px;
- background: rgba(0, 0, 0, 0.4);
+ background: rgba(8, 10, 16, 0.72);
  border: 0.5px solid rgba(255, 255, 255, 0.14);
  color: var(--mut);
+ backdrop-filter: blur(12px);
+ -webkit-backdrop-filter: blur(12px);
+ box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
-.anki-deck-pile-more { display: none; }
+.anki-deck-pile-more {
+ position: absolute;
+ top: calc(2px - var(--stack-layers, 1) * 8px);
+ left: 18px;
+ z-index: 12;
+ font-size: 9px;
+ font-weight: 700;
+ padding: 2px 7px;
+ border-radius: 999px;
+ background: rgba(0, 0, 0, 0.45);
+ border: 0.5px solid rgba(255, 255, 255, 0.12);
+ color: var(--mut);
+}
 .anki-deck-card {
  position: relative;
  z-index: 10;
@@ -1560,16 +1640,16 @@ body.not-logged-in #splashScreen {
  border-radius: 18px !important;
  isolation: isolate;
  box-shadow:
- inset 0 1px 0 rgba(255, 255, 255, 0.12),
- 0 22px 56px rgba(0, 0, 0, 0.32),
- 0 6px 16px rgba(0, 0, 0, 0.18);
+ inset 0 1px 0 rgba(255, 255, 255, 0.14),
+ 0 28px 64px rgba(0, 0, 0, 0.38),
+ 0 8px 20px rgba(0, 0, 0, 0.22);
  transform-origin: center bottom;
  background:
- linear-gradient(180deg, color-mix(in srgb, var(--deck-accent, var(--gold)) 6%, rgba(20, 24, 34, 0.94)) 0%, rgba(18, 22, 32, 0.96) 22%),
- var(--glass-surface), rgba(18, 22, 32, 0.94);
+ linear-gradient(180deg, color-mix(in srgb, var(--deck-accent, var(--gold)) 8%, rgba(20, 24, 34, 0.96)) 0%, rgba(18, 22, 32, 0.97) 20%),
+ var(--glass-surface), rgba(18, 22, 32, 0.96);
  backdrop-filter: blur(40px) saturate(1.25);
  -webkit-backdrop-filter: blur(40px) saturate(1.25);
- border: 0.5px solid rgba(255, 255, 255, 0.11) !important;
+ border: 0.5px solid rgba(255, 255, 255, 0.13) !important;
 }
 .anki-deck-enter {
  animation: ankiDeckEnter 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -1624,11 +1704,18 @@ body.not-logged-in #splashScreen {
 }
 
 @media (max-width: 640px) {
- .anki-deck-scene { padding-top: 18px; }
- .anki-deck-stack { left: 16px; right: 16px; }
+ .anki-deck-scene { padding-top: calc(10px + var(--stack-layers, 0) * 6px); }
  .anki-deck-ghost {
- transform: translateY(calc((var(--layer) - 1) * -3px));
+  left: 8px;
+  right: 8px;
+  transform:
+   translateY(calc((var(--layer) - 1) * -6px))
+   translateX(var(--layer-x, 0px))
+   scale(calc(1 - (var(--layer) - 1) * 0.015))
+   rotate(calc(var(--layer-rot, 0) * 1deg));
  }
+ .anki-deck-pile-badge { right: 10px; }
+ .anki-deck-pile-more { left: 10px; }
 }
 
 /* Deck plein écran — zone compacte (éviter le scroll) */
@@ -1702,14 +1789,32 @@ body.not-logged-in #splashScreen {
  margin: 0;
 }
 #ovAnkiSession .anki-evals-compact .anki-eval {
- padding: 8px 4px 6px;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ justify-content: center;
+ gap: 4px;
+ padding: 10px 6px;
+ min-height: 54px;
  border-width: 1.5px;
  border-radius: 10px;
 }
-#ovAnkiSession .anki-evals-compact .anki-eval span { font-size: 18px; }
+#ovAnkiSession .anki-evals-compact .anki-eval span {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ font-size: 22px;
+ line-height: 1;
+}
+#ovAnkiSession .anki-evals-compact .anki-eval span .icon svg {
+ width: 22px;
+ height: 22px;
+}
 #ovAnkiSession .anki-evals-compact .anki-eval small {
  font-size: 9px;
- margin-top: 2px;
+ margin-top: 0;
+ text-align: center;
+ line-height: 1.2;
 }
 #ovAnkiSession .anki-slider-compact {
  display: flex;
@@ -1785,6 +1890,47 @@ body.not-logged-in #splashScreen {
  margin-bottom: 8px;
  gap: 10px;
  flex-wrap: wrap;
+}
+.anki-sess-tags {
+ display: flex;
+ align-items: center;
+ flex-wrap: wrap;
+ gap: 6px;
+ min-height: 26px;
+}
+.anki-sess-tags .card-type-badge {
+ height: 26px;
+ min-width: 26px;
+ padding: 0 6px;
+ border-radius: 6px;
+ box-sizing: border-box;
+}
+.anki-sess-tags .uid-badge {
+ margin-bottom: 0;
+ height: 26px;
+ padding: 0 8px;
+ display: inline-flex;
+ align-items: center;
+ font-size: 11px;
+ border-radius: 6px;
+ box-sizing: border-box;
+ line-height: 1;
+}
+.anki-sess-tags .anki-tag {
+ margin-right: 0;
+ height: 26px;
+ padding: 0 8px;
+ display: inline-flex;
+ align-items: center;
+ border-radius: 6px;
+ font-size: 10px;
+ box-sizing: border-box;
+ line-height: 1;
+ white-space: nowrap;
+}
+.anki-sess-tags .icon-inline-label {
+ gap: 4px;
+ line-height: 1;
 }
 .anki-sess-chrono-col { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .anki-chrono-wrap {
@@ -1901,9 +2047,114 @@ body.not-logged-in #splashScreen {
 .anki-quit { padding: 4px 10px; font-size: 11px; border-color: var(--red); color: var(--red); }
 
 /* Modal édition exo */
-.anki-modal-exo { max-width: 640px; max-height: 90vh; overflow-y: auto; }
-.anki-modal-row { display: flex; gap: 10px; }
-.anki-modal-row .fg { flex: 1; }
+.anki-modal-exo {
+ max-width: 640px;
+ width: 100%;
+ max-height: min(92vh, 920px);
+ overflow-y: auto;
+ overflow-x: hidden;
+ margin: auto 0;
+ flex-shrink: 0;
+ -webkit-overflow-scrolling: touch;
+}
+.anki-src-fold {
+  border-top: 1px dashed var(--bd);
+  margin-top: 16px;
+  margin-bottom: 10px;
+  padding-top: 8px;
+}
+.anki-src-fold-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 12px 8px;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  color: var(--txt);
+  border-radius: var(--radius-control);
+  transition: background 0.12s;
+}
+.anki-src-fold-summary b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.anki-src-fold-summary::-webkit-details-marker { display: none; }
+.anki-src-fold-summary::marker { content: ''; }
+.anki-src-fold-summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--mut);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.anki-src-fold[open] > .anki-src-fold-summary::before {
+  transform: rotate(90deg);
+}
+.anki-src-fold-summary:hover {
+  background: var(--s2);
+}
+.anki-src-fold-body {
+  padding: 6px 0 12px;
+}
+.anki-modal-row { display: flex; gap: 10px; align-items: flex-end; }
+.anki-modal-row--meta {
+  align-items: stretch;
+}
+.anki-modal-row--meta .fg {
+  display: flex;
+  flex-direction: column;
+}
+.anki-modal-row--meta .fg > label {
+  margin-bottom: 6px;
+}
+.anki-modal-row--meta .anki-importance-encart,
+.anki-modal-row--meta .anki-statut-encart {
+  flex: 1;
+}
+.anki-modal-row .fg { flex: 1; min-width: 0; }
+.anki-modal-row .anki-duration-field .anki-session-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.anki-modal-row .anki-duration-field .anki-time-h,
+.anki-modal-row .anki-duration-field .anki-time-m {
+  flex: 1;
+  min-width: 0;
+  width: auto !important;
+  padding: 10px 8px !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 600;
+  color: var(--txt) !important;
+  text-align: center;
+  border-radius: var(--radius-control) !important;
+  background: var(--s2) !important;
+  border: 0.5px solid var(--bd) !important;
+  line-height: 1.2;
+  min-height: 0;
+}
+.anki-modal-row .anki-duration-field .anki-time-unit {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mut);
+  text-transform: lowercase;
+}
 .anki-link-selected {
  display: flex;
  gap: 6px;
@@ -2316,6 +2567,140 @@ body.not-logged-in #splashScreen {
  accent-color: var(--acc);
  flex-shrink: 0;
 }
+.anki-overflow-picker {
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ gap: 12px;
+ margin: 0 0 12px;
+ padding: 12px 14px;
+ background: var(--s2);
+ border: 0.5px solid var(--bd);
+ border-radius: 12px;
+ --overflow-off: #8b5cf6;
+ --overflow-on: #5b9aff;
+}
+.anki-overflow-side {
+ flex: 1;
+ min-width: 0;
+ display: flex;
+ flex-direction: column;
+ gap: 2px;
+ padding: 4px 6px;
+ border: none;
+ background: transparent;
+ cursor: pointer;
+ border-radius: 8px;
+ transition: background 0.12s, opacity 0.12s;
+ opacity: 0.5;
+ font: inherit;
+}
+.anki-overflow-side--left {
+ align-items: flex-end;
+ text-align: right;
+}
+.anki-overflow-side--right {
+ align-items: flex-start;
+ text-align: left;
+}
+.anki-overflow-side.on {
+ opacity: 1;
+}
+.anki-overflow-side.on .anki-overflow-side-title {
+ color: var(--acc);
+}
+.anki-overflow-side--left.on .anki-overflow-side-title {
+ color: #a78bfa;
+}
+.anki-overflow-side--right.on .anki-overflow-side-title {
+ color: #5b9aff;
+}
+.anki-overflow-side-title {
+ font-size: 12px;
+ font-weight: 600;
+ color: var(--txt);
+ line-height: 1.25;
+}
+.anki-overflow-side-hint {
+ font-size: 10px;
+ line-height: 1.3;
+}
+.anki-overflow-switch {
+ flex-shrink: 0;
+ position: relative;
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ width: 46px;
+ height: 28px;
+ cursor: pointer;
+}
+.anki-overflow-switch input {
+ position: absolute;
+ width: 1px;
+ height: 1px;
+ padding: 0;
+ margin: -1px;
+ overflow: hidden;
+ clip: rect(0, 0, 0, 0);
+ white-space: nowrap;
+ border: 0;
+ appearance: none;
+ -webkit-appearance: none;
+}
+.anki-overflow-switch-track {
+ display: block;
+ width: 46px;
+ height: 28px;
+ border-radius: 999px;
+ background: linear-gradient(135deg, var(--overflow-off) 0%, #9f75ff 100%);
+ border: 0.5px solid rgba(167, 139, 250, 0.55);
+ position: relative;
+ overflow: hidden;
+ transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+ box-shadow:
+  inset 0 1px 2px rgba(0, 0, 0, 0.14),
+  0 0 0 0 rgba(139, 92, 246, 0);
+}
+.anki-overflow-switch-track::after {
+ content: '';
+ position: absolute;
+ top: 2px;
+ left: 2px;
+ width: 22px;
+ height: 22px;
+ border-radius: 50%;
+ background: #fff;
+ box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+ transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+ will-change: transform;
+}
+.anki-overflow-switch input:checked + .anki-overflow-switch-track {
+ background: linear-gradient(135deg, #4d8fff 0%, var(--overflow-on) 100%);
+ border-color: rgba(91, 154, 255, 0.55);
+ box-shadow:
+  inset 0 1px 2px rgba(0, 0, 0, 0.1),
+  0 0 12px rgba(91, 154, 255, 0.28);
+}
+.anki-overflow-switch input:checked + .anki-overflow-switch-track::after {
+ transform: translateX(18px);
+}
+@media (max-width: 560px) {
+ .anki-overflow-picker {
+  flex-wrap: wrap;
+  gap: 10px;
+ }
+ .anki-overflow-switch {
+  order: -1;
+  flex-basis: 100%;
+ }
+ .anki-overflow-side--left,
+ .anki-overflow-side--right {
+  flex: 1 1 40%;
+  align-items: center;
+  text-align: center;
+ }
+}
 .anki-session-time {
  display: inline-flex;
  align-items: center;
@@ -2543,6 +2928,96 @@ body.not-logged-in #splashScreen {
  gap: 4px;
  align-items: center;
  margin-top: 4px;
+}
+.anki-importance-encart {
+ background:
+   linear-gradient(145deg, rgba(240, 192, 64, 0.1) 0%, rgba(240, 192, 64, 0.03) 55%, transparent 100%),
+   var(--s2);
+ border: 0.5px solid rgba(240, 192, 64, 0.24);
+ border-radius: 12px;
+ padding: 12px 14px;
+ margin-top: 2px;
+ box-shadow: inset 0 1px 0 rgba(255, 220, 140, 0.12);
+}
+.anki-importance-encart .anki-star-picker {
+ margin-top: 0;
+}
+.anki-importance-encart .anki-star-hint {
+ font-size: 12px;
+ margin: 8px 0 0;
+ font-weight: 600;
+ color: var(--txt);
+ line-height: 1.3;
+}
+.anki-importance-encart .anki-importance-tip {
+ font-size: 11px;
+ margin: 8px 0 0;
+ line-height: 1.35;
+}
+.anki-modal-row .fg-importance {
+ flex: 1.15;
+}
+.anki-modal-row .fg-statut {
+ flex: 0.85;
+}
+.anki-statut-encart {
+ background: transparent;
+ border: none;
+ border-radius: 0;
+ padding: 0;
+ margin-top: 2px;
+ display: block;
+ box-shadow: none;
+}
+.anki-statut-picker {
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: 8px;
+}
+.anki-statut-card {
+ display: flex;
+ flex-direction: column;
+ align-items: flex-start;
+ gap: 3px;
+ text-align: left;
+ font-family: 'Inter', sans-serif;
+ padding: 10px 12px;
+ border-radius: 12px;
+ border: 0.5px solid var(--bd);
+ background: rgba(120, 120, 128, 0.1);
+ color: var(--txt);
+ cursor: pointer;
+ transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+ width: 100%;
+ min-height: 58px;
+}
+.anki-statut-card:hover {
+ background: rgba(120, 120, 128, 0.16);
+}
+.anki-statut-card.is-active[data-stat="reservoir"] {
+ background: color-mix(in srgb, var(--gold) 14%, rgba(120, 120, 128, 0.12));
+ border-color: color-mix(in srgb, var(--gold) 42%, var(--bd));
+ box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 24%, transparent);
+}
+.anki-statut-card.is-active[data-stat="actif"] {
+ background: color-mix(in srgb, var(--grn) 14%, rgba(120, 120, 128, 0.12));
+ border-color: color-mix(in srgb, var(--grn) 42%, var(--bd));
+ box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--grn) 24%, transparent);
+}
+.anki-statut-option-title {
+ font-size: 13px;
+ font-weight: 600;
+ color: var(--txt);
+ line-height: 1.2;
+}
+.anki-statut-hint {
+ font-size: 10px;
+ line-height: 1.35;
+}
+@media (max-width: 560px) {
+ .anki-statut-picker {
+  grid-template-columns: 1fr;
+ }
 }
 .anki-star-btn {
  background: transparent;
@@ -2785,7 +3260,7 @@ body.nav-chrome-sidebar .hdr {
 body.nav-sidebar-left #navSlotTop {
   display: none !important;
 }
-body.nav-sidebar-left .sync-dock {
+body.nav-sidebar-left .sync-dock-bar {
   left: calc(var(--sidebar-offset) + 10px);
 }
 
@@ -2810,27 +3285,48 @@ body.nav-sidebar-left .sidebar-brand .app-logo-mark {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  background: transparent;
+  border: 1px solid rgba(168, 85, 247, 0.82);
+  color: #c084fc;
+  box-shadow:
+    0 0 4px rgba(168, 85, 247, 0.45),
+    0 0 12px rgba(168, 85, 247, 0.28),
+    inset 0 0 10px rgba(168, 85, 247, 0.1);
 }
 body.nav-sidebar-left .sidebar-logo-mark {
-  opacity: 0.92;
+  opacity: 1;
 }
-body.nav-sidebar-left .sidebar-brand .app-logo-mark::before {
-  font-size: 13px;
+body.nav-sidebar-left .sidebar-brand .app-logo-mark svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 2px rgba(192, 132, 252, 0.95)) drop-shadow(0 0 6px rgba(168, 85, 247, 0.55));
 }
 body.nav-sidebar-left .sidebar-brand-txt {
   font-family: 'Inter', sans-serif;
   font-size: 13px;
   font-weight: 650;
-  color: var(--txt);
+  color: #ede9fe;
   letter-spacing: -0.01em;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   min-height: 26px;
+  text-shadow:
+    0 0 6px rgba(168, 85, 247, 0.55),
+    0 0 14px rgba(168, 85, 247, 0.28);
 }
 body.nav-sidebar-left .sidebar-brand-txt span {
-  color: var(--txt);
-  opacity: 0.88;
+  color: #ddd6fe;
+  opacity: 1;
+  text-shadow:
+    0 0 6px rgba(168, 85, 247, 0.5),
+    0 0 12px rgba(168, 85, 247, 0.25);
 }
 
 /* Nav dans le panneau */
@@ -2845,7 +3341,7 @@ body.nav-sidebar-left .sidebar-footer {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px 14px;
+  padding: 8px 12px 10px;
   flex-shrink: 0;
   border-top: 0.5px solid rgba(255, 255, 255, 0.08);
   margin-top: auto;
@@ -2855,13 +3351,15 @@ body.tmpl-glass.theme-light.nav-sidebar-left .sidebar-footer {
 }
 body.nav-sidebar-left .sidebar-footer .hdr-actions {
   width: 100%;
-  justify-content: center;
-  flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
   gap: 8px;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus {
-  width: 100%;
-  justify-content: center;
+  width: auto;
+  flex-shrink: 0;
 }
 
 body.nav-sidebar-left #navSlotSide {
@@ -2976,7 +3474,6 @@ body.nav-sidebar-left .nav-sub-items .anki-tab {
   min-height: 40px;
   border-radius: 10px;
 }
-body.nav-sidebar-left #paneAnki.on .anki-nav,
 body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
   display: none !important;
 }
@@ -3053,11 +3550,10 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
 
   body.nav-sidebar-left .nav-mobile-extras {
     display: none;
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 10px;
+    flex-direction: column;
+    gap: 14px;
     flex-shrink: 0;
-    padding: 10px 12px 12px;
+    padding: 12px 14px 14px;
     border-top: 0.5px solid rgba(255, 255, 255, 0.08);
   }
 
@@ -3067,6 +3563,139 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
 
   body.tmpl-glass.theme-light.nav-sidebar-left .nav-mobile-extras {
     border-top-color: rgba(0, 0, 0, 0.07);
+  }
+
+  .nav-mobile-extras-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .nav-mobile-extras-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--mut);
+    padding: 0 2px;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row #syncDockBar {
+    position: static;
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row #syncSessionDock {
+    position: static !important;
+    flex: 1;
+    min-width: 0;
+    width: auto !important;
+    max-width: none !important;
+    max-height: none;
+    overflow: visible;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row #syncSessionDock.mini,
+  body.nav-mobile-extras-inline .nav-mobile-sync-row #syncSessionDock.expanded {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row .sync-dock-pill {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 10px 8px 8px;
+    gap: 8px;
+    border-radius: 12px;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row .sync-dock-pill-icon-wrap {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row .sync-dock-pill-title {
+    display: none;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row .sync-dock-pill-sub {
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row .sync-dock-pill-chrono {
+    display: none;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row .sync-dock-pill-chevron {
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row #ankiFabCreate {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-actions-row #fabWrapper {
+    position: static;
+    pointer-events: auto;
+    width: 100%;
+    align-items: stretch;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-actions-row .fab-main {
+    display: none !important;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-actions-row .fab-menu {
+    position: static;
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    pointer-events: auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+    width: 100%;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-actions-row .fab-mini {
+    width: 100%;
+    height: 42px;
+    min-height: 42px;
+    flex-shrink: 0;
+    border-radius: 11px;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row #syncSessionDock .sync-dock-panel {
+    border-radius: 12px;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  body.nav-mobile-extras-inline .nav-mobile-sync-row #syncSessionDock.expanded {
+    width: 100% !important;
+    max-width: none !important;
   }
 
   body.nav-sidebar-left .nav-sub {
@@ -3087,7 +3716,7 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
   body.nav-sidebar-left .app-viewport {
     padding-left: 0;
   }
-  body.nav-sidebar-left .sync-dock {
+  body.nav-sidebar-left .sync-dock-bar {
     left: 16px;
   }
 }

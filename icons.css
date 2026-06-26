@@ -208,16 +208,19 @@
   margin-bottom: 22px;
   flex-shrink: 0;
   box-shadow: 0 4px 14px color-mix(in srgb, var(--acc, #5b9aff) 28%, transparent);
+  color: #fff;
 }
 
-.app-logo-mark::before {
-  content: 'M';
-  font-family: 'Inter', sans-serif;
-  font-size: 32px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.04em;
-  line-height: 1;
+.app-logo-mark--svg::before,
+.app-logo-mark:has(svg)::before {
+  content: none;
+  display: none;
+}
+
+.app-logo-mark svg {
+  display: block;
+  stroke: currentColor;
+  flex-shrink: 0;
 }
 
 .login-title {

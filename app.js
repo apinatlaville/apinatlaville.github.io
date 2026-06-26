@@ -78,16 +78,24 @@ window.closeSysDialog = function() {
 window.updateCloudIndicator = function() {
   const d = window.$('cDot');
   const t = window.$('cTxt');
+  const box = window.$('cloudStatus');
   if(!d || !t) return;
-  
+
+  const name = (window.D && window.D.settings && window.D.settings.userName)
+    ? String(window.D.settings.userName).trim()
+    : '';
+  const displayName = name || 'Étudiant';
+
   if(window.cloudConnected) {
     d.style.background = 'var(--grn)';
     d.style.boxShadow = '0 0 8px var(--grn)';
-    t.textContent = 'En ligne';
+    t.textContent = 'En ligne, ' + displayName;
+    if (box) box.title = 'Connecté au cloud · ' + displayName;
   } else {
     d.style.background = 'var(--red)';
     d.style.boxShadow = '0 0 8px var(--red)';
     t.textContent = 'Local';
+    if (box) box.title = 'Données en local · non synchronisées';
   }
 };
 
@@ -98,10 +106,39 @@ window.triggerHaptic = function() {
 };
 
 window.updateClock = function() {
+  const now = new Date();
+  const timeEl = window.$('hdrClockTime');
+  const dateEl = window.$('hdrClockDate');
+  const showSec = !!(window.D && window.D.settings && window.D.settings.headerClockSeconds !== false);
+  if (timeEl) {
+    const timeOpts = { hour: '2-digit', minute: '2-digit' };
+    if (showSec) timeOpts.second = '2-digit';
+    timeEl.textContent = now.toLocaleTimeString('fr-FR', timeOpts);
+  }
+  if (dateEl) {
+    let dateStr = now.toLocaleDateString('fr-FR', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    });
+    dateEl.textContent = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+  }
   const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-  let dtStr = new Date().toLocaleString('fr-FR', options);
+  let dtStr = now.toLocaleString('fr-FR', options);
   const el = window.$('dateTimeDisp');
-  if(el) el.textContent = dtStr.charAt(0).toUpperCase() + dtStr.slice(1);
+  if (el) el.textContent = dtStr.charAt(0).toUpperCase() + dtStr.slice(1);
+};
+
+window.applyHeaderClock = function() {
+  const on = !!(window.D && window.D.settings && window.D.settings.showHeaderClock);
+  const showSec = !!(window.D && window.D.settings && window.D.settings.headerClockSeconds !== false);
+  const box = document.getElementById('pageTitleClock');
+  if (!box) return;
+  box.hidden = !on;
+  box.setAttribute('aria-hidden', on ? 'false' : 'true');
+  box.classList.toggle('page-title-clock--sec', showSec);
+  box.classList.toggle('page-title-clock--no-sec', !showSec);
+  if (on && typeof window.updateClock === 'function') window.updateClock();
 };
 setInterval(window.updateClock, 1000); 
 window.updateClock();
@@ -182,6 +219,16 @@ window.applySettings = function() {
   if(window.$('dashRevArea')) window.$('dashRevArea').style.display = window.D.settings.showDashRev ? 'block' : 'none';
   if(window.$('dashOverviewArea')) window.$('dashOverviewArea').style.display = window.D.settings.showDashOver ? 'block' : 'none';
   if(window.$('btnCompactToggle')) window.$('btnCompactToggle').textContent = window.D.settings.compact ? 'Activé' : 'Désactivé';
+  if(window.$('btnHeaderClockToggle')) window.$('btnHeaderClockToggle').textContent = window.D.settings.showHeaderClock ? 'Activé' : 'Désactivé';
+  const secBtn = window.$('btnHeaderClockSecondsToggle');
+  if (secBtn) {
+    secBtn.textContent = window.D.settings.headerClockSeconds !== false ? 'Affichées' : 'Masquées';
+    secBtn.disabled = !window.D.settings.showHeaderClock;
+  }
+  const secRow = secBtn && secBtn.closest('.set-row');
+  if (secRow) secRow.style.opacity = window.D.settings.showHeaderClock ? '' : '0.45';
+  if (typeof window.applyHeaderClock === 'function') window.applyHeaderClock();
+  if (typeof window.hydrateAppLogos === 'function') window.hydrateAppLogos();
   if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
   if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
   if(window.$('btnDashHeroToggle')) window.$('btnDashHeroToggle').textContent = window.D.settings.showDashHero ? 'Oui' : 'Non';
@@ -189,6 +236,7 @@ window.applySettings = function() {
   if(window.$('btnDashOverToggle')) window.$('btnDashOverToggle').textContent = window.D.settings.showDashOver ? 'Oui' : 'Non';
   if(window.$('setUserName')) window.$('setUserName').value = window.D.settings.userName;
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
+  if (typeof window.updateCloudIndicator === 'function') window.updateCloudIndicator();
   if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
 
   var activeTheme = window.D.settings.themePreset || 'minimaliste';
@@ -476,23 +524,27 @@ window.syncMobileSidebarPanel = function () {
 /** Sur mobile : dock Synchrotron + FAB dans le panneau navigation */
 window.layoutMobileNavExtras = function () {
   const extras = document.getElementById('navMobileExtras');
-  const dock = document.getElementById('syncSessionDock');
+  const syncRow = document.getElementById('navMobileSyncRow');
+  const actionsRow = document.getElementById('navMobileActionsRow');
+  const bar = document.getElementById('syncDockBar');
   const fab = document.getElementById('fabWrapper');
   const shell = document.getElementById('appShell');
-  if (!extras || !dock || !fab || !shell) return;
+  if (!extras || !bar || !fab || !shell) return;
 
   const mobile = window.matchMedia('(max-width: 767px)').matches;
   const sidebar = document.body.classList.contains('nav-sidebar-left');
+  const inExtras = bar.parentElement === syncRow || bar.parentElement === extras || bar.parentElement === actionsRow;
+  const fabInExtras = fab.parentElement === actionsRow || fab.parentElement === extras || fab.parentElement === syncRow;
 
-  if (mobile && sidebar) {
-    if (dock.parentElement !== extras) extras.appendChild(dock);
-    if (fab.parentElement !== extras) extras.appendChild(fab);
+  if (mobile && sidebar && syncRow && actionsRow) {
+    if (bar.parentElement !== syncRow) syncRow.appendChild(bar);
+    if (fab.parentElement !== actionsRow) actionsRow.appendChild(fab);
     fab.classList.remove('open');
     document.body.classList.add('nav-mobile-extras-inline');
   } else {
     document.body.classList.remove('nav-mobile-extras-inline');
-    if (dock.parentElement === extras) shell.insertAdjacentElement('afterend', dock);
-    if (fab.parentElement === extras) dock.insertAdjacentElement('afterend', fab);
+    if (inExtras) shell.insertAdjacentElement('afterend', bar);
+    if (fabInExtras) bar.insertAdjacentElement('afterend', fab);
   }
 };
 
@@ -563,11 +615,8 @@ window.runTabShow = function(tab, overrideResetFilters) {
       break;
     case 'notes': window.renderNotes(); break;
     case 'flashcards': window.renderFlashcards(); break;
-    case 'anki': if (typeof window.renderAnki === 'function') window.renderAnki(); break;
     case 'ankiV2': if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2(); break;
-    case 'ankiViz': if (typeof window.renderAnkiViz === 'function') window.renderAnkiViz(); break;
     case 'ankiVizV2': if (typeof window.renderAnkiVizV2 === 'function') window.renderAnkiVizV2(); break;
-    case 'ankiCompare': if (typeof window.renderAnkiCompare === 'function') window.renderAnkiCompare(); break;
     case 'print': window.renderPrintGrid(); break;
     case 'classeurs':
       window.isEditingCl = false;
@@ -836,6 +885,17 @@ bindClick('btnNavLayoutToggle', withD(() => {
   window.save();
   window.applySettings();
 }));
+bindClick('btnHeaderClockToggle', withD(() => {
+  window.D.settings.showHeaderClock = !window.D.settings.showHeaderClock;
+  window.save();
+  window.applySettings();
+}));
+bindClick('btnHeaderClockSecondsToggle', withD(() => {
+  const cur = window.D.settings.headerClockSeconds !== false;
+  window.D.settings.headerClockSeconds = !cur;
+  window.save();
+  window.applySettings();
+}));
 bindClick('btnCompactToggle', withD(() => { window.D.settings.compact = !window.D.settings.compact; window.save(); window.applySettings(); }));
 bindClick('btnStatsToggle', withD(() => { window.D.settings.showStats = !window.D.settings.showStats; window.save(); window.applySettings(); }));
 bindClick('btnChipsToggle', withD(() => { window.D.settings.showChips = !window.D.settings.showChips; window.save(); window.applySettings(); }));
@@ -1020,6 +1080,8 @@ async function initApp(user) {
   }
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
+  if(window.D.settings.showHeaderClock === undefined) window.D.settings.showHeaderClock = false;
+  if(window.D.settings.headerClockSeconds === undefined) window.D.settings.headerClockSeconds = true;
   if(!window.D.settings.navLayout) window.D.settings.navLayout = 'sidebar-left';
   if (!window.D.settings.navLayoutVersion) {
     window.D.settings.navLayout = 'sidebar-left';

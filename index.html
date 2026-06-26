@@ -6,14 +6,14 @@
 <title>Mes Cours - PC* Edition</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="fonts-local.css" rel="stylesheet">
 <script src="core-utils.js"></script>
 <script src="boot-profiler.js"></script>
 <script src="boot-loader.js"></script>
 <script src="icons.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="JsBarcode.all.min.js"></script>
+<script src="html5-qrcode.js"></script>
 <script src="fuse.js"></script>
 
 <script>
@@ -114,6 +114,10 @@
   <div class="page-title-float hidden" id="pageTitleFloat" aria-hidden="true">
     <div class="page-title-float-inner">
       <h2 class="page-title-float-txt" id="hdrPageTitle">Accueil</h2>
+      <div class="page-title-clock" id="pageTitleClock" hidden aria-live="polite" aria-hidden="true">
+        <span class="page-title-clock-time" id="hdrClockTime">--:--</span>
+        <span class="page-title-clock-date" id="hdrClockDate"></span>
+      </div>
       <button type="button" class="page-title-nav-toggle" id="btnSidebarMobileToggle" aria-expanded="false" aria-controls="appSidebar" aria-label="Ouvrir la navigation" hidden>
         <span data-icon="chevron-down" data-icon-size="22" aria-hidden="true"></span>
       </button>
@@ -124,11 +128,20 @@
 
   <aside class="app-sidebar app-chrome app-chrome--nav" id="appSidebar" aria-label="Navigation">
     <div class="sidebar-brand">
-      <span class="app-logo-mark sidebar-logo-mark" data-app-logo></span>
+      <span class="app-logo-mark sidebar-logo-mark app-logo-mark--svg" data-app-logo aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></span>
       <span class="sidebar-brand-txt">Mes <span>Cours</span></span>
     </div>
     <div id="navSlotSide"></div>
-    <div class="nav-mobile-extras" id="navMobileExtras" aria-label="Synchrotron et actions rapides"></div>
+    <div class="nav-mobile-extras" id="navMobileExtras" aria-label="Synchrotron et actions rapides">
+      <section class="nav-mobile-extras-section nav-mobile-sync-block">
+        <div class="nav-mobile-extras-label">Synchrotron</div>
+        <div class="nav-mobile-sync-row" id="navMobileSyncRow"></div>
+      </section>
+      <section class="nav-mobile-extras-section nav-mobile-actions-block">
+        <div class="nav-mobile-extras-label">Actions rapides</div>
+        <div class="nav-mobile-actions-row" id="navMobileActionsRow"></div>
+      </section>
+    </div>
     <div class="sidebar-footer" id="sidebarFooter" aria-label="Actions"></div>
   </aside>
 
@@ -265,11 +278,8 @@
 
 <div class="pane ui-pane" id="paneFlashcards"></div>
 
-<div class="pane ui-pane" id="paneAnki"><!-- Synchrotron v1 — archivé, voir nav-config.js --></div>
 <div class="pane ui-pane" id="paneAnkiV2"></div>
-<div class="pane ui-pane" id="paneAnkiViz"><!-- Carte mentale v1 — archivée --></div>
 <div class="pane ui-pane" id="paneAnkiVizV2"></div>
-<div class="pane ui-pane" id="paneAnkiCompare"><!-- Comparaison v1 vs v2 — archivée --></div>
 
 <div class="pane ui-pane" id="panePrint">
   <div class="pbar">
@@ -351,6 +361,8 @@
 
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Interface</h3>
   <div class="set-row"><div><div class="set-lbl">Barre latérale</div><div class="set-sub">Navigation à gauche ou barre du haut</div></div><button class="toggle-btn" id="btnNavLayoutToggle" type="button">Barre latérale</button></div>
+  <div class="set-row"><div><div class="set-lbl">Horloge du bandeau</div><div class="set-sub">Heure et date à droite du titre de page</div></div><button class="toggle-btn" id="btnHeaderClockToggle" type="button">Désactivé</button></div>
+  <div class="set-row"><div><div class="set-lbl">Secondes (horloge)</div><div class="set-sub">Afficher les secondes dans l'horloge du bandeau</div></div><button class="toggle-btn" id="btnHeaderClockSecondsToggle" type="button">Affichées</button></div>
   <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
   <div class="set-row"><div><div class="set-lbl">Filtres rapides (Bulles)</div><div class="set-sub">Affiche les boutons matières</div></div><button class="toggle-btn" id="btnChipsToggle">Affiché</button></div>
   
@@ -367,7 +379,7 @@
     <p style="font-size:12px; color:var(--mut); margin-bottom:15px;">Teste l'algorithme en conditions réalistes (~130 cartes X- par chapitre PC*, questions usuelles, exos à différents stades, 50 anglais).</p>
     <button class="bs" onclick="window.runAnkiSmokeTests && window.runAnkiSmokeTests()" style="width:100%; margin-top:8px;" id="btnRunSmoke"><span data-icon="flask-conical"></span> Tests smoke Synchrotron (console)</button>
     <button class="bp" onclick="window.loadDemoPCStar()" style="background:var(--gold); color:#1a2030; width:100%; font-weight:700; margin-top:8px;" id="btnLoadDemoPCStar"><span data-icon="star"></span> Simulation mi-année PC* (recommandé)</button>
-    <button class="bp" onclick="window.loadDemoXP()" style="background:#b06af7; color:#fff; width:100%; margin-top:8px;" id="btnLoadDemoXP"><span data-icon="bar-chart"></span> Démo courte « 3 semaines » (legacy)</button>
+    <button class="bp" onclick="window.loadDemoXP()" style="background:#b06af7; color:#fff; width:100%; margin-top:8px;" id="btnLoadDemoXP"><span data-icon="bar-chart"></span> Démo courte « 3 semaines »</button>
     <button class="bs" onclick="window.loadDemo()" style="width:100%; margin-top:6px;" id="btnLoadDemo">Démo minimale (10 cartes)</button>
   </div>
 
@@ -410,7 +422,9 @@
   </div><!-- .app-workspace -->
 </div><!-- #appShell -->
 
-<div id="syncSessionDock" class="sync-dock mini idle" aria-live="polite"></div>
+<div class="sync-dock-bar" id="syncDockBar">
+  <div id="syncSessionDock" class="sync-dock mini idle" aria-live="polite"></div>
+</div>
 
 <div class="fab-wrapper" id="fabWrapper">
   <div class="fab-menu" id="fabMenu">

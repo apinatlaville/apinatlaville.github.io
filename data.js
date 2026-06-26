@@ -18,7 +18,7 @@ window.PC_FLASHCARDS = [
 ];
 
 window.emptyData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
@@ -37,7 +37,7 @@ window.emptyData = {
 };
 
 window.demoData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, showPomo: true, pomoWork: 25, pomoBreak: 5, ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
@@ -195,7 +195,6 @@ window.demoDataXP = (function() {
     devoirs: []
   };
 })();
-
 
 window.isEditingMat = false;
 window.isEditingCl = false;

@@ -57,8 +57,8 @@
     log('shiftProgramIfMissedDaily 1×/jour max', r2.shifted === 0 && r2.alreadyDone);
 
     const fns = [
-      'renderAnki', 'ankiSetView', 'openExoModal', 'openDevoirModal', 'startAnkiSession',
-      'renderFlashcards', 'quickAdd', 'quickActivate', 'renderAnkiViz', 'save'
+      'renderAnkiV2', 'ankiV2SetView', 'ankiV2OpenExoModal', 'ankiV2OpenDevoirModal', 'startAnkiV2Session',
+      'renderFlashcards', 'quickAdd', 'quickActivate', 'renderAnkiVizV2', 'save'
     ];
     fns.forEach(name => log('window.' + name, typeof window[name] === 'function'));
 
