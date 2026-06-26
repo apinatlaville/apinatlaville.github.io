@@ -78,6 +78,7 @@ window.closeSysDialog = function() {
 window.updateCloudIndicator = function() {
   const d = window.$('cDot');
   const t = window.$('cTxt');
+  const extra = window.$('cTxtExtra');
   const box = window.$('cloudStatus');
   if(!d || !t) return;
 
@@ -89,13 +90,21 @@ window.updateCloudIndicator = function() {
   if(window.cloudConnected) {
     d.style.background = 'var(--grn)';
     d.style.boxShadow = '0 0 8px var(--grn)';
-    t.textContent = 'En ligne, ' + displayName;
-    if (box) box.title = 'Connecté au cloud · ' + displayName;
+    t.textContent = 'En ligne';
+    if (extra) extra.textContent = ', ' + displayName;
+    if (box) {
+      box.classList.add('cloud-status--online');
+      box.title = 'Connecté au cloud · ' + displayName;
+    }
   } else {
     d.style.background = 'var(--red)';
     d.style.boxShadow = '0 0 8px var(--red)';
     t.textContent = 'Local';
-    if (box) box.title = 'Données en local · non synchronisées';
+    if (extra) extra.textContent = '';
+    if (box) {
+      box.classList.remove('cloud-status--online');
+      box.title = 'Données en local · non synchronisées';
+    }
   }
 };
 

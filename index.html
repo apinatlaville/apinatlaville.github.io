@@ -154,9 +154,9 @@
           <p>Méthode PC* · Synchrotron · Flashcards</p>
         </div>
         <div class="hdr-actions" id="hdrActions">
-          <div id="cloudStatus" style="display:flex; align-items:center; gap:5px; background:rgba(255,255,255,0.05); border:1px solid var(--bd); padding:4px 8px; border-radius:12px; font-size:11px; cursor:help; color:var(--txt);" title="Vérification de la connexion...">
-            <span id="cDot" style="width:8px;height:8px;border-radius:50%;background:var(--mut);display:inline-block;"></span>
-            <span id="cTxt">Init...</span>
+          <div id="cloudStatus" class="cloud-status-chip" title="Vérification de la connexion...">
+            <span id="cDot" class="cloud-status-dot"></span>
+            <span class="cloud-status-txt"><span id="cTxt">Init...</span><span id="cTxtExtra" class="cloud-status-extra"></span></span>
           </div>
           <button class="btn-settings" id="btnRefresh" title="Actualiser la page" aria-label="Actualiser"><span data-icon="refresh-cw"></span></button>
           <button class="btn-settings" id="btnOpenSettings" title="Paramètres" aria-label="Paramètres"><span data-icon="settings"></span></button>

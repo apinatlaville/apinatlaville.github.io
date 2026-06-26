@@ -258,6 +258,37 @@ body.mode-compact .cdesc { display: none; }
 .hdr h1 span { color: var(--acc); }
 .btn-settings { background: var(--s2); border: 1px solid var(--bd); border-radius: 50%; width: 36px; height: 36px; font-size: 16px; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.2s; color: var(--txt); }
 
+.cloud-status-chip {
+ display: inline-flex;
+ align-items: center;
+ gap: 5px;
+ background: rgba(255, 255, 255, 0.05);
+ border: 1px solid var(--bd);
+ padding: 4px 8px;
+ border-radius: 12px;
+ font-size: 11px;
+ cursor: default;
+ color: var(--txt);
+ flex-shrink: 0;
+ white-space: nowrap;
+}
+.cloud-status-dot {
+ width: 8px;
+ height: 8px;
+ border-radius: 50%;
+ background: var(--mut);
+ display: inline-block;
+ flex-shrink: 0;
+}
+.cloud-status-txt {
+ display: inline-flex;
+ align-items: center;
+ min-width: 0;
+}
+.cloud-status-extra {
+ display: inline;
+}
+
 .stats-band { background: var(--s3); border-bottom: 1px solid var(--bd); padding: 8px 14px; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
 .stats-band::-webkit-scrollbar { display: none; }
 .stats-band.hidden-ui { display: none !important; }
@@ -3353,13 +3384,26 @@ body.nav-sidebar-left .sidebar-footer .hdr-actions {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-wrap: nowrap;
   gap: 8px;
 }
-body.nav-sidebar-left .sidebar-footer #cloudStatus {
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status-chip {
   width: auto;
   flex-shrink: 0;
+  overflow: hidden;
+  transition: max-width 0.28s ease, padding-right 0.28s ease;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online {
+  max-width: 5.5rem;
+  cursor: default;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover,
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible {
+  max-width: min(200px, calc(var(--sidebar-w, 220px) - 108px));
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus:not(.cloud-status--online) {
+  max-width: none;
 }
 
 body.nav-sidebar-left #navSlotSide {
@@ -3502,6 +3546,11 @@ body.nav-sidebar-left #paneAnkiV2.on .anki-nav {
   flex-direction: column;
   gap: 1px;
   padding: 2px 0 6px;
+}
+
+/* Synchrotron + FAB embarqués : panneau mobile uniquement (pas sidebar desktop) */
+body.nav-sidebar-left .nav-mobile-extras {
+  display: none;
 }
 
 @media (max-width: 767px) {
