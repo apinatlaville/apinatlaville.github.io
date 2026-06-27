@@ -234,12 +234,6 @@ body.mode-compact .cdesc { display: none; }
  gap: 8px;
  flex-shrink: 0;
 }
-.hdr-actions-btns {
- display: flex;
- align-items: center;
- gap: 8px;
- flex-shrink: 0;
-}
 .hdr-content { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 10; }
 .hdr h1 { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; color: var(--txt); display: flex; align-items: center; gap: 10px; }
 .hdr p { color: var(--mut); font-size: 11px; margin-top: 2px; }
@@ -3414,24 +3408,30 @@ body.nav-sidebar-left .sidebar-footer .hdr-actions {
   width: 100%;
   max-width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
+  --sidebar-footer-btn-size: 28px;
+  --sidebar-footer-actions-reserve: calc(3 * var(--sidebar-footer-btn-size) + 3 * 8px);
 }
-body.nav-sidebar-left .sidebar-footer .hdr-actions-btns {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+body.nav-sidebar-left .sidebar-footer .hdr-actions .btn-settings {
+  width: var(--sidebar-footer-btn-size);
+  height: var(--sidebar-footer-btn-size);
+  min-width: var(--sidebar-footer-btn-size);
+  max-width: var(--sidebar-footer-btn-size);
+  min-height: var(--sidebar-footer-btn-size);
+  max-height: var(--sidebar-footer-btn-size);
+  font-size: 14px;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status-chip {
   width: auto;
-  max-width: 100%;
   min-width: 0;
   flex: 0 0 auto;
   overflow: hidden;
-  transition: max-width 0.28s ease;
+  transition: max-width 0.28s ease, flex 0.28s ease;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus .cloud-status-txt {
   flex: 1 1 auto;
@@ -3445,7 +3445,8 @@ body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online {
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover,
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible {
-  max-width: 100%;
+  flex: 1 1 0;
+  max-width: calc(100% - var(--sidebar-footer-actions-reserve));
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover .cloud-status-txt,
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible .cloud-status-txt {
