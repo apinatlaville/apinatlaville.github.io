@@ -55,17 +55,27 @@ window.pruneUnsortedMatiere = function () {
 window.reconcileOrphanCours = function () {
   if (!window.D || !window.D.cours) return false;
   let changed = false;
-  const ids = new Set((window.D.matieres || []).map(m => m.id));
+  const matIds = new Set((window.D.matieres || []).map(m => m.id));
+  const clIds = new Set((window.D.classeurs || []).map(c => c.id));
   window.D.cours.forEach(c => {
-    if (!c.mat || !ids.has(c.mat)) {
+    if (!c.mat || !matIds.has(c.mat)) {
       window.ensureUnsortedMatiere();
       c.mat = window.UNSORTED_MAT_ID;
       changed = true;
     }
+    if (!c.cl || !clIds.has(c.cl)) {
+      window.ensureUnsortedClasseur();
+      c.cl = window.UNSORTED_CL_ID;
+      if (!c.inter) c.inter = '01';
+      changed = true;
+    }
   });
-  const before = window.D.matieres.length;
+  const matBefore = window.D.matieres.length;
   window.pruneUnsortedMatiere();
-  if (window.D.matieres.length !== before) changed = true;
+  if (window.D.matieres.length !== matBefore) changed = true;
+  const clBefore = window.D.classeurs.length;
+  window.pruneUnsortedClasseur();
+  if (window.D.classeurs.length !== clBefore) changed = true;
   return changed;
 };
 
@@ -81,6 +91,47 @@ window.isSystemMatiere = function (id) {
   return id === window.UNSORTED_MAT_ID;
 };
 
+/** Classeur système pour documents sans classeur valide (créé / supprimé automatiquement). */
+window.UNSORTED_CL_ID = 'NONCL';
+
+window.ensureUnsortedClasseur = function () {
+  if (!window.D) return false;
+  if (!window.D.classeurs) window.D.classeurs = [];
+  if (window.D.classeurs.some(c => c.id === window.UNSORTED_CL_ID)) return true;
+  window.D.classeurs.push({
+    id: window.UNSORTED_CL_ID,
+    name: 'Non classé',
+    icon: 'folder',
+    color: '#6a7088',
+    maxInter: 12,
+    interNames: {},
+    _system: true
+  });
+  return true;
+};
+
+window.pruneUnsortedClasseur = function () {
+  if (!window.D || !window.D.classeurs || !window.D.cours) return;
+  const used = window.D.cours.some(c => c.cl === window.UNSORTED_CL_ID);
+  if (!used) {
+    window.D.classeurs = window.D.classeurs.filter(c => c.id !== window.UNSORTED_CL_ID);
+  }
+};
+
+window.moveCoursClToUnsorted = function (fromClId) {
+  if (!window.D || !fromClId || fromClId === window.UNSORTED_CL_ID) return;
+  window.ensureUnsortedClasseur();
+  window.D.cours.forEach(c => {
+    if (c.cl === fromClId) {
+      c.cl = window.UNSORTED_CL_ID;
+      if (!c.inter) c.inter = '01';
+    }
+  });
+};
+
+window.isSystemClasseur = function (id) {
+  return id === window.UNSORTED_CL_ID;
+};
 
 window.isEditingMat = false;
 window.isEditingCl = false;
@@ -135,19 +186,19 @@ window.renderCours = function() {
       const mv = ms.value, cv = cs.value;
       ms.innerHTML = '<option value="">Toutes matières</option>' + allM.map(m => {
         const mo = window.D.matieres.find(x => x.id===m) || {name:m};
-        return `<option value="${m}" ${m===mv?'selected':''}>${mo.name}</option>`;
+        return `<option value="${m}" ${m===mv?'selected':''}>${window.escHtml(mo.name)}</option>`;
       }).join('');
       
       cs.innerHTML = '<option value="">Tous classeurs</option>' + allC.map(c => {
         const co = window.D.classeurs.find(x => x.id===c) || {name:c};
-        return `<option value="${c}" ${c===cv?'selected':''}>${co.name}</option>`;
+        return `<option value="${c}" ${c===cv?'selected':''}>${window.escHtml(co.name)}</option>`;
       }).join('');
     }
     
     if(window.$('matChips')) {
       window.$('matChips').innerHTML = '<button class="chip' + (window.chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
         window.D.matieres.map(m => `
-          <button class="chip${window.chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${window.chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${m.label}</button>
+          <button class="chip${window.chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${window.chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${window.escHtml(m.label)}</button>
         `).join('');
         
       window.$('matChips').querySelectorAll('.chip').forEach(btn => {
@@ -167,7 +218,18 @@ window.renderCours = function() {
 
     let baseList = window.D.cours;
 
-    if (qText && typeof Fuse !== 'undefined') {
+    if (qText && typeof Fuse === 'undefined') {
+      if (!window._fuseWarnShown) {
+        window._fuseWarnShown = true;
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert(
+            'La recherche par texte est indisponible : la bibliothèque <b>Fuse.js</b> n\'a pas été chargée.<br><br>' +
+            'Recharge la page ou vérifie ta connexion. En attendant, utilise le filtre par <b>code</b> (PH-8X2).',
+            'Recherche limitée'
+          );
+        }
+      }
+    } else if (qText && typeof Fuse !== 'undefined') {
       const searchData = baseList.map(c => {
         const mo = window.D.matieres.find(x => x.id===c.mat) || {name:''};
         return { ...c, matName: mo.name };
@@ -439,6 +501,7 @@ window.delCours = function(uid) {
   window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
     window.D.cours = window.D.cours.filter(c => c.uid !== uid);
     window.pruneUnsortedMatiere();
+    window.pruneUnsortedClasseur();
     window.save();
     window.renderMatieres();
     window.renderCours();
@@ -516,7 +579,7 @@ window.openModalCours = function() {
   
   if(window.$('fMat')) {
     const matHtml = '<option value="">— Choisir —</option>' + 
-    window.D.matieres.map(m => `<option value="${m.id}">${m.label} — ${m.name}</option>`).join('');
+    window.D.matieres.map(m => `<option value="${m.id}">${window.escHtml(m.label)} — ${window.escHtml(m.name)}</option>`).join('');
     if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(window.$('fMat'), matHtml);
     else window.$('fMat').innerHTML = matHtml;
   }
@@ -578,7 +641,7 @@ window.editCours = function(uid) {
   
   if(window.$('fMat')) {
     window.$('fMat').innerHTML = window.D.matieres.map(m => `
-      <option value="${m.id}" ${m.id===c.mat?'selected':''}>${m.label}</option>
+      <option value="${m.id}" ${m.id===c.mat?'selected':''}>${window.escHtml(m.label)}</option>
     `).join('');
   }
   
@@ -596,7 +659,7 @@ window.editCours = function(uid) {
   
   if(window.$('uidBox')) {
     window.$('uidBox').style.display = 'block';
-    window.$('uidBox').innerHTML = c.uid + '<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code permanent</small>';
+    window.$('uidBox').innerHTML = window.escHtml(c.uid) + '<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code permanent</small>';
   }
   
   if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
@@ -652,7 +715,7 @@ window.saveCours = function() {
         || (window.D.exercices || []).some(x => x.id === newUid)
         || (window.D.devoirs || []).some(x => x.id === newUid);
       if (uidTaken) {
-        return window.sysAlert("Ce code (" + newUid + ") est déjà utilisé ! Trouve-en un autre.", "Erreur de code");
+        return window.sysAlert("Ce code (" + window.escHtml(newUid) + ") est déjà utilisé ! Trouve-en un autre.", "Erreur de code");
       }
     } else {
       newUid = window.genUid(mat);
@@ -664,6 +727,7 @@ window.saveCours = function() {
   
   window.save();
   window.pruneUnsortedMatiere();
+  window.pruneUnsortedClasseur();
   window.renderMatieres();
   window.closeModalCours();
   window.renderCours();
@@ -693,12 +757,13 @@ window.renderClasseurs = function() {
       g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>';
     } else {
       html += window.D.classeurs.map(cl => {
+        const isSystem = window.isSystemClasseur(cl.id);
         const cc = window.D.cours.filter(c => c.cl===cl.id);
         cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
 
         let editBtns = window.isEditingCl ? `
-          <button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">${window.iconLabel('pencil', 'Éditer')}</button>
-          <button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>
+          ${!isSystem ? `<button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">${window.iconLabel('pencil', 'Éditer')}</button>` : ''}
+          ${!isSystem ? `<button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>` : ''}
         ` : '';
 
         let coursesList = '';
@@ -736,7 +801,7 @@ window.renderClasseurs = function() {
             <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
               <div class="cl-ico" style="background:${cl.color}20">${window.renderClasseurIcon(cl.icon)}</div>
               <div class="cl-info" style="flex:1;">
-                <div class="cl-nm">${cl.name}</div>
+                <div class="cl-nm">${window.escHtml(cl.name)}${isSystem ? '<span style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : ''}</div>
                 <div class="cl-sb">${cl.maxInter || 12} inter. max</div>
               </div>
               ${editBtns}
@@ -765,6 +830,7 @@ window.renderClasseurs = function() {
 };
 
 window.editClasseur = function(id) {
+  if (window.isSystemClasseur(id)) return;
   const cl = window.D.classeurs.find(c => c.id === id);
   if(!cl) return;
   window.currentEditClId = id;
@@ -799,12 +865,57 @@ window.renderEditClInters = function() {
   container.innerHTML = html;
 };
 
+window.getClMaxInterConflict = function (clId, newMax) {
+  if (!window.D || !clId) return null;
+  const newMaxN = Math.max(1, parseInt(newMax, 10) || 12);
+  let maxUsed = 0;
+  let count = 0;
+  window.D.cours.forEach(c => {
+    if (c.cl !== clId) return;
+    const n = parseInt(c.inter, 10);
+    if (!isNaN(n) && n > newMaxN) {
+      count++;
+      if (n > maxUsed) maxUsed = n;
+    }
+  });
+  return count ? { newMax: newMaxN, count: count, maxUsed: maxUsed } : null;
+};
+
+window.onEditClMaxChange = function () {
+  const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
+  const input = window.$('eClMax');
+  if (!cl || !input) return;
+  const conflict = window.getClMaxInterConflict(cl.id, input.value);
+  if (conflict) {
+    input.value = String(conflict.maxUsed);
+    window.sysAlert(
+      `Ce classeur contient ${conflict.count} document(s) à partir de l'intercalaire ` +
+      `<b>${String(conflict.maxUsed).padStart(2, '0')}</b>.<br><br>` +
+      `Tu ne peux pas descendre en dessous de <b>${conflict.maxUsed}</b> intercalaires.`,
+      "Nombre d'intercalaires"
+    );
+  }
+  window.renderEditClInters();
+};
+
 window.saveClEdit = function() {
   const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
   if(!cl) return;
+
+  const newMax = parseInt(window.$('eClMax').value, 10) || 12;
+  const conflict = window.getClMaxInterConflict(cl.id, newMax);
+  if (conflict) {
+    if (window.$('eClMax')) window.$('eClMax').value = String(conflict.maxUsed);
+    return window.sysAlert(
+      `Ce classeur contient ${conflict.count} document(s) à partir de l'intercalaire ` +
+      `<b>${String(conflict.maxUsed).padStart(2, '0')}</b>.<br><br>` +
+      `Déplace ou supprime ces documents avant de réduire le nombre d'intercalaires.`,
+      "Nombre d'intercalaires"
+    );
+  }
   
   cl.name = window.$('eClNm').value.trim() || cl.name;
-  cl.maxInter = parseInt(window.$('eClMax').value) || 12;
+  cl.maxInter = newMax;
   
   if(!cl.interNames) cl.interNames = {};
   for(let i=1; i<=cl.maxInter; i++) {
@@ -844,7 +955,7 @@ window.renderMatieres = function() {
     return `
     <div class="mr">
       <div class="mdot" style="background:${m.color}"></div>
-      <div class="mlbl">${m.label}</div><div class="mnm" style="flex:1;">${m.name}${hint}</div>
+      <div class="mlbl">${window.escHtml(m.label)}</div><div class="mnm" style="flex:1;">${window.escHtml(m.name)}${hint}</div>
       ${delBtn}
     </div>`;
   }).join('');
@@ -997,15 +1108,24 @@ window.delMat = function(id) {
 };
 
 window.delCl = function(id) {
+  if (window.isSystemClasseur(id)) return;
+
+  const count = window.D.cours.filter(c => c.cl === id).length;
   const doDel = () => {
-    window.D.classeurs = window.D.classeurs.filter(c=>c.id!==id);
+    if (count) window.moveCoursClToUnsorted(id);
+    window.D.classeurs = window.D.classeurs.filter(c => c.id !== id);
+    window.pruneUnsortedClasseur();
     window.save();
     window.renderClasseurs();
     window.renderCours();
   };
 
-  if(window.D.cours.filter(c=>c.cl===id).length) {
-    window.sysConfirm('Attention, ce classeur contient des cours. Veux-tu vraiment le supprimer ?', doDel, "Suppression d'un classeur");
+  if (count) {
+    window.sysConfirm(
+      `Ce classeur contient ${count} document(s). Ils seront déplacés dans « Non classé » pour que tu puisses les reclasser.`,
+      doDel,
+      "Suppression d'un classeur"
+    );
   } else {
     doDel();
   }

@@ -11,6 +11,40 @@
     });
   };
 
+  window._bootScriptErrors = window._bootScriptErrors || [];
+
+  window.recordScriptLoadError = function (name, critical) {
+    var entry = { name: name, critical: !!critical };
+    var exists = window._bootScriptErrors.some(function (e) { return e.name === name; });
+    if (!exists) window._bootScriptErrors.push(entry);
+    var time = new Date().toLocaleTimeString();
+    var msg = 'Fichier non chargé : ' + name;
+    if (!window.appErrors) window.appErrors = [];
+    window.appErrors.push({ time: time, msg: msg, source: 'boot-loader', lineno: 0 });
+    if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
+    var toast = document.getElementById('errorToast');
+    var toastMsg = document.getElementById('errorToastMsg');
+    if (toast && toastMsg) {
+      toastMsg.textContent = msg;
+      toast.classList.remove('hidden');
+    }
+    return entry;
+  };
+
+  window.notifyScriptLoadFailures = function (errors) {
+    if (!errors || !errors.length) return;
+    var names = errors.map(function (e) { return e.name; }).join(', ');
+    var hasCritical = errors.some(function (e) { return e.critical; });
+    var body = 'Certains fichiers n\'ont pas pu être chargés : <b>' + window.escHtml(names) + '</b>.<br><br>' +
+      'Recharge la page ou vérifie ta connexion réseau.';
+    if (hasCritical) {
+      body += '<br><br><b>L\'application peut ne pas fonctionner correctement.</b>';
+    }
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert(body, 'Erreur de chargement');
+    }
+  };
+
   var bootDismissed = false;
 
   function splashEl() { return document.getElementById('splashScreen'); }
@@ -46,6 +80,11 @@
     if (typeof window.initGoogleSignIn === 'function') window.initGoogleSignIn();
   };
 
+  /**
+   * Secours boot (délai unique) : si l'app n'est pas prête après 12 s
+   * et que l'écran d'auth est encore masqué, afficher la connexion.
+   * (Ne pas dupliquer ce timer ailleurs — ex. index.html.)
+   */
   setTimeout(function () {
     if (!window.appReady && document.body.classList.contains('auth-pending')) {
       if (window.bootMark) window.bootMark('boot.timeout12s.forceLogin');

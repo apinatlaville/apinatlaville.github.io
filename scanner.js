@@ -201,7 +201,7 @@ window.openCam = function() {
       });
 
     } catch(e) {
-      if(window.$('camSt')) window.$('camSt').innerHTML = window.iconLabel('circle-x', 'Erreur : ' + e.message);
+      if(window.$('camSt')) window.$('camSt').innerHTML = window.iconLabel('circle-x', 'Erreur : ' + window.escHtml(e.message));
       if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "HTML5-QRCode: " + e.message, source: 'scanner.js', lineno: 0 });
     }
   };
@@ -257,7 +257,8 @@ window.logDebug = function(msg, color = 'var(--txt)') {
   const logs = window.$('debug-logs');
   if(!logs) return;
   const time = new Date().toLocaleTimeString();
-  logs.innerHTML = `<div style="color:${color}; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><span style="color:var(--mut)">[${time}]</span> ${msg}</div>` + logs.innerHTML;
+  const body = (typeof msg === 'string' && msg.indexOf('<') >= 0) ? msg : window.escHtml(String(msg));
+  logs.innerHTML = `<div style="color:${color}; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><span style="color:var(--mut)">[${time}]</span> ${body}</div>` + logs.innerHTML;
 };
 
 window.startDebugScanner = function() {
@@ -275,7 +276,7 @@ window.startDebugScanner = function() {
       { fps: 15 }, 
       (decodedText, decodedResult) => {
         const format = (decodedResult && decodedResult.result && decodedResult.result.format && decodedResult.result.format.formatName) ? decodedResult.result.format.formatName : "Inconnu";
-        window.logDebug('<span class="icon-inline-label">' + window.iconHtml('check', 16, 'icon-sm') + '<b>CODE DÉTECTÉ !</b><br>Valeur : <span style="color:#fff">' + decodedText + '</span><br>Format : <span style="color:#fff">' + format + '</span></span>', "var(--grn)");
+        window.logDebug('<span class="icon-inline-label">' + window.iconHtml('check', 16, 'icon-sm') + '<b>CODE DÉTECTÉ !</b><br>Valeur : <span style="color:#fff">' + window.escHtml(decodedText) + '</span><br>Format : <span style="color:#fff">' + window.escHtml(format) + '</span></span>', "var(--grn)");
         if (navigator.vibrate) navigator.vibrate(100);
       },
       (errorMessage) => {

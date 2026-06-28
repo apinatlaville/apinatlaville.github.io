@@ -8,6 +8,15 @@
   var _lazyLoaded = {};
   var _lazyLoading = {};
 
+  var CRITICAL_SCRIPTS = {
+    'ui-appearance.js': true,
+    'ui-components.js': true,
+    'cloud.js': true,
+    'data.js': true,
+    'anki-app-v2.js': true,
+    'app.js': true
+  };
+
   var TAB_BUNDLES = {
     flashcards: ['anki-quick.js'],
     ankiVizV2: ['anki-viz-v2.js'],
@@ -21,9 +30,21 @@
     'anki-smoke.js'
   ];
 
+  function isCritical(name) {
+    return !!CRITICAL_SCRIPTS[name];
+  }
+
+  function onScriptError(name) {
+    if (window.bootProfiler) window.bootProfiler.scriptError(name);
+    var entry = typeof window.recordScriptLoadError === 'function'
+      ? window.recordScriptLoadError(name, isCritical(name))
+      : { name: name, critical: isCritical(name) };
+    return entry;
+  }
+
   function loadScript(src) {
     var name = src.split('/').pop();
-    if (_lazyLoaded[name]) return Promise.resolve();
+    if (_lazyLoaded[name]) return Promise.resolve({ ok: true, name: name });
     return new Promise(function (resolve) {
       if (window.bootProfiler) window.bootProfiler.scriptStart(name);
       var s = document.createElement('script');
@@ -32,11 +53,11 @@
       s.onload = function () {
         _lazyLoaded[name] = true;
         if (window.bootProfiler) window.bootProfiler.scriptEnd(name);
-        resolve();
+        resolve({ ok: true, name: name });
       };
       s.onerror = function () {
-        if (window.bootProfiler) window.bootProfiler.scriptError(name);
-        resolve();
+        onScriptError(name);
+        resolve({ ok: false, name: name, critical: isCritical(name) });
       };
       document.body.appendChild(s);
     });
@@ -44,13 +65,26 @@
 
   function loadSequential(list) {
     return list.reduce(function (p, src) {
-      return p.then(function () { return loadScript(src); });
-    }, Promise.resolve());
+      return p.then(function (results) {
+        return loadScript(src).then(function (r) {
+          results.push(r);
+          return results;
+        });
+      });
+    }, Promise.resolve([]));
   }
 
   function loadParallel(list) {
     var unique = list.filter(function (s, i, a) { return a.indexOf(s) === i; });
     return Promise.all(unique.map(loadScript));
+  }
+
+  function reportFailed(results) {
+    var failed = (results || []).filter(function (r) { return r && !r.ok; });
+    if (failed.length && typeof window.notifyScriptLoadFailures === 'function') {
+      window.notifyScriptLoadFailures(failed);
+    }
+    return failed;
   }
 
   function loadFormLibs() {
@@ -60,7 +94,8 @@
       'flatpickr-fr.js',
       'choices.min.js',
       'form-controls.js'
-    ]).then(function () {
+    ]).then(function (results) {
+      reportFailed(results);
       if (typeof window.enhanceFormControls === 'function') {
         window.enhanceFormControls(document);
       }
@@ -77,7 +112,8 @@
     var key = tab;
     if (_lazyLoading[key]) return _lazyLoading[key];
     if (window.bootMark) window.bootMark('lazy.tab.start', { tab: tab, files: list });
-    _lazyLoading[key] = loadSequential(list).then(function () {
+    _lazyLoading[key] = loadSequential(list).then(function (results) {
+      reportFailed(results);
       if (window.bootMark) window.bootMark('lazy.tab.done', { tab: tab });
       delete _lazyLoading[key];
     });
@@ -92,18 +128,18 @@
       s.src = 'app.js?v=' + v;
       s.onload = function () {
         if (window.bootProfiler) window.bootProfiler.scriptEnd('app.js');
-        resolve();
+        resolve({ ok: true, name: 'app.js' });
       };
       s.onerror = function () {
-        if (window.bootProfiler) window.bootProfiler.scriptError('app.js');
-        resolve();
+        onScriptError('app.js');
+        resolve({ ok: false, name: 'app.js', critical: true });
       };
       document.body.appendChild(s);
     });
   }
 
   function loadDeferredBackground() {
-    loadParallel(DEFERRED_AFTER_BOOT);
+    loadParallel(DEFERRED_AFTER_BOOT).then(reportFailed);
     loadFormLibs();
   }
 
@@ -111,17 +147,35 @@
     if (typeof window.setBootStep === 'function') window.setBootStep('scripts');
     if (window.bootMark) window.bootMark('boot.loader.start');
 
+    var bootFailures = [];
+
+    function track(results) {
+      (results || []).forEach(function (r) {
+        if (r && !r.ok) bootFailures.push(r);
+      });
+    }
+
     return loadScript('ui-appearance.js')
+      .then(function (r) { track([r]); })
       .then(function () { return loadScript('ui-components.js'); })
+      .then(function (r) { track([r]); })
       .then(function () { return loadParallel(['cloud.js', 'data.js']); })
+      .then(function (rs) { track(rs); })
       .then(function () {
         return loadParallel(['anki-algo.js', 'anki-algo-v2.js', 'nav-config.js']);
       })
+      .then(function (rs) { track(rs); })
       .then(function () { return loadScript('anki-card-ui.js'); })
+      .then(function (r) { track([r]); })
       .then(function () { return loadScript('anki-app-v2.js'); })
+      .then(function (r) { track([r]); })
       .then(loadAppModule)
+      .then(function (r) { track([r]); })
       .then(function () {
         if (window.bootMark) window.bootMark('boot.loader.scripts.done');
+        if (bootFailures.length && typeof window.notifyScriptLoadFailures === 'function') {
+          window.notifyScriptLoadFailures(bootFailures);
+        }
         if (typeof window.checkSavedSession === 'function') {
           return window.checkSavedSession();
         }
@@ -133,6 +187,12 @@
       .catch(function (err) {
         console.error('Boot loader:', err);
         if (window.bootMark) window.bootMark('boot.loader.error', { error: String(err && err.message ? err.message : err) });
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert(
+            'Le chargement de l\'application a échoué : ' + window.escHtml(err && err.message ? err.message : err) + '.<br><br>Recharge la page.',
+            'Erreur de démarrage'
+          );
+        }
       });
   };
 })();

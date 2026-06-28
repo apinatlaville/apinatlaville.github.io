@@ -1,14 +1,17 @@
 window.addEventListener('unhandledrejection', function(event) {
   const time = new Date().toLocaleTimeString();
-  const errorMsg = event.reason ? event.reason.message || event.reason : "Erreur asynchrone inconnue";
-  
+  const raw = event.reason;
+  const errorMsg = raw && raw.message ? raw.message : (raw != null ? String(raw) : 'Erreur asynchrone inconnue');
+  const errStr = String(errorMsg);
+  const isNetwork = /fetch|network|failed to fetch|offline|firestore|firebase|timeout|connexion|networkerror/i.test(errStr);
+
   if(!window.appErrors) window.appErrors = [];
   window.appErrors.push({ time: time, msg: errorMsg, source: 'Async', lineno: 0 });
-  
+
   const toast = document.getElementById('errorToast');
   const toastMsg = document.getElementById('errorToastMsg');
   if(toast && toastMsg) {
-    toastMsg.textContent = "Erreur Réseau : " + errorMsg;
+    toastMsg.textContent = (isNetwork ? 'Erreur réseau : ' : 'Erreur : ') + errStr;
     toast.classList.remove('hidden');
   }
   if(typeof window.renderErrorLogs === 'function') {
@@ -35,7 +38,7 @@ window.D = null;
 window.appReady = false;
 window.cloudConnected = false; 
 window.sysAlert = function(msg, title="Information") {
-  if(window.$('sysDialogTitle')) window.$('sysDialogTitle').innerHTML = title;
+  if(window.$('sysDialogTitle')) window.$('sysDialogTitle').textContent = title;
   if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
   if(window.$('sysDialogActs')) {
     const btn = typeof window.uiBtnAccent === 'function'
@@ -47,7 +50,7 @@ window.sysAlert = function(msg, title="Information") {
 };
 
 window.sysConfirm = function(msg, onConfirm, title="Attention") {
-  if(window.$('sysDialogTitle')) window.$('sysDialogTitle').innerHTML = title;
+  if(window.$('sysDialogTitle')) window.$('sysDialogTitle').textContent = title;
   if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
   
   window._sysConfirmCallback = () => {
@@ -1009,10 +1012,37 @@ async function fetchCloudDoc(docRef, retries = 3) {
   throw lastErr || new Error("Modules Firebase manquants.");
 }
 
+/** Charge le document Firestore via l'UID Google (clé canonique), avec migration depuis l'ancienne clé e-mail. */
+async function resolveCloudUserDoc(user) {
+  if (!user || !user.sub) {
+    throw new Error('Identifiant Google (UID) manquant.');
+  }
+  const uidRef = window.doc(window.db, 'utilisateurs', user.sub);
+  const uidSnap = await fetchCloudDoc(uidRef);
+  if (uidSnap.exists()) {
+    return { docRef: uidRef, data: uidSnap.data(), migrated: false };
+  }
+  if (user.email && user.email !== user.sub) {
+    const legacyRef = window.doc(window.db, 'utilisateurs', user.email);
+    const legacySnap = await fetchCloudDoc(legacyRef);
+    if (legacySnap.exists()) {
+      const data = legacySnap.data();
+      if (window.setDoc) {
+        await window.setDoc(uidRef, data);
+        if (window.bootMark) window.bootMark('initApp.cloud.migratedEmailToUid', { email: user.email, uid: user.sub });
+      }
+      console.log('☁️ Données migrées (clé e-mail → UID Google) pour :', user.email);
+      return { docRef: uidRef, data, migrated: true };
+    }
+  }
+  return { docRef: uidRef, data: null, migrated: false };
+}
+
 async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.start', { local: !!window.isLocalMode, email: user && user.email });
   window._persistDisabled = false;
   let localDataCorrupt = false;
+  let cloudInitFailed = false;
 
   try {
     if (window.isLocalMode) {
@@ -1044,21 +1074,21 @@ async function initApp(user) {
       window.cloudConnected = false;
     } else {
       if (window.doc && window.db && window.getDoc) {
-        window.docRef = window.doc(window.db, "utilisateurs", user.email);
-        if (window.bootMark) window.bootMark('initApp.cloud.fetch.start', { email: user.email });
-        const docSnap = await (window.bootProfiler
-          ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () { return fetchCloudDoc(window.docRef); })
-          : fetchCloudDoc(window.docRef));
-        if (docSnap.exists()) {
-          window.D = docSnap.data();
+        if (window.bootMark) window.bootMark('initApp.cloud.fetch.start', { uid: user.sub, email: user.email });
+        const cloud = await (window.bootProfiler
+          ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () { return resolveCloudUserDoc(user); })
+          : resolveCloudUserDoc(user));
+        window.docRef = cloud.docRef;
+        if (cloud.data) {
+          window.D = cloud.data;
           window.cloudConnected = true;
-          console.log("☁️ Données Cloud synchronisées pour : " + user.email);
+          console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ')');
         } else {
           window.D = null;
           window.cloudConnected = true;
-          console.log("☁️ Nouveau compte créé pour : " + user.email);
+          console.log('☁️ Nouveau compte (UID ' + user.sub + ')');
         }
-        if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: docSnap.exists() });
+        if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
       } else {
         throw new Error("Modules Firebase manquants.");
       }
@@ -1066,6 +1096,8 @@ async function initApp(user) {
   } catch (e) {
     if (window.isLocalMode) {
       localDataCorrupt = true;
+    } else {
+      cloudInitFailed = true;
     }
     window.D = window.D || null;
     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
@@ -1218,6 +1250,13 @@ async function initApp(user) {
       "(par ex. vider le stockage du site dans les paramètres du navigateur, puis recharger la page).",
       "Données illisibles"
     );
+  } else if (cloudInitFailed) {
+    window.sysAlert(
+      "Impossible de charger tes données depuis le cloud.<br><br>" +
+      "L'application démarre avec des données vides. Vérifie ta connexion et recharge la page.<br><br>" +
+      "Les sauvegardes cloud pourraient échouer tant que Firebase n'est pas accessible.",
+      "Erreur de synchronisation"
+    );
   }
 }
 
@@ -1257,8 +1296,21 @@ window.save = async function() {
       await window.setDoc(window.docRef, window.D);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
     } catch (e) {
-      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture: " + e.message, source: 'app.js' });
+      const errMsg = e && e.message ? e.message : String(e);
+      if (window.appErrors) {
+        window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture cloud: " + errMsg, source: 'app.js' });
+      }
+      if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
       console.error("Échec Cloud :", e);
+      if (!window.isLocalMode && typeof window.sysAlert === 'function') {
+        window.sysAlert(
+          "La synchronisation cloud a échoué. Tes données sont enregistrées dans ce navigateur, " +
+          "mais <b>pas sur le serveur</b> pour l'instant.<br><br>" +
+          "Détail : " + window.escHtml(errMsg) + "<br><br>" +
+          "Vérifie ta connexion et réessaie (une modification déclenchera une nouvelle sauvegarde).",
+          "Erreur de synchronisation"
+        );
+      }
     }
   }
 };

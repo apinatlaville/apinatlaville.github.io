@@ -14,7 +14,7 @@
 
 <script src="JsBarcode.all.min.js"></script>
 <script src="html5-qrcode.js"></script>
-<script src="fuse.js"></script>
+<script src="fuse.js" onerror="window.recordScriptLoadError && window.recordScriptLoadError('fuse.js', true)"></script>
 
 <script>
   window.appErrors = []; 
@@ -63,11 +63,15 @@
 <script>
   if (!window.handleCredentialResponse) {
     var _gsiStub = function(response) {
-      setTimeout(function() {
+      var credential = response;
+      var tries = 0;
+      (function wait() {
         if (window.handleCredentialResponse && window.handleCredentialResponse !== _gsiStub) {
-          window.handleCredentialResponse(response);
+          return window.handleCredentialResponse(credential);
         }
-      }, 200);
+        if (++tries < 100) setTimeout(wait, 50);
+        else console.error('GSI : handleCredentialResponse indisponible après 5 s');
+      })();
     };
     window.handleCredentialResponse = _gsiStub;
   }
@@ -527,7 +531,7 @@
   <div class="modal">
     <h2 style="margin-bottom:15px;"><span data-icon="pencil"></span> Éditer le classeur</h2>
     <div class="fg"><label>Nom du classeur</label><input type="text" id="eClNm"></div>
-    <div class="fg"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.renderEditClInters()"></div>
+    <div class="fg"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.onEditClMaxChange()"></div>
     
     <h3 style="font-family:'Inter'; font-size:14px; margin:15px 0 10px; color:var(--acc);">Noms des intercalaires</h3>
     <p style="font-size:11px; color:var(--mut); margin-bottom:10px;">Assigne un thème personnalisé à chaque intercalaire au lieu d'un simple numéro.</p>
@@ -764,23 +768,6 @@
     to { transform: rotate(360deg); }
   }
 </style>
-
-<script>
-/* Secours — si le boot reste bloqué, afficher l'écran de connexion après 8s */
-setTimeout(function () {
-  if (!window.appReady && document.body.classList.contains('auth-pending')) {
-    if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
-    else {
-      document.body.classList.remove('auth-pending', 'boot-active');
-      var s = document.getElementById('splashScreen');
-      if (s) s.remove();
-      document.body.classList.add('not-logged-in');
-      var l = document.getElementById('loginOverlay');
-      if (l) l.style.display = 'flex';
-    }
-  }
-}, 8000);
-</script>
 
 </body>
 </html>
