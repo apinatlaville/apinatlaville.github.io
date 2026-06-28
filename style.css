@@ -261,7 +261,16 @@ body.mode-compact .cdesc { display: none; }
  flex-shrink: 0;
 }
 .cloud-status-txt {
+ display: inline-flex;
+ align-items: center;
+ min-width: 0;
+}
+.cloud-status-txt-track {
+ display: inline-block;
  white-space: nowrap;
+}
+.cloud-status-extra {
+ display: inline;
 }
 .hdr-content { display: flex; justify-content: space-between; align-items: flex-start; position: relative; z-index: 10; }
 .hdr h1 { font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 600; color: var(--txt); display: flex; align-items: center; gap: 10px; }
@@ -939,6 +948,32 @@ body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
 }
 .rev-red {
  animation: urgentPulse 0.7s infinite ease-in-out;
+}
+
+/* Verrouillage — écran de connexion */
+html.pre-login {
+ overflow: hidden !important;
+ height: 100% !important;
+ max-height: 100% !important;
+ overscroll-behavior: none !important;
+}
+html.pre-login body {
+ overflow: hidden !important;
+ height: 100% !important;
+ max-height: 100% !important;
+ padding-bottom: 0 !important;
+}
+body.auth-pending > *:not(#splashScreen):not(script):not(style) {
+ display: none !important;
+}
+body.auth-pending #loginOverlay {
+ display: none !important;
+}
+body.not-logged-in > *:not(#loginOverlay):not(#splashScreen):not(script):not(style) {
+ display: none !important;
+}
+body.not-logged-in #splashScreen {
+ display: none !important;
 }
 
 /* Correctif rebond panneau emplacement */
@@ -3282,10 +3317,43 @@ body.nav-sidebar-left .sidebar-footer .hdr-actions-btns .btn-settings {
   cursor: pointer;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus {
-  width: 100%;
-  flex-shrink: 0;
+  width: auto;
+  min-width: 0;
+  flex: 0 0 auto;
+  overflow: hidden;
+  transition: max-width 0.28s ease, flex 0.28s ease;
   box-sizing: border-box;
   justify-content: center;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus .cloud-status-txt {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online {
+  max-width: 4.5rem;
+  cursor: default;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover,
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible {
+  flex: 1 1 0;
+  max-width: calc(100% - var(--sidebar-footer-actions-reserve));
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover .cloud-status-txt,
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible .cloud-status-txt {
+  text-overflow: clip;
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--scroll .cloud-status-txt-track {
+  animation: cloud-status-marquee 3.5s ease-in-out infinite alternate;
+}
+@keyframes cloud-status-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(var(--cloud-scroll, 0)); }
+}
+body.nav-sidebar-left .sidebar-footer #cloudStatus:not(.cloud-status--online) {
+  flex-shrink: 0;
+  max-width: none;
 }
 
 body.nav-sidebar-left #navSlotSide {

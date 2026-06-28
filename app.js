@@ -78,14 +78,76 @@ window.closeSysDialog = function() {
 window.updateCloudIndicator = function() {
   const d = window.$('cDot');
   const t = window.$('cTxt');
+  const extra = window.$('cTxtExtra');
   const box = window.$('cloudStatus');
   if(!d || !t) return;
 
-  d.style.background = 'var(--grn)';
-  d.style.boxShadow = '0 0 8px var(--grn)';
-  t.textContent = 'Connecté';
-  if (box) box.title = 'Application prête · données sauvegardées localement';
+  const name = (window.D && window.D.settings && window.D.settings.userName)
+    ? String(window.D.settings.userName).trim()
+    : '';
+  const displayName = name || 'Étudiant';
+
+  if(window.cloudConnected) {
+    d.style.background = 'var(--grn)';
+    d.style.boxShadow = '0 0 8px var(--grn)';
+    t.textContent = 'En ligne';
+    if (extra) extra.textContent = ', ' + displayName;
+    if (box) {
+      box.classList.add('cloud-status--online');
+      box.title = 'Connecté au cloud · ' + displayName;
+    }
+  } else {
+    d.style.background = 'var(--red)';
+    d.style.boxShadow = '0 0 8px var(--red)';
+    t.textContent = 'Local';
+    if (extra) extra.textContent = '';
+    if (box) {
+      box.classList.remove('cloud-status--online');
+      box.title = window.isLocalMode
+        ? 'Mode local (test) · données dans ce navigateur'
+        : 'Données en local · non synchronisées';
+    }
+  }
+  if (typeof window.syncCloudStatusMarquee === 'function') window.syncCloudStatusMarquee();
 };
+
+window.syncCloudStatusMarquee = function() {
+  const box = window.$('cloudStatus');
+  if (!box) return;
+  const viewport = box.querySelector('.cloud-status-txt');
+  const track = box.querySelector('.cloud-status-txt-track');
+  if (!viewport || !track) return;
+
+  if (!box.classList.contains('cloud-status--online') || !box.matches(':hover')) {
+    box.classList.remove('cloud-status--scroll');
+    track.style.removeProperty('--cloud-scroll');
+    return;
+  }
+
+  const overflow = Math.ceil(track.scrollWidth - viewport.clientWidth);
+  if (overflow > 2) {
+    track.style.setProperty('--cloud-scroll', '-' + overflow + 'px');
+    box.classList.add('cloud-status--scroll');
+  } else {
+    box.classList.remove('cloud-status--scroll');
+    track.style.removeProperty('--cloud-scroll');
+  }
+};
+
+(function initCloudStatusHover() {
+  const box = document.getElementById('cloudStatus');
+  if (!box || box.dataset.hoverBound) return;
+  box.dataset.hoverBound = '1';
+  box.addEventListener('mouseenter', function() {
+    requestAnimationFrame(function() { window.syncCloudStatusMarquee(); });
+  });
+  box.addEventListener('mouseleave', function() {
+    box.classList.remove('cloud-status--scroll');
+    const track = box.querySelector('.cloud-status-txt-track');
+    if (track) track.style.removeProperty('--cloud-scroll');
+  });
+  window.addEventListener('resize', function() { window.syncCloudStatusMarquee(); });
+})();
 
 window.triggerHaptic = function() {
   if (navigator.vibrate) {
@@ -966,45 +1028,91 @@ bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().re
 
 
 // =========================================================
-// INITIALISATION & SAUVEGARDE LOCALE
+// INITIALISATION CLOUD / LOCAL
 // =========================================================
 
+async function fetchCloudDoc(docRef, retries = 3) {
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      if (window.firebaseReady) await window.firebaseReady;
+      if (!window.db || !window.getDoc) {
+        throw new Error("Modules Firebase manquants.");
+      }
+      return await window.getDoc(docRef);
+    } catch (e) {
+      lastErr = e;
+      if (i < retries - 1) {
+        await new Promise(r => setTimeout(r, 400 * (i + 1)));
+      }
+    }
+  }
+  throw lastErr || new Error("Modules Firebase manquants.");
+}
+
 async function initApp(user) {
-  if (window.bootMark) window.bootMark('initApp.start', { email: user && user.email });
+  if (window.bootMark) window.bootMark('initApp.start', { local: !!window.isLocalMode, email: user && user.email });
   window._persistDisabled = false;
   let localDataCorrupt = false;
 
   try {
-    if (window.bootMark) window.bootMark('initApp.local.read.start');
-    let localData = localStorage.getItem('backup_local_cours');
-    if (!localData) {
-      localData = localStorage.getItem('mc_v28');
-      if (localData) localStorage.setItem('backup_local_cours', localData);
-    }
-    if (localData) {
-      try {
-        window.D = window.bootProfiler
-          ? window.bootProfiler.measureSync('initApp.local.parse', function () { return JSON.parse(localData); })
-          : JSON.parse(localData);
-      } catch (parseErr) {
-        localDataCorrupt = true;
-        window.D = null;
-        const msg = 'Données locales illisibles : ' + (parseErr && parseErr.message ? parseErr.message : parseErr);
-        if (window.appErrors) {
-          window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: msg, source: 'app.js' });
-        }
-        console.error(msg);
+    if (window.isLocalMode) {
+      console.log("🌸 Chargement des données locales...");
+      if (window.bootMark) window.bootMark('initApp.local.read.start');
+      let localData = localStorage.getItem('backup_local_cours');
+      if (!localData) {
+        localData = localStorage.getItem('mc_v28');
+        if (localData) localStorage.setItem('backup_local_cours', localData);
       }
+      if (localData) {
+        try {
+          window.D = window.bootProfiler
+            ? window.bootProfiler.measureSync('initApp.local.parse', function () { return JSON.parse(localData); })
+            : JSON.parse(localData);
+        } catch (parseErr) {
+          localDataCorrupt = true;
+          window.D = null;
+          const msg = 'Données locales illisibles : ' + (parseErr && parseErr.message ? parseErr.message : parseErr);
+          if (window.appErrors) {
+            window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: msg, source: 'app.js' });
+          }
+          console.error(msg);
+        }
+      } else {
+        window.D = null;
+      }
+      if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
+      window.cloudConnected = false;
     } else {
-      window.D = null;
+      if (window.doc && window.db && window.getDoc) {
+        window.docRef = window.doc(window.db, "utilisateurs", user.email);
+        if (window.bootMark) window.bootMark('initApp.cloud.fetch.start', { email: user.email });
+        const docSnap = await (window.bootProfiler
+          ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () { return fetchCloudDoc(window.docRef); })
+          : fetchCloudDoc(window.docRef));
+        if (docSnap.exists()) {
+          window.D = docSnap.data();
+          window.cloudConnected = true;
+          console.log("☁️ Données Cloud synchronisées pour : " + user.email);
+        } else {
+          window.D = null;
+          window.cloudConnected = true;
+          console.log("☁️ Nouveau compte créé pour : " + user.email);
+        }
+        if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: docSnap.exists() });
+      } else {
+        throw new Error("Modules Firebase manquants.");
+      }
     }
-    if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
   } catch (e) {
-    localDataCorrupt = true;
-    window.D = null;
-    if (window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
+    if (window.isLocalMode) {
+      localDataCorrupt = true;
+    }
+    window.D = window.D || null;
+    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
     if (window.bootMark) window.bootMark('initApp.error', { error: e.message });
     console.error("Erreur d'initialisation :", e);
+    window.cloudConnected = false;
   }
 
   if (localDataCorrupt) window._persistDisabled = true;
@@ -1096,11 +1204,12 @@ async function initApp(user) {
     if (reconciled && !window._persistDisabled) window.save();
   }
 
-  if (user && user.given_name && (!window.D.settings.userName || window.D.settings.userName === 'Mode Local')) {
+  if (window.isLocalMode) {
+    window.D.settings.userName = "Mode Local";
+    window.D.settings.appColor = '#5b9aff';
+  } else if (user && user.given_name) {
     window.D.settings.userName = user.given_name;
   }
-
-  window.cloudConnected = true;
 
   if (typeof window.updateCloudIndicator === 'function') {
     window.updateCloudIndicator();
@@ -1154,7 +1263,7 @@ async function initApp(user) {
 }
 
 /**
- * Sauvegarde locale (localStorage)
+ * Sauvegarde locale + cloud Firestore
  */
 window.save = async function() {
   if (!window.D) return;
@@ -1176,6 +1285,22 @@ window.save = async function() {
     }
     console.error("Échec sauvegarde locale :", e);
     window.sysAlert("Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
+    return;
+  }
+
+  if (window.isLocalMode) {
+    console.log("🌸 [Mode Local] Sauvegarde locale dans le navigateur réussie.");
+    return;
+  }
+
+  if (window.cloudConnected && window.docRef && window.setDoc) {
+    try {
+      await window.setDoc(window.docRef, window.D);
+      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+    } catch (e) {
+      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture: " + e.message, source: 'app.js' });
+      console.error("Échec Cloud :", e);
+    }
   }
 };
 
@@ -1185,6 +1310,10 @@ window.save = async function() {
 window.initAppAfterAuth = function(user) {
     if (window.bootMark) window.bootMark('initAppAfterAuth', { email: user && user.email });
     initApp(user);
+};
+
+window.onload = function() {
+  console.log("⏳ En attente de l'authentification...");
 };
 
 window.dispatchEvent(new CustomEvent('app-js-ready'));

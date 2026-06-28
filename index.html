@@ -33,8 +33,58 @@
   };
 </script>
 
+<style>
+  #loginOverlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background:
+      radial-gradient(ellipse 90% 55% at 50% -15%, rgba(91, 154, 255, 0.12), transparent 52%),
+      linear-gradient(180deg, #171c2a 0%, #141824 50%, #10141e 100%) !important;
+    z-index: 10000 !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 20px !important;
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+    display: none;
+  }
+  body.not-logged-in #loginOverlay {
+    display: flex !important;
+  }
+  body.auth-pending > *:not(#splashScreen):not(script):not(style) {
+    display: none !important;
+  }
+  body.auth-pending #loginOverlay {
+    display: none !important;
+  }
+</style>
+<script>
+  if (!window.handleCredentialResponse) {
+    var _gsiStub = function(response) {
+      setTimeout(function() {
+        if (window.handleCredentialResponse && window.handleCredentialResponse !== _gsiStub) {
+          window.handleCredentialResponse(response);
+        }
+      }, 200);
+    };
+    window.handleCredentialResponse = _gsiStub;
+  }
+  if (!window.startLocalMode || window.startLocalMode._isStub) {
+    window.startLocalMode = function() {
+      var tries = 0;
+      (function wait() {
+        if (window._startLocalModeImpl) return window._startLocalModeImpl();
+        if (++tries < 100) setTimeout(wait, 50);
+      })();
+    };
+    window.startLocalMode._isStub = true;
+  }
+</script>
+
 </head>
-<body class="boot-active tmpl-glass theme-dark ui-finder">
+<body class="auth-pending tmpl-glass theme-dark ui-finder">
 
 <div id="splashScreen" class="splash-screen" aria-live="polite" aria-busy="true">
   <div class="clean-spinner" aria-hidden="true"></div>
@@ -95,11 +145,14 @@
         <div class="hdr-actions" id="hdrActions">
           <div id="cloudStatus" class="cloud-status-chip" title="Vérification de la connexion...">
             <span id="cDot" class="cloud-status-dot"></span>
-            <span id="cTxt" class="cloud-status-txt">Init...</span>
+            <span class="cloud-status-txt"><span class="cloud-status-txt-track"><span id="cTxt">Init...</span><span id="cTxtExtra" class="cloud-status-extra"></span></span></span>
           </div>
           <div class="hdr-actions-btns">
             <button class="btn-settings" id="btnRefresh" title="Actualiser la page" aria-label="Actualiser"><span data-icon="refresh-cw"></span></button>
             <button class="btn-settings" id="btnOpenSettings" title="Paramètres" aria-label="Paramètres"><span data-icon="settings"></span></button>
+            <button class="btn-settings" id="btnSignOut" onclick="window.signOut()" title="Se déconnecter" aria-label="Se déconnecter" style="color: var(--red); border-color: rgba(240,96,96,0.3);">
+              <span data-icon="log-out" data-icon-size="14"></span>
+            </button>
           </div>
         </div>
       </div>
@@ -546,6 +599,74 @@
 
 <div id="printZone"></div>
 
+<div id="loginOverlay">
+  <div class="login-panel">
+    <div id="loginLogo"></div>
+    <h1 class="login-title">Mes Cours <span style="color:var(--acc);">PC*</span></h1>
+    <p class="login-subtitle">Connecte-toi avec ton compte Google pour synchroniser tes révisions.</p>
+    <div class="login-actions">
+      <div id="gsiButtonSlot" class="gsi-slot" aria-live="polite"></div>
+      <button type="button" class="login-btn-local" onclick="window.startLocalMode()">
+        Continuer en mode local (Test)
+      </button>
+    </div>
+    <p class="login-version">Version 2.0 — Sécurisé par Google Cloud</p>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyD4pMz1ydaWgNWLX0C4HTauRE7eHkrcAfA",
+    authDomain: "cours-pc-application.firebaseapp.com",
+    projectId: "cours-pc-application",
+    storageBucket: "cours-pc-application.firebasestorage.app",
+    messagingSenderId: "889951150073",
+    appId: "1:889951150073:web:34ebc4f3c265144e3a6728",
+    measurementId: "G-T4BHM2QHZ9"
+  };
+
+  var skipFirebase = false;
+  try { skipFirebase = localStorage.getItem('active_mode') === 'local'; } catch (e) { /* ignore */ }
+
+  if (firebaseConfig.apiKey && !skipFirebase) {
+    if (window.bootMark) window.bootMark('firebase.init.start');
+    window.firebaseReady = (async () => {
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+
+      window.db = db;
+      window.doc = doc;
+      window.getDoc = getDoc;
+      window.setDoc = setDoc;
+      window.auth = auth;
+      window.signInWithCredential = signInWithCredential;
+      window.GoogleAuthProvider = GoogleAuthProvider;
+      window.onAuthStateChanged = onAuthStateChanged;
+
+      if (window.bootMark) window.bootMark('firebase.authStateReady.start');
+      await auth.authStateReady();
+      if (window.bootMark) window.bootMark('firebase.authStateReady.done');
+      console.log("Firebase & Firestore & Auth sont initialisés.");
+      if (window.bootMark) window.bootMark('firebase.init.done');
+      return { app, db, auth };
+    })();
+    window.firebaseReady.catch(function (err) {
+      console.error("Erreur initialisation Firebase:", err);
+      if (window.bootMark) window.bootMark('firebase.init.error', { error: String(err && err.message ? err.message : err) });
+    });
+  } else if (skipFirebase) {
+    window.firebaseReady = Promise.resolve(null);
+    if (window.bootMark) window.bootMark('firebase.skipped.local');
+  } else {
+    console.warn("Firebase non configuré.");
+  }
+</script>
+
 <script>
   (function(){
     var v = new Date().getTime();
@@ -643,6 +764,23 @@
     to { transform: rotate(360deg); }
   }
 </style>
+
+<script>
+/* Secours — si le boot reste bloqué, afficher l'écran de connexion après 8s */
+setTimeout(function () {
+  if (!window.appReady && document.body.classList.contains('auth-pending')) {
+    if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
+    else {
+      document.body.classList.remove('auth-pending', 'boot-active');
+      var s = document.getElementById('splashScreen');
+      if (s) s.remove();
+      document.body.classList.add('not-logged-in');
+      var l = document.getElementById('loginOverlay');
+      if (l) l.style.display = 'flex';
+    }
+  }
+}, 8000);
+</script>
 
 </body>
 </html>
