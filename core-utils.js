@@ -18,11 +18,11 @@
   /** No-op — conservé pour compatibilité avec cloud.js / app.js */
   window.setBootStep = function () {};
 
-  /** Débloque la page : retire boot-active + splash */
+  /** Débloque la page : retire auth-pending + splash */
   window.unlockPage = function () {
     if (bootDismissed) return;
     bootDismissed = true;
-    document.body.classList.remove('boot-active');
+    document.body.classList.remove('boot-active', 'auth-pending');
     var splash = splashEl();
     if (!splash) return;
     splash.classList.add('splash-out');
@@ -35,15 +35,20 @@
     window.unlockPage();
   };
 
-  /** Secours si le boot reste bloqué */
+  /** Écran de connexion si le boot reste bloqué */
   window.forceLoginScreen = function () {
-    if (window.bootMark) window.bootMark('boot.forceUnlock');
+    if (window.bootMark) window.bootMark('boot.forceLoginScreen');
     window.unlockPage();
+    document.body.classList.add('not-logged-in');
+    document.documentElement.classList.add('pre-login');
+    var loginOverlay = document.getElementById('loginOverlay');
+    if (loginOverlay) loginOverlay.style.removeProperty('display');
+    if (typeof window.initGoogleSignIn === 'function') window.initGoogleSignIn();
   };
 
   setTimeout(function () {
-    if (!window.appReady && document.body.classList.contains('boot-active')) {
-      if (window.bootMark) window.bootMark('boot.timeout12s.forceUnlock');
+    if (!window.appReady && document.body.classList.contains('auth-pending')) {
+      if (window.bootMark) window.bootMark('boot.timeout12s.forceLogin');
       window.forceLoginScreen();
     }
   }, 12000);
