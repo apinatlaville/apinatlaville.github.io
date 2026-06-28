@@ -3,7 +3,7 @@ window.addEventListener('unhandledrejection', function(event) {
   const errorMsg = event.reason ? event.reason.message || event.reason : "Erreur asynchrone inconnue";
   
   if(!window.appErrors) window.appErrors = [];
-  window.appErrors.push({ time: time, msg: errorMsg, source: 'Firebase/Network', lineno: 0 });
+  window.appErrors.push({ time: time, msg: errorMsg, source: 'Async', lineno: 0 });
   
   const toast = document.getElementById('errorToast');
   const toastMsg = document.getElementById('errorToastMsg');
@@ -78,74 +78,14 @@ window.closeSysDialog = function() {
 window.updateCloudIndicator = function() {
   const d = window.$('cDot');
   const t = window.$('cTxt');
-  const extra = window.$('cTxtExtra');
   const box = window.$('cloudStatus');
   if(!d || !t) return;
 
-  const name = (window.D && window.D.settings && window.D.settings.userName)
-    ? String(window.D.settings.userName).trim()
-    : '';
-  const displayName = name || 'Étudiant';
-
-  if(window.cloudConnected) {
-    d.style.background = 'var(--grn)';
-    d.style.boxShadow = '0 0 8px var(--grn)';
-    t.textContent = 'En ligne';
-    if (extra) extra.textContent = ', ' + displayName;
-    if (box) {
-      box.classList.add('cloud-status--online');
-      box.title = 'Connecté au cloud · ' + displayName;
-    }
-  } else {
-    d.style.background = 'var(--red)';
-    d.style.boxShadow = '0 0 8px var(--red)';
-    t.textContent = 'Local';
-    if (extra) extra.textContent = '';
-    if (box) {
-      box.classList.remove('cloud-status--online');
-      box.title = 'Données en local · non synchronisées';
-    }
-  }
-  if (typeof window.syncCloudStatusMarquee === 'function') window.syncCloudStatusMarquee();
+  d.style.background = 'var(--grn)';
+  d.style.boxShadow = '0 0 8px var(--grn)';
+  t.textContent = 'Connecté';
+  if (box) box.title = 'Application prête · données sauvegardées localement';
 };
-
-window.syncCloudStatusMarquee = function() {
-  const box = window.$('cloudStatus');
-  if (!box) return;
-  const viewport = box.querySelector('.cloud-status-txt');
-  const track = box.querySelector('.cloud-status-txt-track');
-  if (!viewport || !track) return;
-
-  if (!box.classList.contains('cloud-status--online') || !box.matches(':hover')) {
-    box.classList.remove('cloud-status--scroll');
-    track.style.removeProperty('--cloud-scroll');
-    return;
-  }
-
-  const overflow = Math.ceil(track.scrollWidth - viewport.clientWidth);
-  if (overflow > 2) {
-    track.style.setProperty('--cloud-scroll', '-' + overflow + 'px');
-    box.classList.add('cloud-status--scroll');
-  } else {
-    box.classList.remove('cloud-status--scroll');
-    track.style.removeProperty('--cloud-scroll');
-  }
-};
-
-(function initCloudStatusHover() {
-  const box = document.getElementById('cloudStatus');
-  if (!box || box.dataset.hoverBound) return;
-  box.dataset.hoverBound = '1';
-  box.addEventListener('mouseenter', function() {
-    requestAnimationFrame(function() { window.syncCloudStatusMarquee(); });
-  });
-  box.addEventListener('mouseleave', function() {
-    box.classList.remove('cloud-status--scroll');
-    const track = box.querySelector('.cloud-status-txt-track');
-    if (track) track.style.removeProperty('--cloud-scroll');
-  });
-  window.addEventListener('resize', function() { window.syncCloudStatusMarquee(); });
-})();
 
 window.triggerHaptic = function() {
   if (navigator.vibrate) {
@@ -325,8 +265,9 @@ window.loadDemoPCStar = function() {
     "~190 cartes : ~130 X- par chapitre (QU/exos/formules), 50 anglais, devoirs.\n" +
     "Remplace tes données actuelles.",
     async () => {
+      await window.ensureDemoData();
       if (!window.demoDataPCStar) {
-        window.sysAlert("Fichier demo-pcstar.js non chargé.", "Erreur");
+        window.sysAlert("Fichier demo-data.js non chargé.", "Erreur");
         return;
       }
       window.D = JSON.parse(JSON.stringify(window.demoDataPCStar));
@@ -339,18 +280,41 @@ window.loadDemoPCStar = function() {
 
 window.loadDemo = function() {
   window.sysConfirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?", async () => {
-    window.D = JSON.parse(JSON.stringify(window.demoData)); 
-    await window.save(); 
+    await window.ensureDemoData();
+    if (!window.demoData) {
+      window.sysAlert("Fichier demo-data.js non chargé.", "Erreur");
+      return;
+    }
+    window.D = JSON.parse(JSON.stringify(window.demoData));
+    await window.save();
     location.reload();
   }, "Mode Démonstration");
 };
 
 window.loadDemoXP = function() {
   window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, ease variés, stats peuplées.\n\nCela remplace tes données actuelles.", async () => {
+    await window.ensureDemoData();
+    if (!window.demoDataXP) {
+      window.sysAlert("Fichier demo-data.js non chargé.", "Erreur");
+      return;
+    }
     window.D = JSON.parse(JSON.stringify(window.demoDataXP));
     await window.save();
     location.reload();
   }, "Démo expérimenté");
+};
+
+window.ensureDemoData = function() {
+  if (window.demoData && window.demoDataXP && window.demoDataPCStar) {
+    return Promise.resolve();
+  }
+  return new Promise(function(resolve) {
+    var s = document.createElement('script');
+    s.src = 'demo-data.js?v=' + (window.__bootCacheV || Date.now());
+    s.onload = resolve;
+    s.onerror = resolve;
+    document.body.appendChild(s);
+  });
 };
 
 window.resetData = function() {
@@ -391,10 +355,11 @@ window.genUid = function(prefixeMatiere) {
     nouveauCode = prefixe + "-" + suffixe;
 
     // Vérifie partout s'il y a un doublon
-    let collisionCours = window.D.cours.some(c => c.uid === nouveauCode);
-    let collisionExos = window.D.exercices.some(e => e.id === nouveauCode);
+    const collisionCours = window.D.cours.some(c => c.uid === nouveauCode);
+    const collisionExos = window.D.exercices.some(e => e.id === nouveauCode);
+    const collisionDevoirs = (window.D.devoirs || []).some(e => e.id === nouveauCode);
 
-    if (!collisionCours && !collisionExos) {
+    if (!collisionCours && !collisionExos && !collisionDevoirs) {
       estUnique = true; 
     }
   }
@@ -962,7 +927,11 @@ bindClick('btnKholleDraw', () => window.drawKholle());
 // 🚨 ÉCOUTEURS RESTAURÉS
 bindClick('btnHomeSearch', () => window.checkHomeCode(true));
 bindInput('mainSearchText', () => window.renderCours());
-bindInput('mainSearchCode', (e) => { window.doAutoFmtScan(e.target); });
+bindInput('mainSearchCode', (e) => {
+  window.doAutoFmtScan(e.target);
+  const raw = e.target.value.replace(/[^A-Z0-9-]/gi, '');
+  if (raw.length < 6 && window.D && window.D.cours) window.renderCours();
+});
 
 bindClick('btnCancelCours', () => window.closeModalCours());
 bindChange('fType', () => window.toggleNoteField());
@@ -997,81 +966,48 @@ bindInput('fUidInput', (e) => { e.target.value = e.target.value.toUpperCase().re
 
 
 // =========================================================
-// ☁️ INITIALISATION ET GESTION CLOUD / LOCAL
+// INITIALISATION & SAUVEGARDE LOCALE
 // =========================================================
 
-async function fetchCloudDoc(docRef, retries = 3) {
-  let lastErr;
-  for (let i = 0; i < retries; i++) {
-    try {
-      if (window.firebaseReady) await window.firebaseReady;
-      if (!window.db || !window.getDoc) {
-        throw new Error("Modules Firebase manquants.");
-      }
-      return await window.getDoc(docRef);
-    } catch (e) {
-      lastErr = e;
-      if (i < retries - 1) {
-        await new Promise(r => setTimeout(r, 400 * (i + 1)));
-      }
-    }
-  }
-  throw lastErr || new Error("Modules Firebase manquants.");
-}
-
 async function initApp(user) {
-  if (window.bootMark) window.bootMark('initApp.start', { local: !!window.isLocalMode, email: user && user.email });
+  if (window.bootMark) window.bootMark('initApp.start', { email: user && user.email });
+  window._persistDisabled = false;
+  let localDataCorrupt = false;
+
   try {
-    if (window.isLocalMode) {
-      // 🌸 MODE LOCAL INTÉGRAL
-      console.log("🌸 Chargement des données locales...");
-      if (window.bootMark) window.bootMark('initApp.local.read.start');
-      let localData = localStorage.getItem('backup_local_cours');
-      if (!localData) {
-        localData = localStorage.getItem('mc_v28');
-        if (localData) localStorage.setItem('backup_local_cours', localData);
-      }
-      if (localData) {
+    if (window.bootMark) window.bootMark('initApp.local.read.start');
+    let localData = localStorage.getItem('backup_local_cours');
+    if (!localData) {
+      localData = localStorage.getItem('mc_v28');
+      if (localData) localStorage.setItem('backup_local_cours', localData);
+    }
+    if (localData) {
+      try {
         window.D = window.bootProfiler
           ? window.bootProfiler.measureSync('initApp.local.parse', function () { return JSON.parse(localData); })
           : JSON.parse(localData);
-      } else {
+      } catch (parseErr) {
+        localDataCorrupt = true;
         window.D = null;
-      }
-      if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
-      window.cloudConnected = false; // On coupe le Cloud
-      
-    } else {
-      // ☁️ MODE GOOGLE MULTI-COMPTES (Étape 1)
-      if (window.doc && window.db && window.getDoc) {
-        // 🔥 On utilise maintenant l'email exact pour séparer les comptes !
-        window.docRef = window.doc(window.db, "utilisateurs", user.email);
-        if (window.bootMark) window.bootMark('initApp.cloud.fetch.start', { email: user.email });
-        const docSnap = await (window.bootProfiler
-          ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () { return fetchCloudDoc(window.docRef); })
-          : fetchCloudDoc(window.docRef));
-        if (docSnap.exists()) {
-          window.D = docSnap.data();
-          window.cloudConnected = true;
-          console.log("☁️ Données Cloud synchronisées pour : " + user.email);
-        } else {
-          window.D = null;
-          window.cloudConnected = true;
-          console.log("☁️ Nouveau compte créé pour : " + user.email);
+        const msg = 'Données locales illisibles : ' + (parseErr && parseErr.message ? parseErr.message : parseErr);
+        if (window.appErrors) {
+          window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: msg, source: 'app.js' });
         }
-        if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: docSnap.exists() });
-      } else {
-        throw new Error("Modules Firebase manquants.");
+        console.error(msg);
       }
+    } else {
+      window.D = null;
     }
+    if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
   } catch (e) {
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
+    localDataCorrupt = true;
+    window.D = null;
+    if (window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
     if (window.bootMark) window.bootMark('initApp.error', { error: e.message });
     console.error("Erreur d'initialisation :", e);
-    window.cloudConnected = false;
   }
 
-  // Sécurisation de la structure des données (Commune aux deux modes)
+  if (localDataCorrupt) window._persistDisabled = true;
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
   if(!window.D.cours) window.D.cours = [];
   if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
@@ -1127,6 +1063,9 @@ async function initApp(user) {
     });
   }
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
+  if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
+  if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
+
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(window.D.settings.showHeaderClock === undefined) window.D.settings.showHeaderClock = false;
   if(window.D.settings.headerClockSeconds === undefined) window.D.settings.headerClockSeconds = true;
@@ -1140,25 +1079,28 @@ async function initApp(user) {
   if(!window.D.settings.ankiSessionMin) window.D.settings.ankiSessionMin = 60;
   if(window.D.settings.ankiIncludeNew === undefined) window.D.settings.ankiIncludeNew = 5;
   if(!window.D.settings.ankiMaxPerDay) window.D.settings.ankiMaxPerDay = 75;
-  
+
   window.D.classeurs.forEach(cl => {
     if(!cl.interNames) cl.interNames = {};
     if(!cl.maxInter) cl.maxInter = 12;
   });
-  
-  if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
-  if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   if (!window.D.settings.algoV2) {
     window.D.settings.algoV2 = { horizon: '1y', sessionMinDefault: 90, pullForward: true, margeBudget: 0.92 };
   }
-  
-  // 🎨 Personnalisation visuelle selon le mode
-  if (window.isLocalMode) {
-    window.D.settings.userName = "Mode Local";
-    window.D.settings.appColor = '#5b9aff';
-  } else if (user && user.given_name) {
+  delete window.D.settings.showPomo;
+  delete window.D.settings.pomoWork;
+  delete window.D.settings.pomoBreak;
+
+  if (typeof window.reconcileOrphanCours === 'function') {
+    const reconciled = window.reconcileOrphanCours();
+    if (reconciled && !window._persistDisabled) window.save();
+  }
+
+  if (user && user.given_name && (!window.D.settings.userName || window.D.settings.userName === 'Mode Local')) {
     window.D.settings.userName = user.given_name;
   }
+
+  window.cloudConnected = true;
 
   if (typeof window.updateCloudIndicator === 'function') {
     window.updateCloudIndicator();
@@ -1168,9 +1110,11 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.start');
   window.applySettings();
   if (window.bootMark) window.bootMark('initApp.render.applySettings');
-  if (window.D.settings._needsAppearanceSave) {
+  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
     delete window.D.settings._needsAppearanceSave;
     window.save();
+  } else if (window.D.settings._needsAppearanceSave) {
+    delete window.D.settings._needsAppearanceSave;
   }
   window.renderMatieres();
   if (window.bootMark) window.bootMark('initApp.render.matieres');
@@ -1198,38 +1142,46 @@ async function initApp(user) {
   }
   if (typeof window.unlockPage === 'function') window.unlockPage();
   else if (typeof window.dismissSplash === 'function') window.dismissSplash();
+
+  if (localDataCorrupt) {
+    window.sysAlert(
+      "Tes données locales n'ont pas pu être lues (fichier corrompu ou invalide).<br><br>" +
+      "L'application démarre vide. <b>Rien ne sera enregistré</b> tant que le problème n'est pas corrigé " +
+      "(par ex. vider le stockage du site dans les paramètres du navigateur, puis recharger la page).",
+      "Données illisibles"
+    );
+  }
 }
 
 /**
- * 💾 SAUVEGARDE INTELLIGENTE (local + cloud)
+ * Sauvegarde locale (localStorage)
  */
 window.save = async function() {
   if (!window.D) return;
 
-  localStorage.setItem('backup_local_cours', JSON.stringify(window.D));
-
-  if (window.isLocalMode) {
-    console.log("🌸 [Mode Local] Sauvegarde locale dans le navigateur réussie.");
+  if (window._persistDisabled) {
+    window.sysAlert(
+      "Enregistrement impossible : tes données n'ont pas pu être chargées au démarrage.<br><br>" +
+      "<b>Rien ne sera sauvegardé</b> dans cette session.",
+      "Sauvegarde désactivée"
+    );
     return;
   }
 
-  if (window.cloudConnected && window.docRef && window.setDoc) {
-    try {
-      await window.setDoc(window.docRef, window.D);
-      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
-    } catch (e) {
-      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture: " + e.message, source: 'app.js' });
-      console.error("Échec Cloud :", e);
+  try {
+    localStorage.setItem('backup_local_cours', JSON.stringify(window.D));
+  } catch (e) {
+    if (window.appErrors) {
+      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur sauvegarde: " + e.message, source: 'app.js' });
     }
+    console.error("Échec sauvegarde locale :", e);
+    window.sysAlert("Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
   }
 };
 
 // =========================================================
-// 🚀 GESTION DU DÉMARRAGE
+// DÉMARRAGE
 // =========================================================
-window.onload = function() {
-    console.log("⏳ En attente de l'authentification...");
-};
 window.initAppAfterAuth = function(user) {
     if (window.bootMark) window.bootMark('initAppAfterAuth', { email: user && user.email });
     initApp(user);

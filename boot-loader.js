@@ -17,7 +17,7 @@
   };
 
   var DEFERRED_AFTER_BOOT = [
-    'demo-pcstar.js',
+    'demo-data.js',
     'anki-smoke.js'
   ];
 

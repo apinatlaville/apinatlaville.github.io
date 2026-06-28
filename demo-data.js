@@ -1,8 +1,162 @@
-/**
- * demo-pcstar.js — Simulation mi-année PC* (MPSI → PC*)
- * ~5 mois simulés : ~180 cartes X- par chapitre, 50 Y- anglais, devoirs étalés.
- * Champs : importance (1–5★), statut reservoir/actif, historiques variés.
- */
+/** Jeux de démo : demo-data.js (minimal, 3 semaines, mi-année PC*) */
+
+window.demoData = {
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, ankiQuotaMin: 90 },
+  matieres: [
+    {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
+    {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
+    {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+    {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
+  ],
+  classeurs: [
+    {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter: 12, interNames: {'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique'}},
+    {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter: 12, interNames: {'01':'Algèbre linéaire','02':'Analyse','03':'Réduction'}},
+    {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter: 12, interNames: {'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools'}},
+    {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
+  ],
+  cours: [
+    { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: '2026-04-01' },
+    { uid: 'PH-X9Y', title: 'Thermodynamique', type: 'FICHE', rev: 'orange', mat: 'PHYS', cl: 'A', inter: '02', stat: 'printed', date: '2026-04-02' },
+    { uid: 'MA-7Z3', title: 'Espaces Vectoriels', type: 'COURS', rev: 'red', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: '2026-04-03' },
+    { uid: 'MA-P4L', title: 'Séries Entières', type: 'TD', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'pending', date: '2026-04-04' },
+    { uid: 'CH-W2N', title: 'Cristallographie', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: '2026-04-01' },
+    { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'DS', rev: 'red', note: '12', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: '2026-04-02' },
+    { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'KHOLLE', rev: 'green', note: '16', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: '2026-04-03' },
+    { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: '2026-04-04' },
+    { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: '2026-04-05' },
+    { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: '2026-04-05' }
+  ],
+  exercices: (function(){
+    const _d = new Date(); _d.setHours(0,0,0,0);
+    const _today = window.localDateISO(_d);
+    const _shift = (n) => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return window.localDateISO(d); };
+    return [
+      // ===========================================================
+      // 📚 COURS LONGS (15-25 min) — démonstrations complètes
+      // ===========================================================
+      { id:'X-K3F', titre:"Théorème énergie cinétique (démo complète)", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Démontre le théorème de l'énergie cinétique pour un système matériel + rappelle les hypothèses + applique à l'oscillateur harmonique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen. Hypothèses : système fermé, sommation sur tous les points. Application : E_méca = Ec + Ep, conservation si forces conservatives.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], epinglee:true, dateCreation:_today },
+      { id:'X-7QP', titre:"Diagonalisabilité (démonstration)", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Démontre le critère de diagonalisabilité : un endomorphisme est diagonalisable ssi son polynôme caractéristique est scindé ET dim(E_λ) = mult(λ) pour tout λ.", reponse:"Sens direct : si diagonalisable, base de vecteurs propres → matrice diagonale → χ scindé et dim(E_λ) = mult(λ). Sens réciproque : si conditions remplies, somme des sous-espaces propres = E (dim) → base de vecteurs propres.", tempsCible:1500, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-T8R', titre:"Mécanisme SN1 vs SN2", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Compare les mécanismes SN1 et SN2 : étapes, cinétique, stéréochimie, conditions favorables.", reponse:"SN1 : 2 étapes (carbocation), cinétique d'ordre 1, racémisation, favorable substrat tertiaire+solvant polaire protique. SN2 : 1 étape concertée, ordre 2, inversion de Walden, favorable primaire+aprotique polaire.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-2RT', titre:"Équations de Maxwell (formes locales et intégrales)", coursIds:['PH-3K9'], mat:'PHYS', profil:'COURS', question:"Énonce les 4 équations de Maxwell sous forme locale ET intégrale, donne leur signification physique.", reponse:"Gauss (E) : div E = ρ/ε₀ ; Thomson : div B = 0 ; Faraday : rot E = -∂B/∂t ; Ampère-Maxwell : rot B = μ₀(j + ε₀∂E/∂t). Intégrales : flux/circulation.", tempsCible:900, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+
+      // ===========================================================
+      // 🧪 DÉMONSTRATIONS / MÉCANISMES (5-10 min)
+      // ===========================================================
+      { id:'X-5BD', titre:"Sous-espace vectoriel (preuve)", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Prouve que l'intersection de 2 SEV est un SEV.", reponse:"Soit F, G SEV de E. F∩G non vide (contient 0). Stabilité : ∀(x,y)∈F∩G, ∀λ : x+λy ∈ F (car F SEV) ET ∈ G → ∈ F∩G.", tempsCible:480, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-9XM', titre:"Démo rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'COURS', question:"Démontre la formule du rendement de Carnot à partir des 2 principes.", reponse:"Cycle ditherme réversible : ΔS_univ = 0 → -Qc/Tc - Qf/Tf = 0 → Qf = -Qc·Tf/Tc. η = W/Qc = 1 + Qf/Qc = 1 - Tf/Tc.", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-N7G', titre:"Loi d'Arrhenius (démo)", coursIds:['CH-8M5'], mat:'CHIM', profil:'COURS', question:"Démontre k = A·exp(-Ea/RT) à partir de la théorie des collisions.", reponse:"Fraction de molécules avec E ≥ Ea suit Boltzmann : exp(-Ea/RT). Vitesse = facteur préexp (collisions+géométrie) × fraction efficace.", tempsCible:540, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'X-D6X', titre:"Dérivation série entière", coursIds:['MA-P4L'], mat:'MATH', profil:'COURS', question:"Calcule Σ n·x^(n−1) sur ]-1,1[ par dérivation terme à terme. Justifie l'opération.", reponse:"Σ x^n = 1/(1-x) sur ]-1,1[. Dérivation terme à terme légitime (convergence normale sur tout compact) : Σ n·x^(n-1) = 1/(1-x)².", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+
+      // ===========================================================
+      // 📐 EXERCICES TYPES (20-30 min) — méthodes à maîtriser
+      // ===========================================================
+      { id:'X-J8L', titre:"Exo : Interférences fentes d'Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Setup : λ=633nm, a=0.5mm, D=2m. (1) Calcule l'interfrange. (2) Si on plonge dans l'eau (n=1.33), nouvel interfrange ? (3) Si on bouche 1 fente, que voit-on ?", reponse:"(1) i=λD/a = 2.53 mm. (2) λ' = λ/n → i' = 1.90 mm. (3) Plus d'interférences, juste tache de diffraction d'une fente.", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'X-EXJ', titre:"Exo : Réduction d'endomorphisme", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', question:"Soit M = ((3,1),(0,2)). (1) M est-elle diagonalisable ? (2) Si oui, trouve P et D telles que M = P·D·P⁻¹.", reponse:"(1) χ_M(X) = (X-3)(X-2) scindé à racines simples → diagonalisable. (2) E_3 = Vect((1,0)), E_2 = Vect((1,-1)). P = ((1,1),(0,-1)), D = diag(3,2).", tempsCible:1800, priorite:1, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
+      { id:'X-EXC', titre:"Exo : Cinétique ordre 1 (régression)", coursIds:['CH-8M5'], mat:'CHIM', profil:'EXO', question:"On a [A](t=0)=0.1 M, [A](100s)=0.082 M, [A](300s)=0.055 M. (1) Vérifie que c'est bien d'ordre 1. (2) Détermine k et t½.", reponse:"(1) ln[A] vs t : (0,-2.30), (100,-2.50), (300,-2.90) → droite, ordre 1. (2) Pente = -k → k ≈ 0.002 s⁻¹. t½ = ln2/k ≈ 347 s.", tempsCible:1200, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
+
+      // ===========================================================
+      // 🎯 FORMULES COURTES (1-3 min) — rappel rapide
+      // ===========================================================
+      { id:'X-FRM', titre:"Maxwell-Faraday (forme locale)", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation de Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:90, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-HDM', titre:"Hadamard (rayon convergence)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R.", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:120, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-T12', titre:"t½ ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Temps de demi-réaction d'un ordre 1.", reponse:"t½ = ln(2) / k (indépendant de [A]₀)", tempsCible:90, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-FR2', titre:"Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"Rendement Carnot.", reponse:"η = 1 − Tf/Tc", tempsCible:60, priorite:3, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'X-VBR', titre:"Variance Bernoulli", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Variance d'une loi de Bernoulli B(p).", reponse:"V(X) = p(1-p)", tempsCible:60, importance:2, statut:'reservoir', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
+
+      // ===========================================================
+      // ⏳ RÉSERVOIR (nouvelles cartes en attente)
+      // ===========================================================
+      { id:'X-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov : addition d'H-X sur alcène asymétrique.", reponse:"H+ s'additionne sur le carbone le PLUS hydrogéné (donc X- sur le plus substitué) → carbocation le plus stable.", tempsCible:300, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
+
+      // ===========================================================
+      // 🇬🇧 ANGLAIS (max 3 — juste pour combler les trous)
+      // ===========================================================
+      { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter (une réaction)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé / l'écart", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+
+
+    ];
+  })(),
+  devoirs: (function(){
+    const _d = new Date(); _d.setHours(0,0,0,0);
+    const _today = window.localDateISO(_d);
+    const _shift = (n) => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return window.localDateISO(d); };
+    return [
+      { id:'W-DM1', titre:"DM Algèbre linéaire (3 sessions de 30 min)", coursIds:['MA-7Z3','MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 6 exercices d'algèbre linéaire (espaces vectoriels + réduction).", tempsCible:1800, importance:5, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(7), historique:[], _morceauxTotal:3, _morceauxFaits:0, _dureeTotaleMin:90, dateCreation:_today }
+    ];
+  })(),
+};
+
+/** Démo « 3 semaines » — historique riche, ease variés */
+window.demoDataXP = (function() {
+  const _d = new Date(); _d.setHours(0,0,0,0);
+  const _today = window.localDateISO(_d);
+  const _shift = (n) => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return window.localDateISO(d); };
+  const _dateTime = (n) => { const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString(); };
+
+  // Génère un historique réaliste (3 derniers révisions)
+  const histo = (qs, temps) => qs.map((q, i) => ({
+    date: _dateTime(-(qs.length - i) * 3 - 1),
+    qScore: q,
+    tempsReel: temps[i] || 60,
+    pen: 1,
+    mode: 'normal'
+  }));
+
+  return {
+    settings: { userName: "Étudiant XP", theme:'dark', template:'glass', compact:false, showStats:true, showChips:true, showDashHero:true, showDashRev:true, showDashOver:true, ankiQuotaMin:90, ankiSessionMin:75, ankiIncludeNew:4, ankiMaxAnglaisFill:4 },
+    matieres: [
+      {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
+      {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
+      {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
+      {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
+    ],
+    classeurs: [
+      {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter:12, interNames:{'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique','05':'Mécanique quantique'}},
+      {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter:12, interNames:{'01':'Algèbre linéaire','02':'Analyse','03':'Réduction','04':'Probabilités'}},
+      {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter:12, interNames:{'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools','04':'Atomistique'}},
+      {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter:6, interNames:{'01':'Vocabulaire scientifique','02':'Expressions'}}
+    ],
+    cours: [
+      { uid:'PH-A1B', title:'Mécanique de Newton', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-21) },
+      { uid:'PH-X9Y', title:'Thermodynamique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-18) },
+      { uid:'PH-3K9', title:'Électromagnétisme', type:'COURS', rev:'orange', mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-14) },
+      { uid:'PH-5D4', title:'Optique Ondulatoire', type:'TD', rev:'red', mat:'PHYS', cl:'A', inter:'04', stat:'active', date:_shift(-7) },
+      { uid:'MA-7Z3', title:'Espaces Vectoriels', type:'COURS', rev:'green', mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-21) },
+      { uid:'MA-P4L', title:'Séries Entières', type:'TD', rev:'orange', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-10) },
+      { uid:'MA-V6J', title:'Réduction', type:'FICHE', rev:'orange', mat:'MATH', cl:'B', inter:'03', stat:'active', date:_shift(-5) },
+      { uid:'CH-T1R', title:'Chimie Org - Alcools', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'03', stat:'active', date:_shift(-12) },
+      { uid:'CH-8M5', title:'Cinétique Chimique', type:'COURS', rev:'orange', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8) }
+    ],
+    exercices: [
+      // Cartes maîtrisées (ease haut, intervalle moyen, historique réussi)
+      { id:'X-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen.", tempsCible:60, priorite:1, statut:'actif', intervalle:8, ease:2.75, repetitions:4, dateProchaineRevision:_shift(2), historique:histo([8,9,8,9],[55,50,48,45]), dateCreation:_dateTime(-21) },
+      { id:'X-9XM', titre:"Rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"η de Carnot ?", reponse:"η = 1 − Tf/Tc (T en K).", tempsCible:30, priorite:2, statut:'actif', intervalle:14, ease:2.8, repetitions:5, dateProchaineRevision:_shift(7), historique:histo([8,9,10,9,10],[28,25,22,20,18]), dateCreation:_dateTime(-25) },
+      // Cartes en difficulté (ease bas, intervalle court, historique mixte)
+      { id:'X-7QP', titre:"Diagonalisabilité", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Critère de diagonalisabilité d'un endomorphisme.", reponse:"⟺ Pol. car. scindé + dim(E_λ)=mult(λ) ∀λ.", tempsCible:90, priorite:1, statut:'actif', intervalle:1, ease:1.85, repetitions:3, dateProchaineRevision:_today, historique:histo([3,5,3,6],[120,100,140,95]), dateCreation:_dateTime(-15) },
+      { id:'X-D6X', titre:"Série dérivée", coursIds:['MA-P4L'], mat:'MATH', profil:'EXO', question:"Σ n·x^(n−1) sur ]-1,1[ ?", reponse:"= 1/(1-x)²", tempsCible:75, priorite:1, statut:'actif', intervalle:0, ease:1.7, repetitions:2, dateProchaineRevision:_today, historique:histo([2,4,3],[110,90,105]), dateCreation:_dateTime(-12) },
+      // Cartes moyennes
+      { id:'X-2RT', titre:"Maxwell-Faraday", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:30, priorite:2, statut:'actif', intervalle:5, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([6,7,7],[35,30,28]), dateCreation:_dateTime(-14) },
+      { id:'X-J8L', titre:"Interférences Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Interfrange dans les fentes d'Young ?", reponse:"i = λD/a", tempsCible:90, priorite:2, statut:'actif', intervalle:3, ease:2.2, repetitions:2, dateProchaineRevision:_shift(1), historique:histo([5,6],[100,85]), dateCreation:_dateTime(-9) },
+      { id:'X-5BD', titre:"Sous-espace vectoriel", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Définition d'un SEV.", reponse:"Stable par +, ·, contient 0_E.", tempsCible:45, priorite:2, statut:'actif', intervalle:21, ease:2.85, repetitions:6, dateProchaineRevision:_shift(14), historique:histo([9,10,9,10,9,10],[40,35,30,28,25,22]), dateCreation:_dateTime(-30) },
+      { id:'X-T8R', titre:"Oxydation alcool primaire", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Produits d'oxydation douce d'un alcool primaire ?", reponse:"Aldéhyde (puis acide carbox. si excès).", tempsCible:45, priorite:2, statut:'actif', intervalle:7, ease:2.5, repetitions:3, dateProchaineRevision:_shift(3), historique:histo([7,8,7],[50,45,40]), dateCreation:_dateTime(-10) },
+      { id:'X-N7G', titre:"Cinétique ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Loi d'ordre 1 intégrée et t½.", reponse:"[A]=[A]₀·exp(−kt); t½=ln2/k", tempsCible:60, priorite:1, statut:'actif', intervalle:0, ease:2.0, repetitions:1, dateProchaineRevision:_today, historique:histo([4,3],[80,75]), dateCreation:_dateTime(-7) },
+      // Réservoir : nouvelles cartes en attente
+      { id:'X-V4N', titre:"Rayon convergence (Hadamard)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R ?", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:50, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-2) },
+      { id:'X-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov.", reponse:"H+ sur le C le + hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-1) },
+      // Anglais (matière dédiée) — vocab + historique
+      { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter", tempsCible:20, priorite:2, statut:'actif', intervalle:4, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([7,8,7],[18,15,14]), dateCreation:_dateTime(-12) },
+      { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
+      { id:'Y-C9D', titre:"a breakthrough", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"a breakthrough", reponse:"une percée majeure", tempsCible:20, priorite:2, statut:'actif', intervalle:2, ease:2.2, repetitions:2, dateProchaineRevision:_today, historique:histo([6,7],[22,18]), dateCreation:_dateTime(-8) },
+      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:20, priorite:2, statut:'actif', intervalle:15, ease:2.65, repetitions:5, dateProchaineRevision:_shift(8), historique:histo([8,9,10,9,10],[20,18,15,13,12]), dateCreation:_dateTime(-20) },
+      // Devoir auto-découpé en 3 morceaux
+      { id:'W-DMX', titre:"DM Réduction d'endomorphismes", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 4 exercices de réduction.", reponse:"", tempsCible:4800, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(5), historique:[], _morceauxTotal:3, _morceauxFaits:0, dateCreation:_dateTime(-1) }
+    ],
+    devoirs: []
+  };
+})();
+
 window.demoDataPCStar = (function () {
   const _d = new Date();
   _d.setHours(0, 0, 0, 0);
@@ -482,9 +636,6 @@ window.demoDataPCStar = (function () {
       showDashHero: true,
       showDashRev: true,
       showDashOver: true,
-      showPomo: true,
-      pomoWork: 25,
-      pomoBreak: 5,
       ankiQuotaMin: 90,
       ankiSessionMin: 90,
       ankiIncludeNew: 0,

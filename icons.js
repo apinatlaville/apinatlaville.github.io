@@ -182,89 +182,13 @@
 
   /* dismissSplash → core-utils.js (ne pas redéfinir ici) */
 
-  window.GSI_CLIENT_ID = '889951150073-v91560remp86n50njmnmqhlbgn14pn65.apps.googleusercontent.com';
-
-  window.ensureGsiScript = function (cb) {
-    if (window.google && window.google.accounts && window.google.accounts.id) {
-      cb();
-      return;
-    }
-    var existing = document.querySelector('script[data-gsi-client]');
-    if (existing) {
-      existing.addEventListener('load', cb, { once: true });
-      return;
-    }
-    var script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.setAttribute('data-gsi-client', '1');
-    script.onload = cb;
-    document.head.appendChild(script);
-  };
-
-  window.initGoogleSignIn = function () {
-    if (window._gsiButtonReady) return;
-    var slot = document.getElementById('gsiButtonSlot');
-    if (!slot) return;
-
-    window.ensureGsiScript(function () {
-      if (!window.google || !window.google.accounts || !window.google.accounts.id) return;
-      if (window._gsiButtonReady) return;
-
-      slot.innerHTML = '';
-      window.google.accounts.id.initialize({
-        client_id: window.GSI_CLIENT_ID,
-        callback: window.handleCredentialResponse,
-        auto_select: false,
-        ux_mode: 'popup',
-        itp_support: true
-      });
-      window.google.accounts.id.renderButton(slot, {
-        type: 'standard',
-        size: 'large',
-        theme: 'outline',
-        text: 'sign_in_with',
-        shape: 'rectangular',
-        logo_alignment: 'left',
-        width: 300
-      });
-      window._gsiButtonReady = true;
-      slot.classList.add('gsi-ready');
-    });
-  };
-
   window.enterApp = function () {
-    /* Ne pas retirer le splash ici — initApp dévoile tout d'un coup quand c'est prêt */
-    if (window.google && window.google.accounts && window.google.accounts.id) {
-      window.google.accounts.id.cancel();
-    }
-    document.documentElement.classList.remove('pre-login');
     document.documentElement.style.removeProperty('overflow');
     document.documentElement.style.removeProperty('height');
     document.documentElement.style.removeProperty('max-height');
     document.body.style.removeProperty('overflow');
     document.body.style.removeProperty('height');
     document.body.style.removeProperty('max-height');
-    document.body.classList.remove('not-logged-in');
-    const loginOverlay = document.getElementById('loginOverlay');
-    if (loginOverlay) {
-      loginOverlay.style.setProperty('display', 'none', 'important');
-    }
-  };
-
-  window.showLogin = function () {
-    if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
-    else if (typeof window.unlockPage === 'function') window.unlockPage();
-    document.documentElement.classList.add('pre-login');
-    document.body.classList.add('not-logged-in');
-    const loginOverlay = document.getElementById('loginOverlay');
-    if (loginOverlay) {
-      loginOverlay.style.removeProperty('display');
-    }
-    if (typeof window.initGoogleSignIn === 'function') {
-      window.initGoogleSignIn();
-    }
   };
 
   window.importanceHint = function (n) {
@@ -336,10 +260,6 @@
       el.classList.add('icon', cls);
       el.setAttribute('aria-hidden', 'true');
     });
-    const loginLogo = document.getElementById('loginLogo');
-    if (loginLogo && !loginLogo.innerHTML && typeof window.appLogoMark === 'function') {
-      loginLogo.innerHTML = window.appLogoMark();
-    }
     if (typeof window.hydrateAppLogos === 'function') window.hydrateAppLogos(scope);
   };
 
