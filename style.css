@@ -249,8 +249,9 @@ body.mode-compact .cdesc { display: none; }
  padding: 4px 8px;
  border-radius: 12px;
  font-size: 11px;
- cursor: help;
+ cursor: default;
  color: var(--txt);
+ min-width: 0;
 }
 .cloud-status-dot {
  width: 8px;
@@ -261,12 +262,17 @@ body.mode-compact .cdesc { display: none; }
  flex-shrink: 0;
 }
 .cloud-status-txt {
- display: inline-flex;
- align-items: center;
+ display: block;
+ flex: 1 1 auto;
  min-width: 0;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
 }
 .cloud-status-txt-track {
- display: inline-block;
+ display: block;
+ overflow: hidden;
+ text-overflow: ellipsis;
  white-space: nowrap;
 }
 .cloud-status-extra {
@@ -3317,43 +3323,28 @@ body.nav-sidebar-left .sidebar-footer .hdr-actions-btns .btn-settings {
   cursor: pointer;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus {
-  width: auto;
-  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   flex: 0 0 auto;
   overflow: hidden;
-  transition: max-width 0.28s ease, flex 0.28s ease;
   box-sizing: border-box;
-  justify-content: center;
+  justify-content: flex-start;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus .cloud-status-txt {
   flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
   min-width: 0;
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online {
-  max-width: 4.5rem;
+  width: 100%;
+  max-width: 100%;
   cursor: default;
-}
-body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover,
-body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible {
-  flex: 1 1 0;
-  max-width: calc(100% - var(--sidebar-footer-actions-reserve));
-}
-body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:hover .cloud-status-txt,
-body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--online:focus-visible .cloud-status-txt {
-  text-overflow: clip;
-}
-body.nav-sidebar-left .sidebar-footer #cloudStatus.cloud-status--scroll .cloud-status-txt-track {
-  animation: cloud-status-marquee 3.5s ease-in-out infinite alternate;
-}
-@keyframes cloud-status-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(var(--cloud-scroll, 0)); }
 }
 body.nav-sidebar-left .sidebar-footer #cloudStatus:not(.cloud-status--online) {
   flex-shrink: 0;
-  max-width: none;
+  max-width: 100%;
 }
 
 body.nav-sidebar-left #navSlotSide {
