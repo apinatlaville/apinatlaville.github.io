@@ -231,9 +231,6 @@
   function cardTypeBadge(c) {
     return window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml(cardTypeKindOf(c)) : '';
   }
-  function cardTypeSurface(c) {
-    return window.cardTypeSurfaceClass ? window.cardTypeSurfaceClass(cardTypeKindOf(c)) : '';
-  }
   function cardAlgoStatsLine(c) {
     if (!c || !window.AnkiAlgoV2) return '';
     const today = window.AnkiAlgoV2.todayISO();
@@ -605,8 +602,11 @@
     const picker = document.querySelector('.anki-overflow-picker');
     if (picker) {
       const on = !!checked;
-      const input = picker.querySelector('input[type="checkbox"]');
-      if (input) input.checked = on;
+      const toggle = picker.querySelector('.anki-overflow-switch');
+      if (toggle) {
+        toggle.classList.toggle('is-on', on);
+        toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+      }
       picker.querySelectorAll('.anki-overflow-side').forEach(function (btn) {
         const extend = btn.getAttribute('data-overflow') === 'extend';
         btn.classList.toggle('on', extend ? on : !on);
@@ -623,10 +623,9 @@
           <span class="anki-overflow-side-title">Enlever les cartes</span>
           <span class="anki-overflow-side-hint anki-mut">moins prioritaires</span>
         </button>
-        <label class="anki-overflow-switch" aria-label="Basculer le mode budget">
-          <input type="checkbox"${on ? ' checked' : ''} onchange="window.ankiV2SetSessionOverflow(this.checked)">
-          <span class="anki-overflow-switch-track" aria-hidden="true"></span>
-        </label>
+        <button type="button" class="anki-overflow-switch${on ? ' is-on' : ''}" aria-pressed="${on ? 'true' : 'false'}" aria-label="Basculer le mode budget" onclick="window.ankiV2SetSessionOverflow(!(window.D.settings && window.D.settings.ankiSessionOverflow))">
+          <span class="anki-overflow-switch-track" aria-hidden="true"><span class="anki-overflow-switch-thumb"></span></span>
+        </button>
         <button type="button" class="anki-overflow-side anki-overflow-side--right${on ? ' on' : ''}" data-overflow="extend" onclick="window.ankiV2SetSessionOverflow(true)">
           <span class="anki-overflow-side-title">Dépasser le temps max</span>
           <span class="anki-overflow-side-hint anki-mut">si besoin</span>
@@ -903,7 +902,7 @@
       const jr = urg.joursRestants;
       const jrLabel = jr == null ? '—' : (jr <= 0 ? `Retard J${jr}` : `J+${jr}`);
       return `
-        <div class="anki-devoir-row ${cardTypeSurface(d)}" style="${isForce ? 'border-left:3px solid var(--red);' : ''}">
+        <div class="anki-devoir-row" style="${isForce ? 'border-left:3px solid var(--red);' : ''}">
           ${cardTypeBadge(d)}
           <span class="anki-q-mat" style="background:${m.color};">${window.iconHtml('file-text', 12)}</span>
           <div class="anki-devoir-body">
@@ -978,7 +977,7 @@
     const kindLabel = kind === 'devoir' ? 'W' : kind === 'quick' ? 'Y' : 'X';
     const pinTag = !isManualTab && S.pinnedIds.has(c.id) ? '<span class="anki-pcard-pin">+</span>' : '';
     return `
-      <div class="pcard anki-pcard ${cardTypeSurface(c)} ${sel ? 'sel' : ''}" data-pickid="${c.id}" onclick="event.preventDefault();window.ankiV2TogglePick('${c.id}')">
+      <div class="pcard anki-pcard ${sel ? 'sel' : ''}" data-pickid="${c.id}" onclick="event.preventDefault();window.ankiV2TogglePick('${c.id}')">
         <div class="pc-check">${sel ? window.iconHtml('check', 14, 'icon-sm') : window.iconHtml('square', 14, 'icon-sm')}</div>
         ${pinTag}
         <div class="anki-pcard-mat" style="background:${m.color}20;color:${m.color};">${cardTypeBadge(c)} ${m.label}</div>
@@ -1029,7 +1028,7 @@
       : ((c.tempsCible || 60) / 60).toFixed(1).replace(/\.0$/, '');
     const sessionInfo = isDevoir ? ` · session ${(dmRef._morceauxFaits || 0) + 1}/${dmRef._morceauxTotal || 1}` : '';
     return `
-      <div class="anki-q-row ${cardTypeSurface(c)} ${isDevoir ? 'devoir' : ''}" draggable="true" data-id="${c.id}" data-idx="${i}">
+      <div class="anki-q-row ${isDevoir ? 'devoir' : ''}" draggable="true" data-id="${c.id}" data-idx="${i}">
         <span class="anki-q-handle" title="Glisser">⋮⋮</span>
         <div class="anki-q-num">${i + 1}</div>
         ${cardTypeBadge(c)}
@@ -1129,7 +1128,7 @@
     if (hasSrcE) srcChips.push(`<span class="anki-tag" style="background:#ffaa3320;color:#ffaa33;border:1px solid #ffaa33;">${window.iconLabel('book-open', `Énoncé : ${esc(c.sourceEnonce.type || '?')} · ${esc(c.sourceEnonce.nom || '')} ${esc(c.sourceEnonce.details || '')}`)}</span>`);
     if (hasSrcC) srcChips.push(`<span class="anki-tag" style="background:#42b56b20;color:#42b56b;border:1px solid #42b56b;">${window.iconLabel('check', `Corrigé : ${esc(c.sourceCorrection.type || '?')} · ${esc(c.sourceCorrection.nom || '')} ${esc(c.sourceCorrection.details || '')}`)}</span>`);
     return `
-      <div class="anki-lib-row ${cardTypeSurface(c)}" data-testid="reservoir-row-${c.id}">
+      <div class="anki-lib-row" data-testid="reservoir-row-${c.id}">
         ${cardTypeBadge(c)}
         <label class="anki-pick ${checked ? 'on' : ''}" style="flex:0 0 auto;" data-pickid="res-${c.id}">
           <input type="checkbox" ${checked ? 'checked' : ''} data-testid="reservoir-check-${c.id}" onchange="window.ankiV2ReservoirToggleSel('${c.id}')">
@@ -1465,7 +1464,7 @@
   function renderLibRow(c) {
     const m = mat(c.mat);
     return `
-      <div class="anki-lib-row ${cardTypeSurface(c)}">
+      <div class="anki-lib-row">
         ${cardTypeBadge(c)}
         <span class="uid-badge anki-lib-id">${c.id}</span>
         <div class="anki-lib-text">
@@ -1597,7 +1596,7 @@
   function renderCalCard(c, i) {
     const m = mat(c.mat);
     return `
-      <div class="anki-cal-row ${window.cardTypeSurfaceClass ? window.cardTypeSurfaceClass(window.cardTypeKind ? window.cardTypeKind(c) : 'main') : ''}">
+      <div class="anki-cal-row">
         <span class="anki-day-num">${i + 1}</span>
         ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml(window.cardTypeKind ? window.cardTypeKind(c) : 'main') : ''}
         <span class="anki-q-mat" style="background:${m.color};">${m.label}</span>
@@ -2216,6 +2215,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     S.queue = plan.cartes.slice();
     S.mode = (S.selectionIds.size > 0 || S.manualOrder) ? "custom" : "normal";
     S.stats = { ok: 0, mid: 0, bad: 0, total: plan.cartes.length };
+    S.sessionUI = 'full';
     persistSession();
     nextCard();
   };
@@ -2230,6 +2230,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (c.statut !== "actif") { c.statut = "actif"; if (!c.dateProchaineRevision) c.dateProchaineRevision = window.AnkiAlgoV2.todayISO(); }
     S.queue = [c]; S.mode = "single";
     S.stats = { ok: 0, mid: 0, bad: 0, total: 1 };
+    S.sessionUI = 'full';
     nextCard();
   };
   window.startAnkiV2Colle = function (coursId) {
@@ -2238,6 +2239,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!q.length) return window.sysAlert("Aucune carte liée à ce cours.", "Mode Colle");
     S.queue = window.AnkiAlgoV2.smartOrder(q.slice());
     S.mode = "colle"; S.stats = { ok: 0, mid: 0, bad: 0, total: q.length };
+    S.sessionUI = 'full';
     nextCard();
   };
   window.ankiV2SetQuickQueue = function (ids) {
@@ -2250,44 +2252,23 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     S.queue = window.AnkiAlgoV2.buildQuickSession(quickOnly);
     S.mode = "quick";
     S.stats = { ok: 0, mid: 0, bad: 0, total: cards.length };
+    S.sessionUI = 'full';
     window.save(); nextCard();
   };
-
-  function renderDeckStackHtml(queue, fallbackColor) {
-    const maxLayers = 4;
-    const cards = Array.isArray(queue) ? queue : [];
-    const layers = Math.min(Math.max(0, cards.length), maxLayers);
-    if (!layers) {
-      return cards.length === 0
-        ? '<div class="anki-deck-stack anki-deck-stack-empty" aria-hidden="true"><span class="anki-deck-last-hint">Dernière carte</span></div>'
-        : '';
-    }
-    let ghosts = '';
-    for (let i = layers; i >= 1; i--) {
-      const card = cards[i - 1];
-      const mInfo = card ? mat(card.mat) : null;
-      const color = mInfo && mInfo.color ? mInfo.color : fallbackColor;
-      const rot = (i % 2 === 0 ? 1 : -1) * (0.35 + (i - 1) * 0.22);
-      const shift = (i % 2 === 0 ? 1 : -1) * (2 + (i - 1) * 1.5);
-      const matLabel = mInfo && mInfo.label ? esc(mInfo.label) : '';
-      ghosts += `<div class="anki-deck-ghost" style="--layer:${i};--accent:${color};--layer-rot:${rot};--layer-x:${shift}px" title="${card ? esc(card.id) : ''}"><span class="anki-deck-ghost-edge" aria-hidden="true"></span><span class="anki-deck-ghost-back">${matLabel}</span></div>`;
-    }
-    const extraCount = cards.length > maxLayers ? cards.length - maxLayers : 0;
-    const countBadge = cards.length
-      ? `<div class="anki-deck-pile-badge" title="Cartes restantes après celle-ci">${window.iconLabel('layers', String(cards.length))}</div>`
-      : '';
-    return `<div class="anki-deck-stack" aria-hidden="true">${ghosts}${countBadge}${extraCount ? `<div class="anki-deck-pile-more">+${extraCount}</div>` : ''}</div>`;
-  }
 
   function renderDeckProgressHtml(accentColor) {
     const total = Math.max(1, S.stats.total || 1);
     const done = (S.stats.ok || 0) + (S.stats.mid || 0) + (S.stats.bad || 0);
     const remaining = S.queue.length + 1;
     const pct = Math.min(100, Math.round((done / total) * 100));
+    const hiddenExtra = S.queue.length > 4 ? S.queue.length - 4 : 0;
+    const pileMeta = hiddenExtra
+      ? `${remaining} restante(s) · <span class="anki-deck-progress-more">+${hiddenExtra} sous la pile</span>`
+      : `${remaining} restante(s)`;
     return `
       <div class="anki-deck-progress" style="--deck-accent:${accentColor}">
         <div class="anki-deck-progress-label">
-          <span>${window.iconLabel('layers', `Pile · <b>${remaining}</b> restante(s)`)}</span>
+          <span>${window.iconLabel('layers', `Pile · <b>${pileMeta}</b>`)}</span>
           <span>${done}/${total} faites · ${pct}%</span>
         </div>
         <div class="anki-deck-progress-track">
@@ -2592,9 +2573,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const showTitre = tText && tText.toLowerCase() !== qText.toLowerCase();
 
     ov.innerHTML = `
-      <div class="anki-deck-scene" style="--deck-accent:${m.color};--stack-layers:${Math.min(S.queue.length, 4)}">
-        <div class="anki-deck-pile">
-        ${renderDeckStackHtml(S.queue, m.color)}
+      <div class="anki-deck-scene" style="--deck-accent:${m.color}">
         <div class="anki-deck-card modal anki-session${isNewDeckCard ? ' anki-deck-enter' : ''}" style="--deck-accent:${m.color};border-top:5px solid ${m.color};">
           ${renderDeckProgressHtml(m.color)}
           <div class="anki-sess-top">
@@ -2683,6 +2662,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     `;
     window.hydrateIcons(ov);
     paintChronoDisplays();
+    if (isNewDeckCard) ov.scrollTop = 0;
   }
 
   function renderSourcesBox(c, isAnswerSide) {
@@ -2874,6 +2854,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const ov = $("ovAnkiSession");
     if (ov) ov.classList.add("hidden");
     S.sessionUI = "dock";
+    setSessionOverlayLock(false);
     persistSession();
     renderSyncSessionDock();
     window.renderAnkiV2 && window.renderAnkiV2();
@@ -2895,6 +2876,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         S.manualOrder = null;
         S.dernierExerciceModifie = null;
         S.sessionUI = "full";
+        setSessionOverlayLock(false);
         clearPersistedSession();
         renderSyncSessionDock();
         window.renderAnkiV2();
@@ -2906,6 +2888,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   window.abortAnkiV2Session = function () {
     if (S.chronoInt) clearInterval(S.chronoInt);
     S.chronoInt = null;
+    setSessionOverlayLock(false);
     const ov = $("ovAnkiSession"); if (ov) ov.classList.add("hidden");
     const s = S.stats;
     const fini = !S.queue.length;

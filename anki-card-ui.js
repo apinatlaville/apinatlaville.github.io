@@ -108,7 +108,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.card-type-surface.card-type-devoir,
+.modal.card-type-surface.card-type-devoir,
 body.tmpl-glass .ov .modal.card-type-surface.card-type-devoir,
 body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-devoir {
   background:
@@ -125,7 +125,7 @@ body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-devoir {
     0 24px 64px rgba(0, 0, 0, 0.36),
     0 8px 28px rgba(233, 79, 100, 0.14) !important;
 }
-.card-type-surface.card-type-main,
+.modal.card-type-surface.card-type-main,
 body.tmpl-glass .ov .modal.card-type-surface.card-type-main,
 body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-main {
   background:
@@ -139,7 +139,7 @@ body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-main {
     0 24px 64px rgba(0, 0, 0, 0.42),
     0 0 36px rgba(76, 175, 125, 0.14) !important;
 }
-.card-type-surface.card-type-quick,
+.modal.card-type-surface.card-type-quick,
 body.tmpl-glass .ov .modal.card-type-surface.card-type-quick,
 body.ui-juin20.tmpl-glass .modal.card-type-surface.card-type-quick {
   background:
