@@ -945,6 +945,29 @@ bindInput('setUserName', withD((e) => { window.D.settings.userName = e.target.va
 
 if (typeof window.bindSettingsThemePicker === 'function') window.bindSettingsThemePicker();
 
+/** scanner.js est chargé à la demande — stub pour l'accueil et le FAB */
+window.invokeOpenCam = function () {
+  function run() {
+    if (typeof window.openCam === 'function' && !window.openCam._isScannerStub) {
+      return window.openCam();
+    }
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert(
+        'Impossible de charger le module scanner (<code>scanner.js</code>).<br>Recharge la page ou vérifie ta connexion.',
+        'Scanner indisponible'
+      );
+    }
+  }
+  if (typeof window.openCam === 'function' && !window.openCam._isScannerStub) return run();
+  var load = typeof window.ensureScanner === 'function' ? window.ensureScanner() : Promise.resolve();
+  return Promise.resolve(load).then(run);
+};
+if (typeof window.openCam !== 'function') {
+  var _openCamStub = function () { return window.invokeOpenCam(); };
+  _openCamStub._isScannerStub = true;
+  window.openCam = _openCamStub;
+}
+
 bindClick('btnHomeCam', () => window.openCam());
 bindClick('btnKholleDraw', () => window.drawKholle());
 
@@ -1004,6 +1027,7 @@ async function fetchCloudDoc(docRef, retries = 3) {
       return await window.getDoc(docRef);
     } catch (e) {
       lastErr = e;
+      if (isFirestorePermissionDenied(e)) throw e;
       if (i < retries - 1) {
         await new Promise(r => setTimeout(r, 400 * (i + 1)));
       }
@@ -1012,30 +1036,75 @@ async function fetchCloudDoc(docRef, retries = 3) {
   throw lastErr || new Error("Modules Firebase manquants.");
 }
 
-/** Charge le document Firestore via l'UID Google (clé canonique), avec migration depuis l'ancienne clé e-mail. */
+function isFirestorePermissionDenied(err) {
+  if (!err) return false;
+  const code = err.code || err.code_;
+  if (code === 'permission-denied') return true;
+  const msg = String(err.message || err);
+  return /insufficient permissions|permission.denied|missing or insufficient/i.test(msg);
+}
+
+/** Charge le document Firestore via l'UID Google (clé canonique), avec repli e-mail et migration. */
 async function resolveCloudUserDoc(user) {
   if (!user || !user.sub) {
     throw new Error('Identifiant Google (UID) manquant.');
   }
+
   const uidRef = window.doc(window.db, 'utilisateurs', user.sub);
-  const uidSnap = await fetchCloudDoc(uidRef);
-  if (uidSnap.exists()) {
-    return { docRef: uidRef, data: uidSnap.data(), migrated: false };
+  let uidSnap = null;
+  let uidDenied = false;
+
+  try {
+    uidSnap = await fetchCloudDoc(uidRef);
+  } catch (e) {
+    if (isFirestorePermissionDenied(e)) uidDenied = true;
+    else throw e;
   }
-  if (user.email && user.email !== user.sub) {
+
+  if (uidSnap && uidSnap.exists()) {
+    return { docRef: uidRef, data: uidSnap.data(), migrated: false, storageKey: 'uid' };
+  }
+
+  const tryLegacyEmail = async function () {
+    if (!user.email || user.email === user.sub) return null;
     const legacyRef = window.doc(window.db, 'utilisateurs', user.email);
-    const legacySnap = await fetchCloudDoc(legacyRef);
-    if (legacySnap.exists()) {
-      const data = legacySnap.data();
-      if (window.setDoc) {
-        await window.setDoc(uidRef, data);
-        if (window.bootMark) window.bootMark('initApp.cloud.migratedEmailToUid', { email: user.email, uid: user.sub });
+    try {
+      const legacySnap = await fetchCloudDoc(legacyRef);
+      if (!legacySnap.exists()) {
+        return { docRef: legacyRef, data: null, migrated: false, storageKey: 'email' };
       }
-      console.log('☁️ Données migrées (clé e-mail → UID Google) pour :', user.email);
-      return { docRef: uidRef, data, migrated: true };
+      const data = legacySnap.data();
+      if (!uidDenied && window.setDoc) {
+        try {
+          await window.setDoc(uidRef, data);
+          if (window.bootMark) {
+            window.bootMark('initApp.cloud.migratedEmailToUid', { email: user.email, uid: user.sub });
+          }
+          console.log('☁️ Données migrées (clé e-mail → UID Google).');
+          return { docRef: uidRef, data, migrated: true, storageKey: 'uid' };
+        } catch (migrateErr) {
+          if (!isFirestorePermissionDenied(migrateErr)) throw migrateErr;
+        }
+      }
+      console.warn('☁️ Données sur clé e-mail (règles UID à déployer — voir firestore.rules).');
+      return { docRef: legacyRef, data, migrated: false, storageKey: 'email' };
+    } catch (e) {
+      if (isFirestorePermissionDenied(e)) return null;
+      throw e;
     }
+  };
+
+  const legacy = await tryLegacyEmail();
+  if (legacy) return legacy;
+
+  if (!uidDenied) {
+    return { docRef: uidRef, data: null, migrated: false, storageKey: 'uid' };
   }
-  return { docRef: uidRef, data: null, migrated: false };
+
+  throw new Error(
+    'Accès Firestore refusé. Déploie les règles du fichier firestore.rules dans la console Firebase ' +
+    '(Firestore → Règles → request.auth.uid == userId).'
+  );
 }
 
 async function initApp(user) {
@@ -1043,6 +1112,7 @@ async function initApp(user) {
   window._persistDisabled = false;
   let localDataCorrupt = false;
   let cloudInitFailed = false;
+  let cloudInitError = null;
 
   try {
     if (window.isLocalMode) {
@@ -1098,6 +1168,7 @@ async function initApp(user) {
       localDataCorrupt = true;
     } else {
       cloudInitFailed = true;
+      cloudInitError = e;
     }
     window.D = window.D || null;
     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
@@ -1251,11 +1322,17 @@ async function initApp(user) {
       "Données illisibles"
     );
   } else if (cloudInitFailed) {
+    const perm = cloudInitError && isFirestorePermissionDenied(cloudInitError);
     window.sysAlert(
-      "Impossible de charger tes données depuis le cloud.<br><br>" +
-      "L'application démarre avec des données vides. Vérifie ta connexion et recharge la page.<br><br>" +
-      "Les sauvegardes cloud pourraient échouer tant que Firebase n'est pas accessible.",
-      "Erreur de synchronisation"
+      (perm
+        ? 'Accès Firestore refusé (<b>Missing or insufficient permissions</b>).<br><br>' +
+          'Ouvre la <b>console Firebase</b> → Firestore → <b>Règles</b>, colle le contenu du fichier ' +
+          '<code>firestore.rules</code> du projet, puis clique sur <b>Publier</b>.<br><br>' +
+          'La règle doit autoriser <code>request.auth.uid == userId</code> (compte Google).'
+        : 'Impossible de charger tes données depuis le cloud.<br><br>' +
+          'L\'application démarre avec des données vides. Vérifie ta connexion et recharge la page.<br><br>' +
+          'Les sauvegardes cloud pourraient échouer tant que Firebase n\'est pas accessible.'),
+      'Erreur de synchronisation'
     );
   }
 }

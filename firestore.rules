@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// Déployer : Firebase Console → Firestore → Règles → Coller → Publier
+// ou : firebase deploy --only firestore:rules
+//
+// Clé canonique du document : request.auth.uid (compte Google)
+// L'accès par e-mail est conservé temporairement pour la migration des anciennes données.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /utilisateurs/{userId} {
+      allow read, write: if request.auth != null
+        && (
+          request.auth.uid == userId
+          || request.auth.token.email == userId
+        );
+    }
+  }
+}

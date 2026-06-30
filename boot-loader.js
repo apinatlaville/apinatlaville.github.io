@@ -106,6 +106,17 @@
 
   window.ensureFormLibs = loadFormLibs;
 
+  window.ensureScanner = function () {
+    if (_lazyLoaded['scanner.js']) return Promise.resolve({ ok: true, name: 'scanner.js' });
+    if (_lazyLoading.scanner) return _lazyLoading.scanner;
+    _lazyLoading.scanner = loadScript('scanner.js').then(function (r) {
+      delete _lazyLoading.scanner;
+      reportFailed([r]);
+      return r;
+    });
+    return _lazyLoading.scanner;
+  };
+
   window.ensureScriptsForTab = function (tab) {
     var list = TAB_BUNDLES[tab];
     if (!list || !list.length) return Promise.resolve();
