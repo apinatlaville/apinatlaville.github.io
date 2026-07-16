@@ -35,7 +35,11 @@
     unsubData: null,
     heartbeatTimer: null,
     listeners: [],
-    firstRunHint: false
+    firstRunHint: false,
+    /** true une fois la logique « premier ouvert » appliquée */
+    joinResolved: false,
+    /** true = cet appareil (arrivé après) doit choisir Principal ou Secondaire */
+    needsRoleChoice: false
   };
 
   function now() { return Date.now(); }
@@ -140,9 +144,14 @@
   }
 
   function computeEffectiveRole(hub) {
+    // En attente de choix (2e appareil) : toujours Secondaire tant que non décidé
+    if (state.needsRoleChoice) return CONFIG.ROLES.SECONDARY;
+
     var pref = state.preferredRole || CONFIG.ROLES.PRIMARY;
     if (pref === CONFIG.ROLES.SECONDARY) return CONFIG.ROLES.SECONDARY;
+
     var remotePrimary = remotePrimaryAlive(hub);
+    // Un autre appareil est déjà Principal → on ne lui vole pas la priorité
     if (remotePrimary && remotePrimary !== getDeviceId()) {
       return CONFIG.ROLES.SECONDARY;
     }
@@ -172,6 +181,7 @@
       primaryAlive: !!remotePrimary,
       weAreClaimedPrimary: remotePrimary === getDeviceId(),
       firstRunHint: state.firstRunHint,
+      needsRoleChoice: !!state.needsRoleChoice,
       ttlMs: CONFIG.TTL_MS
     };
   }
@@ -237,22 +247,69 @@
     else if (typeof window.renderDeviceSessionPanel === 'function') {
       window.renderDeviceSessionPanel(getStatus());
     }
+    if (typeof window.renderDeviceRoleChoice === 'function') {
+      window.renderDeviceRoleChoice(getStatus());
+    }
+  }
+
+  /**
+   * Premier appareil ouvert = Principal (garde la priorité).
+   * Appareil suivant = Secondaire en attendant un choix explicite.
+   */
+  function resolveJoin() {
+    if (state.joinResolved) return;
+    state.joinResolved = true;
+
+    var remote = remotePrimaryAlive(state.hub);
+    var pref = state.preferredRole;
+
+    if (!remote || remote === getDeviceId()) {
+      // Personne d'autre n'est Principal vivant → cet appareil garde / prend la priorité
+      state.needsRoleChoice = false;
+      state.firstRunHint = false;
+      if (pref === CONFIG.ROLES.SECONDARY) {
+        state.effectiveRole = CONFIG.ROLES.SECONDARY;
+        writeHub(buildHubWrite({ role: CONFIG.ROLES.SECONDARY }, false, true));
+      } else {
+        writePreferredRole(CONFIG.ROLES.PRIMARY);
+        state.effectiveRole = CONFIG.ROLES.PRIMARY;
+        writeHub(buildHubWrite({ role: CONFIG.ROLES.PRIMARY }, true, false));
+      }
+      return;
+    }
+
+    // Un autre appareil est déjà Principal (premier ouvert) → lui laisse la priorité
+    state.effectiveRole = CONFIG.ROLES.SECONDARY;
+    if (pref === CONFIG.ROLES.SECONDARY) {
+      // Déjà choisi Secondaire précédemment : pas de popup
+      state.needsRoleChoice = false;
+    } else {
+      state.needsRoleChoice = true;
+    }
+    writeHub(buildHubWrite({ role: CONFIG.ROLES.SECONDARY }, false, false));
   }
 
   function heartbeat() {
     if (!state.started || window.isLocalMode) return;
     if (document.visibilityState && document.visibilityState !== 'visible') return;
+    if (!state.joinResolved) return;
 
-    var wantClaim = state.preferredRole === CONFIG.ROLES.PRIMARY
-      && state.effectiveRole === CONFIG.ROLES.PRIMARY;
     var remotePrimary = remotePrimaryAlive(state.hub);
-    if (wantClaim && remotePrimary && remotePrimary !== getDeviceId()) {
-      wantClaim = false;
+
+    // Ne jamais voler le Primary en silence : on ne claim que si on l'est déjà,
+    // ou s'il n'y a plus de Primary vivant et qu'on est en mode Principal effectif.
+    var wantClaim = false;
+    if (!state.needsRoleChoice
+        && state.preferredRole !== CONFIG.ROLES.SECONDARY
+        && state.effectiveRole === CONFIG.ROLES.PRIMARY) {
+      if (!remotePrimary || remotePrimary === getDeviceId()) {
+        wantClaim = true;
+      }
     }
 
     var hub = buildHubWrite({
       role: state.effectiveRole
-    }, wantClaim && (!remotePrimary || remotePrimary === getDeviceId()), false);
+    }, wantClaim, false);
 
     writeHub(hub).then(function () { refreshEffectiveFromHub(); });
   }
@@ -263,7 +320,21 @@
     } else {
       state.hub = { devices: {}, primaryDeviceId: null, primaryUpdatedAt: 0 };
     }
-    refreshEffectiveFromHub();
+    if (!state.joinResolved) {
+      resolveJoin();
+    } else {
+      // Si un Primary apparaît alors qu'on pensait être seul et qu'on n'a pas encore choisi
+      var remote = remotePrimaryAlive(state.hub);
+      if (remote && remote !== getDeviceId()
+          && state.preferredRole !== CONFIG.ROLES.SECONDARY
+          && state.effectiveRole === CONFIG.ROLES.PRIMARY
+          && !state.needsRoleChoice) {
+        // Course au démarrage : l'autre a claimé → on cède et on propose le choix
+        state.needsRoleChoice = true;
+        state.effectiveRole = CONFIG.ROLES.SECONDARY;
+      }
+      refreshEffectiveFromHub();
+    }
     emit();
   }
 
@@ -309,9 +380,12 @@
     state.userId = userId || null;
     state.label = guessLabel();
     getDeviceId();
+    state.joinResolved = false;
+    state.needsRoleChoice = false;
 
     if (window.isLocalMode || !userId) {
       state.started = true;
+      state.joinResolved = true;
       state.preferredRole = CONFIG.ROLES.PRIMARY;
       state.effectiveRole = CONFIG.ROLES.PRIMARY;
       state.hub = null;
@@ -319,18 +393,11 @@
       return Promise.resolve(getStatus());
     }
 
-    var pref = readPreferredRole();
-    if (!pref) {
-      pref = CONFIG.ROLES.PRIMARY;
-      writePreferredRole(pref);
-      state.firstRunHint = true;
-    } else {
-      state.preferredRole = pref;
-      state.firstRunHint = false;
-    }
-
+    // Ne pas forcer Primary avant d'avoir lu le hub (le 1er ouvert décide)
+    state.preferredRole = readPreferredRole();
+    state.firstRunHint = false;
     state.started = true;
-    state.effectiveRole = computeEffectiveRole(state.hub);
+    state.effectiveRole = CONFIG.ROLES.SECONDARY;
 
     var ref = presenceRef();
     if (ref && window.onSnapshot) {
@@ -343,6 +410,7 @@
         startHeartbeat();
       }).catch(function () {
         state.hub = { devices: {}, primaryDeviceId: null, primaryUpdatedAt: 0 };
+        resolveJoin();
         startHeartbeat();
         emit();
       });
@@ -368,11 +436,15 @@
       state.unsubData = null;
     }
     state.started = false;
+    state.joinResolved = false;
+    state.needsRoleChoice = false;
   }
 
   function claimPrimary() {
     writePreferredRole(CONFIG.ROLES.PRIMARY);
     state.firstRunHint = false;
+    state.needsRoleChoice = false;
+    state.joinResolved = true;
     state.effectiveRole = CONFIG.ROLES.PRIMARY;
     var hub = buildHubWrite({ role: CONFIG.ROLES.PRIMARY }, true, false);
     return writeHub(hub).then(function () {
@@ -384,6 +456,8 @@
   function switchToSecondary() {
     writePreferredRole(CONFIG.ROLES.SECONDARY);
     state.firstRunHint = false;
+    state.needsRoleChoice = false;
+    state.joinResolved = true;
     state.effectiveRole = CONFIG.ROLES.SECONDARY;
     var hub = buildHubWrite({ role: CONFIG.ROLES.SECONDARY }, false, true);
     return writeHub(hub).then(function () {
@@ -525,13 +599,21 @@
       list = '<li class="device-session-muted">Aucun autre appareil détecté pour l’instant.</li>';
     }
 
-    var hint = status.firstRunHint
-      ? '<p class="device-session-hint">Tu peux garder cet appareil en Principal, ou passer en mode simplifié pour scanner / consulter depuis un second écran.</p>'
-      : '';
+    var hint = '';
+    if (status.needsRoleChoice) {
+      hint = '<p class="device-session-hint">Un autre appareil est déjà <b>Principal</b>. Choisis ci-dessous : rester en mode simplifié, ou prendre le contrôle ici.</p>';
+    }
 
-    var actions = status.isSecondary
-      ? '<button type="button" class="bp device-session-btn" data-device-action="claim">Devenir principal</button>'
-      : '<button type="button" class="bs device-session-btn" data-device-action="secondary">Passer en mode simplifié</button>';
+    var actions = '';
+    if (status.needsRoleChoice) {
+      actions =
+        '<button type="button" class="bs device-session-btn" data-device-action="secondary">Rester en mode simplifié</button>' +
+        '<button type="button" class="bp device-session-btn" data-device-action="claim">Prendre le contrôle ici</button>';
+    } else if (status.isSecondary) {
+      actions = '<button type="button" class="bp device-session-btn" data-device-action="claim">Devenir principal</button>';
+    } else {
+      actions = '<button type="button" class="bs device-session-btn" data-device-action="secondary">Passer en mode simplifié</button>';
+    }
 
     return (
       '<div class="device-session-status">' +
@@ -567,20 +649,59 @@
     }
   }
 
+  window.renderDeviceRoleChoice = function (status) {
+    status = status || (window.DeviceSession && window.DeviceSession.getStatus());
+    var ov = document.getElementById('deviceRoleChoiceOv');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'deviceRoleChoiceOv';
+      ov.className = 'device-role-choice-ov';
+      ov.setAttribute('role', 'dialog');
+      ov.setAttribute('aria-modal', 'true');
+      ov.setAttribute('aria-labelledby', 'deviceRoleChoiceTitle');
+      document.body.appendChild(ov);
+    }
+
+    if (!status || !status.enabled || !status.needsRoleChoice) {
+      ov.hidden = true;
+      ov.innerHTML = '';
+      return;
+    }
+
+    var who = status.primaryLabel || 'un autre appareil';
+    ov.hidden = false;
+    ov.innerHTML =
+      '<div class="device-role-choice-card">' +
+        '<h2 id="deviceRoleChoiceTitle">Autre appareil déjà connecté</h2>' +
+        '<p><b>' + esc(who) + '</b> est Principal (premier ouvert). Il garde la priorité.</p>' +
+        '<p class="device-session-muted">Que veux-tu faire sur <b>cet</b> appareil ?</p>' +
+        '<div class="device-role-choice-actions">' +
+          '<button type="button" class="bp" data-device-action="secondary">Continuer en mode simplifié</button>' +
+          '<button type="button" class="bs" data-device-action="claim">Prendre le contrôle ici</button>' +
+        '</div>' +
+      '</div>';
+
+    bindPanelButtons(ov);
+  };
+
   window.applyDeviceRoleUi = function (status) {
     status = status || (window.DeviceSession && window.DeviceSession.getStatus());
     if (!status) return;
-    var secondary = !!(status.enabled && status.isSecondary);
-    document.body.classList.toggle('device-role-secondary', secondary);
-    document.body.classList.toggle('device-role-primary', !secondary);
+
+    // Pendant le choix : afficher l'UI secondaire (lecture) + popup de décision
+    var secondary = !!(status.enabled && (status.isSecondary || status.needsRoleChoice));
+    document.body.classList.toggle('device-role-secondary', secondary && !status.needsRoleChoice);
+    document.body.classList.toggle('device-role-primary', !secondary || status.needsRoleChoice);
+    document.body.classList.toggle('device-role-choosing', !!status.needsRoleChoice);
 
     var shell = document.getElementById('deviceSecondaryShell');
     if (shell) {
-      shell.hidden = !secondary;
-      shell.setAttribute('aria-hidden', secondary ? 'false' : 'true');
+      var showShell = secondary && !status.needsRoleChoice;
+      shell.hidden = !showShell;
+      shell.setAttribute('aria-hidden', showShell ? 'false' : 'true');
     }
 
-    if (secondary) {
+    if (showShellOrWatch(status)) {
       if (typeof window.renderDeviceSecondarySession === 'function') {
         window.renderDeviceSecondarySession();
       }
@@ -590,7 +711,12 @@
     }
 
     window.renderDeviceSessionPanel(status);
+    window.renderDeviceRoleChoice(status);
   };
+
+  function showShellOrWatch(status) {
+    return !!(status.enabled && status.isSecondary && !status.needsRoleChoice);
+  }
 
   window.renderDeviceSecondarySession = function () {
     var el = document.getElementById('deviceLiteSession');

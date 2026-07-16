@@ -191,3 +191,56 @@ body.device-role-secondary #errorToast {
   margin-bottom: 8px;
   line-height: 1.4;
 }
+
+/* Choix pour le 2e appareil (le 1er garde la priorité) */
+.device-role-choice-ov {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(10, 12, 18, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.device-role-choice-ov[hidden] {
+  display: none !important;
+}
+.device-role-choice-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--s2, #1a2030);
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 22px 20px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.device-role-choice-card h2 {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 17px;
+  margin: 0 0 12px;
+  color: var(--txt);
+}
+.device-role-choice-card p {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--txt);
+  margin: 0 0 10px;
+}
+.device-role-choice-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.device-role-choice-actions .bp,
+.device-role-choice-actions .bs {
+  width: 100%;
+}
+body.device-role-choosing #appShell,
+body.device-role-choosing .fab-wrapper,
+body.device-role-choosing .sync-dock-bar {
+  pointer-events: none;
+}
