@@ -391,29 +391,45 @@
     emit();
   }
 
+  /** Écriture présence sérialisée (évite que heartbeat écrase un claim) */
+  var _writeChain = Promise.resolve();
+  var _claimInFlight = false;
+
+  function enqueuePresence(fn) {
+    _writeChain = _writeChain.then(fn, fn);
+    return _writeChain;
+  }
+
   function heartbeat() {
     if (!state.started || window.isLocalMode || !state.userId) return;
     if (!state.joinResolved) return;
     if (document.visibilityState && document.visibilityState !== 'visible') return;
+    if (_claimInFlight) return;
 
-    var hub = cloneHub(state.hub);
-    if (state.effectiveRole === CONFIG.ROLES.PRIMARY && !state.needsRoleChoice) {
-      var remote = remotePrimaryAlive(hub);
-      if (!remote || remote === getDeviceId()) {
-        // On est (ou on redevient) le primary : refresh lease ; claim seulement si vide
-        if (!remote) hub = applyClaim(hub);
-        else hub = refreshPrimaryLease(hub);
-      } else {
-        // Quelqu’un d’autre est primary → on ne touche pas au claim
-        hub = applySecondaryPresence(hub);
-        state.effectiveRole = CONFIG.ROLES.SECONDARY;
-        state.controlStolen = true;
-      }
-    } else {
-      hub = applySecondaryPresence(hub);
-    }
+    enqueuePresence(function () {
+      return readHubOnce().then(function (fresh) {
+        state.hub = fresh || emptyHub();
+        var id = getDeviceId();
+        var hub = cloneHub(state.hub);
+        var remote = remotePrimaryAlive(hub);
 
-    writeHub(hub).then(function () { emit(); });
+        if (state.effectiveRole === CONFIG.ROLES.PRIMARY && !state.needsRoleChoice) {
+          if (remote && remote !== id) {
+            hub = applySecondaryPresence(hub);
+            state.effectiveRole = CONFIG.ROLES.SECONDARY;
+            state.controlStolen = true;
+          } else if (remote === id) {
+            hub = refreshPrimaryLease(hub);
+          } else {
+            hub = applyClaim(hub);
+          }
+        } else {
+          hub = applySecondaryPresence(hub);
+        }
+
+        return writeHub(hub).then(function () { emit(); });
+      });
+    });
   }
 
   function startHeartbeat() {
@@ -435,7 +451,6 @@
       var id = getDeviceId();
       hub = touchSelf(hub, 'offline');
       if (hub.devices[id]) hub.devices[id].lastSeen = now() - CONFIG.TTL_MS - 1000;
-      // Si on est primary, libérer le claim pour ne pas laisser un fantôme
       if (hub.primaryDeviceId === id) {
         hub.primaryDeviceId = null;
         hub.primaryUpdatedAt = 0;
@@ -471,6 +486,7 @@
     state.controlStolen = false;
     state.myClaimedAt = null;
     state.hub = emptyHub();
+    _claimInFlight = false;
 
     if (window.isLocalMode || !userId) {
       state.started = true;
@@ -483,7 +499,6 @@
 
     state.preferredRole = readPreferredRole();
     state.started = true;
-    // Tant que join non résolu : UI Primary (évite le flash Secondaire)
     state.effectiveRole = CONFIG.ROLES.PRIMARY;
     emit();
 
@@ -497,7 +512,6 @@
         });
       }
       startHeartbeat();
-      // premier heartbeat un peu après le join
       setTimeout(heartbeat, 800);
       return getStatus();
     });
@@ -518,18 +532,60 @@
     state.joinResolved = false;
     state.needsRoleChoice = false;
     state.controlStolen = false;
+    _claimInFlight = false;
   }
 
   function claimPrimary() {
+    _claimInFlight = true;
     writePreferredRole(CONFIG.ROLES.PRIMARY);
     state.needsRoleChoice = false;
     state.controlStolen = false;
     state.joinResolved = true;
-    state.effectiveRole = CONFIG.ROLES.PRIMARY;
-    var hub = applyClaim(cloneHub(state.hub));
-    return writeHub(hub).then(function () {
+
+    function attempt(tryNo) {
+      return readHubOnce().then(function (fresh) {
+        state.hub = fresh || emptyHub();
+        var hub = applyClaim(cloneHub(state.hub));
+        return writeHub(hub).then(function () {
+          return readHubOnce().then(function (verify) {
+            state.hub = verify || hub;
+            var winner = state.hub.primaryDeviceId;
+            if (winner === getDeviceId()) {
+              state.effectiveRole = CONFIG.ROLES.PRIMARY;
+              return getStatus();
+            }
+            if (tryNo < 3) {
+              return new Promise(function (r) { setTimeout(r, 150 * tryNo); }).then(function () {
+                return attempt(tryNo + 1);
+              });
+            }
+            var forced = applyClaim(cloneHub(state.hub));
+            return writeHub(forced).then(function () {
+              state.hub = forced;
+              state.effectiveRole = CONFIG.ROLES.PRIMARY;
+              return getStatus();
+            });
+          });
+        });
+      });
+    }
+
+    return enqueuePresence(function () {
+      return attempt(1);
+    }).then(function (status) {
+      _claimInFlight = false;
+      state.effectiveRole = CONFIG.ROLES.PRIMARY;
       emit();
-      return getStatus();
+      return status || getStatus();
+    }).catch(function (err) {
+      _claimInFlight = false;
+      console.warn('claimPrimary:', err);
+      state.effectiveRole = CONFIG.ROLES.PRIMARY;
+      var hub = applyClaim(cloneHub(state.hub));
+      return writeHub(hub).then(function () {
+        emit();
+        return getStatus();
+      });
     });
   }
 
@@ -539,16 +595,20 @@
     state.controlStolen = false;
     state.joinResolved = true;
     state.effectiveRole = CONFIG.ROLES.SECONDARY;
-    var hub = cloneHub(state.hub);
-    var id = getDeviceId();
-    // Libérer le claim si on le détenait
-    if (hub.primaryDeviceId === id) {
-      hub.primaryDeviceId = null;
-      hub.primaryUpdatedAt = 0;
-      hub.primaryClaimedAt = 0;
-    }
-    hub = applySecondaryPresence(hub);
-    return writeHub(hub).then(function () {
+
+    return enqueuePresence(function () {
+      return readHubOnce().then(function (fresh) {
+        var hub = cloneHub(fresh || state.hub);
+        var id = getDeviceId();
+        if (hub.primaryDeviceId === id) {
+          hub.primaryDeviceId = null;
+          hub.primaryUpdatedAt = 0;
+          hub.primaryClaimedAt = 0;
+        }
+        hub = applySecondaryPresence(hub);
+        return writeHub(hub);
+      });
+    }).then(function () {
       emit();
       return getStatus();
     });
