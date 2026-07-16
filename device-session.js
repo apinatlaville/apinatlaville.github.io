@@ -283,29 +283,35 @@
   function resolveJoin() {
     if (state.joinResolved) return Promise.resolve();
 
-    return readHubOnce().then(function (hub) {
-      state.hub = hub || emptyHub();
+    // Double lecture : laisse le temps au Primary déjà ouvert d’être visible
+    return readHubOnce().then(function (hub1) {
+      state.hub = hub1 || emptyHub();
+      if (remotePrimaryAlive(state.hub)) return state.hub;
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          readHubOnce().then(function (hub2) {
+            state.hub = hub2 || state.hub || emptyHub();
+            resolve(state.hub);
+          });
+        }, 600);
+      });
+    }).then(function () {
       var remote = remotePrimaryAlive(state.hub);
       var pref = state.preferredRole;
       var id = getDeviceId();
 
-      // Cas 1 : un Primary vivant ≠ moi → je suis le SUIVANT (choix)
+      // Cas 1 : un Primary vivant ≠ moi → je suis le SUIVANT → TOUJOURS le choix
       if (remote && remote !== id) {
-        state.needsRoleChoice = pref !== CONFIG.ROLES.SECONDARY;
+        state.needsRoleChoice = true;
         state.controlStolen = false;
         state.effectiveRole = CONFIG.ROLES.SECONDARY;
-        if (pref !== CONFIG.ROLES.SECONDARY) {
-          // ne pas encore figer la préférence tant que le choix n’est pas fait
-        } else {
-          writePreferredRole(CONFIG.ROLES.SECONDARY);
-        }
         state.joinResolved = true;
         return writeHub(applySecondaryPresence(cloneHub(state.hub))).then(function () {
           emit();
         });
       }
 
-      // Cas 2 : préférence Secondaire et pas de primary (ou c’est moi expiré) → rester secondaire
+      // Cas 2 : préférence Secondaire et pas de primary → rester secondaire (sans popup)
       if (pref === CONFIG.ROLES.SECONDARY) {
         state.needsRoleChoice = false;
         state.controlStolen = false;
@@ -323,21 +329,18 @@
       state.effectiveRole = CONFIG.ROLES.PRIMARY;
       var claimed = applyClaim(cloneHub(state.hub));
       return writeHub(claimed).then(function () {
-        // Relecture anti-course : si un autre a claimé plus tôt, on cède
         return readHubOnce().then(function (again) {
           state.hub = again || claimed;
           var winner = remotePrimaryAlive(state.hub);
           if (winner && winner !== id) {
             var theirClaim = Number(state.hub.primaryClaimedAt || 0);
             var myClaim = Number(state.myClaimedAt || 0);
-            // L’autre a un claim plus ancien (ou égal + autre id) → il était premier
             if (!myClaim || theirClaim <= myClaim) {
               state.effectiveRole = CONFIG.ROLES.SECONDARY;
               state.needsRoleChoice = true;
               state.controlStolen = false;
               return writeHub(applySecondaryPresence(cloneHub(state.hub)));
             }
-            // Sinon on re-claim (notre claim est plus ancien)
             return writeHub(applyClaim(cloneHub(state.hub)));
           }
           return state.hub;
@@ -784,13 +787,21 @@
     status = status || (window.DeviceSession && window.DeviceSession.getStatus());
     if (!status) return;
 
-    // Avant résolution du join : garder l’UI complète (pas de flash secondaire)
     var secondary = !!(status.enabled && status.joinResolved && status.isSecondary && !status.needsRoleChoice);
     var choosing = !!(status.enabled && status.needsRoleChoice);
 
     document.body.classList.toggle('device-role-secondary', secondary);
-    document.body.classList.toggle('device-role-primary', !secondary);
+    document.body.classList.toggle('device-role-primary', !secondary && !choosing);
     document.body.classList.toggle('device-role-choosing', choosing);
+
+    // Bloquer le scroll de la page principale (sous shell / sous popup)
+    if (secondary || choosing) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    }
 
     var shell = document.getElementById('deviceSecondaryShell');
     if (shell) {

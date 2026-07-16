@@ -90,6 +90,8 @@
   inset: 0;
   z-index: 9000;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   background:
     radial-gradient(ellipse 90% 55% at 50% -15%, rgba(91, 154, 255, 0.1), transparent 52%),
     linear-gradient(180deg, var(--bg, #171c2a) 0%, var(--s1, #141824) 100%);
@@ -98,11 +100,23 @@
 #deviceSecondaryShell[hidden] {
   display: none !important;
 }
+body.device-role-secondary,
+body.device-role-choosing {
+  overflow: hidden !important;
+  height: 100%;
+  width: 100%;
+  position: fixed;
+  inset: 0;
+}
 body.device-role-secondary #appShell,
+body.device-role-choosing #appShell,
 body.device-role-secondary .fab-wrapper,
-body.device-role-secondary .sync-dock-bar {
+body.device-role-choosing .fab-wrapper,
+body.device-role-secondary .sync-dock-bar,
+body.device-role-choosing .sync-dock-bar {
   visibility: hidden;
   pointer-events: none;
+  overflow: hidden !important;
 }
 body.device-role-secondary #locPopup,
 body.device-role-secondary #locBackdrop,
