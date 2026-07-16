@@ -151,6 +151,7 @@
             <span id="cDot" class="cloud-status-dot"></span>
             <span class="cloud-status-txt"><span class="cloud-status-txt-track"><span id="cTxt">Init...</span><span id="cTxtExtra" class="cloud-status-extra"></span></span></span>
           </div>
+          <span id="deviceRoleChip" class="device-role-chip" hidden>Principal</span>
           <div class="hdr-actions-btns">
             <button class="btn-settings" id="btnRefresh" title="Actualiser la page" aria-label="Actualiser"><span data-icon="refresh-cw"></span></button>
             <button class="btn-settings" id="btnOpenSettings" title="Paramètres" aria-label="Paramètres"><span data-icon="settings"></span></button>
@@ -364,6 +365,15 @@
   
   <div class="set-row"><div><div class="set-lbl">Alerte d'Initialisation</div><div class="set-sub">Affiche les pastilles rouges (À imprimer/Scanner)</div></div><button class="toggle-btn" id="btnInitWarnToggle">Activé</button></div>
 
+  <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Appareils connectés</h3>
+  <div class="set-row" style="flex-direction:column; align-items:stretch;">
+    <div style="margin-bottom:12px;">
+      <div class="set-lbl">Principal / Secondaire</div>
+      <div class="set-sub">Le Principal a l'app complète. Le Secondaire sert à scanner et consulter (sans écraser les données).</div>
+    </div>
+    <div id="deviceSessionPanel" class="device-session-panel" aria-live="polite"></div>
+  </div>
+
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Modules de l'Accueil</h3>
   <div class="set-row"><div><div class="set-lbl">Accès Rapide (Code)</div></div><button class="toggle-btn" id="btnDashHeroToggle">Oui</button></div>
   <div class="set-row"><div><div class="set-lbl">Statut des révisions</div></div><button class="toggle-btn" id="btnDashRevToggle">Oui</button></div>
@@ -417,6 +427,43 @@
     </main><!-- .app-viewport -->
   </div><!-- .app-workspace -->
 </div><!-- #appShell -->
+
+<div id="deviceSecondaryShell" class="device-secondary-shell" hidden aria-hidden="true">
+  <div class="device-lite-inner">
+    <div class="device-lite-header">
+      <div>
+        <h1 class="device-lite-title">Mode simplifié</h1>
+        <p class="device-lite-sub">Secondaire — scan, recherche, consultation</p>
+      </div>
+      <span id="deviceRoleChipLite" class="device-role-chip device-role-chip--secondary">Secondaire</span>
+    </div>
+
+    <div class="device-lite-block">
+      <h3>Recherche</h3>
+      <div class="device-lite-search-row">
+        <input type="text" id="deviceLiteSearchInput" placeholder="Code PH-8X2 ou titre" autocomplete="off">
+        <button type="button" class="bp" onclick="window.deviceLiteSearch()">Ouvrir</button>
+      </div>
+    </div>
+
+    <div class="device-lite-block">
+      <h3>Actions</h3>
+      <div class="device-lite-actions">
+        <button type="button" class="bp" id="btnDeviceLiteCam" onclick="window.openCam && window.openCam()"><span data-icon="camera"></span> Scanner</button>
+      </div>
+    </div>
+
+    <div class="device-lite-block">
+      <h3>Session Synchrotron</h3>
+      <div id="deviceLiteSession"></div>
+    </div>
+
+    <div class="device-lite-block">
+      <h3>Appareils connectés</h3>
+      <div id="deviceSessionPanelLite" class="device-session-panel" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
 
 <div class="sync-dock-bar" id="syncDockBar">
   <div id="syncSessionDock" class="sync-dock mini idle" aria-live="polite"></div>
@@ -620,7 +667,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   const firebaseConfig = {
@@ -647,6 +694,7 @@
       window.doc = doc;
       window.getDoc = getDoc;
       window.setDoc = setDoc;
+      window.onSnapshot = onSnapshot;
       window.auth = auth;
       window.signInWithCredential = signInWithCredential;
       window.GoogleAuthProvider = GoogleAuthProvider;
@@ -715,6 +763,11 @@
     cssShell.rel = 'stylesheet';
     cssShell.href = 'ui-shell.css?v=' + v;
     document.head.appendChild(cssShell);
+
+    var cssDevice = document.createElement('link');
+    cssDevice.rel = 'stylesheet';
+    cssDevice.href = 'device-session.css?v=' + v;
+    document.head.appendChild(cssDevice);
 
     ['flatpickr.min.css', 'choices.min.css', 'form-controls.css'].forEach(function (file) {
       var l = document.createElement('link');

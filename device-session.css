@@ -1,0 +1,193 @@
+/* device-session.css — multi-appareils Principal / Secondaire */
+
+.device-role-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--bd);
+  color: var(--mut);
+  background: var(--s2);
+  white-space: nowrap;
+}
+.device-role-chip--primary {
+  color: var(--grn);
+  border-color: color-mix(in srgb, var(--grn) 40%, transparent);
+}
+.device-role-chip--secondary {
+  color: var(--gold);
+  border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+}
+
+.device-session-panel {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 14px;
+}
+.device-session-role,
+.device-session-primary-line {
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: var(--txt);
+}
+.device-session-muted {
+  color: var(--mut);
+  font-size: 12px;
+  margin: 0;
+}
+.device-session-warn {
+  color: var(--gold);
+  font-size: 13px;
+}
+.device-session-hint {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 8px 0 12px;
+  line-height: 1.4;
+}
+.device-session-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.device-session-list li {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--s3);
+  border: 1px solid var(--bd);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.device-session-dev-label {
+  color: var(--txt);
+  font-weight: 600;
+}
+.device-session-dev-meta {
+  color: var(--mut);
+  font-size: 11px;
+}
+.device-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.device-session-btn {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Shell secondaire : l'app complète reste dans le DOM (aucune feature retirée) */
+#deviceSecondaryShell {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  overflow: auto;
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -15%, rgba(91, 154, 255, 0.1), transparent 52%),
+    linear-gradient(180deg, var(--bg, #171c2a) 0%, var(--s1, #141824) 100%);
+  padding: 20px 16px 40px;
+}
+#deviceSecondaryShell[hidden] {
+  display: none !important;
+}
+body.device-role-secondary #appShell,
+body.device-role-secondary .fab-wrapper,
+body.device-role-secondary .sync-dock-bar {
+  visibility: hidden;
+  pointer-events: none;
+}
+body.device-role-secondary #locPopup,
+body.device-role-secondary #locBackdrop,
+body.device-role-secondary .ov,
+body.device-role-secondary #errorToast {
+  z-index: 9500;
+}
+
+.device-lite-inner {
+  max-width: 440px;
+  margin: 0 auto;
+}
+.device-lite-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.device-lite-title {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 18px;
+  margin: 0;
+  color: var(--txt);
+}
+.device-lite-sub {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 4px 0 0;
+}
+.device-lite-block {
+  margin-bottom: 16px;
+}
+.device-lite-block h3 {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 13px;
+  margin: 0 0 8px;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.device-lite-search-row {
+  display: flex;
+  gap: 8px;
+}
+.device-lite-search-row input {
+  flex: 1;
+  background: var(--s3);
+  border: 1px solid var(--bd);
+  color: var(--txt);
+  padding: 10px 12px;
+  border-radius: 10px;
+  outline: none;
+  font-size: 15px;
+}
+.device-lite-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.device-lite-actions .bp,
+.device-lite-actions .bs {
+  width: 100%;
+}
+.device-lite-session-card {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 14px;
+}
+.device-lite-session-label {
+  font-size: 11px;
+  color: var(--mut);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.device-lite-session-progress {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--acc);
+  margin: 6px 0;
+}
+.device-lite-session-title {
+  font-size: 14px;
+  color: var(--txt);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}

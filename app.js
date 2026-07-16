@@ -1304,6 +1304,22 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.done');
   if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
   if (typeof window.setBootStep === 'function') window.setBootStep('data');
+
+  if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
+    var deviceUserId = window.isLocalMode ? null : (user && user.sub);
+    Promise.resolve(window.DeviceSession.start(deviceUserId)).then(function () {
+      if (typeof window.applyDeviceRoleUi === 'function') {
+        window.applyDeviceRoleUi(window.DeviceSession.getStatus());
+      }
+      if (window.docRef && window.DeviceSession.watchUserData
+          && window.DeviceSession.isSecondary && window.DeviceSession.isSecondary()) {
+        window.DeviceSession.watchUserData(window.docRef);
+      }
+    }).catch(function (err) {
+      console.warn('DeviceSession start:', err);
+    });
+  }
+
   if (window._pendingTab) {
     const pending = window._pendingTab;
     const reset = window._pendingTabReset;
@@ -1350,6 +1366,20 @@ window.save = async function() {
       "Sauvegarde désactivée"
     );
     return;
+  }
+
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    console.warn('☁️ Save complète refusée : appareil en mode Secondaire.');
+    return;
+  }
+
+  if (!window.D.meta) window.D.meta = {};
+  window.D.meta.revision = (Number(window.D.meta.revision) || 0) + 1;
+  window.D.meta.updatedAt = Date.now();
+  if (window.DeviceSession && typeof window.DeviceSession.getDeviceId === 'function') {
+    window.D.meta.updatedBy = window.DeviceSession.getDeviceId();
+    window.D.meta.primaryDeviceId = window.DeviceSession.getDeviceId();
   }
 
   try {

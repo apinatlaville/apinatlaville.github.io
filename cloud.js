@@ -177,6 +177,9 @@ window.handleCredentialResponse = async function(response) {
 // 2️⃣ BOUTON DÉCONNEXION
 window.signOut = async function() {
   console.log("🚪 Déconnexion demandée...");
+  if (window.DeviceSession && typeof window.DeviceSession.stop === 'function') {
+    try { window.DeviceSession.stop(); } catch (e) { /* ignore */ }
+  }
   localStorage.removeItem('active_mode');
   window.appLaunched = false;
   window.appReady = false;

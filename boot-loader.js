@@ -12,6 +12,7 @@
     'ui-appearance.js': true,
     'ui-components.js': true,
     'cloud.js': true,
+    'device-session.js': true,
     'data.js': true,
     'anki-app-v2.js': true,
     'app.js': true
@@ -172,6 +173,8 @@
       .then(function (r) { track([r]); })
       .then(function () { return loadParallel(['cloud.js', 'data.js']); })
       .then(function (rs) { track(rs); })
+      .then(function () { return loadScript('device-session.js'); })
+      .then(function (r) { track([r]); })
       .then(function () {
         return loadParallel(['anki-algo.js', 'anki-algo-v2.js', 'nav-config.js']);
       })

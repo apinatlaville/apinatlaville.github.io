@@ -61,14 +61,35 @@ window.showQR = function(uid) {
 window.markOnePrinted = function() {
   const c = window.D.cours.find(x => x.uid===window.curQRUid);
   if (!c) return;
-  
-  if(c.stat === 'pending') c.stat = 'printed';
-  else if(c.stat === 'printed') c.stat = 'active';
-  else c.stat = 'printed';
-  
-  window.save(); 
-  window.renderCours(); 
-  window.showQR(window.curQRUid); 
+
+  const nextStat = c.stat === 'pending' ? 'printed'
+    : c.stat === 'printed' ? 'active'
+    : 'printed';
+  const uid = c.uid;
+
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()) {
+    window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) return;
+      const row = data.cours.find(x => x.uid === uid);
+      if (row) row.stat = nextStat;
+    }).then(function () {
+      window.renderCours && window.renderCours();
+      window.showQR(uid);
+      window.renderPrintGrid && window.renderPrintGrid();
+    }).catch(function (err) {
+      console.warn('Scan secondaire:', err);
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Impossible de synchroniser le statut depuis cet appareil.', 'Mode Secondaire');
+      }
+    });
+    return;
+  }
+
+  c.stat = nextStat;
+  window.save();
+  window.renderCours();
+  window.showQR(window.curQRUid);
   window.renderPrintGrid();
 };
 
@@ -229,6 +250,22 @@ window.manualScan = function() {
 window.processScan = function(uid) {
   window.stopCam();
   window.doLocate(uid);
+
+  // Secondaire : initialiser le statut printed → active via patch cloud ciblé
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()
+      && window.D && Array.isArray(window.D.cours)) {
+    var c = window.D.cours.find(function (x) { return x.uid === uid; });
+    if (c && c.stat === 'printed') {
+      window.DeviceSession.saveSecondaryPatch(function (data) {
+        if (!Array.isArray(data.cours)) return;
+        var row = data.cours.find(function (x) { return x.uid === uid; });
+        if (row && row.stat === 'printed') row.stat = 'active';
+      }).catch(function (err) {
+        console.warn('processScan secondaire:', err);
+      });
+    }
+  }
 };
 
 window.stopCam = function() {
