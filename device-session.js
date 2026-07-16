@@ -469,6 +469,8 @@
   function canFullSave() {
     if (window.isLocalMode) return true;
     if (!state.started) return true;
+    // Si multi-appareils désactivé (pas d'userId cloud), toujours autoriser
+    if (!state.userId) return true;
     return state.effectiveRole === CONFIG.ROLES.PRIMARY;
   }
 

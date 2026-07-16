@@ -3,9 +3,9 @@ rules_version = '2';
 // Déployer : Firebase Console → Firestore → Règles → Coller → Publier
 // ou : firebase deploy --only firestore:rules
 //
-// Clé canonique du document : request.auth.uid (compte Google)
-// L'accès par e-mail est conservé temporairement pour la migration des anciennes données.
-// Sous-collection presence/ : hub multi-appareils (Principal / Secondaire).
+// Clé canonique : request.auth.uid
+// Repli e-mail pour anciennes données.
+// Sous-chemins (presence/hub, etc.) via {document=**} — ne bloque pas le doc principal.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -20,7 +20,7 @@ service cloud.firestore {
     match /utilisateurs/{userId} {
       allow read, write: if isOwner(userId);
 
-      match /presence/{docId} {
+      match /{document=**} {
         allow read, write: if isOwner(userId);
       }
     }

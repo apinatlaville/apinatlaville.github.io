@@ -1041,7 +1041,7 @@ function isFirestorePermissionDenied(err) {
   const code = err.code || err.code_;
   if (code === 'permission-denied') return true;
   const msg = String(err.message || err);
-  return /insufficient permissions|permission.denied|missing or insufficient/i.test(msg);
+  return /insufficient permissions|permission[\s_-]?denied|missing or insufficient|Accès Firestore refusé/i.test(msg);
 }
 
 /** Charge le document Firestore via l'UID Google (clé canonique), avec repli e-mail et migration. */
@@ -1143,6 +1143,10 @@ async function initApp(user) {
       if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
       window.cloudConnected = false;
     } else {
+      // Attendre Firebase avant de tester les modules (évite faux « Modules manquants »)
+      if (window.firebaseReady) {
+        try { await window.firebaseReady; } catch (fe) { throw fe; }
+      }
       if (window.doc && window.db && window.getDoc) {
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.start', { uid: user.sub, email: user.email });
         const cloud = await (window.bootProfiler
@@ -1160,7 +1164,7 @@ async function initApp(user) {
         }
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
       } else {
-        throw new Error("Modules Firebase manquants.");
+        throw new Error("Modules Firebase manquants (getDoc/db indisponibles après init).");
       }
     }
   } catch (e) {
@@ -1170,7 +1174,19 @@ async function initApp(user) {
       cloudInitFailed = true;
       cloudInitError = e;
     }
-    window.D = window.D || null;
+    // Repli : ne pas écraser avec du vide si une sauvegarde locale existe
+    if (!window.D) {
+      try {
+        const backup = localStorage.getItem('backup_local_cours');
+        if (backup) {
+          window.D = JSON.parse(backup);
+          console.warn('☁️ Cloud indisponible — reprise de la sauvegarde locale.');
+          if (window.bootMark) window.bootMark('initApp.cloud.fallbackLocal');
+        }
+      } catch (parseErr) {
+        window.D = null;
+      }
+    }
     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
     if (window.bootMark) window.bootMark('initApp.error', { error: e.message });
     console.error("Erreur d'initialisation :", e);
@@ -1306,12 +1322,15 @@ async function initApp(user) {
   if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
   if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
-    var deviceUserId = window.isLocalMode ? null : (user && user.sub);
+    // Multi-appareils uniquement si le cloud est OK — ne jamais bloquer le chargement des données
+    var deviceUserId = (!window.isLocalMode && window.cloudConnected && user && user.sub)
+      ? user.sub
+      : null;
     Promise.resolve(window.DeviceSession.start(deviceUserId)).then(function () {
       if (typeof window.applyDeviceRoleUi === 'function') {
         window.applyDeviceRoleUi(window.DeviceSession.getStatus());
       }
-      if (window.docRef && window.DeviceSession.watchUserData
+      if (window.docRef && window.cloudConnected && window.DeviceSession.watchUserData
           && window.DeviceSession.isSecondary && window.DeviceSession.isSecondary()) {
         window.DeviceSession.watchUserData(window.docRef);
       }
@@ -1339,6 +1358,10 @@ async function initApp(user) {
     );
   } else if (cloudInitFailed) {
     const perm = cloudInitError && isFirestorePermissionDenied(cloudInitError);
+    const detail = cloudInitError && cloudInitError.message
+      ? String(cloudInitError.message)
+      : String(cloudInitError || 'erreur inconnue');
+    const hadLocalFallback = !!(window.D && window.D.cours && window.D.cours.length);
     window.sysAlert(
       (perm
         ? 'Accès Firestore refusé (<b>Missing or insufficient permissions</b>).<br><br>' +
@@ -1346,8 +1369,11 @@ async function initApp(user) {
           '<code>firestore.rules</code> du projet, puis clique sur <b>Publier</b>.<br><br>' +
           'La règle doit autoriser <code>request.auth.uid == userId</code> (compte Google).'
         : 'Impossible de charger tes données depuis le cloud.<br><br>' +
-          'L\'application démarre avec des données vides. Vérifie ta connexion et recharge la page.<br><br>' +
-          'Les sauvegardes cloud pourraient échouer tant que Firebase n\'est pas accessible.'),
+          (hadLocalFallback
+            ? 'Une <b>sauvegarde locale</b> a été rechargée pour ne pas perdre tes cours.<br><br>'
+            : 'Aucune sauvegarde locale utilisable — l\'app peut démarrer vide.<br><br>') +
+          'Détail : <code>' + window.escHtml(detail) + '</code><br><br>' +
+          'Vérifie ta connexion, les règles Firestore, puis recharge la page.'),
       'Erreur de synchronisation'
     );
   }
