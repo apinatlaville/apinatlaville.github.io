@@ -3713,3 +3713,156 @@ body.nav-sidebar-left .nav-mobile-extras {
     left: 16px;
   }
 }
+
+/* ===== Labo LaTeX (sandbox MathLive) ===== */
+.latex-lab {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 8px 4px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.latex-lab-loading {
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  gap: 12px;
+}
+.latex-lab-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.latex-lab-title {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.latex-lab-desc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mut);
+  max-width: 52ch;
+  line-height: 1.4;
+}
+.latex-lab-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.latex-lab-snips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.latex-lab-snip {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  color: var(--txt);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.latex-lab-snip:hover {
+  background: var(--s3);
+  border-color: var(--acc, #5b9aff);
+}
+.latex-lab-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 820px) {
+  .latex-lab-grid { grid-template-columns: 1fr; }
+}
+.latex-lab-panel {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+.latex-lab-panel-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--mut);
+  font-weight: 600;
+}
+.latex-lab-field-wrap,
+.latex-lab-preview-wrap {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  padding: 14px 16px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+}
+.latex-lab-preview-wrap {
+  min-height: 160px;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(91, 154, 255, 0.08), transparent 70%),
+    var(--s2);
+}
+.latex-lab-field,
+.latex-lab-preview {
+  width: 100%;
+  font-size: 1.35rem;
+  --hue: 214;
+  --contains-highlight: color-mix(in oklab, var(--acc, #5b9aff) 25%, transparent);
+}
+.latex-lab-preview {
+  font-size: 1.75rem;
+  text-align: center;
+}
+.latex-lab-kb {
+  align-self: flex-start;
+}
+.latex-lab-code-panel { margin-top: 0; }
+.latex-lab-code {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 72px;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  color: var(--txt);
+}
+.latex-lab-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.latex-lab-error {
+  color: var(--red, #f07178);
+  font-size: 14px;
+}
+
+/* MathLive dans le thème sombre de l'app */
+.latex-lab math-field {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--txt);
+}
+.latex-lab math-field:focus-within {
+  outline: none;
+}

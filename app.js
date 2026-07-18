@@ -703,6 +703,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'settings': window.applySettings(); break;
     case 'logs': window.renderErrorLogs(); break;
     case 'test': break;
+    case 'latexTest': if (typeof window.renderLatexTest === 'function') window.renderLatexTest(); break;
     default: break;
   }
 };

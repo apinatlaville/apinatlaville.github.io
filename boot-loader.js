@@ -23,7 +23,8 @@
     ankiVizV2: ['anki-viz-v2.js'],
     print: ['scanner.js'],
     cours: ['scanner.js'],
-    test: ['scanner.js']
+    test: ['scanner.js'],
+    latexTest: ['latex-test.js']
   };
 
   var DEFERRED_AFTER_BOOT = [
