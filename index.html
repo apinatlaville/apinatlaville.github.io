@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260718n';
+  window.__BOOT_CACHE_V = '20260718o';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -283,12 +283,28 @@
 </div>
 
 <div class="pane ui-pane" id="paneNotes">
-  <div class="home-hero" style="text-align:left;">
-    <h2>Suivi des Notes</h2>
-    <p>Ce graphique affiche les notes attribuées à tes documents de type "DS" ou "Khôlle". Rentre une note lors de la création d'un document pour la voir apparaître ici.</p>
-    <div class="chart-container">
-      <div class="chart-wrapper" id="chartWrapper"></div>
+  <div class="notes-root" data-testid="notes-root">
+    <div class="notes-hdr">
+      <div>
+        <h2>Suivi des Notes</h2>
+        <p class="notes-sub">Évolution des notes DS et Khôlles dans le temps. Ajoute une note sur un document DS / Khôlle pour la voir ici.</p>
+      </div>
     </div>
+    <div class="filters notes-filters" id="notesFilters">
+      <select class="fi" id="fltNotesType" aria-label="Type d'épreuve">
+        <option value="">DS + Khôlles</option>
+        <option value="DS">DS uniquement</option>
+        <option value="KHOLLE">Khôlles uniquement</option>
+      </select>
+      <select class="fi" id="fltNotesMat" aria-label="Matière">
+        <option value="">Toutes matières</option>
+      </select>
+    </div>
+    <div class="notes-stats" id="notesStats"></div>
+    <div class="notes-chart-card">
+      <div class="notes-chart" id="chartWrapper"></div>
+    </div>
+    <div class="notes-list" id="notesList"></div>
   </div>
 </div>
 

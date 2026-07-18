@@ -893,36 +893,222 @@ window.drawKholle = function() {
   window.doLocate(winner.uid);
 };
 
+window._notesFilter = window._notesFilter || { type: '', mat: '' };
+
+function _notesParseScore(c) {
+  const n = parseFloat(c && c.note);
+  return Number.isFinite(n) ? n : null;
+}
+
+function _notesAllScored() {
+  return (window.D.cours || []).filter(c => {
+    if (c.type !== 'DS' && c.type !== 'KHOLLE') return false;
+    return _notesParseScore(c) != null;
+  });
+}
+
+function _notesFmtAvg(vals) {
+  if (!vals.length) return '—';
+  const m = vals.reduce((s, n) => s + n, 0) / vals.length;
+  return (Math.round(m * 10) / 10).toFixed(1).replace(/\.0$/, '');
+}
+
+function _notesFmtDate(iso) {
+  if (!iso || iso.length < 10) return '—';
+  return iso.substring(8, 10) + '/' + iso.substring(5, 7);
+}
+
+function _notesMatLabel(matId) {
+  const m = (window.D.matieres || []).find(x => x.id === matId);
+  return m ? (m.label || m.name || matId) : (matId || '?');
+}
+
+function _notesMatColor(matId) {
+  const m = (window.D.matieres || []).find(x => x.id === matId);
+  return (m && m.color) || 'var(--acc)';
+}
+
+function _notesBuildEvolutionSvg(docs) {
+  const W = 720, H = 240, PAD_L = 36, PAD_R = 18, PAD_T = 22, PAD_B = 36;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+  const yOf = n => PAD_T + innerH - (Math.max(0, Math.min(20, n)) / 20) * innerH;
+
+  // Axe X : points équidistants dans l'ordre chronologique (dates réelles en labels)
+  const n = docs.length;
+  const xOf = i => n === 1 ? PAD_L + innerW / 2 : PAD_L + (i / (n - 1)) * innerW;
+
+  const pts = docs.map((c, i) => {
+    const score = _notesParseScore(c);
+    return {
+      c,
+      i,
+      x: xOf(i),
+      y: yOf(score),
+      score,
+      isDs: c.type === 'DS'
+    };
+  });
+
+  const gridYs = [0, 5, 10, 15, 20].map(v => ({ v, y: yOf(v) }));
+  const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+  const area = pts.length
+    ? `${path} L ${pts[pts.length - 1].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} L ${pts[0].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} Z`
+    : '';
+
+  // Moyenne mobile visuelle (ligne horizontale de la moyenne filtrée)
+  const scores = pts.map(p => p.score);
+  const avg = scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null;
+  const avgY = avg != null ? yOf(avg) : null;
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="notes-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Évolution des notes">
+      <defs>
+        <linearGradient id="notesGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="var(--acc)" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${gridYs.map(g => `
+        <line x1="${PAD_L}" x2="${W - PAD_R}" y1="${g.y}" y2="${g.y}" class="notes-grid"/>
+        <text x="${PAD_L - 8}" y="${g.y + 3}" text-anchor="end" class="notes-axis">${g.v}</text>
+      `).join('')}
+      ${avgY != null ? `<line x1="${PAD_L}" x2="${W - PAD_R}" y1="${avgY}" y2="${avgY}" class="notes-avg-line"/>
+        <text x="${W - PAD_R}" y="${avgY - 6}" text-anchor="end" class="notes-avg-lbl">moy. ${_notesFmtAvg(scores)}</text>` : ''}
+      ${area ? `<path d="${area}" fill="url(#notesGrad)"/>` : ''}
+      ${pts.length > 1 ? `<path d="${path}" class="notes-line" fill="none"/>` : ''}
+      ${pts.map(p => {
+        const col = p.isDs ? 'var(--acc)' : 'var(--gold)';
+        const lbl = _notesFmtDate(p.c.date);
+        const tip = `${p.c.title || p.c.uid} · ${p.score}/20 · ${p.c.type === 'KHOLLE' ? 'Khôlle' : 'DS'}`;
+        return `
+          <g class="notes-pt" style="cursor:pointer" onclick="window.doLocate('${window.escHtml(p.c.uid)}')">
+            <title>${window.escHtml(tip)}</title>
+            <circle cx="${p.x}" cy="${p.y}" r="11" fill="transparent"/>
+            <circle cx="${p.x}" cy="${p.y}" r="5.5" fill="var(--bg)" stroke="${col}" stroke-width="2.5"/>
+            <text x="${p.x}" y="${p.y - 12}" text-anchor="middle" class="notes-pt-val" fill="${col}">${p.score}</text>
+            <text x="${p.x}" y="${H - 10}" text-anchor="middle" class="notes-axis">${window.escHtml(lbl)}</text>
+          </g>`;
+      }).join('')}
+    </svg>
+    <div class="notes-legend">
+      <span><span class="notes-leg-dot" style="background:var(--acc);"></span> DS</span>
+      <span><span class="notes-leg-dot" style="background:var(--gold);"></span> Khôlle</span>
+      <span><span class="notes-leg-line"></span> Moyenne (filtre)</span>
+    </div>
+  `;
+}
+
 window.renderNotes = function() {
   if (!window.D || !window.D.cours) return;
-  const notesDocs = window.D.cours.filter(c => (c.type === 'DS' || c.type === 'KHOLLE') && c.note !== '' && c.note !== undefined);
-  notesDocs.sort((a,b) => new Date(a.date) - new Date(b.date));
-  
-  const wrapper = window.$('chartWrapper');
-  if(!wrapper) return;
+  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '' });
 
-  if(!notesDocs.length) {
-    wrapper.innerHTML = `<div style="color:var(--mut); font-size:13px; width:100%; text-align:center; padding-bottom:20px;">Aucune note enregistrée pour le moment.<br>Ajoute un DS ou une Khôlle avec une note pour voir le graphique.</div>`;
+  const typeSel = window.$('fltNotesType');
+  const matSel = window.$('fltNotesMat');
+  if (typeSel && typeSel.value !== f.type) typeSel.value = f.type || '';
+
+  // Remplir le select matières (uniquement celles qui ont des notes)
+  if (matSel) {
+    const scored = _notesAllScored();
+    const matIds = [...new Set(scored.map(c => c.mat).filter(Boolean))].sort();
+    const opts = ['<option value="">Toutes matières</option>']
+      .concat(matIds.map(id => {
+        const m = (window.D.matieres || []).find(x => x.id === id);
+        const label = m ? `${m.label || id}${m.name && m.name !== m.label ? ' — ' + m.name : ''}` : id;
+        return `<option value="${window.escHtml(id)}"${f.mat === id ? ' selected' : ''}>${window.escHtml(label)}</option>`;
+      }));
+    const prev = matSel.value;
+    matSel.innerHTML = opts.join('');
+    if (f.mat && matIds.includes(f.mat)) matSel.value = f.mat;
+    else if (prev && matIds.includes(prev) && !f.mat) matSel.value = prev;
+    else matSel.value = f.mat || '';
+  }
+
+  const all = _notesAllScored().slice().sort((a, b) => {
+    const da = a.date || '';
+    const db = b.date || '';
+    if (da !== db) return da < db ? -1 : 1;
+    return (a.uid || '').localeCompare(b.uid || '');
+  });
+
+  const filtered = all.filter(c => {
+    if (f.type && c.type !== f.type) return false;
+    if (f.mat && c.mat !== f.mat) return false;
+    return true;
+  });
+
+  const avgAll = _notesFmtAvg(all.map(_notesParseScore));
+  const avgFilt = _notesFmtAvg(filtered.map(_notesParseScore));
+  const avgDs = _notesFmtAvg(all.filter(c => c.type === 'DS').map(_notesParseScore));
+  const avgKh = _notesFmtAvg(all.filter(c => c.type === 'KHOLLE').map(_notesParseScore));
+
+  const statsEl = window.$('notesStats');
+  if (statsEl) {
+    const filterActive = !!(f.type || f.mat);
+    statsEl.innerHTML = `
+      <div class="notes-stat">
+        <div class="notes-stat-val">${avgAll}<span class="notes-stat-unit">/20</span></div>
+        <div class="notes-stat-lbl">Moyenne générale</div>
+        <div class="notes-stat-sub">${all.length} note${all.length > 1 ? 's' : ''}</div>
+      </div>
+      <div class="notes-stat">
+        <div class="notes-stat-val">${avgDs}<span class="notes-stat-unit">/20</span></div>
+        <div class="notes-stat-lbl">Moyenne DS</div>
+      </div>
+      <div class="notes-stat">
+        <div class="notes-stat-val">${avgKh}<span class="notes-stat-unit">/20</span></div>
+        <div class="notes-stat-lbl">Moyenne Khôlles</div>
+      </div>
+      ${filterActive ? `
+        <div class="notes-stat notes-stat-filter">
+          <div class="notes-stat-val">${avgFilt}<span class="notes-stat-unit">/20</span></div>
+          <div class="notes-stat-lbl">Moyenne filtrée</div>
+          <div class="notes-stat-sub">${filtered.length} note${filtered.length > 1 ? 's' : ''}</div>
+        </div>` : ''}
+    `;
+  }
+
+  const wrapper = window.$('chartWrapper');
+  const listEl = window.$('notesList');
+  if (!wrapper) return;
+
+  if (!filtered.length) {
+    wrapper.innerHTML = `<div class="notes-empty">Aucune note pour ce filtre.<br>Ajoute un DS ou une Khôlle avec une note, ou élargis le filtre.</div>`;
+    if (listEl) listEl.innerHTML = '';
     return;
   }
 
-  let html = '';
-  notesDocs.forEach(c => {
-    const noteNum = parseFloat(c.note);
-    const heightPct = (noteNum / 20) * 100;
-    let colorClass = noteNum >= 10 ? 'var(--acc)' : 'var(--red)';
-    if(noteNum >= 15) colorClass = 'var(--grn)';
+  wrapper.innerHTML = _notesBuildEvolutionSvg(filtered);
 
-    html += `
-      <div class="chart-bar-group" onclick="window.doLocate('${window.escHtml(c.uid)}')" title="${window.escHtml(c.title)} : ${window.escHtml(c.note)}/20">
-        <div class="chart-bar" style="height: ${Math.max(5, heightPct)}%; background: linear-gradient(to top, transparent, ${colorClass}); border-top: 2px solid ${colorClass};">
-          <span class="chart-val" style="color:${colorClass}">${window.escHtml(c.note)}</span>
-        </div>
-        <div class="chart-lbl">${window.escHtml(c.mat)}</div>
+  if (listEl) {
+    listEl.innerHTML = `
+      <div class="notes-list-hdr">
+        <strong>Détail</strong>
+        <span class="anki-mut" style="font-size:12px;">${filtered.length} épreuve${filtered.length > 1 ? 's' : ''} · du plus ancien au plus récent</span>
       </div>
+      ${filtered.slice().reverse().map(c => {
+        const score = _notesParseScore(c);
+        const tone = score >= 15 ? 'good' : score >= 10 ? 'mid' : 'bad';
+        const typeLbl = c.type === 'KHOLLE' ? 'Khôlle' : 'DS';
+        const col = _notesMatColor(c.mat);
+        return `
+          <div class="notes-row" onclick="window.doLocate('${window.escHtml(c.uid)}')" role="button" tabindex="0">
+            <span class="notes-row-date">${window.escHtml(_notesFmtDate(c.date))}</span>
+            <span class="notes-row-type notes-type-${c.type === 'KHOLLE' ? 'kh' : 'ds'}">${typeLbl}</span>
+            <span class="anki-q-mat" style="background:${col};">${window.escHtml(_notesMatLabel(c.mat))}</span>
+            <span class="notes-row-title">${window.escHtml(c.title || c.uid)}</span>
+            <span class="notes-row-score notes-score-${tone}">${score}<span class="notes-stat-unit">/20</span></span>
+          </div>`;
+      }).join('')}
     `;
-  });
-  wrapper.innerHTML = html;
+  }
+};
+
+window.setNotesFilter = function(partial) {
+  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '' });
+  if (partial && Object.prototype.hasOwnProperty.call(partial, 'type')) f.type = partial.type || '';
+  if (partial && Object.prototype.hasOwnProperty.call(partial, 'mat')) f.mat = partial.mat || '';
+  window.renderNotes();
 };
 
 window.renderStats = function() {
@@ -1174,6 +1360,14 @@ bindClick('btnOrphanSelNone', () => window.orphanSelNone && window.orphanSelNone
 bindClick('btnOrphanAssign', () => window.openOrphanAssign && window.openOrphanAssign());
 
 ['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, () => window.renderCours()); });
+bindChange('fltNotesType', () => {
+  const el = window.$('fltNotesType');
+  window.setNotesFilter({ type: el ? el.value : '' });
+});
+bindChange('fltNotesMat', () => {
+  const el = window.$('fltNotesMat');
+  window.setNotesFilter({ mat: el ? el.value : '' });
+});
 bindClick('btnResetFilters', () => window.resetFilters());
 
 bindClick('btnSelPending', () => window.selPending());

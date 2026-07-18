@@ -20,8 +20,14 @@ window.demoData = {
     { uid: 'MA-7Z3', title: 'Espaces Vectoriels', type: 'COURS', rev: 'red', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: '2026-04-03' },
     { uid: 'MA-P4L', title: 'Séries Entières', type: 'TD', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'pending', date: '2026-04-04' },
     { uid: 'CH-W2N', title: 'Cristallographie', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: '2026-04-01' },
-    { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'DS', rev: 'red', note: '12', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: '2026-04-02' },
-    { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'KHOLLE', rev: 'green', note: '16', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: '2026-04-03' },
+    { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'DS', rev: 'red', note: '12', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: '2026-02-12' },
+    { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'KHOLLE', rev: 'green', note: '16', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: '2026-02-20' },
+    { uid: 'MA-D12', title: 'DS Analyse', type: 'DS', rev: 'orange', note: '11.5', mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: '2026-03-05' },
+    { uid: 'PH-K21', title: 'Colle Mécanique', type: 'KHOLLE', rev: 'green', note: '14', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: '2026-03-12' },
+    { uid: 'CH-K08', title: 'Colle Orga', type: 'KHOLLE', rev: 'orange', note: '13', mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: '2026-03-26' },
+    { uid: 'MA-K33', title: 'Colle Algèbre', type: 'KHOLLE', rev: 'green', note: '17', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: '2026-04-02' },
+    { uid: 'PH-D07', title: 'DS Optique', type: 'DS', rev: 'green', note: '15', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: '2026-04-10' },
+
     { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: '2026-04-04' },
     { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: '2026-04-05' },
     { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: '2026-04-05' }

@@ -793,6 +793,7 @@ window.saveCours = function() {
   window.renderCours();
   window.renderDashboard();
   window.renderClasseurs();
+  if (typeof window.renderNotes === 'function') window.renderNotes();
 };
 
 window.setNewColorCl = function(col) {
