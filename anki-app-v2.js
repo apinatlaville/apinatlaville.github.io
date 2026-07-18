@@ -1932,18 +1932,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       </div>
 
       <div class="anki-card-block">
-        <h3>${window.iconLabel('star', 'Importance — fenêtres de révision')}</h3>
-        <p class="anki-mut" style="font-size:12px;">Chaque carte a 1 à 5★. En phase <b>mature</b>, l'étoile définit <b>quand s'ouvre la fenêtre</b> et sa <b>largeur</b> (pas un poids dans un score composite).</p>
-        <table class="fi" style="width:100%;font-size:12px;border-collapse:collapse;margin-top:8px;">
-          <thead><tr style="color:var(--mut);font-size:11px;"><th style="text-align:left;padding:4px 8px;">★</th><th style="text-align:left;padding:4px 8px;">Ouverture</th><th style="text-align:left;padding:4px 8px;">Fenêtre</th></tr></thead>
-          <tbody>
-            ${[5,4,3,2,1].map(st => {
-              const w = window.AnkiAlgoV2.scaledWindow(st);
-              return `<tr><td style="padding:4px 8px;">★${st}</td><td style="padding:4px 8px;">~${w.openAfter} j</td><td style="padding:4px 8px;">${w.width} j</td></tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-        <p class="anki-mut" style="font-size:11px;margin-top:8px;">Cartes <b>X-</b> et <b>W-</b> : fenêtres ★ ci-dessus. Cartes <b>Y-</b> : paliers SM-2 par ★ (bloc ci-dessous).</p>
+        <h3>${window.iconLabel('star', 'Importance — fenêtres de révision (X-)')}</h3>
+        <p class="anki-mut" style="font-size:12px;">Chaque carte a 1 à 5★. En phase <b>mature</b>, l'étoile fixe <b>quand s'ouvre la fenêtre</b> et sa <b>largeur</b> — même modèle que la carte mentale. Les <b>W-</b> restent calendaires (date limite).</p>
+        ${window.AnkiAlgoV2.renderStarWindowsEditor({ idPrefix: 'setSw' })}
+        <p class="anki-mut" style="font-size:11px;margin-top:10px;">Cartes <b>Y-</b> : paliers SM-2 par ★ dans le bloc ci-dessous (pas de fenêtres).</p>
       </div>
 
       <div class="anki-card-block">

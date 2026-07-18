@@ -89,6 +89,25 @@
         padding: 6px 10px; border-bottom: 0.5px solid rgba(255,255,255,0.10); text-align: left;
       }
       #paneAnkiVizV2 .av-star-table th { color: var(--mut); font-size: 10px; text-transform: uppercase; }
+      #paneAnkiVizV2 .sw-editor { margin-top: 8px; }
+      #paneAnkiVizV2 .sw-intro { font-size: 12px; color: var(--mut); line-height: 1.5; margin: 0 0 12px; }
+      #paneAnkiVizV2 .sw-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+      #paneAnkiVizV2 .sw-card {
+        background: rgba(10,14,28,0.28); border: 0.5px solid rgba(255,200,80,0.22);
+        border-radius: 12px; padding: 12px 14px;
+      }
+      #paneAnkiVizV2 .sw-card-hdr { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+      #paneAnkiVizV2 .sw-card-hint { font-size: 11px; color: var(--mut); }
+      #paneAnkiVizV2 .sw-timeline { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.06); }
+      #paneAnkiVizV2 .sw-tl-wait { background: rgba(138,180,255,0.35); height: 100%; transition: width .2s ease; }
+      #paneAnkiVizV2 .sw-tl-win { background: linear-gradient(90deg, #ffcc66, #5cd49a); height: 100%; transition: width .2s ease; }
+      #paneAnkiVizV2 .sw-tl-legend { display: flex; justify-content: space-between; font-size: 10px; color: var(--mut); margin: 4px 0 10px; }
+      #paneAnkiVizV2 .sw-fields { display: flex; flex-wrap: wrap; gap: 12px; }
+      #paneAnkiVizV2 .sw-fields label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mut); }
+      #paneAnkiVizV2 .sw-input { width: 72px !important; font-family: monospace; }
+      #paneAnkiVizV2 .sw-unit { font-size: 11px; color: var(--mut); }
+      #paneAnkiVizV2 .sw-preview { margin-top: 8px; font-size: 12px; color: var(--txt); }
+      #paneAnkiVizV2 .sw-actions { margin-top: 12px; }
       #paneAnkiVizV2 .av-phase-pill {
         display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700;
       }
@@ -168,23 +187,6 @@
       card.dateProchaineRevision = card._v2WindowOpen;
     }
     return A.priorityScore(card, today);
-  }
-
-  function starWindowRows() {
-    const A = A2();
-    if (!A) return "";
-    const scale = A.horizonScale();
-    const horizon = v2Settings().horizon === "2y" ? "2 ans (cycle)" : "1 an (redouble)";
-    return [5, 4, 3, 2, 1].map(stars => {
-      const w = A.scaledWindow(stars);
-      const base = A.STAR_WINDOWS[stars];
-      return `<tr>
-        <td>★${stars}</td>
-        <td>${w.openAfter} j</td>
-        <td>${w.width} j</td>
-        <td style="color:var(--mut);font-size:11px;">base ${base.openAfter}+${base.width} · ×${scale.toFixed(2)}</td>
-      </tr>`;
-    }).join("") + `<tr><td colspan="4" style="font-size:11px;color:var(--mut);padding-top:8px;">Horizon actuel : <b>${horizon}</b></td></tr>`;
   }
 
   function nodeIntro() {
@@ -331,16 +333,14 @@
             <li><span class="av-phase-pill av-phase-mature">mature</span> — rep ≥ 8 · <b>fenêtres ★</b> : la carte s'ouvre, tu peux la revoir n'importe quand dans l'intervalle, pas obligé le 1er jour</li>
           </ul>
 
-          <h4 style="font-size:11px;color:var(--mut);text-transform:uppercase;margin-top:14px;">Fenêtres par étoile (horizon actuel)</h4>
-          <table class="av-star-table">
-            <thead><tr><th>★</th><th>Ouverture après succès</th><th>Largeur fenêtre</th><th>Détail</th></tr></thead>
-            <tbody>${starWindowRows()}</tbody>
-          </table>
+          <h4 style="font-size:11px;color:var(--mut);text-transform:uppercase;margin-top:14px;">Régle les fenêtres par ★</h4>
+          <p style="font-size:12px;margin:0 0 8px;color:var(--mut);">Comme sur le modèle : ta note fixe <i>quand</i> · les ★ fixent <i>dans quelle fenêtre</i>. Modifie ouverture / largeur ci-dessous — l'aperçu suit ton horizon.</p>
+          ${(A2() && A2().renderStarWindowsEditor) ? A2().renderStarWindowsEditor({ idPrefix: "vizSw" }) : ""}
 
-          <div class="av-formula" style="margin-top:14px;"><b>Exemple ★5 (horizon 1 an) :</b>
-Après une bonne note en phase mature → prochaine révision planifiée ~J+11
-Fenêtre ouverte ~28 jours → tu peux la voir tomber n'importe quand dedans
-Si tu la rates après la fin de fenêtre → <span class="av-win-overdue">overdue</span> → prio explose</div>
+          <div class="av-formula" style="margin-top:14px;"><b>Lecture :</b>
+Succès mature → date = début de fenêtre (J+ouverture)
+Tu peux réviser n'importe quand pendant la largeur
+Après la fermeture sans révision → <span class="av-win-overdue">overdue</span> → prio explose</div>
 
           <p style="font-size:12px;margin-top:10px;"><b>États fenêtre :</b>
             <span class="av-win-overdue">overdue</span> retard ·

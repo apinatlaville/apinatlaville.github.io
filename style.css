@@ -1529,6 +1529,29 @@ body.not-logged-in #splashScreen {
 .anki-day-num { font-family: 'DM Mono', monospace; font-weight: 700; color: var(--mut); min-width: 20px; }
 .anki-day-title { flex: 1; min-width: 0; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Éditeur fenêtres ★ (carte mentale + réglages Synchrotron) */
+.sw-editor { margin-top: 4px; }
+.sw-intro { font-size: 12px; color: var(--mut); line-height: 1.5; margin: 0 0 12px; }
+.sw-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.sw-card {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.sw-card-hdr { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.sw-card-hint { font-size: 11px; color: var(--mut); }
+.sw-timeline { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--s2); }
+.sw-tl-wait { background: rgba(91,141,247,.35); height: 100%; transition: width .2s ease; }
+.sw-tl-win { background: linear-gradient(90deg, var(--gold), var(--grn)); height: 100%; transition: width .2s ease; }
+.sw-tl-legend { display: flex; justify-content: space-between; font-size: 10px; color: var(--mut); margin: 4px 0 10px; }
+.sw-fields { display: flex; flex-wrap: wrap; gap: 12px; }
+.sw-fields label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--mut); }
+.sw-input { width: 72px !important; font-family: 'DM Mono', monospace; }
+.sw-unit { font-size: 11px; color: var(--mut); }
+.sw-preview { margin-top: 8px; font-size: 12px; color: var(--txt); }
+.sw-actions { margin-top: 12px; }
+
 /* Réglages */
 .anki-set-row {
  display: flex;

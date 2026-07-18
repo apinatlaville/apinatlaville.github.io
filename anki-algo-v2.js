@@ -80,7 +80,7 @@
     return window.D.settings.algoV2;
   };
 
-  /** Fenêtres ★ : [jours avant ouverture, largeur fenêtre en jours] — base cycle 2 ans. */
+  /** Fenêtres ★ par défaut (base cycle 2 ans) : openAfter = jours avant ouverture, width = largeur. */
   V2.STAR_WINDOWS = {
     1: { openAfter: 120, width: 90 },
     2: { openAfter: 75, width: 50 },
@@ -88,14 +88,183 @@
     4: { openAfter: 30, width: 25 },
     5: { openAfter: 20, width: 28 }
   };
+  V2.DEFAULT_STAR_WINDOWS = V2.STAR_WINDOWS;
+
+  function _clampInt(n, min, max, fallback) {
+    const v = parseInt(n, 10);
+    if (isNaN(v)) return fallback;
+    return Math.max(min, Math.min(max, v));
+  }
+
+  /** Fenêtres effectives (defaults + overrides `settings.algoV2.starWindows`). */
+  V2.getStarWindows = function () {
+    const user = (window.D && window.D.settings && window.D.settings.algoV2 && window.D.settings.algoV2.starWindows) || {};
+    const out = {};
+    [1, 2, 3, 4, 5].forEach(function (k) {
+      const d = V2.STAR_WINDOWS[k];
+      const u = user[k] || user[String(k)] || {};
+      out[k] = {
+        openAfter: _clampInt(u.openAfter != null ? u.openAfter : d.openAfter, 1, 730, d.openAfter),
+        width: _clampInt(u.width != null ? u.width : d.width, 3, 365, d.width)
+      };
+    });
+    return out;
+  };
 
   V2.scaledWindow = function (imp) {
     const s = V2.horizonScale();
-    const w = V2.STAR_WINDOWS[imp] || V2.STAR_WINDOWS[3];
+    const all = V2.getStarWindows();
+    const w = all[imp] || all[3];
     return {
       openAfter: Math.max(1, Math.round(w.openAfter * s)),
       width: Math.max(3, Math.round(w.width * s))
     };
+  };
+
+  V2.setStarWindow = function (stars, openAfter, width) {
+    const k = Math.max(1, Math.min(5, parseInt(stars, 10) || 3));
+    const def = V2.STAR_WINDOWS[k];
+    if (!window.D) return V2.getStarWindows()[k];
+    if (!window.D.settings) window.D.settings = {};
+    if (!window.D.settings.algoV2) window.D.settings.algoV2 = Object.assign({}, V2.DEFAULT_SETTINGS);
+    if (!window.D.settings.algoV2.starWindows) window.D.settings.algoV2.starWindows = {};
+    window.D.settings.algoV2.starWindows[k] = {
+      openAfter: _clampInt(openAfter, 1, 730, def.openAfter),
+      width: _clampInt(width, 3, 365, def.width)
+    };
+    return window.D.settings.algoV2.starWindows[k];
+  };
+
+  V2.resetStarWindows = function () {
+    if (!window.D || !window.D.settings || !window.D.settings.algoV2) return;
+    delete window.D.settings.algoV2.starWindows;
+  };
+
+  /**
+   * Éditeur intuitif des fenêtres ★ (modèle carte mentale).
+   * opts.idPrefix — préfixe des ids input ; opts.onChange — nom de handler window (défaut ankiV2SaveStarWindow)
+   */
+  V2.renderStarWindowsEditor = function (opts) {
+    opts = opts || {};
+    const prefix = opts.idPrefix || "sw";
+    const handler = opts.onChange || "ankiV2SaveStarWindow";
+    const scale = V2.horizonScale();
+    const horizon = (window.D && window.D.settings && window.D.settings.algoV2 && window.D.settings.algoV2.horizon) === "2y"
+      ? "2 ans (×1)" : "1 an (×" + scale.toFixed(2) + ")";
+    const bases = V2.getStarWindows();
+    const labelFn = (typeof window.importanceLabel === "function")
+      ? window.importanceLabel
+      : function (n) { return "★".repeat(n); };
+
+    const cards = [5, 4, 3, 2, 1].map(function (stars) {
+      const base = bases[stars];
+      const scaled = V2.scaledWindow(stars);
+      const maxBar = 210;
+      const waitPct = Math.min(92, Math.round((base.openAfter / maxBar) * 100));
+      const winPct = Math.min(100 - waitPct, Math.max(4, Math.round((base.width / maxBar) * 100)));
+      return `
+        <div class="sw-card" data-stars="${stars}">
+          <div class="sw-card-hdr">
+            <strong>${labelFn(stars)}</strong>
+            <span class="sw-card-hint">plus de ★ → revient plus tôt</span>
+          </div>
+          <div class="sw-timeline" title="Attente puis fenêtre de révision">
+            <div class="sw-tl-wait" style="width:${waitPct}%"></div>
+            <div class="sw-tl-win" style="width:${winPct}%"></div>
+          </div>
+          <div class="sw-tl-legend">
+            <span>attente</span>
+            <span>fenêtre ouverte</span>
+          </div>
+          <div class="sw-fields">
+            <label>Ouvre après
+              <input type="number" class="fi sw-input" id="${prefix}_open_${stars}" min="1" max="730" step="1"
+                value="${base.openAfter}" oninput="window.${handler}(${stars},'${prefix}')">
+              <span class="sw-unit">j</span>
+            </label>
+            <label>Largeur
+              <input type="number" class="fi sw-input" id="${prefix}_width_${stars}" min="3" max="365" step="1"
+                value="${base.width}" oninput="window.${handler}(${stars},'${prefix}')">
+              <span class="sw-unit">j</span>
+            </label>
+          </div>
+          <div class="sw-preview" id="${prefix}_prev_${stars}">→ horizon actuel : ouvre <b>J+${scaled.openAfter}</b> · fenêtre <b>${scaled.width} j</b></div>
+        </div>`;
+    }).join("");
+
+    return `
+      <div class="sw-editor" data-testid="star-windows-editor">
+        <p class="sw-intro">Valeurs en <b>base cycle 2 ans</b> — l'horizon (${horizon}) les réduit ensuite. En phase <b>mature</b>, après une bonne note : la carte s'ouvre à J+ouverture, tu peux la revoir pendant toute la largeur.</p>
+        <div class="sw-grid">${cards}</div>
+        <div class="sw-actions">
+          <button type="button" class="bs" onclick="window.ankiV2ResetStarWindows('${prefix}')">${typeof window.iconLabel === "function" ? window.iconLabel("refresh-cw", "Fenêtres par défaut") : "Fenêtres par défaut"}</button>
+        </div>
+      </div>`;
+  };
+
+  window.ankiV2SaveStarWindow = function (stars, idPrefix) {
+    const prefix = idPrefix || "sw";
+    const k = Math.max(1, Math.min(5, parseInt(stars, 10) || 3));
+    const openEl = document.getElementById(prefix + "_open_" + k);
+    const widthEl = document.getElementById(prefix + "_width_" + k);
+    if (!openEl || !widthEl) return;
+    V2.setStarWindow(k, openEl.value, widthEl.value);
+    if (typeof window.save === "function") window.save();
+    const scaled = V2.scaledWindow(k);
+    const prev = document.getElementById(prefix + "_prev_" + k);
+    if (prev) {
+      prev.innerHTML = "→ horizon actuel : ouvre <b>J+" + scaled.openAfter + "</b> · fenêtre <b>" + scaled.width + " j</b>";
+    }
+    const card = openEl.closest(".sw-card");
+    if (card) {
+      const base = V2.getStarWindows()[k];
+      const maxBar = 210;
+      const waitPct = Math.min(92, Math.round((base.openAfter / maxBar) * 100));
+      const winPct = Math.min(100 - waitPct, Math.max(4, Math.round((base.width / maxBar) * 100)));
+      const wait = card.querySelector(".sw-tl-wait");
+      const win = card.querySelector(".sw-tl-win");
+      if (wait) wait.style.width = waitPct + "%";
+      if (win) win.style.width = winPct + "%";
+    }
+  };
+
+  window.ankiV2ResetStarWindows = function (idPrefix) {
+    V2.resetStarWindows();
+    if (typeof window.save === "function") window.save();
+    if (typeof window.renderAnkiVizV2 === "function" && window._activeTab === "ankiVizV2") {
+      window.renderAnkiVizV2();
+    }
+    if (typeof window.renderAnkiV2 === "function" && window._activeTab === "ankiV2") {
+      window.renderAnkiV2();
+    }
+    // Si aucun des deux onglets actifs : rafraîchir quand même les inputs visibles
+    if (idPrefix) {
+      const bases = V2.getStarWindows();
+      [1, 2, 3, 4, 5].forEach(function (k) {
+        const o = document.getElementById(idPrefix + "_open_" + k);
+        const w = document.getElementById(idPrefix + "_width_" + k);
+        if (o) o.value = bases[k].openAfter;
+        if (w) w.value = bases[k].width;
+        if (typeof window.ankiV2SaveStarWindow === "function") {
+          // Met à jour timeline + preview sans réécrire settings (déjà reset)
+          const scaled = V2.scaledWindow(k);
+          const prev = document.getElementById(idPrefix + "_prev_" + k);
+          if (prev) prev.innerHTML = "→ horizon actuel : ouvre <b>J+" + scaled.openAfter + "</b> · fenêtre <b>" + scaled.width + " j</b>";
+          if (o) {
+            const card = o.closest(".sw-card");
+            if (card) {
+              const maxBar = 210;
+              const waitPct = Math.min(92, Math.round((bases[k].openAfter / maxBar) * 100));
+              const winPct = Math.min(100 - waitPct, Math.max(4, Math.round((bases[k].width / maxBar) * 100)));
+              const wait = card.querySelector(".sw-tl-wait");
+              const win = card.querySelector(".sw-tl-win");
+              if (wait) wait.style.width = waitPct + "%";
+              if (win) win.style.width = winPct + "%";
+            }
+          }
+        }
+      });
+    }
   };
 
   /** learning | consolidation | mature */
