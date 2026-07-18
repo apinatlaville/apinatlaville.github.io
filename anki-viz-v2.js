@@ -463,6 +463,8 @@ V2 mature + succès → date = début fenêtre ★</div>
       window.D.settings.algoV2.sessionMinDefault = v;
       window.D.settings.ankiSessionMin = v;
       if (typeof window.save === "function") window.save();
+      // Re-render pour mettre à jour la formule budget affichée
+      window.renderAnkiVizV2();
     });
     bindNum("av2Marge", el => {
       let v = parseFloat(el.value);
@@ -471,6 +473,7 @@ V2 mature + succès → date = début fenêtre ★</div>
       if (!window.D.settings) window.D.settings = {};
       window.D.settings.margeBudget = v;
       if (typeof window.save === "function") window.save();
+      window.renderAnkiVizV2();
     });
     const hz = document.getElementById("av2Horizon");
     if (hz) hz.addEventListener("change", () => {

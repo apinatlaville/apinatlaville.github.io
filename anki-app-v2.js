@@ -268,9 +268,15 @@
   }
 
   function getSessionMinutesV2() {
-    if (S.sessionMinTonight != null) return S.sessionMinTonight;
+    // Toujours lire les settings (source de vérité) — évite qu'un cache S.sessionMinTonight
+    // ignore un changement fait depuis la Carte mentale / un autre écran
     const st = window.AnkiAlgoV2 ? window.AnkiAlgoV2.getSettings() : {};
-    return st.sessionMinDefault || (window.D.settings && window.D.settings.ankiSessionMin) || 90;
+    if (st && st.sessionMinDefault != null) return st.sessionMinDefault;
+    if (window.D && window.D.settings && window.D.settings.ankiSessionMin != null) {
+      return window.D.settings.ankiSessionMin;
+    }
+    if (S.sessionMinTonight != null) return S.sessionMinTonight;
+    return 90;
   }
 
   function renderSessionTimeBar(sessionMin) {
@@ -2805,8 +2811,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         S.current._blocageActif    = out._blocageActif;
         S.current._blocageRevCount = out._blocageRevCount;
         S.current._lastReviewDate  = out._lastReviewDate;
-        if (out._v2WindowOpen != null) S.current._v2WindowOpen = out._v2WindowOpen;
-        if (out._v2WindowClose != null) S.current._v2WindowClose = out._v2WindowClose;
+        // Toujours appliquer (y compris null après échec) — sinon d'anciennes fenêtres ★ bloquent la carte
+        S.current._v2WindowOpen = (out._v2WindowOpen != null) ? out._v2WindowOpen : null;
+        S.current._v2WindowClose = (out._v2WindowClose != null) ? out._v2WindowClose : null;
         if (out._v2Phase) S.current._v2Phase = out._v2Phase;
       }
       S.current.historique = S.current.historique || [];

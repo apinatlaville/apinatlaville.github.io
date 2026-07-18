@@ -410,11 +410,10 @@
       base.dateProchaineRevision = base._v2WindowOpen;
       base._v2Phase = "mature";
     } else {
+      // Échec / hors mature : effacer les fenêtres pour que dateProchaineRevision (SM-2) prime
       base._v2Phase = phase;
-      if (qScore <= 3) {
-        base._v2WindowOpen = null;
-        base._v2WindowClose = null;
-      }
+      base._v2WindowOpen = null;
+      base._v2WindowClose = null;
     }
     return base;
   };
@@ -478,6 +477,7 @@
       .map(c => ({ card: c, score: V2.urgenceDevoir(c, ref) }))
       .sort((a, b) => b.score.total - a.score.total);
     const devoirsForces = devoirsScored.filter(x => x.score.total >= seuilDevoir);
+    const devoirsLatents = devoirsScored.filter(x => x.score.total < seuilDevoir);
 
     const selected = [];
     let used = 0;
@@ -490,10 +490,20 @@
       .map(c => ({ card: c, sc: V2.priorityScore(c, ref) }))
       .sort((a, b) => b.sc.priority - a.sc.priority);
 
+    const mainsTaken = [];
     for (const x of mainsSorted) {
       const t = _tempsCarte(x.card);
-      if (used + t > budget && selected.length) break;
-      selected.push(x.card);
+      if (used + t > budget && (selected.length || mainsTaken.length)) break;
+      mainsTaken.push(x.card);
+      used += t;
+    }
+
+    // W- opportunistes (latents) si budget restant — comme v1 / texte Agenda
+    const latentsTaken = [];
+    for (const x of devoirsLatents) {
+      const t = _tempsCarte(x.card);
+      if (used + t > budget) continue;
+      latentsTaken.push(x.card);
       used += t;
     }
 
@@ -502,27 +512,44 @@
       .map(c => ({ card: c, sc: V2.priorityScore(c, ref) }))
       .sort((a, b) => b.sc.priority - a.sc.priority);
 
-    const woven = needA1().weaveSession(selected.filter(c => V2.cardKind(c) !== "quick"), quickSorted.slice(0, 8).map(x => x.card));
+    // Y- tissées : respectent le budget + plafond ankiMaxAnglaisFill (plus de slice(0,8) hors budget)
+    const maxQuick = (window.D && window.D.settings && window.D.settings.ankiMaxAnglaisFill != null)
+      ? Math.max(0, parseInt(window.D.settings.ankiMaxAnglaisFill, 10) || 0)
+      : 5;
+    const quicksWoven = [];
+    for (const x of quickSorted) {
+      if (quicksWoven.length >= maxQuick) break;
+      const t = _tempsCarte(x.card);
+      if (used + t > budget) continue;
+      quicksWoven.push(x.card);
+      used += t;
+    }
+
+    const longPool = selected.concat(mainsTaken).concat(latentsTaken);
+    const woven = needA1().weaveSession(longPool, quicksWoven);
     let final = woven.slice();
     let usedFinal = final.reduce((s, c) => s + _tempsCarte(c), 0);
 
+    let quicksExtra = 0;
     for (const x of quickSorted) {
       if (final.some(c => c.id === x.card.id)) continue;
       const t = _tempsCarte(x.card);
       if (usedFinal + t > budget) break;
       final.push(x.card);
       usedFinal += t;
+      quicksExtra++;
     }
 
     return {
       cartes: final,
       tempsTotalPrev: usedFinal,
-      countDevoir: devoirsForces.length,
+      countDevoir: devoirsForces.length + latentsTaken.length,
       countDevoirForce: devoirsForces.length,
-      countMain: final.filter(c => V2.cardKind(c) === "main").length,
-      countQuick: final.filter(c => V2.cardKind(c) === "quick").length,
-      countQuickWoven: 0,
-      countQuickExtra: 0,
+      countDevoirLatent: latentsTaken.length,
+      countMain: mainsTaken.length,
+      countQuick: quicksWoven.length + quicksExtra,
+      countQuickWoven: quicksWoven.length,
+      countQuickExtra: quicksExtra,
       reportees: [],
       marge: o.marge,
       overload,
@@ -530,7 +557,7 @@
     };
   };
 
-  /** Session chapitre : toutes les cartes actives liées à un coursId, ordre priorité. */
+  /** Session chapitre : toutes les cartes actives liées à un coursId (ordre priorité, sans filtre « ce soir »). */
   V2.buildChapterSession = function (exercices, coursId, sessionMinutes) {
     const ref = V2.todayISO();
     const list = (exercices || []).filter(c => {
@@ -539,7 +566,12 @@
       return ids.includes(coursId);
     });
     list.sort((a, b) => V2.priorityScore(b, ref).priority - V2.priorityScore(a, ref).priority);
-    return V2.buildSession(list, { sessionMinutes: sessionMinutes || 120, pullForward: true, selectedIds: list.map(c => c.id) });
+    // manualOrder : remplit le budget dans l'ordre donné, sans isEligibleTonight
+    return V2.buildSession(list, {
+      sessionMinutes: sessionMinutes || 120,
+      pullForward: true,
+      manualOrder: list.map(c => c.id)
+    });
   };
 
   window.AnkiAlgoV2 = V2;
