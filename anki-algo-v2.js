@@ -531,6 +531,7 @@
 
     let quicksExtra = 0;
     for (const x of quickSorted) {
+      if (quicksWoven.length + quicksExtra >= maxQuick) break;
       if (final.some(c => c.id === x.card.id)) continue;
       const t = _tempsCarte(x.card);
       if (usedFinal + t > budget) break;
@@ -651,20 +652,38 @@
             _projKind: V2.cardKind(c)
           }));
         }
+        // computeNextInterval ancre toujours sur « aujourd'hui » réel — pour la simu
+        // calendaire on avance depuis la date projetée (sinon doublons / dates qui reculent).
         const nxt = V2.computeNextInterval(sim, 7, sim.tempsCible || 60);
+        const reviewedOn = date;
         sim.intervalle = nxt.intervalle;
         sim.ease = nxt.ease;
         sim.repetitions = nxt.repetitions;
-        sim.dateProchaineRevision = nxt.dateProchaineRevision;
-        sim._v2WindowOpen = nxt._v2WindowOpen != null ? nxt._v2WindowOpen : null;
-        sim._v2WindowClose = nxt._v2WindowClose != null ? nxt._v2WindowClose : null;
+        sim._blocageActif = nxt._blocageActif;
+        sim._blocageRevCount = nxt._blocageRevCount;
+
+        let nextDate;
         if (!nxt.intervalle || nxt.intervalle < 1) {
-          // Reset / learning : revient le lendemain pour la simu
-          date = V2.addDays(date, 1);
+          nextDate = V2.addDays(reviewedOn, 1);
+          sim._v2WindowOpen = null;
+          sim._v2WindowClose = null;
         } else {
-          date = nxt.dateProchaineRevision || V2.addDays(date, nxt.intervalle);
+          const phaseAfter = V2.getPhase(Object.assign({}, sim, nxt));
+          if (phaseAfter === "mature" && nxt.qScore > 3) {
+            const w = V2.scaledWindow(V2.getImportance(sim));
+            const openAfter = Math.max(w.openAfter, Math.min(nxt.intervalle, w.openAfter + 5));
+            sim._v2WindowOpen = V2.addDays(reviewedOn, openAfter);
+            sim._v2WindowClose = V2.addDays(reviewedOn, openAfter + w.width);
+            nextDate = sim._v2WindowOpen;
+          } else {
+            sim._v2WindowOpen = null;
+            sim._v2WindowClose = null;
+            nextDate = V2.addDays(reviewedOn, nxt.intervalle);
+          }
         }
-        if (!date || date <= today && safety > 1) break;
+        sim.dateProchaineRevision = nextDate;
+        if (!nextDate || nextDate <= reviewedOn) break;
+        date = nextDate;
       }
     });
 

@@ -1734,7 +1734,7 @@
 
     return `
       <div class="fc-cours-toolbar">
-        ${searchField('Filtrer un cours (code, titre, matière)…', `value="${esc(S.forecastCoursFilter || '')}" oninput="window.ankiV2ForecastCoursFilter(this.value)"`)}
+        ${searchField('Filtrer un cours (code, titre, matière)…', `id="fcCoursSearch" value="${esc(S.forecastCoursFilter || '')}" oninput="window.ankiV2ForecastCoursFilter(this.value)"`)}
       </div>
       <div class="fc-cours-list">
         ${rows || '<div class="anki-empty">Aucune carte liée à un cours.</div>'}
@@ -1777,7 +1777,10 @@
     if (!S.forecastGradeCardId && pool.length) S.forecastGradeCardId = pool[0].id;
     const card = pool.find(c => c.id === S.forecastGradeCardId) || pool[0] || null;
 
-    const opts = pool.slice(0, 80).map(c => {
+    // Toujours inclure la carte sélectionnée même si hors des 80 premières
+    let optPool = pool.slice(0, 80);
+    if (card && !optPool.some(c => c.id === card.id)) optPool = [card].concat(optPool);
+    const opts = optPool.map(c => {
       const m = mat(c.mat);
       const label = `${c.id} · ${m.label} · ${(c.titre || c.question || '').substring(0, 40)}`;
       return `<option value="${esc(c.id)}" ${card && c.id === card.id ? 'selected' : ''}>${esc(label)}</option>`;
@@ -1878,6 +1881,12 @@
   window.ankiV2ForecastCoursFilter = function (q) {
     S.forecastCoursFilter = q || '';
     renderActiveView();
+    const input = document.getElementById('fcCoursSearch');
+    if (input) {
+      input.focus();
+      const len = (S.forecastCoursFilter || '').length;
+      try { input.setSelectionRange(len, len); } catch (e) { /* ignore */ }
+    }
   };
   window.ankiV2ForecastPickCard = function (id) {
     S.forecastGradeCardId = id || '';
@@ -2499,8 +2508,15 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
   window.startAnkiV2Colle = function (coursId) {
     ensure();
-    const q = window.D.exercices.filter(c => (c.coursIds || []).includes(coursId) || c.coursId === coursId);
-    if (!q.length) return window.sysAlert("Aucune carte liée à ce cours.", "Mode Colle");
+    restoreSessionFromStorageIfAny();
+    if (sessionIsLive()) {
+      return promptSessionConflict('btn-commencer-session');
+    }
+    const q = (window.D.exercices || []).filter(c =>
+      window.AnkiAlgoV2.isActive(c) &&
+      ((c.coursIds || []).includes(coursId) || c.coursId === coursId)
+    );
+    if (!q.length) return window.sysAlert("Aucune carte active liée à ce cours.", "Mode Colle");
     S.queue = window.AnkiAlgoV2.smartOrder(q.slice());
     S.mode = "colle"; S.stats = { ok: 0, mid: 0, bad: 0, total: q.length };
     S.sessionUI = 'full';
@@ -2978,9 +2994,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (snap.statBucket === 'ok')  S.stats.ok  = Math.max(0, S.stats.ok  - 1);
     if (snap.statBucket === 'mid') S.stats.mid = Math.max(0, S.stats.mid - 1);
     if (snap.statBucket === 'bad') S.stats.bad = Math.max(0, S.stats.bad - 1);
-    // Réinjection en tête de file
+    // Réinjection en tête de file (retirer d'abord toute copie déjà requeue après échec)
     const restoredCard = ankFind(snap.card.id);
     if (restoredCard) {
+      S.queue = S.queue.filter(c => c && c.id !== snap.card.id);
       S.queue.unshift(restoredCard);
       // On rouvre la carte directement (le chrono repart de 0 pour cette tentative)
       S.current = null;
@@ -3026,23 +3043,47 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const dmCard = S.current.type === 'devoir-morceau'
         ? (ankFind(S.current._morceauOf) || S.current)
         : S.current;
-      dmCard._morceauxFaits = (dmCard._morceauxFaits || 0) + 1;
-      const restants = (dmCard._morceauxTotal || 1) - dmCard._morceauxFaits;
-      if (restants <= 0) {
-        dmCard.statut = 'fini';
-        dmCard.dateProchaineRevision = null;
-      } else {
-        dmCard.dateProchaineRevision = window.AnkiAlgoV2.addDays(window.AnkiAlgoV2.todayISO(), 1);
-      }
+      const failDm = qScore <= 3;
       dmCard.historique = dmCard.historique || [];
-      dmCard.historique.push({ date: new Date().toISOString(), qScore, tempsReel: Math.round(tps), pen: 1, mode: S.mode, type: 'devoir-session' });
-      window.AnkiAlgoV2.log("devoir-session", {
-        id: dmCard.id,
-        morceaux: dmCard._morceauxFaits + "/" + dmCard._morceauxTotal,
-        prochaine: restants > 0 ? dmCard.dateProchaineRevision : "TERMINÉ",
-        tempsReel: window.AnkiAlgoV2.fmtDur(tps)
+      dmCard.historique.push({
+        date: new Date().toISOString(),
+        qScore,
+        tempsReel: Math.round(tps),
+        pen: 1,
+        mode: S.mode,
+        type: failDm ? 'devoir-retry' : 'devoir-session'
       });
-      window.sysAlert(`${window.iconHtml('file-text', 14)} <b>${esc(dmCard.titre || dmCard.id)}</b><br>Session ${dmCard._morceauxFaits}/${dmCard._morceauxTotal} terminée.<br>${restants > 0 ? 'Prochaine session : <b>' + esc(dmCard.dateProchaineRevision) + '</b>' : window.iconLabel('check', '<b>DM TERMINÉ</b>')}`, "DM");
+      if (failDm) {
+        // « À refaire » : ne consomme pas de morceau, revient aujourd'hui
+        dmCard.dateProchaineRevision = window.AnkiAlgoV2.todayISO();
+        window.AnkiAlgoV2.log("devoir-retry", {
+          id: dmCard.id,
+          morceaux: (dmCard._morceauxFaits || 0) + "/" + (dmCard._morceauxTotal || 1),
+          tempsReel: window.AnkiAlgoV2.fmtDur(tps)
+        });
+        window.sysAlert(
+          `${window.iconHtml('file-text', 14)} <b>${esc(dmCard.titre || dmCard.id)}</b><br>` +
+          `Session à refaire — progression inchangée (${dmCard._morceauxFaits || 0}/${dmCard._morceauxTotal || 1}).<br>` +
+          `Prochaine tentative : <b>aujourd'hui</b>`,
+          "DM"
+        );
+      } else {
+        dmCard._morceauxFaits = (dmCard._morceauxFaits || 0) + 1;
+        const restants = (dmCard._morceauxTotal || 1) - dmCard._morceauxFaits;
+        if (restants <= 0) {
+          dmCard.statut = 'fini';
+          dmCard.dateProchaineRevision = null;
+        } else {
+          dmCard.dateProchaineRevision = window.AnkiAlgoV2.addDays(window.AnkiAlgoV2.todayISO(), 1);
+        }
+        window.AnkiAlgoV2.log("devoir-session", {
+          id: dmCard.id,
+          morceaux: dmCard._morceauxFaits + "/" + dmCard._morceauxTotal,
+          prochaine: restants > 0 ? dmCard.dateProchaineRevision : "TERMINÉ",
+          tempsReel: window.AnkiAlgoV2.fmtDur(tps)
+        });
+        window.sysAlert(`${window.iconHtml('file-text', 14)} <b>${esc(dmCard.titre || dmCard.id)}</b><br>Session ${dmCard._morceauxFaits}/${dmCard._morceauxTotal} terminée.<br>${restants > 0 ? 'Prochaine session : <b>' + esc(dmCard.dateProchaineRevision) + '</b>' : window.iconLabel('check', '<b>DM TERMINÉ</b>')}`, "DM");
+      }
     } else {
       // Carte normale : update ease/intervalle/repetitions + flag blocage
       const easeAvant = S.current.ease || 2.5;
@@ -3726,12 +3767,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   window.ankiV2PlayChapter = function (coursId) {
     ensure();
     if (!coursId) return;
+    restoreSessionFromStorageIfAny();
+    if (sessionIsLive()) {
+      return promptSessionConflict('btn-commencer-session');
+    }
     const sessionMin = getSessionMinutesV2();
     const plan = window.AnkiAlgoV2.buildChapterSession(ankSessionPool(), coursId, sessionMin);
     if (!plan.cartes.length) return window.sysAlert("Aucune carte active pour ce chapitre.", "Synchrotron V2");
     S.queue = plan.cartes.slice();
-    S.mode = "colle";
+    // Mode custom : applique bien le SRS (contrairement au mode « colle » d'entraînement)
+    S.mode = "custom";
     S.stats = { ok: 0, mid: 0, bad: 0, total: plan.cartes.length };
+    S.sessionUI = 'full';
     nextCard();
   };
 

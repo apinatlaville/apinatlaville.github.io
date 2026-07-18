@@ -738,6 +738,14 @@ window.saveCours = function() {
     return window.sysAlert('Remplis tous les champs obligatoires avant de sauvegarder.', "Erreur de saisie");
   }
   
+  let noteRaw = window.$('fNote') ? window.$('fNote').value : '';
+  if (noteRaw !== '' && noteRaw != null) {
+    const n = parseFloat(String(noteRaw).trim().replace(',', '.'));
+    if (!Number.isFinite(n)) noteRaw = '';
+    else noteRaw = String(Math.max(0, Math.min(20, Math.round(n * 2) / 2)));
+  } else {
+    noteRaw = '';
+  }
   const obj = {
     title, 
     type:window.$('fType')?window.$('fType').value:'', 
@@ -745,7 +753,7 @@ window.saveCours = function() {
     mat, 
     cl, 
     inter, 
-    note:window.$('fNote')?window.$('fNote').value:'', 
+    note: noteRaw, 
     desc: window.$('fDesc')?window.$('fDesc').value.trim():''
   };
   

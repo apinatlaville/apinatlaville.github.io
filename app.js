@@ -896,8 +896,11 @@ window.drawKholle = function() {
 window._notesFilter = window._notesFilter || { type: '', mat: '' };
 
 function _notesParseScore(c) {
-  const n = parseFloat(c && c.note);
-  return Number.isFinite(n) ? n : null;
+  if (!c || c.note === '' || c.note == null) return null;
+  const raw = String(c.note).trim().replace(',', '.');
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(20, n));
 }
 
 function _notesAllScored() {
@@ -1007,29 +1010,26 @@ window.renderNotes = function() {
   const matSel = window.$('fltNotesMat');
   if (typeSel && typeSel.value !== f.type) typeSel.value = f.type || '';
 
-  // Remplir le select matières (uniquement celles qui ont des notes)
-  if (matSel) {
-    const scored = _notesAllScored();
-    const matIds = [...new Set(scored.map(c => c.mat).filter(Boolean))].sort();
-    const opts = ['<option value="">Toutes matières</option>']
-      .concat(matIds.map(id => {
-        const m = (window.D.matieres || []).find(x => x.id === id);
-        const label = m ? `${m.label || id}${m.name && m.name !== m.label ? ' — ' + m.name : ''}` : id;
-        return `<option value="${window.escHtml(id)}"${f.mat === id ? ' selected' : ''}>${window.escHtml(label)}</option>`;
-      }));
-    const prev = matSel.value;
-    matSel.innerHTML = opts.join('');
-    if (f.mat && matIds.includes(f.mat)) matSel.value = f.mat;
-    else if (prev && matIds.includes(prev) && !f.mat) matSel.value = prev;
-    else matSel.value = f.mat || '';
-  }
-
   const all = _notesAllScored().slice().sort((a, b) => {
     const da = a.date || '';
     const db = b.date || '';
     if (da !== db) return da < db ? -1 : 1;
     return (a.uid || '').localeCompare(b.uid || '');
   });
+
+  // Remplir le select matières (uniquement celles qui ont des notes)
+  const matIds = [...new Set(all.map(c => c.mat).filter(Boolean))].sort();
+  if (f.mat && !matIds.includes(f.mat)) f.mat = '';
+  if (matSel) {
+    const opts = ['<option value="">Toutes matières</option>']
+      .concat(matIds.map(id => {
+        const m = (window.D.matieres || []).find(x => x.id === id);
+        const label = m ? `${m.label || id}${m.name && m.name !== m.label ? ' — ' + m.name : ''}` : id;
+        return `<option value="${window.escHtml(id)}"${f.mat === id ? ' selected' : ''}>${window.escHtml(label)}</option>`;
+      }));
+    matSel.innerHTML = opts.join('');
+    matSel.value = f.mat || '';
+  }
 
   const filtered = all.filter(c => {
     if (f.type && c.type !== f.type) return false;
@@ -1084,7 +1084,7 @@ window.renderNotes = function() {
     listEl.innerHTML = `
       <div class="notes-list-hdr">
         <strong>Détail</strong>
-        <span class="anki-mut" style="font-size:12px;">${filtered.length} épreuve${filtered.length > 1 ? 's' : ''} · du plus ancien au plus récent</span>
+        <span class="anki-mut" style="font-size:12px;">${filtered.length} épreuve${filtered.length > 1 ? 's' : ''} · du plus récent au plus ancien</span>
       </div>
       ${filtered.slice().reverse().map(c => {
         const score = _notesParseScore(c);
