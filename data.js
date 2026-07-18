@@ -1317,6 +1317,19 @@ window.updateOrphanInterDropdown = function () {
   }).join('');
 };
 
+/** Analyse la sélection : faut-il une matière / un classeur ? */
+window._orphanAssignNeeds = function () {
+  let needMat = window.orphanSelAnki.size > 0;
+  let needCl = false;
+  window.orphanSelCours.forEach(uid => {
+    const c = window.D.cours.find(x => x.uid === uid);
+    if (!c) return;
+    if (c.mat === window.UNSORTED_MAT_ID) needMat = true;
+    if (c.cl === window.UNSORTED_CL_ID) needCl = true;
+  });
+  return { needMat, needCl };
+};
+
 window.openOrphanAssign = function () {
   const nDocs = window.orphanSelCours.size;
   const nAnki = window.orphanSelAnki.size;
@@ -1327,37 +1340,43 @@ window.openOrphanAssign = function () {
     return;
   }
 
+  const needs = window._orphanAssignNeeds();
   const mats = (window.D.matieres || []).filter(m => m.id !== window.UNSORTED_MAT_ID);
   const cls = (window.D.classeurs || []).filter(c => c.id !== window.UNSORTED_CL_ID);
-  if (!mats.length) {
+  if (needs.needMat && !mats.length) {
     return window.sysAlert('Crée d\'abord une matière (hors « Non trié ») pour pouvoir ranger.', 'À ranger');
   }
-  if (nDocs && !cls.length) {
+  if (needs.needCl && !cls.length) {
     return window.sysAlert('Crée d\'abord un classeur (hors « Non classé ») pour ranger des documents.', 'À ranger');
   }
 
+  const matField = window.$('orphanMatField');
+  if (matField) matField.style.display = needs.needMat ? '' : 'none';
   const matSel = window.$('fOrphanMat');
-  if (matSel) {
+  if (matSel && needs.needMat) {
     matSel.innerHTML = mats.map(m =>
       `<option value="${m.id}">${window.escHtml(m.label)} — ${window.escHtml(m.name)}</option>`
     ).join('');
   }
+  const clFields = window.$('orphanClFields');
+  if (clFields) clFields.style.display = needs.needCl ? '' : 'none';
   const clSel = window.$('fOrphanCl');
-  if (clSel) {
+  if (clSel && needs.needCl) {
     clSel.innerHTML = cls.map(c =>
       `<option value="${c.id}">${window.escHtml(c.name)}</option>`
     ).join('');
+    window.updateOrphanInterDropdown();
   }
-  window.updateOrphanInterDropdown();
-
-  const clFields = window.$('orphanClFields');
-  if (clFields) clFields.style.display = nDocs ? '' : 'none';
 
   if (window.$('orphanAssignSummary')) {
     const bits = [];
     if (nDocs) bits.push(`${nDocs} document(s)`);
     if (nAnki) bits.push(`${nAnki} carte(s) Anki`);
-    window.$('orphanAssignSummary').textContent = `Ranger ${bits.join(' et ')} vers…`;
+    const parts = [];
+    if (needs.needMat) parts.push('matière');
+    if (needs.needCl) parts.push('classeur');
+    window.$('orphanAssignSummary').textContent =
+      `Ranger ${bits.join(' et ')}` + (parts.length ? ` (${parts.join(' + ')})` : '') + '…';
   }
   if (window.$('ovOrphanAssign')) window.$('ovOrphanAssign').classList.remove('hidden');
 };
@@ -1367,16 +1386,15 @@ window.closeOrphanAssign = function () {
 };
 
 window.saveOrphanAssign = function () {
+  const needs = window._orphanAssignNeeds();
   const mat = window.$('fOrphanMat') ? window.$('fOrphanMat').value : '';
   const cl = window.$('fOrphanCl') ? window.$('fOrphanCl').value : '';
   const inter = window.$('fOrphanInter') ? window.$('fOrphanInter').value : '';
-  const nDocs = window.orphanSelCours.size;
-  const nAnki = window.orphanSelAnki.size;
 
-  if (!mat || mat === window.UNSORTED_MAT_ID) {
+  if (needs.needMat && (!mat || mat === window.UNSORTED_MAT_ID)) {
     return window.sysAlert('Choisis une matière valide.', 'À ranger');
   }
-  if (nDocs && (!cl || cl === window.UNSORTED_CL_ID || !inter)) {
+  if (needs.needCl && (!cl || cl === window.UNSORTED_CL_ID || !inter)) {
     return window.sysAlert('Choisis un classeur et un intercalaire pour les documents.', 'À ranger');
   }
 
@@ -1385,10 +1403,13 @@ window.saveOrphanAssign = function () {
   window.orphanSelCours.forEach(uid => {
     const c = window.D.cours.find(x => x.uid === uid);
     if (!c) return;
-    c.mat = mat;
-    c.cl = cl;
-    c.inter = inter;
-    if (c.stat === 'printed') c.stat = 'active';
+    // Ne corriger que ce qui est orphelin — ne pas écraser une matière/classeur déjà valides
+    if (c.mat === window.UNSORTED_MAT_ID) c.mat = mat;
+    if (c.cl === window.UNSORTED_CL_ID) {
+      c.cl = cl;
+      c.inter = inter;
+    }
+    if (c.stat === 'printed' && c.cl !== window.UNSORTED_CL_ID) c.stat = 'active';
     movedDocs++;
   });
   const applyAnki = (arr) => {

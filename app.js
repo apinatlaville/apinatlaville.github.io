@@ -839,16 +839,8 @@ window.renderDashboard = function() {
     `;
   }
 
-  // Rappel « À ranger » si orphelins présents
-  let orphanBanner = window.$('dashOrphanBanner');
-  if (!orphanBanner && window.$('paneHome')) {
-    orphanBanner = document.createElement('div');
-    orphanBanner.id = 'dashOrphanBanner';
-    orphanBanner.style.margin = '0 0 14px';
-    const overview = window.$('dashOverviewGrid');
-    if (overview && overview.parentNode) overview.parentNode.insertBefore(orphanBanner, overview);
-    else window.$('paneHome').prepend(orphanBanner);
-  }
+  // Rappel « À ranger » (hors zone Vue d'ensemble, pour rester visible même si celle-ci est masquée)
+  const orphanBanner = window.$('dashOrphanBanner');
   if (orphanBanner && typeof window.countOrphans === 'function') {
     const oc = window.countOrphans();
     const total = oc.cours + oc.anki;

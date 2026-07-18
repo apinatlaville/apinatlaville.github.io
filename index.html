@@ -244,6 +244,8 @@
   </h3>
   <div id="todoList"></div>
 
+  <div id="dashOrphanBanner" style="display:none;margin:18px 0 0;"></div>
+
   <div id="dashOverviewArea">
     <h3 style="font-family:'Inter'; margin-bottom:12px; margin-top:30px;">Vue d'ensemble</h3>
     <div class="dash-grid" id="dashOverviewGrid"></div>
@@ -556,7 +558,7 @@
     <button type="button" onclick="window.closeOrphanAssign()" style="position:absolute; right:15px; top:15px; background:none; border:none; color:var(--mut); cursor:pointer;" aria-label="Fermer"><span data-icon="x" data-icon-size="18"></span></button>
     <h2 style="margin-bottom:8px;"><span data-icon="inbox"></span> Ranger la sélection</h2>
     <p id="orphanAssignSummary" class="anki-mut" style="font-size:13px;margin-bottom:16px;"></p>
-    <div class="fg"><label>Matière *</label><select id="fOrphanMat"></select></div>
+    <div class="fg" id="orphanMatField"><label>Matière *</label><select id="fOrphanMat"></select></div>
     <div id="orphanClFields">
       <div class="fg"><label>Classeur *</label><select id="fOrphanCl"></select></div>
       <div class="fg"><label>Intercalaire *</label><select id="fOrphanInter"></select></div>
