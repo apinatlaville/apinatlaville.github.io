@@ -3443,6 +3443,9 @@ body.nav-sidebar-left #appNav .tabs {
   padding: 2px 8px 14px;
   border-bottom: none;
   min-height: auto;
+  /* La barre du haut utilise pan-x ; en sidebar il faut pouvoir scroller verticalement */
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 body.nav-sidebar-left .nav-group {
   display: flex;
@@ -3552,6 +3555,12 @@ body.nav-sidebar-left .nav-mobile-extras {
   body.nav-sidebar-left.mobile-sidebar-expanded .app-sidebar {
     display: flex;
     flex-direction: column;
+    /* Un seul conteneur scrollable pour tout le menu déroulant */
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
   }
 
   body.nav-sidebar-left .sidebar-brand {
@@ -3564,10 +3573,22 @@ body.nav-sidebar-left .nav-mobile-extras {
   }
 
   body.nav-sidebar-left.mobile-sidebar-expanded #navSlotSide {
-    flex: 1;
+    /* Taille au contenu — le scroll se fait sur .app-sidebar (évite scroll imbriqué cassé) */
+    flex: 0 0 auto;
     min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
+  }
+
+  body.nav-sidebar-left.mobile-sidebar-expanded #appNav {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+
+  body.nav-sidebar-left.mobile-sidebar-expanded #appNav .tabs {
+    flex: 0 0 auto;
+    min-height: auto;
+    overflow: visible;
+    touch-action: pan-y;
   }
 
   body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer {
