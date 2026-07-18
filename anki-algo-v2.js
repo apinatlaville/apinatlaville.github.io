@@ -37,7 +37,6 @@
   V2.interleaveMatieres = function (cards) { return needA1().interleaveMatieres(cards); };
   V2.buildQuickSession = function (cards) { return needA1().buildQuickSession(cards); };
   V2.weaveSession = function (main, quick) { return needA1().weaveSession(main, quick); };
-  V2.forecastSchedule = function (cards, days) { return needA1().forecastSchedule(cards, days); };
   V2.isOverdue = function (c, ref) { return needA1().isOverdue(c, ref); };
   V2.computeIR = function (c, ref) { return needA1().computeIR(c, ref); };
   V2.qButtonToScore = function (b) { return needA1().qButtonToScore(b); };
@@ -555,6 +554,124 @@
       overload,
       overloadDelta
     };
+  };
+
+  /**
+   * Projection après une note donnée (qScore 0–10).
+   * Utilisé par l'onglet Prévisions « Selon la note ».
+   */
+  V2.projectAfterScore = function (card, qScore, tempsReel) {
+    if (!card) return null;
+    const tps = tempsReel != null ? tempsReel : (card.tempsCible || 60);
+    const out = V2.computeNextInterval(card, qScore, tps);
+    const today = V2.todayISO();
+    const next = out.dateProchaineRevision || today;
+    return {
+      qScore: Math.max(0, Math.min(10, qScore)),
+      intervalle: out.intervalle,
+      ease: out.ease,
+      repetitions: out.repetitions,
+      dateProchaineRevision: next,
+      daysUntil: V2.daysBetween(today, next),
+      windowOpen: out._v2WindowOpen || null,
+      windowClose: out._v2WindowClose || null,
+      phase: out._v2Phase || V2.getPhase(Object.assign({}, card, out))
+    };
+  };
+
+  /**
+   * Calendrier de charge sur N jours — simulation V2 (fenêtres ★ incluses).
+   * Hypothèse de révision : qScore 7 (réussi moyen), durée = tempsCible.
+   */
+  V2.forecastSchedule = function (exercices, days) {
+    const N = days || 14;
+    const today = V2.todayISO();
+    const horizonEnd = V2.addDays(today, N - 1);
+    const out = {};
+    for (let i = 0; i < N; i++) out[V2.addDays(today, i)] = [];
+
+    (exercices || []).forEach(function (c) {
+      if (!c || c.statut !== "actif") return;
+
+      if (c.type === "devoir" || V2.cardKind(c) === "devoir") {
+        const restants = Math.max(0, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
+        const tempsParSession = V2.cardDuration(c);
+        let date = c.dateProchaineRevision || today;
+        if (date < today) date = today;
+        for (let i = 0; i < restants; i++) {
+          if (out[date]) {
+            out[date].push(Object.assign({}, c, {
+              tempsCible: tempsParSession,
+              _projDate: date,
+              _projSessionIdx: (c._morceauxFaits || 0) + i + 1,
+              _projSessionTotal: c._morceauxTotal || 1,
+              _projKind: "devoir"
+            }));
+          }
+          date = V2.addDays(date, 1);
+          if (date > horizonEnd) break;
+        }
+        return;
+      }
+
+      let sim = {
+        id: c.id,
+        type: c.type,
+        profil: c.profil || "COURS",
+        importance: V2.getImportance(c),
+        intervalle: c.intervalle || 0,
+        ease: c.ease || 2.5,
+        repetitions: c.repetitions || 0,
+        tempsCible: c.tempsCible || 60,
+        dateProchaineRevision: c.dateProchaineRevision,
+        _v2WindowOpen: c._v2WindowOpen || null,
+        _v2WindowClose: c._v2WindowClose || null,
+        _blocageActif: c._blocageActif,
+        _blocageRevCount: c._blocageRevCount
+      };
+      let date = sim.dateProchaineRevision || today;
+      // Fenêtre mature : première occurrence = ouverture (ou aujourd'hui si déjà ouverte / overdue)
+      const ws0 = V2.windowState(sim, today);
+      if (V2.getPhase(sim) === "mature" && sim._v2WindowOpen) {
+        if (ws0 === "later" || ws0 === "soon") date = sim._v2WindowOpen;
+        else if (ws0 === "overdue" || ws0 === "active") date = today;
+      }
+      if (date < today) date = today;
+
+      let safety = 0;
+      while (date <= horizonEnd && safety++ < 24) {
+        if (out[date]) {
+          out[date].push(Object.assign({}, c, {
+            _projDate: date,
+            _projRep: sim.repetitions,
+            _projEase: parseFloat((sim.ease || 2.5).toFixed(2)),
+            _projWindowOpen: sim._v2WindowOpen || null,
+            _projWindowClose: sim._v2WindowClose || null,
+            _projPhase: V2.getPhase(sim),
+            _projKind: V2.cardKind(c)
+          }));
+        }
+        const nxt = V2.computeNextInterval(sim, 7, sim.tempsCible || 60);
+        sim.intervalle = nxt.intervalle;
+        sim.ease = nxt.ease;
+        sim.repetitions = nxt.repetitions;
+        sim.dateProchaineRevision = nxt.dateProchaineRevision;
+        sim._v2WindowOpen = nxt._v2WindowOpen != null ? nxt._v2WindowOpen : null;
+        sim._v2WindowClose = nxt._v2WindowClose != null ? nxt._v2WindowClose : null;
+        if (!nxt.intervalle || nxt.intervalle < 1) {
+          // Reset / learning : revient le lendemain pour la simu
+          date = V2.addDays(date, 1);
+        } else {
+          date = nxt.dateProchaineRevision || V2.addDays(date, nxt.intervalle);
+        }
+        if (!date || date <= today && safety > 1) break;
+      }
+    });
+
+    Object.keys(out).forEach(function (d) {
+      out[d] = V2.smartOrder(out[d]);
+    });
+    return out;
   };
 
   /** Session chapitre : toutes les cartes actives liées à un coursId (ordre priorité, sans filtre « ce soir »). */

@@ -2414,6 +2414,164 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .anki-fc-col.sel .anki-fc-bar { box-shadow: 0 0 0 2px var(--acc); }
 .on-bs { background: var(--acc); color: #fff; border-color: var(--acc); }
 
+/* Prévisions V2 — modes Jours / Par cours / Selon la note */
+.fc-root .fc-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+.fc-root .fc-mode-btn.on-bs { font-weight: 600; }
+.fc-hint { font-size: 12px; margin: 8px 0 0; }
+.fc-win-tag {
+  font-size: 10px;
+  font-family: 'DM Mono', monospace;
+  color: var(--gold);
+  background: rgba(212, 168, 75, 0.12);
+  border: 1px solid rgba(212, 168, 75, 0.35);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.fc-cours-toolbar { margin-bottom: 10px; }
+.fc-cours-list { display: flex; flex-direction: column; gap: 8px; }
+.fc-cours-card {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.fc-cours-hdr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--s3);
+}
+.fc-cours-card.open .fc-cours-hdr { background: rgba(91,141,247,.1); }
+.fc-cours-main { flex: 1; min-width: 0; }
+.fc-cours-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fc-cours-meta { font-size: 11px; margin-top: 2px; }
+.fc-cours-charge {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--acc);
+  white-space: nowrap;
+}
+.fc-cours-body { padding: 8px 10px 10px; border-top: 1px solid var(--bd); }
+.fc-cours-actions { margin-bottom: 8px; }
+.fc-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--bd);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.fc-card-row:first-child { border-top: none; }
+.fc-card-title {
+  flex: 1;
+  min-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fc-card-when {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--mut);
+  white-space: nowrap;
+}
+.fc-grade-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.fc-grade-pick select { flex: 1; min-width: 200px; }
+.fc-grade-current {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--s3);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.fc-grade-current > div { flex: 1; min-width: 180px; }
+.fc-grade-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 120px;
+  padding: 12px 8px 4px;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  margin: 10px 0;
+}
+.fc-grade-barcol {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+.fc-grade-bar {
+  width: 70%;
+  min-height: 8px;
+  border-radius: 4px 4px 0 0;
+  background: var(--acc);
+}
+.fc-grade-bar.fc-grade-bad { background: linear-gradient(to top, var(--red), #e07a5f); }
+.fc-grade-bar.fc-grade-mid { background: linear-gradient(to top, var(--gold), #e0b35f); }
+.fc-grade-bar.fc-grade-good { background: linear-gradient(to top, var(--grn), #6bcf8e); }
+.fc-grade-barlbl {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  color: var(--mut);
+  margin-top: 4px;
+}
+.fc-grade-table-wrap { overflow-x: auto; margin-top: 8px; }
+.fc-grade-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.fc-grade-table th,
+.fc-grade-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--bd);
+}
+.fc-grade-table th {
+  color: var(--mut);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.fc-grade-row.fc-grade-bad td:first-child { color: var(--red); }
+.fc-grade-row.fc-grade-mid td:first-child { color: var(--gold); }
+.fc-grade-row.fc-grade-good td:first-child { color: var(--grn); }
+@media (max-width: 640px) {
+  .fc-cours-hdr { flex-wrap: wrap; }
+  .fc-grade-current { flex-direction: column; align-items: flex-start; }
+  .anki-cal-row { flex-wrap: wrap; }
+}
+
 /* Diagnostic */
 .anki-formula {
  font-family: 'DM Mono', monospace;

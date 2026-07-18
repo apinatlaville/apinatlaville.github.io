@@ -30,6 +30,10 @@
     reservoirFilter: { mat: "", q: "" },  // v4: filtre de la vue Réservoir
     reservoirSel: new Set(),              // v4: sélection multiple pour activation groupée
     forecastDays: 14,
+    forecastMode: 'days',          // 'days' | 'cours' | 'grade'
+    forecastCoursFilter: '',
+    forecastGradeCardId: '',
+    forecastSimScores: [3, 5, 7, 8, 9, 10],
     selectionIds: new Set(),
     selectionOrder: [],
     pinnedIds: new Set(),      // auto : cartes ajoutées à la file
@@ -1568,62 +1572,289 @@
 
   // ====== VUE PRÉVISIONS (barres + calendrier jour par jour) ======
   function viewForecast() {
+    const mode = S.forecastMode || 'days';
+    const modeBtn = (id, label, icon) =>
+      `<button type="button" class="bs fc-mode-btn ${mode === id ? 'on-bs' : ''}" onclick="window.ankiV2ForecastMode('${id}')">${window.iconLabel(icon, label)}</button>`;
+
+    return `
+      <div class="anki-card-block fc-root" data-testid="forecast-root">
+        <div class="anki-block-hdr">
+          <div>
+            <h3>${window.iconLabel('calendar', 'Prévisions')}</h3>
+            <p class="anki-mut" style="font-size:12px;margin:4px 0 0;">Charge à venir · par cours · et « si tu notes X, ça tombe quand ? »</p>
+          </div>
+          <div class="anki-block-actions fc-horizon">
+            <button class="bs ${S.forecastDays === 7 ? 'on-bs' : ''}" onclick="window.ankiV2ForecastDays(7)">7j</button>
+            <button class="bs ${S.forecastDays === 14 ? 'on-bs' : ''}" onclick="window.ankiV2ForecastDays(14)">14j</button>
+            <button class="bs ${S.forecastDays === 30 ? 'on-bs' : ''}" onclick="window.ankiV2ForecastDays(30)">30j</button>
+            <button class="bs ${S.forecastDays === 60 ? 'on-bs' : ''}" onclick="window.ankiV2ForecastDays(60)">60j</button>
+          </div>
+        </div>
+        <div class="fc-modes">
+          ${modeBtn('days', 'Jours', 'calendar')}
+          ${modeBtn('cours', 'Par cours', 'book-open')}
+          ${modeBtn('grade', 'Selon la note', 'target')}
+        </div>
+        ${mode === 'cours' ? viewForecastByCours() : mode === 'grade' ? viewForecastByGrade() : viewForecastByDays()}
+      </div>
+    `;
+  }
+
+  function viewForecastByDays() {
     const sch = window.AnkiAlgoV2.forecastSchedule(ankSessionPool(), S.forecastDays);
     const dates = Object.keys(sch).sort();
     const charges = dates.map(d => sch[d].reduce((s, c) => s + (c.tempsCible || 60), 0));
     const max = Math.max(1, ...charges);
     const maxDay = (window.D.settings.ankiMaxPerDay || 75) * 60;
+    const today = window.AnkiAlgoV2.todayISO();
 
     return `
-      <div class="anki-card-block">
-        <div class="anki-block-hdr">
-          <h3>Prévisions (${S.forecastDays} jours)</h3>
-          <div class="anki-block-actions">
-            <button class="bs ${S.forecastDays === 7 ? 'on-bs' : ''}" onclick="window.ankiV2ForecastDays(7)">7j</button>
-            <button class="bs ${S.forecastDays === 14 ? 'on-bs' : ''}" onclick="window.ankiV2ForecastDays(14)">14j</button>
-            <button class="bs ${S.forecastDays === 30 ? 'on-bs' : ''}" onclick="window.ankiV2ForecastDays(30)">30j</button>
-          </div>
-        </div>
-        <div class="anki-forecast-bars">
-          ${dates.map((d, i) => {
-            const total = charges[i];
-            const pct = Math.round((total / max) * 100);
-            const over = total > maxDay;
-            const dd = d.substring(5).replace('-', '/');
-            const isToday = d === window.AnkiAlgoV2.todayISO();
-            return `<div class="anki-fc-col ${isToday ? 'today' : ''} ${S.expandedDay === d ? 'sel' : ''}" onclick="window.ankiV2ToggleDay('${d}')" title="${d} — ${sch[d].length} cartes · ${window.AnkiAlgoV2.fmtDur(total)}">
-              <div class="anki-fc-n">${sch[d].length || ''}</div>
-              <div class="anki-fc-bar ${over ? 'over' : ''}" style="height:${Math.max(2, pct)}%;"></div>
-              <div class="anki-fc-lbl">${dd}</div>
-            </div>`;
-          }).join('')}
-        </div>
-
-        <div class="anki-cal-list" style="margin-top:14px;">
-          ${dates.map(d => {
-            const cards = sch[d];
-            const total = cards.reduce((s, c) => s + (c.tempsCible || 60), 0);
-            const isToday = d === window.AnkiAlgoV2.todayISO();
-            // Par défaut tout fermé ; ouvert SI l'utilisateur a cliqué
-            const open = S.expandedDay === d;
-            if (!cards.length) return '';
-            return `
-              <div class="anki-cal-day ${isToday ? 'today' : ''}">
-                <div class="anki-cal-day-hdr" onclick="window.ankiV2ToggleDay('${d}')">
-                  <strong>${isToday ? window.iconLabel('map-pin', "Aujourd'hui") : d}</strong>
-                  <span class="anki-mut">${cards.length} cartes · ${window.AnkiAlgoV2.fmtDur(total)}</span>
-                  <span class="anki-mut" data-icon="${open ? 'chevron-down' : 'chevron-right'}" data-icon-size="12"></span>
-                </div>
-                ${open ? `<div class="anki-cal-day-list">${cards.map((c, i) => renderCalCard(c, i)).join('')}</div>` : ''}
+      <div class="anki-forecast-bars">
+        ${dates.map((d, i) => {
+          const total = charges[i];
+          const pct = Math.round((total / max) * 100);
+          const over = total > maxDay;
+          const dd = d.substring(5).replace('-', '/');
+          const isToday = d === today;
+          return `<div class="anki-fc-col ${isToday ? 'today' : ''} ${S.expandedDay === d ? 'sel' : ''}" onclick="window.ankiV2ToggleDay('${d}')" title="${d} — ${sch[d].length} cartes · ${window.AnkiAlgoV2.fmtDur(total)}">
+            <div class="anki-fc-n">${sch[d].length || ''}</div>
+            <div class="anki-fc-bar ${over ? 'over' : ''}" style="height:${Math.max(2, pct)}%;"></div>
+            <div class="anki-fc-lbl">${dd}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <p class="anki-mut fc-hint">Simulation V2 (note moyenne 7/10) · barre rouge = au-dessus de ta charge max/jour (${window.D.settings.ankiMaxPerDay || 75} min)</p>
+      <div class="anki-cal-list" style="margin-top:14px;">
+        ${dates.map(d => {
+          const cards = sch[d];
+          if (!cards.length) return '';
+          const total = cards.reduce((s, c) => s + (c.tempsCible || 60), 0);
+          const isToday = d === today;
+          const open = S.expandedDay === d;
+          return `
+            <div class="anki-cal-day ${isToday ? 'today' : ''}">
+              <div class="anki-cal-day-hdr" onclick="window.ankiV2ToggleDay('${d}')">
+                <strong>${isToday ? window.iconLabel('map-pin', "Aujourd'hui") : d}</strong>
+                <span class="anki-mut">${cards.length} cartes · ${window.AnkiAlgoV2.fmtDur(total)}${total > maxDay ? ' · <span style="color:var(--red);">surcharge</span>' : ''}</span>
+                <span class="anki-mut" data-icon="${open ? 'chevron-down' : 'chevron-right'}" data-icon-size="12"></span>
               </div>
-            `;
-          }).join('') || '<div class="anki-empty">Aucune révision prévue.</div>'}
-        </div>
+              ${open ? `<div class="anki-cal-day-list">${cards.map((c, i) => renderCalCard(c, i)).join('')}</div>` : ''}
+            </div>`;
+        }).join('') || '<div class="anki-empty">Aucune révision prévue sur cette période.</div>'}
       </div>
     `;
   }
+
+  function _forecastCardsByCours() {
+    const pool = ankSessionPool().filter(c => window.AnkiAlgoV2.isActive(c));
+    const today = window.AnkiAlgoV2.todayISO();
+    const horizonEnd = window.AnkiAlgoV2.addDays(today, S.forecastDays - 1);
+    const byCours = {};
+    const noCours = [];
+
+    pool.forEach(c => {
+      const ids = c.coursIds || (c.coursId ? [c.coursId] : []);
+      const due = c.dateProchaineRevision || today;
+      const open = c._v2WindowOpen;
+      let nextTouch = due;
+      if (c._v2WindowOpen && window.AnkiAlgoV2.getPhase(c) === 'mature') {
+        const ws = window.AnkiAlgoV2.windowState(c, today);
+        if (ws === 'later' || ws === 'soon') nextTouch = open;
+        else nextTouch = due < today ? today : due;
+      }
+      if (nextTouch < today) nextTouch = today;
+      const entry = { card: c, nextTouch, inHorizon: nextTouch <= horizonEnd };
+      if (!ids.length) { noCours.push(entry); return; }
+      ids.forEach(uid => {
+        if (!byCours[uid]) byCours[uid] = [];
+        byCours[uid].push(entry);
+      });
+    });
+
+    Object.keys(byCours).forEach(uid => {
+      byCours[uid].sort((a, b) => (a.nextTouch < b.nextTouch ? -1 : a.nextTouch > b.nextTouch ? 1 : 0));
+    });
+    noCours.sort((a, b) => (a.nextTouch < b.nextTouch ? -1 : 1));
+    return { byCours, noCours, today, horizonEnd };
+  }
+
+  function viewForecastByCours() {
+    const { byCours, noCours, today } = _forecastCardsByCours();
+    const uids = Object.keys(byCours);
+    const q = (S.forecastCoursFilter || '').trim().toLowerCase();
+
+    const rows = uids.map(uid => {
+      const co = (window.D.cours || []).find(x => x.uid === uid) || { uid, title: uid, mat: '?' };
+      const m = mat(co.mat);
+      const list = byCours[uid];
+      const inH = list.filter(x => x.inHorizon);
+      const next = list[0] ? list[0].nextTouch : '—';
+      const charge = inH.reduce((s, x) => s + (x.card.tempsCible || 60), 0);
+      const hay = ((co.uid || '') + ' ' + (co.title || '') + ' ' + (m.label || '') + ' ' + (m.name || '')).toLowerCase();
+      if (q && !hay.includes(q)) return '';
+      const open = S.expandedDay === 'cours:' + uid;
+      const daysUntil = list[0] ? window.AnkiAlgoV2.daysBetween(today, list[0].nextTouch) : null;
+      const when = daysUntil == null ? '—'
+        : daysUntil <= 0 ? "aujourd'hui"
+        : daysUntil === 1 ? 'demain'
+        : 'dans ' + daysUntil + ' j';
+      return `
+        <div class="fc-cours-card ${open ? 'open' : ''}">
+          <div class="fc-cours-hdr" onclick="window.ankiV2ToggleDay('cours:${esc(uid)}')" role="button" tabindex="0">
+            <span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span>
+            <div class="fc-cours-main">
+              <div class="fc-cours-title">${esc(co.uid)} · ${esc(co.title || 'Sans titre')}</div>
+              <div class="anki-mut fc-cours-meta">${list.length} carte${list.length > 1 ? 's' : ''} · ${inH.length} dans ${S.forecastDays}j · prochaine ${when} (${esc(next)})</div>
+            </div>
+            <div class="fc-cours-charge">${window.AnkiAlgoV2.fmtDur(charge)}</div>
+            <span class="anki-mut" data-icon="${open ? 'chevron-down' : 'chevron-right'}" data-icon-size="14"></span>
+          </div>
+          ${open ? `
+            <div class="fc-cours-body">
+              <div class="fc-cours-actions">
+                <button type="button" class="bp" onclick="event.stopPropagation();window.ankiV2PlayChapter('${esc(uid)}')">${window.iconLabel('play', 'Réviser le chapitre')}</button>
+              </div>
+              ${list.map(x => renderForecastCardRow(x.card, x.nextTouch)).join('')}
+            </div>` : ''}
+        </div>`;
+    }).filter(Boolean).join('');
+
+    const orphanBlock = noCours.length ? `
+      <div class="fc-cours-card">
+        <div class="fc-cours-hdr" onclick="window.ankiV2ToggleDay('cours:__none__')">
+          <span class="anki-q-mat" style="background:#666;">—</span>
+          <div class="fc-cours-main">
+            <div class="fc-cours-title">Sans cours lié</div>
+            <div class="anki-mut fc-cours-meta">${noCours.length} carte${noCours.length > 1 ? 's' : ''}</div>
+          </div>
+          <span class="anki-mut" data-icon="${S.expandedDay === 'cours:__none__' ? 'chevron-down' : 'chevron-right'}" data-icon-size="14"></span>
+        </div>
+        ${S.expandedDay === 'cours:__none__' ? `<div class="fc-cours-body">${noCours.map(x => renderForecastCardRow(x.card, x.nextTouch)).join('')}</div>` : ''}
+      </div>` : '';
+
+    return `
+      <div class="fc-cours-toolbar">
+        ${searchField('Filtrer un cours (code, titre, matière)…', `value="${esc(S.forecastCoursFilter || '')}" oninput="window.ankiV2ForecastCoursFilter(this.value)"`)}
+      </div>
+      <div class="fc-cours-list">
+        ${rows || '<div class="anki-empty">Aucune carte liée à un cours.</div>'}
+        ${orphanBlock}
+      </div>
+    `;
+  }
+
+  function renderForecastCardRow(c, nextTouch) {
+    const m = mat(c.mat);
+    const today = window.AnkiAlgoV2.todayISO();
+    const days = window.AnkiAlgoV2.daysBetween(today, nextTouch || c.dateProchaineRevision || today);
+    const phase = window.AnkiAlgoV2.getPhase(c);
+    const ws = window.AnkiAlgoV2.windowState(c, today);
+    const win = (c._v2WindowOpen && c._v2WindowClose)
+      ? `fenêtre ${c._v2WindowOpen} → ${c._v2WindowClose}`
+      : '';
+    return `
+      <div class="fc-card-row">
+        ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml(window.cardTypeKind ? window.cardTypeKind(c) : 'main') : ''}
+        <span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span>
+        <span class="uid-badge">${esc(c.id)}</span>
+        <span class="fc-card-title">${esc(c.titre || (c.question || '').substring(0, 70))}</span>
+        <span class="fc-card-when" title="${esc(win)}">${days <= 0 ? "aujourd'hui" : 'J+' + days} · ★${window.AnkiAlgoV2.getImportance(c)} · ${esc(phase)}/${esc(ws)}</span>
+        <span class="anki-mut">${window.iconHtml('timer', 12)} ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)}</span>
+        ${window.iconBtn('target', 'Projeter note', `onclick="event.stopPropagation();window.ankiV2ForecastPickCard('${esc(c.id)}')"`)}
+        ${window.iconBtn('play', 'Réviser', `onclick="event.stopPropagation();window.startAnkiV2Single('${esc(c.id)}')"`)}
+      </div>`;
+  }
+
+  function viewForecastByGrade() {
+    const pool = ankSessionPool().filter(c => window.AnkiAlgoV2.isActive(c) && window.AnkiAlgoV2.cardKind(c) !== 'devoir');
+    const today = window.AnkiAlgoV2.todayISO();
+    pool.sort((a, b) => {
+      const da = a.dateProchaineRevision || today;
+      const db = b.dateProchaineRevision || today;
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+
+    if (!S.forecastGradeCardId && pool.length) S.forecastGradeCardId = pool[0].id;
+    const card = pool.find(c => c.id === S.forecastGradeCardId) || pool[0] || null;
+
+    const opts = pool.slice(0, 80).map(c => {
+      const m = mat(c.mat);
+      const label = `${c.id} · ${m.label} · ${(c.titre || c.question || '').substring(0, 40)}`;
+      return `<option value="${esc(c.id)}" ${card && c.id === card.id ? 'selected' : ''}>${esc(label)}</option>`;
+    }).join('');
+
+    if (!card) {
+      return `<div class="anki-empty">Aucune carte active à projeter. Active des cartes X-/Y- d'abord.</div>`;
+    }
+
+    const m = mat(card.mat);
+    const phase = window.AnkiAlgoV2.getPhase(card);
+    const ws = window.AnkiAlgoV2.windowState(card, today);
+    const scores = S.forecastSimScores || [3, 5, 7, 8, 9, 10];
+    const projs = scores.map(q => window.AnkiAlgoV2.projectAfterScore(card, q));
+
+    const rows = projs.map(p => {
+      const when = p.daysUntil <= 0 ? "aujourd'hui / immédiat"
+        : p.daysUntil === 1 ? 'demain'
+        : 'dans ' + p.daysUntil + ' jours';
+      const win = (p.windowOpen && p.windowClose)
+        ? `fenêtre ${p.windowOpen} → ${p.windowClose} (${window.AnkiAlgoV2.daysBetween(p.windowOpen, p.windowClose)} j)`
+        : 'pas de fenêtre (phase ' + (p.phase || '—') + ')';
+      const tone = p.qScore <= 3 ? 'bad' : p.qScore >= 8 ? 'good' : 'mid';
+      return `
+        <tr class="fc-grade-row fc-grade-${tone}">
+          <td><b>${p.qScore}/10</b></td>
+          <td>${esc(when)}</td>
+          <td><code>${esc(p.dateProchaineRevision)}</code></td>
+          <td>${p.intervalle} j</td>
+          <td>ease ${Number(p.ease).toFixed(2)}</td>
+          <td class="anki-mut">${esc(win)}</td>
+        </tr>`;
+    }).join('');
+
+    // Mini barre visuelle relative aux daysUntil
+    const maxD = Math.max(1, ...projs.map(p => Math.max(0, p.daysUntil)));
+    const bars = projs.map(p => {
+      const pct = Math.round((Math.max(0, p.daysUntil) / maxD) * 100);
+      const tone = p.qScore <= 3 ? 'bad' : p.qScore >= 8 ? 'good' : 'mid';
+      return `<div class="fc-grade-barcol" title="${p.qScore}/10 → J+${p.daysUntil}">
+        <div class="fc-grade-bar fc-grade-${tone}" style="height:${Math.max(8, pct)}%;"></div>
+        <div class="fc-grade-barlbl">${p.qScore}</div>
+      </div>`;
+    }).join('');
+
+    return `
+      <div class="fc-grade-pick">
+        <label class="anki-mut">Carte</label>
+        <select class="fi" onchange="window.ankiV2ForecastPickCard(this.value)">${opts}</select>
+      </div>
+      <div class="fc-grade-current">
+        <span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span>
+        <div>
+          <div class="fc-cours-title">${esc(card.id)} · ${esc(card.titre || (card.question || '').substring(0, 60))}</div>
+          <div class="anki-mut">État actuel · ★${window.AnkiAlgoV2.getImportance(card)} · phase ${esc(phase)} · fenêtre ${esc(ws)} · due ${esc(card.dateProchaineRevision || '—')} · ease ${(card.ease || 2.5).toFixed(2)} · intervalle ${card.intervalle || 0} j</div>
+        </div>
+        <button type="button" class="bs" onclick="window.startAnkiV2Single('${esc(card.id)}')">${window.iconLabel('play', 'Réviser')}</button>
+      </div>
+      <p class="anki-mut fc-hint">Si tu notes cette carte maintenant, quand revient-elle ? (simulation V2 · fenêtres ★ en mature)</p>
+      <div class="fc-grade-bars">${bars}</div>
+      <div class="fc-grade-table-wrap">
+        <table class="fc-grade-table">
+          <thead><tr><th>Note</th><th>Tombe</th><th>Date</th><th>Intervalle</th><th>Ease</th><th>Fenêtre ★</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   function renderCalCard(c, i) {
     const m = mat(c.mat);
+    const win = (c._projWindowOpen && c._projWindowClose)
+      ? `<span class="fc-win-tag" title="Fenêtre projetée">↕ ${esc(c._projWindowOpen.substring(5))}→${esc(c._projWindowClose.substring(5))}</span>`
+      : '';
+    const devoirTag = c._projKind === 'devoir' && c._projSessionIdx
+      ? `<span class="fc-win-tag" title="Session devoir">DM ${c._projSessionIdx}/${c._projSessionTotal || '?'}</span>`
+      : '';
     return `
       <div class="anki-cal-row">
         <span class="anki-day-num">${i + 1}</span>
@@ -1631,13 +1862,28 @@
         <span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span>
         <span class="uid-badge">${esc(c.id)}</span>
         <span class="anki-day-title">${esc(c.titre || (c.question || '').substring(0, 80))}</span>
+        ${devoirTag}${win}
         <span class="anki-mut">${window.iconHtml('timer', 12)} ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)}</span>
-        ${window.iconBtn('calendar', 'Décaler', `onclick="event.stopPropagation();window.ankiV2AdjustNext('${c.id}')"`)}
-        ${window.iconBtn('play', 'Réviser', `onclick="event.stopPropagation();window.startAnkiV2Single('${c.id}')"`)}
+        ${window.iconBtn('target', 'Selon la note', `onclick="event.stopPropagation();window.ankiV2ForecastPickCard('${esc(c.id)}')"`)}
+        ${window.iconBtn('calendar', 'Décaler', `onclick="event.stopPropagation();window.ankiV2AdjustNext('${esc(c.id)}')"`)}
+        ${window.iconBtn('play', 'Réviser', `onclick="event.stopPropagation();window.startAnkiV2Single('${esc(c.id)}')"`)}
       </div>
     `;
   }
   window.ankiV2ForecastDays = function (n) { S.forecastDays = n; renderActiveView(); };
+  window.ankiV2ForecastMode = function (mode) {
+    S.forecastMode = mode === 'cours' || mode === 'grade' ? mode : 'days';
+    renderActiveView();
+  };
+  window.ankiV2ForecastCoursFilter = function (q) {
+    S.forecastCoursFilter = q || '';
+    renderActiveView();
+  };
+  window.ankiV2ForecastPickCard = function (id) {
+    S.forecastGradeCardId = id || '';
+    S.forecastMode = 'grade';
+    renderActiveView();
+  };
   window.ankiV2ToggleDay = function (d) { S.expandedDay = S.expandedDay === d ? null : d; renderActiveView(); };
 
   // SVG line chart pour stats hebdo
