@@ -461,6 +461,7 @@ V2 mature + succès → date = début fenêtre ★</div>
       if (!window.D.settings) window.D.settings = {};
       if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
       window.D.settings.algoV2.sessionMinDefault = v;
+      window.D.settings.ankiSessionMin = v;
       if (typeof window.save === "function") window.save();
     });
     bindNum("av2Marge", el => {

@@ -1433,7 +1433,6 @@ async function initApp(user) {
   }
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b9aff';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
-  if(!window.D.settings.ankiSessionMin) window.D.settings.ankiSessionMin = 60;
   if(window.D.settings.ankiIncludeNew === undefined) window.D.settings.ankiIncludeNew = 5;
   if(!window.D.settings.ankiMaxPerDay) window.D.settings.ankiMaxPerDay = 75;
 
@@ -1444,6 +1443,14 @@ async function initApp(user) {
   if (!window.D.settings.algoV2) {
     window.D.settings.algoV2 = { horizon: '1y', sessionMinDefault: 90, pullForward: true, margeBudget: 0.92 };
   }
+  // Une seule durée de session : algoV2.sessionMinDefault ↔ ankiSessionMin (alias)
+  if (window.D.settings.algoV2.sessionMinDefault == null && window.D.settings.ankiSessionMin != null) {
+    window.D.settings.algoV2.sessionMinDefault = window.D.settings.ankiSessionMin;
+  }
+  if (window.D.settings.algoV2.sessionMinDefault == null) {
+    window.D.settings.algoV2.sessionMinDefault = 90;
+  }
+  window.D.settings.ankiSessionMin = window.D.settings.algoV2.sessionMinDefault;
   delete window.D.settings.showPomo;
   delete window.D.settings.pomoWork;
   delete window.D.settings.pomoBreak;
