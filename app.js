@@ -700,6 +700,9 @@ window.runTabShow = function(tab, overrideResetFilters) {
       window.isEditingMat = false;
       window.renderMatieres();
       break;
+    case 'orphelins':
+      if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
+      break;
     case 'settings': window.applySettings(); break;
     case 'logs': window.renderErrorLogs(); break;
     case 'test': break;
@@ -834,6 +837,24 @@ window.renderDashboard = function() {
         <div class="dash-num">${window.D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">${window.iconLabel('graduation-cap', 'Sujets DS')}</div>
       </div>
     `;
+  }
+
+  // Rappel « À ranger » (hors zone Vue d'ensemble, pour rester visible même si celle-ci est masquée)
+  const orphanBanner = window.$('dashOrphanBanner');
+  if (orphanBanner && typeof window.countOrphans === 'function') {
+    const oc = window.countOrphans();
+    const total = oc.cours + oc.anki;
+    if (total > 0) {
+      orphanBanner.innerHTML = `
+        <div class="dash-card" onclick="window.switchTab('orphelins')" style="cursor:pointer;border-color:rgba(240,192,96,.45);background:rgba(240,192,96,.08);">
+          <div class="dash-num" style="color:var(--gold);">${total}</div>
+          <div class="dash-lbl">${window.iconLabel('inbox', 'À ranger')} · ${oc.cours} doc(s) · ${oc.anki} carte(s)</div>
+        </div>`;
+      orphanBanner.style.display = '';
+    } else {
+      orphanBanner.innerHTML = '';
+      orphanBanner.style.display = 'none';
+    }
   }
 
   const todos = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange')
@@ -1142,9 +1163,15 @@ bindChange('fType', () => window.toggleNoteField());
 bindChange('fMat', () => { if(typeof window.updateUidPrefix === 'function') window.updateUidPrefix(); });
 
 bindChange('fMoveCl', () => { if(typeof window.updateMoveIntercalairesDropdown === 'function') window.updateMoveIntercalairesDropdown(); });
+bindChange('fOrphanCl', () => { if (typeof window.updateOrphanInterDropdown === 'function') window.updateOrphanInterDropdown(); });
 
 bindClick('btnAddCl', () => window.addCl());
 bindClick('btnAddMat', () => window.addMat());
+bindClick('btnOrphanSelAllDocs', () => window.orphanSelAllDocs && window.orphanSelAllDocs());
+bindClick('btnOrphanSelAllAnki', () => window.orphanSelAllAnki && window.orphanSelAllAnki());
+bindClick('btnOrphanSelAll', () => window.orphanSelAll && window.orphanSelAll());
+bindClick('btnOrphanSelNone', () => window.orphanSelNone && window.orphanSelNone());
+bindClick('btnOrphanAssign', () => window.openOrphanAssign && window.openOrphanAssign());
 
 ['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, () => window.renderCours()); });
 bindClick('btnResetFilters', () => window.resetFilters());
@@ -1433,7 +1460,6 @@ async function initApp(user) {
   }
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b9aff';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
-  if(!window.D.settings.ankiSessionMin) window.D.settings.ankiSessionMin = 60;
   if(window.D.settings.ankiIncludeNew === undefined) window.D.settings.ankiIncludeNew = 5;
   if(!window.D.settings.ankiMaxPerDay) window.D.settings.ankiMaxPerDay = 75;
 
@@ -1444,6 +1470,14 @@ async function initApp(user) {
   if (!window.D.settings.algoV2) {
     window.D.settings.algoV2 = { horizon: '1y', sessionMinDefault: 90, pullForward: true, margeBudget: 0.92 };
   }
+  // Une seule durée de session : algoV2.sessionMinDefault ↔ ankiSessionMin (alias)
+  if (window.D.settings.algoV2.sessionMinDefault == null && window.D.settings.ankiSessionMin != null) {
+    window.D.settings.algoV2.sessionMinDefault = window.D.settings.ankiSessionMin;
+  }
+  if (window.D.settings.algoV2.sessionMinDefault == null) {
+    window.D.settings.algoV2.sessionMinDefault = 90;
+  }
+  window.D.settings.ankiSessionMin = window.D.settings.algoV2.sessionMinDefault;
   delete window.D.settings.showPomo;
   delete window.D.settings.pomoWork;
   delete window.D.settings.pomoBreak;
@@ -1457,7 +1491,11 @@ async function initApp(user) {
     window.D.settings.userName = "Mode Local";
     window.D.settings.appColor = '#5b9aff';
   } else if (user && user.given_name) {
-    window.D.settings.userName = user.given_name;
+    // Ne pas écraser un prénom déjà personnalisé par l'utilisateur
+    const cur = (window.D.settings.userName || '').trim();
+    if (!cur || cur === 'Étudiant' || cur === 'Etudiant') {
+      window.D.settings.userName = user.given_name;
+    }
   }
 
   if (typeof window.updateCloudIndicator === 'function') {

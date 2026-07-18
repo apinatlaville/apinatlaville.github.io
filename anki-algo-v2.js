@@ -44,6 +44,8 @@
   V2.qScoreToButton = function (s) { return needA1().qScoreToButton(s); };
   V2.getCoefs = function () { return needA1().getCoefs(); };
   V2.importanceIntervalMult = function (imp) { return needA1().importanceIntervalMult(imp); };
+  V2.smartOrder = function (cards) { return needA1().smartOrder(cards); };
+  V2.cardDuration = function (c) { return needA1().cardDuration(c); };
 
   V2.getCandidates = function (exercices, ref) {
     return V2.sortByPriority(exercices, ref).map(x => ({ card: x.card, score: { total: x.priority, breakdown: x.breakdown, raw: x.raw } }));
@@ -215,14 +217,13 @@
   };
 
   function _tempsCarte(c) {
-    const A = needA1();
-    if (c.type === "devoir" || V2.cardKind(c) === "devoir") {
+    // Même durée que l'UI / v1 (évite de rediviser tempsCible déjà « par session »)
+    if (c && (c.type === "devoir" || V2.cardKind(c) === "devoir")) {
       const total = c._morceauxTotal || 1;
       const done = c._morceauxFaits || 0;
       if (done >= total) return 0;
-      return Math.round((c.tempsCible || 1800) / Math.max(1, total - done));
     }
-    return c.tempsCible || 60;
+    return V2.cardDuration(c);
   }
 
   /** Après notation : même cœur SM-2 que v1 + fenêtres ★ en phase mature. */

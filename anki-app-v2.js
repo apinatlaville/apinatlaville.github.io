@@ -570,30 +570,39 @@
     return applyAutoAdjustments(base, sessionMin);
   }
 
+  function setSessionMinutesV2(total) {
+    const n = Math.max(5, Math.min(300, parseInt(total, 10) || 90));
+    if (!window.D.settings) window.D.settings = {};
+    if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
+    window.D.settings.algoV2.sessionMinDefault = n;
+    // Alias legacy (anciens écrans / prompts) — une seule source de vérité
+    window.D.settings.ankiSessionMin = n;
+    S.sessionMinTonight = n;
+    return n;
+  }
+
   window.ankiV2SetSessionTime = function () {
     const hEl = document.querySelector('.anki-time-h');
     const mEl = document.querySelector('.anki-time-m');
     const h = hEl ? parseInt(hEl.value, 10) || 0 : 0;
     const m = mEl ? parseInt(mEl.value, 10) || 0 : 0;
-    const total = Math.max(5, Math.min(300, h * 60 + m));
-    if (!window.D.settings) window.D.settings = {};
-    if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
-    window.D.settings.algoV2.sessionMinDefault = total;
-    S.sessionMinTonight = total;
+    const total = setSessionMinutesV2(h * 60 + m);
     window.save();
     syncSessionTimeUi(total);
     refreshQueueOnly();
   };
 
   window.ankiV2SetSessionTimePreset = function (min) {
-    const total = Math.max(5, Math.min(300, parseInt(min, 10) || 60));
-    if (!window.D.settings) window.D.settings = {};
-    if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
-    window.D.settings.algoV2.sessionMinDefault = total;
-    S.sessionMinTonight = total;
+    const total = setSessionMinutesV2(min);
     window.save();
     syncSessionTimeUi(total);
     refreshQueueOnly();
+  };
+
+  window.ankiV2ApplySessionMinSetting = function (val) {
+    setSessionMinutesV2(val);
+    window.save();
+    window.renderAnkiV2();
   };
 
   function syncSessionTimeUi(total) {
@@ -739,7 +748,7 @@
   function renderCockpitPickFilters(isManualTab) {
     if (!isManualTab) return '';
     const matOpts = (window.D.matieres || []).map(m =>
-      `<option value="${m.id}"${S.cockpitFilterMat === m.id ? ' selected' : ''}>${m.label} — ${m.name}</option>`
+      `<option value="${m.id}"${S.cockpitFilterMat === m.id ? ' selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`
     ).join('');
     const coursList = (window.D.cours || []).filter(co =>
       !S.cockpitFilterMat || co.mat === S.cockpitFilterMat
@@ -992,7 +1001,7 @@
       <div class="pcard anki-pcard ${sel ? 'sel' : ''}" data-pickid="${c.id}" onclick="event.preventDefault();window.ankiV2TogglePick('${c.id}')">
         <div class="pc-check">${sel ? window.iconHtml('check', 14, 'icon-sm') : window.iconHtml('square', 14, 'icon-sm')}</div>
         ${pinTag}
-        <div class="anki-pcard-mat" style="background:${m.color}20;color:${m.color};">${cardTypeBadge(c)} ${m.label}</div>
+        <div class="anki-pcard-mat" style="background:${m.color}20;color:${m.color};">${cardTypeBadge(c)} ${esc(m.label)}</div>
         <div class="pc-uid">${c.id}</div>
         <div class="pc-title">${esc(c.titre || (c.question || '').substring(0, 48))}</div>
         <div class="anki-pcard-stats anki-mut">${cardAlgoStatsLine(c)}</div>
@@ -1044,7 +1053,7 @@
         <span class="anki-q-handle" title="Glisser">⋮⋮</span>
         <div class="anki-q-num">${i + 1}</div>
         ${cardTypeBadge(c)}
-        <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? window.iconHtml('file-text', 12) : m.label}</div>
+        <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? window.iconHtml('file-text', 12) : esc(m.label)}</div>
         <div class="anki-q-body" onclick="window.startAnkiV2Single('${c.id}')">
           <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}${sessionInfo}</div>
           <div class="anki-q-meta">${c.id} · ${cardAlgoStatsLine(c)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
@@ -1088,7 +1097,7 @@
       const la = (mat(a).label || a), lb = (mat(b).label || b);
       return la.localeCompare(lb);
     });
-    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${S.reservoirFilter.mat === m.id ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
+    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${S.reservoirFilter.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const selCount = S.reservoirSel.size;
 
     let html = `
@@ -1116,7 +1125,7 @@
           return `
             <div class="anki-lib-group" data-testid="reservoir-group-${k}">
               <div class="anki-lib-group-hdr" style="border-left:4px solid ${m.color};">
-                <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${m.label}</span>
+                <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
                 <span class="anki-lib-grp-t">${esc(m.name || k)}</span>
                 <span class="anki-mut" style="margin-left:auto;">${cards.length}</span>
                 <button class="bs" style="margin-left:8px;" data-testid="btn-reservoir-activate-mat-${k}" onclick="window.ankiV2ReservoirActivateMat('${k}')">${window.iconLabel('zap', 'Activer toute la matière')}</button>
@@ -1204,7 +1213,7 @@
     list.forEach(c => { if (window.AnkiAlgoV2.activateFromReservoir(c)) n++; });
     window.AnkiAlgoV2.log("activate-reservoir", { mat: matId, count: n, mode: "matiere" });
     window.save();
-    window.sysAlert(`${n} carte(s) de la matière "${(mat(matId).name || matId)}" activées.`, "Réservoir");
+    window.sysAlert(`${n} carte(s) de la matière "${esc(mat(matId).name || matId)}" activées.`, "Réservoir");
     window.renderAnkiV2();
   };
 
@@ -1250,7 +1259,7 @@
   // ===== Sélection style Impression (grille pcard + ordre ↑↓) =====
   function togglePickAuto(id) {
     const base = window.AnkiAlgoV2.buildSession(ankSessionPool(), {
-      sessionMinutes: (window.D.settings && window.D.settings.ankiSessionMin) || 60,
+      sessionMinutes: getSessionMinutesV2(),
       includeNew: (window.D.settings && window.D.settings.ankiIncludeNew) || 5,
       selectedIds: null,
       manualOrder: null
@@ -1360,10 +1369,10 @@
     renderActiveView();
   };
   window.ankiV2QuickEditSession = function () {
-    const cur = (window.D.settings && window.D.settings.ankiSessionMin) || 60;
+    const cur = getSessionMinutesV2();
     const val = prompt("Durée de la session (minutes) :", cur);
     if (val === null) return;
-    window.D.settings.ankiSessionMin = Math.max(5, Math.min(240, parseInt(val) || cur));
+    setSessionMinutesV2(Math.max(5, Math.min(300, parseInt(val) || cur)));
     window.save(); renderActiveView();
   };
 
@@ -1395,12 +1404,12 @@
     const matOrder = (window.D.matieres || []).map(m => m.id).filter(id => byMat[id]);
     Object.keys(byMat).forEach(id => { if (!matOrder.includes(id)) matOrder.push(id); });
 
-    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${S.libFilter.mat === m.id ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
-    const profOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${S.libFilter.profil === p ? 'selected' : ''}>${window.AnkiAlgoV2.DEFAULT_PROFILES[p].label}</option>`).join('');
+    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${S.libFilter.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const profOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${S.libFilter.profil === p ? 'selected' : ''}>${esc(window.AnkiAlgoV2.DEFAULT_PROFILES[p].label)}</option>`).join('');
     const matChips = (window.D.matieres || []).map(m => {
       const n = (byMat[m.id] && Object.values(byMat[m.id]).reduce((s, a) => s + a.length, 0)) || 0;
       if (!n && S.libFilter.mat !== m.id) return '';
-      return `<button type="button" class="anki-lib-chip${S.libFilter.mat === m.id ? ' on' : ''}" onclick="window.ankiV2LibFilter('mat','${m.id}')">${m.label} <span class="anki-lib-chip-n">${n}</span></button>`;
+      return `<button type="button" class="anki-lib-chip${S.libFilter.mat === m.id ? ' on' : ''}" onclick="window.ankiV2LibFilter('mat','${m.id}')">${esc(m.label)} <span class="anki-lib-chip-n">${n}</span></button>`;
     }).join('');
     const autoExpand = !!S.libFilter.q;
 
@@ -1442,7 +1451,7 @@
           <div class="anki-lib-mat${matOpen ? ' open' : ''}" data-mat="${esc(matId)}">
             <div class="anki-lib-mat-hdr" style="border-left:4px solid ${m.color};" onclick="window.ankiV2LibToggleMat('${esc(matId)}')" role="button" tabindex="0">
               <span class="anki-lib-chevron">${matOpen ? '▼' : '▶'}</span>
-              <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${m.label}</span>
+              <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
               <span class="anki-lib-mat-name">${esc(m.name || matId)}</span>
               <span class="anki-mut" style="margin-left:auto;">${matCount} carte${matCount > 1 ? 's' : ''}</span>
             </div>
@@ -1613,8 +1622,8 @@
       <div class="anki-cal-row">
         <span class="anki-day-num">${i + 1}</span>
         ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml(window.cardTypeKind ? window.cardTypeKind(c) : 'main') : ''}
-        <span class="anki-q-mat" style="background:${m.color};">${m.label}</span>
-        <span class="uid-badge">${c.id}</span>
+        <span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span>
+        <span class="uid-badge">${esc(c.id)}</span>
         <span class="anki-day-title">${esc(c.titre || (c.question || '').substring(0, 80))}</span>
         <span class="anki-mut">${window.iconHtml('timer', 12)} ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)}</span>
         ${window.iconBtn('calendar', 'Décaler', `onclick="event.stopPropagation();window.ankiV2AdjustNext('${c.id}')"`)}
@@ -1798,7 +1807,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
               const easeMoy = (s.easeSum / s.easeN).toFixed(2);
               const easeCol = parseFloat(easeMoy) < 2.0 ? 'var(--red)' : parseFloat(easeMoy) < 2.4 ? 'var(--gold)' : 'var(--grn)';
               return `<tr>
-                <td><span class="anki-q-mat" style="background:${m.color};">${m.label}</span> ${m.name}</td>
+                <td><span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span> ${esc(m.name)}</td>
                 <td>${s.cards}</td>
                 <td>${s.total}</td>
                 <td>${s.ok}</td>
@@ -1855,7 +1864,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         </div>
         <div class="anki-set-row">
           <label>Durée session par défaut (min)</label>
-          <input type="number" class="fi" min="15" max="300" step="5" value="${av2.sessionMinDefault || 90}" onchange="window.D.settings.algoV2=window.D.settings.algoV2||{};window.D.settings.algoV2.sessionMinDefault=parseInt(this.value)||90;window.save();window.renderAnkiV2();">
+          <input type="number" class="fi" min="5" max="300" step="5" value="${av2.sessionMinDefault || st.ankiSessionMin || 90}" onchange="window.ankiV2ApplySessionMinSetting(this.value)">
+          <p class="anki-mut" style="font-size:11px;margin-top:4px;">Même réglage que la barre « Durée session » en haut du Synchrotron (max 5 h).</p>
         </div>
         <label class="anki-check-row">
           <input type="checkbox" ${av2.pullForward !== false ? 'checked' : ''} onchange="window.D.settings.algoV2=window.D.settings.algoV2||{};window.D.settings.algoV2.pullForward=this.checked;window.save();window.renderAnkiV2();">
@@ -1872,11 +1882,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
       <div class="anki-card-block">
         <h3>Session</h3>
-        <div class="anki-set-row">
-          <label>Durée de session (min)</label>
-          <input type="number" class="fi" min="5" max="300" step="5" value="${st.ankiSessionMin || 60}" onchange="window.D.settings.ankiSessionMin=Math.max(5,Math.min(300,parseInt(this.value)||60));window.save();window.renderAnkiV2();">
-          <p class="anki-mut" style="font-size:11px;margin-top:4px;">Même réglage que la barre « Durée session » en haut du Synchrotron (max 5 h).</p>
-        </div>
         <div class="anki-set-row">
           <label>Nouvelles cartes / session (legacy — réservoir activé manuellement)</label>
           <input type="number" class="fi" min="0" max="30" value="${st.ankiIncludeNew !== undefined ? st.ankiIncludeNew : 0}" onchange="window.D.settings.ankiIncludeNew=parseInt(this.value)||0;window.save();window.renderAnkiV2();">
@@ -2595,7 +2600,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div class="anki-sess-tags">
             ${cardTypeBadge(c)}
             <span class="uid-badge">${c.id}</span>
-            <span class="anki-tag" style="background:${m.color}20;color:${m.color};border:1px solid ${m.color};">${m.label}</span>
+            <span class="anki-tag" style="background:${m.color}20;color:${m.color};border:1px solid ${m.color};">${esc(m.label)}</span>
             ${isDevoir ? `<span class="anki-tag" style="background:#b06af720;color:#b06af7;border:1px solid #b06af7;">${window.iconLabel('file-text', `DM ${(dmRef._morceauxFaits || 0) + 1}/${dmRef._morceauxTotal || 1}`)}</span>` : `<span class="anki-tag">${stars(c)}</span>`}
           </div>
           <div class="anki-sess-chrono-col">
@@ -2793,7 +2798,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         prochaine: restants > 0 ? dmCard.dateProchaineRevision : "TERMINÉ",
         tempsReel: window.AnkiAlgoV2.fmtDur(tps)
       });
-      window.sysAlert(`${window.iconHtml('file-text', 14)} <b>${dmCard.titre || dmCard.id}</b><br>Session ${dmCard._morceauxFaits}/${dmCard._morceauxTotal} terminée.<br>${restants > 0 ? 'Prochaine session : <b>' + dmCard.dateProchaineRevision + '</b>' : window.iconLabel('check', '<b>DM TERMINÉ</b>')}`, "DM");
+      window.sysAlert(`${window.iconHtml('file-text', 14)} <b>${esc(dmCard.titre || dmCard.id)}</b><br>Session ${dmCard._morceauxFaits}/${dmCard._morceauxTotal} terminée.<br>${restants > 0 ? 'Prochaine session : <b>' + esc(dmCard.dateProchaineRevision) + '</b>' : window.iconLabel('check', '<b>DM TERMINÉ</b>')}`, "DM");
     } else {
       // Carte normale : update ease/intervalle/repetitions + flag blocage
       const easeAvant = S.current.ease || 2.5;
@@ -2831,7 +2836,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           ? `<br>${window.iconLabel('zap', `<b style="color:var(--red);">Blocage actif</b> (tentative ${out._blocageRevCount}) — la carte sera boostée jusqu'à note ≥ ${(window.AnkiAlgoV2.getCoefs().BLOCAGE_QSCORE_VALIDATE || 8)}.`)}`
           : (snapshot.card._blocageActif ? `<br>${window.iconLabel('check', '<b style="color:var(--grn);">Blocage levé</b>')}` : '');
         window.sysAlert(
-          `<b>${S.current.titre || S.current.id}</b><br><br>` +
+          `<b>${esc(S.current.titre || S.current.id)}</b><br><br>` +
           `${window.iconLabel('target', `Score : <b>${qScore}/10</b> (vitesse ×${out.penaliteVitesse})`)}<br>` +
           `${window.iconLabel('bar-chart', `Ease : ${easeAvant.toFixed(2)} → <b style="color:${easeColor};">${out.ease} ${easeArrow}</b>`)}<br>` +
           `${window.iconLabel('calendar', `Intervalle : ${intAvant}j → <b>${out.intervalle}j</b>`)}<br>` +
@@ -3104,8 +3109,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!ov) { ov = document.createElement("div"); ov.id = "ovExo"; ov.className = "ov ov-scroll"; document.body.appendChild(ov); }
     ov.classList.add('ov-scroll');
     ov.classList.remove("hidden");
-    const matOpts = '<option value="">— Choisir —</option>' + (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
-    const profileOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${(c.profil || 'COURS') === p ? 'selected' : ''}>${window.AnkiAlgoV2.DEFAULT_PROFILES[p].label}</option>`).join('');
+    const matOpts = '<option value="">— Choisir —</option>' + (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const profileOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${(c.profil || 'COURS') === p ? 'selected' : ''}>${esc(window.AnkiAlgoV2.DEFAULT_PROFILES[p].label)}</option>`).join('');
     const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 1;
 
     ov.innerHTML = `
@@ -3177,7 +3182,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const matOpts = (matieres.length
       ? '<option value="">— Choisir —</option>'
       : '<option value="">— Aucune matière — crée-en une dans Matières —</option>')
-      + matieres.map(m => `<option value="${m.id}" ${m.id === defaultMat ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
+      + matieres.map(m => `<option value="${m.id}" ${m.id === defaultMat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const tempsMin = c._dureeTotaleMin != null ? c._dureeTotaleMin : (c.tempsCible ? (c.tempsCible / 60) : 30);
     const morceaux = Math.max(1, c._morceauxTotal || 1);
     const morceauxFaits = c._morceauxFaits || 0;
@@ -3284,10 +3289,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const m = mat(c.mat);
       const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
       return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${c.uid}')">
-        <span class="anki-link-mat" style="background:${m.color}20;color:${m.color};">${m.label}</span>
-        <span class="anki-link-id">${c.uid}</span>
+        <span class="anki-link-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
+        <span class="anki-link-id">${esc(c.uid)}</span>
         <span class="anki-link-title">${esc(c.title)}</span>
-        <span class="anki-mut">${cl.name || ''}</span>
+        <span class="anki-mut">${esc(cl.name || '')}</span>
       </div>`;
     }).join('');
   }
@@ -3508,7 +3513,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     let ov = $("ovQuickCreate");
     if (!ov) { ov = document.createElement("div"); ov.id = "ovQuickCreate"; ov.className = "ov"; document.body.appendChild(ov); }
     ov.classList.remove("hidden");
-    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
+    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 0.5;
     ov.innerHTML = `
       <div class="modal card-type-surface card-type-quick">
