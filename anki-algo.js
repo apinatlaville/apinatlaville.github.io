@@ -105,15 +105,16 @@
   };
 
   // ===== Date helpers =====
-  // ⚠ Fix v4.1 : on retourne la date LOCALE (pas UTC). `toISOString` convertit
-  // en UTC, ce qui décale d'un jour en zone UTC+x après minuit local.
+  // ⚠ Date LOCALE (pas UTC). Délègue à core-utils.js si disponible.
   function _localISO(d) {
+    if (typeof window.localDateISO === 'function') return window.localDateISO(d);
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
     return y + "-" + m + "-" + day;
   }
   ALGO.todayISO = function () {
+    if (typeof window.todayISO === 'function') return window.todayISO();
     return _localISO(new Date());
   };
   ALGO.addDays = function (iso, n) {

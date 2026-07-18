@@ -65,33 +65,32 @@
 
   function getDeviceId() {
     if (state.deviceId) return state.deviceId;
-    try {
-      var id = localStorage.getItem(CONFIG.STORAGE_DEVICE_ID);
-      if (!id) {
-        id = (window.crypto && crypto.randomUUID)
-          ? crypto.randomUUID()
-          : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-        localStorage.setItem(CONFIG.STORAGE_DEVICE_ID, id);
-      }
-      state.deviceId = id;
-      return id;
-    } catch (e) {
-      state.deviceId = 'dev-fallback-' + String(now());
-      return state.deviceId;
+    var id = typeof window.safeLocalGet === 'function'
+      ? window.safeLocalGet(CONFIG.STORAGE_DEVICE_ID)
+      : (function () { try { return localStorage.getItem(CONFIG.STORAGE_DEVICE_ID); } catch (e) { return null; } })();
+    if (!id) {
+      id = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : 'dev-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      if (typeof window.safeLocalSet === 'function') window.safeLocalSet(CONFIG.STORAGE_DEVICE_ID, id);
+      else try { localStorage.setItem(CONFIG.STORAGE_DEVICE_ID, id); } catch (e) {}
     }
+    state.deviceId = id;
+    return id;
   }
 
   function readPreferredRole() {
-    try {
-      var v = localStorage.getItem(CONFIG.STORAGE_ROLE_PREF);
-      if (v === CONFIG.ROLES.PRIMARY || v === CONFIG.ROLES.SECONDARY) return v;
-    } catch (e) { /* ignore */ }
+    var v = typeof window.safeLocalGet === 'function'
+      ? window.safeLocalGet(CONFIG.STORAGE_ROLE_PREF)
+      : (function () { try { return localStorage.getItem(CONFIG.STORAGE_ROLE_PREF); } catch (e) { return null; } })();
+    if (v === CONFIG.ROLES.PRIMARY || v === CONFIG.ROLES.SECONDARY) return v;
     return null;
   }
 
   function writePreferredRole(role) {
     if (role !== CONFIG.ROLES.PRIMARY && role !== CONFIG.ROLES.SECONDARY) return;
-    try { localStorage.setItem(CONFIG.STORAGE_ROLE_PREF, role); } catch (e) { /* ignore */ }
+    if (typeof window.safeLocalSet === 'function') window.safeLocalSet(CONFIG.STORAGE_ROLE_PREF, role);
+    else try { localStorage.setItem(CONFIG.STORAGE_ROLE_PREF, role); } catch (e) {}
     state.preferredRole = role;
   }
 
@@ -619,7 +618,8 @@
       data.meta.updatedByRole = CONFIG.ROLES.SECONDARY;
       return window.setDoc(window.docRef, data).then(function () {
         window.D = data;
-        try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+        if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+        else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
         return data;
       });
     });
@@ -637,7 +637,8 @@
       var data = snap.data();
       if (!data) return;
       window.D = data;
-      try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+      if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+      else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
     }, function (err) { console.warn('DeviceSession data listen:', err); });
   }

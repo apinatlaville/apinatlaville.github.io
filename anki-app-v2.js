@@ -5,6 +5,16 @@
 (function () {
   const $ = id => document.getElementById(id);
 
+  window.ankiQueueEmptyHtml = function (isManualTab, withQueueClass) {
+    const M = window.APP_MSG || {};
+    const msg = isManualTab
+      ? (M.QUEUE_EMPTY_MANUAL || 'Sélectionne des cartes en mode manuel.')
+      : (M.QUEUE_EMPTY || 'Aucune carte à réviser.');
+    const icon = isManualTab ? 'search' : 'sparkles';
+    const cls = withQueueClass ? 'anki-empty anki-queue-empty' : 'anki-empty';
+    return `<div class="${cls}">${window.iconLabel(icon, msg)}</div>`;
+  };
+
   const S = {
     view: "cockpit",
     queue: [], current: null, showAnswer: false,
@@ -813,7 +823,7 @@
           : window.iconLabel('lightbulb', 'L&apos;algo remplit la file. Clique une carte due pour l&apos;ajouter ou la retirer — le reste de la file est conservé.')
         }</p>
         <div class="anki-queue anki-queue-fixed" id="ankiQueueDrop">
-          ${cartes.length === 0 ? `<div class="anki-empty">${isManualTab ? window.iconLabel('search', 'Sélectionne des cartes en mode manuel.') : window.iconLabel('sparkles', 'Aucune carte à réviser.')}</div>` : cartes.map((c, i) => renderQueueRow(c, i)).join('')}
+          ${cartes.length === 0 ? (typeof window.ankiQueueEmptyHtml === 'function' ? window.ankiQueueEmptyHtml(isManualTab) : `<div class="anki-empty">${isManualTab ? window.iconLabel('search', (window.APP_MSG && window.APP_MSG.QUEUE_EMPTY_MANUAL) || 'Sélectionne des cartes en mode manuel.') : window.iconLabel('sparkles', (window.APP_MSG && window.APP_MSG.QUEUE_EMPTY) || 'Aucune carte à réviser.')}</div>`) : cartes.map((c, i) => renderQueueRow(c, i)).join('')}
         </div>
         ${plan.reportees.length && !isManualTab ? `<div class="anki-mut" style="margin-top:8px;font-size:11px;">${plan.reportees.length} carte(s) hors budget → reportées</div>` : ""}
       </div>
@@ -844,7 +854,7 @@
         ${renderCockpitPickFilters(isManualTab)}
         <p class="anki-mut" style="margin:8px 0 6px;font-size:11px;">${pickHint}${isManualTab ? ' · triées par prio ↓' : ''}</p>
         <div class="cgrid anki-pick-grid" id="ankiPickGrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">
-          ${displayList.map(c => renderPickPcard(c)).join('') || '<div class="anki-empty" style="grid-column:1/-1;">Aucun résultat</div>'}
+          ${displayList.map(c => renderPickPcard(c)).join('') || `<div class="anki-empty" style="grid-column:1/-1;">${(window.APP_MSG && window.APP_MSG.EMPTY_SEARCH) || 'Aucun résultat'}</div>`}
         </div>
       </div>
     `;
@@ -911,8 +921,10 @@
             <div class="anki-progress"><div class="anki-progress-bar" style="width:${pct}%;background:${m.color};"></div></div>
           </div>
           ${window.iconBtn('play', 'Session', `onclick="window.startAnkiV2Single('${d.id}')"`)}
-          ${window.iconBtn('pencil', 'Modifier', `onclick="window.ankiV2EditExo('${d.id}')"`)}
-          ${window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red);border-color:var(--red);" onclick="window.ankiV2DelExo('${d.id}')"`)}
+          ${typeof window.iconEditDeletePair === 'function'
+            ? window.iconEditDeletePair(`window.ankiV2EditExo('${d.id}')`, `window.ankiV2DelExo('${d.id}')`)
+            : (window.iconBtn('pencil', 'Modifier', `onclick="window.ankiV2EditExo('${d.id}')"`) +
+               window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red);border-color:var(--red);" onclick="window.ankiV2DelExo('${d.id}')"`))}
         </div>
       `;
     }).join('');
@@ -997,7 +1009,7 @@
     S._effectiveIds = new Set(plan.cartes.map(c => c.id));
     const list = getCockpitDisplayList();
     grid.innerHTML = list.map(c => renderPickPcard(c)).join('')
-      || '<div class="anki-empty" style="grid-column:1/-1;">Aucun résultat</div>';
+      || `<div class="anki-empty" style="grid-column:1/-1;">${(window.APP_MSG && window.APP_MSG.EMPTY_SEARCH) || 'Aucun résultat'}</div>`;
     if (stats) {
       stats.textContent = S.cockpitMode === 'manual'
         ? `${S.selectionIds.size} sélectionnée(s)`
@@ -1098,7 +1110,7 @@
           <button class="bs" data-testid="btn-reservoir-clear-sel" onclick="window.ankiV2ReservoirClearSel()">Vider sél. (${selCount})</button>
           <button class="bp" data-testid="btn-reservoir-activate-selected" onclick="window.ankiV2ReservoirActivateSelected()" ${selCount === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>${window.iconLabel('zap', `Activer la sélection (${selCount})`)}</button>
         </div>
-        ${list.length === 0 ? '<div class="anki-empty">Aucune carte dans le réservoir.</div>' : matKeys.map(k => {
+        ${list.length === 0 ? `<div class="anki-empty">${(window.APP_MSG && window.APP_MSG.EMPTY_RESERVOIR) || 'Aucune carte dans le réservoir.'}</div>` : matKeys.map(k => {
           const m = mat(k);
           const cards = groups[k];
           return `
@@ -1145,8 +1157,10 @@
         </div>
         <div class="anki-lib-acts">
           <button class="bp" data-testid="btn-reservoir-activate-${c.id}" onclick="window.ankiV2ReservoirActivateOne('${c.id}')" title="Activer pour les révisions">${window.iconLabel('zap', 'Activer')}</button>
-          ${window.iconBtn('pencil', 'Modifier', `onclick="window.ankiV2EditExo('${c.id}')"`)}
-          ${window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red);border-color:var(--red);" onclick="window.ankiV2DelExo('${c.id}')"`)}
+          ${typeof window.iconEditDeletePair === 'function'
+            ? window.iconEditDeletePair(`window.ankiV2EditExo('${c.id}')`, `window.ankiV2DelExo('${c.id}')`)
+            : (window.iconBtn('pencil', 'Modifier', `onclick="window.ankiV2EditExo('${c.id}')"`) +
+               window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red);border-color:var(--red);" onclick="window.ankiV2DelExo('${c.id}')"`))}
         </div>
       </div>
     `;
@@ -1286,7 +1300,7 @@
     S._effectiveIds = new Set(plan.cartes.map(c => c.id));
     const cartes = plan.cartes;
     box.innerHTML = cartes.length === 0
-      ? `<div class="anki-empty anki-queue-empty">${isManualTab ? window.iconLabel('search', 'Sélectionne des cartes en mode manuel.') : window.iconLabel('sparkles', 'Aucune carte à réviser.')}</div>`
+      ? (typeof window.ankiQueueEmptyHtml === 'function' ? window.ankiQueueEmptyHtml(isManualTab, true) : `<div class="anki-empty anki-queue-empty">${isManualTab ? window.iconLabel('search', (window.APP_MSG && window.APP_MSG.QUEUE_EMPTY_MANUAL) || 'Sélectionne des cartes en mode manuel.') : window.iconLabel('sparkles', (window.APP_MSG && window.APP_MSG.QUEUE_EMPTY) || 'Aucune carte à réviser.')}</div>`)
       : cartes.map((c, i) => renderQueueRow(c, i)).join('');
     const meta = document.getElementById('ankiQueueMeta');
     if (meta) meta.textContent = `(${cartes.length} cartes · ${window.AnkiAlgoV2.fmtDur(plan.tempsTotalPrev)})`;
@@ -1416,7 +1430,7 @@
     `;
 
     if (!list.length) {
-      html += '<div class="anki-empty">Aucune carte ne correspond aux filtres.</div>';
+      html += `<div class="anki-empty">${(window.APP_MSG && window.APP_MSG.EMPTY_FILTERS) || 'Aucune carte ne correspond aux filtres.'}</div>`;
     } else {
       html += matOrder.map(matId => {
         const m = mat(matId);
@@ -1477,9 +1491,9 @@
         </div>
         <div class="anki-lib-acts">
           ${window.iconBtn('play', 'Réviser', `onclick="window.startAnkiV2Single('${c.id}')"`)}
-          ${window.iconBtn('pencil', 'Modifier', `onclick="window.ankiV2EditExo('${c.id}')"`)}
+          ${typeof window.iconEditBtn === 'function' ? window.iconEditBtn(`window.ankiV2EditExo('${c.id}')`) : window.iconBtn('pencil', 'Modifier', `onclick="window.ankiV2EditExo('${c.id}')"`)}
           ${window.iconBtn('calendar', 'Décaler', `onclick="event.stopPropagation();window.ankiV2AdjustNext('${c.id}')"`)}
-          ${window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red);border-color:var(--red);" onclick="event.stopPropagation();window.ankiV2DelExo('${c.id}')"`)}
+          ${typeof window.iconDeleteBtn === 'function' ? window.iconDeleteBtn(`window.ankiV2DelExo('${c.id}')`, { stopPropagation: true }) : window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red);border-color:var(--red);" onclick="event.stopPropagation();window.ankiV2DelExo('${c.id}')"`)}
         </div>
       </div>
     `;
@@ -2183,8 +2197,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     renderSessionOverlay();
   };
   window.ankiV2DiscardSession = function () {
+    const M = window.APP_MSG || {};
     window.sysConfirm(
-      "Abandonner la session du soir ?<br>La file sera effacée — les cartes déjà notées restent enregistrées.",
+      M.ABANDON_EVENING || "Abandonner la session du soir ?<br>La file sera effacée — les cartes déjà notées restent enregistrées.",
       () => {
         S.queue = []; S.current = null; S.stats = { ok: 0, mid: 0, bad: 0, total: 0 };
         S.dernierExerciceModifie = null;
@@ -2193,7 +2208,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         renderSyncSessionDock();
         window.renderAnkiV2();
       },
-      "Abandonner la session"
+      M.ABANDON_SESSION_TITLE || "Abandonner la session"
     );
   };
 
@@ -2204,7 +2219,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       return promptSessionConflict('btn-commencer-session');
     }
     const plan = buildSessionPlan();
-    if (!plan.cartes.length) return window.sysAlert("Aucune carte à réviser.", "Synchrotron");
+    if (!plan.cartes.length) return window.sysAlert((window.APP_MSG && window.APP_MSG.QUEUE_EMPTY) || "Aucune carte à réviser.", "Synchrotron");
     plan.cartes.forEach(c => {
       if (window.AnkiAlgoV2.isReservoir(c)) window.AnkiAlgoV2.activateFromReservoir(c);
     });
@@ -2861,8 +2876,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
 
   window.ankiV2AbandonActiveSession = function () {
+    const M = window.APP_MSG || {};
     window.sysConfirm(
-      "Abandonner cette session ? La file en cours sera effacée (les cartes déjà notées restent enregistrées).",
+      M.ABANDON_ACTIVE || "Abandonner cette session ? La file en cours sera effacée (les cartes déjà notées restent enregistrées).",
       function () {
         if (S.chronoInt) clearInterval(S.chronoInt);
         S.chronoInt = null;
@@ -2881,7 +2897,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         renderSyncSessionDock();
         window.renderAnkiV2();
       },
-      "Abandonner la session"
+      M.ABANDON_SESSION_TITLE || "Abandonner la session"
     );
   };
 
@@ -2971,6 +2987,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   }
 
   function showFormError(elId, msg) {
+    // Délègue au helper global (core-utils) — ne pas appeler le local (pas de récursion)
+    if (typeof window.showFormError === 'function' && window.showFormError !== showFormError) {
+      return window.showFormError(elId, msg);
+    }
     const el = $(elId);
     if (!el) return;
     if (msg) { el.textContent = msg; el.classList.add('visible'); }
@@ -3135,8 +3155,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         ${editingExoId ? `<div class="fg"><label>Identifiant</label><div class="uidbox">${c.id}</div></div>` : ''}
 
         <div class="macts">
-          <button class="bs" onclick="document.getElementById('ovExo').classList.add('hidden')">Annuler</button>
-          <button class="bp" onclick="window.ankiV2SaveExo()">Enregistrer</button>
+          ${typeof window.uiModalActions === 'function'
+            ? window.uiModalActions({ overlayId: 'ovExo', saveClick: 'window.ankiV2SaveExo()' })
+            : '<button class="bs" onclick="window.hideOverlay(\'ovExo\')">Annuler</button><button class="bp" onclick="window.ankiV2SaveExo()">Enregistrer</button>'}
         </div>
       </div>
     `;
@@ -3147,7 +3168,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   function showDevoirModal(c) {
     ensure();
-    if (!window.D) return window.sysAlert("Données non chargées — réessaie dans un instant.", "Erreur");
+    if (!window.D) return window.sysAlert((window.APP_MSG && window.APP_MSG.DATA_NOT_READY) || "Données non chargées — réessaie dans un instant.", (window.APP_MSG && window.APP_MSG.ERROR) || "Erreur");
     let ov = $("ovDevoir");
     if (!ov) { ov = document.createElement("div"); ov.id = "ovDevoir"; ov.className = "ov anki-ov-devoir"; document.body.appendChild(ov); }
     ov.classList.remove("hidden");
@@ -3216,8 +3237,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         </div>
 
         <div class="macts">
-          <button type="button" class="bs" onclick="document.getElementById('ovDevoir').classList.add('hidden')">Annuler</button>
-          <button type="button" class="bp" style="background:var(--red);border-color:var(--red);" onclick="window.ankiV2SaveDevoir()">Enregistrer le devoir</button>
+          ${typeof window.uiModalActions === 'function'
+            ? window.uiModalActions({ overlayId: 'ovDevoir', saveClick: 'window.ankiV2SaveDevoir()', saveLabel: 'Enregistrer le devoir', saveColor: 'red' })
+            : '<button type="button" class="bs" onclick="window.hideOverlay(\'ovDevoir\')">Annuler</button><button type="button" class="bp" style="background:var(--red);border-color:var(--red);" onclick="window.ankiV2SaveDevoir()">Enregistrer le devoir</button>'}
         </div>
       </div>
     `;
@@ -3293,21 +3315,21 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   window.ankiV2SaveExo = function () {
     showFormError('exoFormError', '');
-    const titre = $("exoTitre").value.trim();
-    const q = $("exoQ").value.trim();
-    const r = $("exoR").value.trim();
-    const matV = $("exoMat").value;
-    const profil = $("exoProf") ? $("exoProf").value : 'COURS';
+    const titre = fieldVal('exoTitre');
+    const q = fieldVal('exoQ');
+    const r = fieldVal('exoR');
+    const matV = fieldVal('exoMat');
+    const profil = fieldVal('exoProf') || 'COURS';
     const tempsMin = readDurationFromPicker('exoTimeH', 'exoTimeM', null, null, 5, 600);
     const temps = Math.round(tempsMin * 60);
     const importance = window.getStarPickerValue('exoImportance');
-    const stat = $("exoStat").value || "reservoir";
+    const stat = fieldVal('exoStat') || "reservoir";
     const coursIds = Array.from(S.coursLinkSelection);
 
     function readSrc(prefix) {
-      const type = ($("exoSrc" + prefix + "Type") || {}).value || '';
-      const nom  = (($("exoSrc" + prefix + "Nom")  || {}).value || '').trim();
-      const det  = (($("exoSrc" + prefix + "Det")  || {}).value || '').trim();
+      const type = fieldVal('exoSrc' + prefix + 'Type');
+      const nom  = fieldVal('exoSrc' + prefix + 'Nom');
+      const det  = fieldVal('exoSrc' + prefix + 'Det');
       if (!type && !nom && !det) return null;
       return { type: type || 'livre', nom, details: det };
     }
@@ -3355,7 +3377,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     try {
       ensure();
       if (!window.D) {
-        window.sysAlert("Données non chargées.", "Erreur");
+        window.sysAlert((window.APP_MSG && window.APP_MSG.DATA_NOT_READY) || "Données non chargées — réessaie dans un instant.", (window.APP_MSG && window.APP_MSG.ERROR) || "Erreur");
         return;
       }
       showFormError('devoirFormError', '');
@@ -3506,8 +3528,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div class="fg"><label>Durée (min)</label><input type="number" id="quickTempsMin" min="0.25" max="5" step="0.25" value="${tempsMin}"></div>
         </div>
         <div class="macts">
-          <button type="button" class="bs" onclick="document.getElementById('ovQuickCreate').classList.add('hidden')">Annuler</button>
-          <button type="button" class="bp" style="background:var(--acc);border-color:var(--acc);" onclick="window.ankiV2SaveQuick()">Créer</button>
+          ${typeof window.uiModalActions === 'function'
+            ? window.uiModalActions({ overlayId: 'ovQuickCreate', saveClick: 'window.ankiV2SaveQuick()', saveLabel: (window.APP_MSG && window.APP_MSG.CREATE) || 'Créer' })
+            : '<button type="button" class="bs" onclick="window.hideOverlay(\'ovQuickCreate\')">Annuler</button><button type="button" class="bp" onclick="window.ankiV2SaveQuick()">Créer</button>'}
         </div>
       </div>`;
     window.hydrateIcons(ov);

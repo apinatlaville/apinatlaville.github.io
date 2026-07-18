@@ -761,6 +761,9 @@ body.mode-compact .cdesc { display: none; }
 }
 @media (max-width: 520px) {
  .settings-theme-row { grid-template-columns: 1fr; }
+ .code-boxes { gap: 5px; }
+ .code-box { width: 40px; height: 48px; font-size: 20px; flex-shrink: 1; }
+ .code-dash { font-size: 20px; }
 }
 .settings-theme-card {
  display: flex;
@@ -863,7 +866,7 @@ body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
 .cam-line { position: absolute; left: 10%; right: 10%; height: 2px; background: var(--acc); box-shadow: 0 0 10px var(--acc); animation: sc 2s ease-in-out infinite; }
 @keyframes sc { 0%, 100% { top: 20%; } 50% { top: 80%; } }
 
-.fab-wrapper { position: fixed; bottom: 20px; right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 500; }
+.fab-wrapper { position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); right: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; z-index: 500; }
 .fab-menu { display: flex; flex-direction: column; gap: 10px; opacity: 0; visibility: hidden; transform: translateY(20px) scale(0.8); transition: all 0.3s cubic-bezier(0.2, 0.8, 0.4, 1); pointer-events: none; transform-origin: bottom center; }
 .fab-wrapper.open .fab-menu { opacity: 1; visibility: visible; transform: translateY(0) scale(1); pointer-events: auto; }
 .fab-main { width: 56px; height: 56px; background: var(--acc); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 20px rgba(91, 154, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.2); border: none; cursor: pointer; transition: transform 0.3s; outline: none; }

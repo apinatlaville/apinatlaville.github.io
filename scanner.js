@@ -37,6 +37,7 @@ window.getBarcodeURL = function(text) {
 };
 
 window.showQR = function(uid) {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
   const c = window.D.cours.find(x => x.uid===uid);
   if (!c) return;
   window.curQRUid = uid;
@@ -184,6 +185,8 @@ window.confirmPrintSuccess = function(success) {
   }
 };
 
+window._camLifecycle = Promise.resolve();
+
 window.openCam = function() {
   if(window.$('manualCamInput')) window.$('manualCamInput').value = '';
   if(window.$('ovCam')) window.$('ovCam').classList.remove('hidden');
@@ -193,22 +196,49 @@ window.openCam = function() {
     window.$('camSt').innerHTML = 'Démarrage de la caméra arrière...';
   }
 
-  const startScanner = function() {
+  if (typeof window.Html5Qrcode !== 'function') {
+    const M = window.APP_MSG || {};
+    const msg = M.SCANNER_LIB_MISSING || 'Le module caméra n\'est pas chargé. Utilise la saisie manuelle ou recharge la page.';
+    if (window.$('camSt')) {
+      window.$('camSt').style.color = 'var(--red)';
+      window.$('camSt').innerHTML = window.iconLabel('circle-x', msg);
+    }
+    if (typeof window.sysAlert === 'function') window.sysAlert(msg, M.ERROR || 'Erreur');
+    return;
+  }
+
+  window._camLifecycle = window._camLifecycle.catch(function() {}).then(function() {
+    return window._openCamImpl();
+  });
+};
+
+window._openCamImpl = function() {
+  function stopExisting() {
+    if (!window.html5QrCode) return Promise.resolve();
+    const inst = window.html5QrCode;
+    window.html5QrCode = null;
+    return inst.stop().then(function() {
+      try { inst.clear(); } catch(e) {}
+    }).catch(function() {
+      try { inst.clear(); } catch(e) {}
+    });
+  }
+
+  return stopExisting().then(function() {
     try {
       window.html5QrCode = new window.Html5Qrcode("reader");
       const config = { fps: 15 };
-
-      window.html5QrCode.start(
+      return window.html5QrCode.start(
         { facingMode: "environment" },
         config,
-        (decodedText, decodedResult) => {
+        (decodedText) => {
           if(window.$('camSt')) {
             window.$('camSt').style.color = 'var(--grn)';
             window.$('camSt').innerHTML = window.iconLabel('check', 'Code-barres trouvé !');
           }
           window.processScan(decodedText.trim().toUpperCase());
         },
-        (errorMessage) => {
+        () => {
           if(window.$('camSt') && window.$('camSt').innerHTML.includes('Démarrage')) {
             window.$('camSt').style.color = 'var(--mut)';
             window.$('camSt').innerHTML = 'Analyse en cours... Place le code-barres dans le cadre.';
@@ -220,26 +250,13 @@ window.openCam = function() {
           window.$('camSt').innerHTML = window.iconLabel('circle-x', "Erreur d'accès à la caméra.");
         }
       });
-
     } catch(e) {
       if(window.$('camSt')) window.$('camSt').innerHTML = window.iconLabel('circle-x', 'Erreur : ' + window.escHtml(e.message));
-      if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "HTML5-QRCode: " + e.message, source: 'scanner.js', lineno: 0 });
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('HTML5-QRCode: ' + e.message, 'scanner.js');
+      }
     }
-  };
-
-  if (window.html5QrCode) {
-    window.html5QrCode.stop().then(function() {
-      try { window.html5QrCode.clear(); } catch(e) {}
-      window.html5QrCode = null;
-      startScanner();
-    }).catch(function() {
-      try { window.html5QrCode.clear(); } catch(e) {}
-      window.html5QrCode = null;
-      startScanner();
-    });
-  } else {
-    startScanner();
-  }
+  });
 };
 
 window.manualScan = function() {
@@ -269,19 +286,17 @@ window.processScan = function(uid) {
 };
 
 window.stopCam = function() {
-  if (window.html5QrCode) {
-    window.html5QrCode.stop().then(() => {
-        window.html5QrCode.clear();
-        window.html5QrCode = null;
-        if(window.$('ovCam')) window.$('ovCam').classList.add('hidden');
-    }).catch(e => {
-        window.html5QrCode.clear();
-        window.html5QrCode = null;
-        if(window.$('ovCam')) window.$('ovCam').classList.add('hidden');
+  if(window.$('ovCam')) window.$('ovCam').classList.add('hidden');
+  window._camLifecycle = window._camLifecycle.catch(function() {}).then(function() {
+    if (!window.html5QrCode) return;
+    const inst = window.html5QrCode;
+    window.html5QrCode = null;
+    return inst.stop().then(() => {
+      try { inst.clear(); } catch(e) {}
+    }).catch(() => {
+      try { inst.clear(); } catch(e2) {}
     });
-  } else {
-    if(window.$('ovCam')) window.$('ovCam').classList.add('hidden');
-  }
+  });
 };
 
 // =========================================================================

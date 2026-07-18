@@ -1,8 +1,8 @@
 window.$ = window.$ || (id => document.getElementById(id));
 window.COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
 
-/** Date locale YYYY-MM-DD (évite le décalage UTC de toISOString après minuit) */
-window.localDateISO = function(d) {
+/** Alias — implémentation dans core-utils.js */
+window.localDateISO = window.localDateISO || function(d) {
   const dt = d ? new Date(d) : new Date();
   if (isNaN(dt.getTime())) return window.localDateISO(new Date());
   return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
@@ -167,8 +167,14 @@ window.toggleEditCl = function() {
 };
 
 window.resetFilters = function() {
-  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr', 'mainSearchText', 'mainSearchCode'].forEach(id => {
-    if(window.$(id)) window.$(id).value = '';
+  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr'].forEach(id => {
+    const el = window.$(id);
+    if (!el) return;
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(el, '');
+    else el.value = '';
+  });
+  ['mainSearchText', 'mainSearchCode'].forEach(id => {
+    if (window.$(id)) window.$(id).value = '';
   });
   window.chipFilter = null;
   window.renderCours();
@@ -184,15 +190,21 @@ window.renderCours = function() {
     
     if(ms && cs) {
       const mv = ms.value, cv = cs.value;
-      ms.innerHTML = '<option value="">Toutes matières</option>' + allM.map(m => {
+      const matHtml = '<option value="">Toutes matières</option>' + allM.map(m => {
         const mo = window.D.matieres.find(x => x.id===m) || {name:m};
         return `<option value="${m}" ${m===mv?'selected':''}>${window.escHtml(mo.name)}</option>`;
       }).join('');
-      
-      cs.innerHTML = '<option value="">Tous classeurs</option>' + allC.map(c => {
+      const clHtml = '<option value="">Tous classeurs</option>' + allC.map(c => {
         const co = window.D.classeurs.find(x => x.id===c) || {name:c};
         return `<option value="${c}" ${c===cv?'selected':''}>${window.escHtml(co.name)}</option>`;
       }).join('');
+      if (typeof window.fcRefreshSelect === 'function') {
+        window.fcRefreshSelect(ms, matHtml);
+        window.fcRefreshSelect(cs, clHtml);
+      } else {
+        ms.innerHTML = matHtml;
+        cs.innerHTML = clHtml;
+      }
     }
     
     if(window.$('matChips')) {
@@ -224,7 +236,8 @@ window.renderCours = function() {
         if (typeof window.sysAlert === 'function') {
           window.sysAlert(
             'La recherche par texte est indisponible : la bibliothèque <b>Fuse.js</b> n\'a pas été chargée.<br><br>' +
-            'Recharge la page ou vérifie ta connexion. En attendant, utilise le filtre par <b>code</b> (PH-8X2).',
+            (window.APP_MSG && window.APP_MSG.RELOAD_HINT ? window.APP_MSG.RELOAD_HINT.replace(/\.$/, '') : 'Recharge la page ou vérifie ta connexion') +
+            '. En attendant, utilise le filtre par <b>code</b> (PH-8X2).',
             'Recherche limitée'
           );
         }
@@ -323,8 +336,10 @@ window.renderCours = function() {
           <div class="cacts" onclick="event.stopPropagation();">
               ${window.iconBtn('refresh-cw', 'Déplacer', `onclick="window.openMove('${window.escHtml(c.uid)}')"`)}
               ${window.iconBtn('qr-code', 'Voir Code-Barres', `onclick="window.showQR('${window.escHtml(c.uid)}')"`)}
-              ${window.iconBtn('pencil', 'Modifier', `onclick="window.editCours('${window.escHtml(c.uid)}')"`)}
-              ${window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red); border-color:var(--red);" onclick="window.delCours('${window.escHtml(c.uid)}')"`)}
+              ${window.iconEditDeletePair(
+                `window.editCours('${window.escHtml(c.uid)}')`,
+                `window.delCours('${window.escHtml(c.uid)}')`
+              )}
           </div>
           ${warnHtml}
         </div>`;
@@ -333,8 +348,8 @@ window.renderCours = function() {
     }
     window.renderStats();
   } catch(e) {
-    if(window.appErrors) {
-      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Crash renderCours: " + e.message, source: 'data.js', lineno: 0 });
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Crash renderCours: ' + e.message, 'data.js');
     }
   }
 };
@@ -540,14 +555,17 @@ window.updateUidPrefix = function() {
 };
 
 window.toggleManualUid = function() {
-  const isManual = window.$('fManualUidToggle').checked;
+  const toggle = window.$('fManualUidToggle');
+  const uidBox = window.$('uidBox');
+  if (!toggle || !uidBox) return;
+  const isManual = !!toggle.checked;
   if (isManual) {
-    window.$('uidBox').style.display = 'none';
+    uidBox.style.display = 'none';
     if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'flex';
     window.updateUidPrefix();
     if(window.$('fUidInput')) window.$('fUidInput').focus();
   } else {
-    window.$('uidBox').style.display = 'block';
+    uidBox.style.display = 'block';
     if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'none';
   }
 };
@@ -823,8 +841,8 @@ window.renderClasseurs = function() {
     }
 
   } catch(e) {
-    if(window.appErrors) {
-      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Crash renderClasseurs: " + e.message, source: 'data.js', lineno: 0 });
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Crash renderClasseurs: ' + e.message, 'data.js');
     }
   }
 };
@@ -984,30 +1002,13 @@ window.addMat = function() {
 
   const lbl = lblInput.value.trim().toUpperCase();
   const name = nameInput.value.trim();
-  
-  const showError = (input, msg) => {
-    input.style.border = "2px solid var(--red)";
-    let errText = input.nextElementSibling;
-    if (!errText || errText.className !== 'inline-error') {
-      errText = document.createElement('div');
-      errText.className = 'inline-error';
-      errText.style.color = "var(--red)";
-      errText.style.fontSize = "12px";
-      errText.style.marginTop = "5px";
-      errText.style.fontWeight = "bold";
-      input.parentNode.insertBefore(errText, input.nextSibling);
-    }
-    errText.innerHTML = window.iconHtml('circle-x', 14, 'icon-sm') + ' ' + msg;
-    
-    setTimeout(() => {
-      input.style.border = "";
-      if (errText && errText.parentNode) errText.parentNode.removeChild(errText);
-    }, 4000);
-  };
+  const showError = typeof window.showInlineError === 'function'
+    ? window.showInlineError
+    : function () {};
 
   if (lbl.length !== 4) {
     showError(lblInput, "Le code matière doit faire exactement 4 lettres.");
-    return; // Bloque la création si erreur !
+    return;
   }
   if (lbl === 'UNTR' || lbl === window.UNSORTED_MAT_ID) {
     showError(lblInput, "Ce code est réservé (matière « Non trié »).");
@@ -1015,11 +1016,11 @@ window.addMat = function() {
   }
   if (window.D.matieres.find(m => m.id === lbl)) {
     showError(lblInput, "Ce code matière existe déjà !");
-    return; // Bloque la création si erreur !
+    return;
   }
   if (name.length === 0) {
     showError(nameInput, "Tu dois donner un nom complet à ta matière.");
-    return; // Bloque la création si erreur !
+    return;
   }
   
   window.D.matieres.push({id:lbl, label:lbl, name:name, color:window.newColor}); 
@@ -1039,30 +1040,13 @@ window.addCl = function() {
   if (!nameInput) return;
 
   const name = nameInput.value.trim();
-  
-  const showError = (input, msg) => {
-    input.style.border = "2px solid var(--red)";
-    let errText = input.nextElementSibling;
-    if (!errText || errText.className !== 'inline-error') {
-      errText = document.createElement('div');
-      errText.className = 'inline-error';
-      errText.style.color = "var(--red)";
-      errText.style.fontSize = "12px";
-      errText.style.marginTop = "5px";
-      errText.style.fontWeight = "bold";
-      input.parentNode.insertBefore(errText, input.nextSibling);
-    }
-    errText.innerHTML = window.iconHtml('circle-x', 14, 'icon-sm') + ' ' + msg;
-    
-    setTimeout(() => {
-      input.style.border = "";
-      if (errText && errText.parentNode) errText.parentNode.removeChild(errText);
-    }, 4000);
-  };
+  const showError = typeof window.showInlineError === 'function'
+    ? window.showInlineError
+    : function () {};
 
   if (name.length === 0) {
     showError(nameInput, "Tu dois donner un nom à ton classeur.");
-    return; // Bloque la création si erreur !
+    return;
   }
   
   const newId = 'CL-' + Math.random().toString(36).substr(2, 5).toUpperCase();

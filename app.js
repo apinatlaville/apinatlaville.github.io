@@ -1,21 +1,12 @@
 window.addEventListener('unhandledrejection', function(event) {
-  const time = new Date().toLocaleTimeString();
   const raw = event.reason;
   const errorMsg = raw && raw.message ? raw.message : (raw != null ? String(raw) : 'Erreur asynchrone inconnue');
   const errStr = String(errorMsg);
   const isNetwork = /fetch|network|failed to fetch|offline|firestore|firebase|timeout|connexion|networkerror/i.test(errStr);
-
-  if(!window.appErrors) window.appErrors = [];
-  window.appErrors.push({ time: time, msg: errorMsg, source: 'Async', lineno: 0 });
-
-  const toast = document.getElementById('errorToast');
-  const toastMsg = document.getElementById('errorToastMsg');
-  if(toast && toastMsg) {
-    toastMsg.textContent = (isNetwork ? 'Erreur réseau : ' : 'Erreur : ') + errStr;
-    toast.classList.remove('hidden');
-  }
-  if(typeof window.renderErrorLogs === 'function') {
-    window.renderErrorLogs();
+  const M = window.APP_MSG || {};
+  const prefix = isNetwork ? (M.ERROR_NETWORK_PREFIX || 'Erreur réseau : ') : (M.ERROR_PREFIX || 'Erreur : ');
+  if (typeof window.recordAppError === 'function') {
+    window.recordAppError(errorMsg, 'Async', { toast: true, toastMsg: prefix + errStr });
   }
 });
 
@@ -37,19 +28,25 @@ window.BACKDROP_BLUR_LEVELS = [
 window.D = null; 
 window.appReady = false;
 window.cloudConnected = false; 
-window.sysAlert = function(msg, title="Information") {
+window.sysAlert = function(msg, title) {
+  if (title == null) title = 'Information';
+  if (msg == null) msg = '';
+  msg = String(msg);
   if(window.$('sysDialogTitle')) window.$('sysDialogTitle').textContent = title;
   if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
   if(window.$('sysDialogActs')) {
+    const okLabel = (window.APP_MSG && window.APP_MSG.OK) || 'OK';
     const btn = typeof window.uiBtnAccent === 'function'
-      ? window.uiBtnAccent('OK', { onclick: 'window.closeSysDialog()', attrs: ' style="width:100%;flex:1;"' })
-      : `<button class="bp ui-btn-accent" onclick="window.closeSysDialog()" style="width:100%;">OK</button>`;
+      ? window.uiBtnAccent(okLabel, { onclick: 'window.closeSysDialog()', attrs: ' style="width:100%;flex:1;"' })
+      : `<button class="bp ui-btn-accent" onclick="window.closeSysDialog()" style="width:100%;">${okLabel}</button>`;
     window.$('sysDialogActs').innerHTML = btn;
   }
   if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.remove('hidden');
 };
 
 window.sysConfirm = function(msg, onConfirm, title="Attention") {
+  if (msg == null) msg = '';
+  msg = String(msg);
   if(window.$('sysDialogTitle')) window.$('sysDialogTitle').textContent = title;
   if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
   
@@ -290,13 +287,14 @@ window.loadDemoPCStar = function() {
     "Remplace tes données actuelles.",
     async () => {
       await window.ensureDemoData();
-      if (!window.demoDataPCStar) {
-        window.sysAlert("Fichier demo-data.js non chargé.", "Erreur");
-        return;
-      }
+      if (!window.assertDemoDataLoaded('demoDataPCStar')) return;
       window.D = JSON.parse(JSON.stringify(window.demoDataPCStar));
-      await window.save();
-      location.reload();
+      try {
+        await window.save();
+        location.reload();
+      } catch (e) {
+        window.sysAlert((window.APP_MSG && window.APP_MSG.DEMO_SAVE_FAIL) || 'La démo n\'a pas pu être enregistrée. Réessaie.', (window.APP_MSG && window.APP_MSG.ERROR) || 'Erreur');
+      }
     },
     "Simulation PC*"
   );
@@ -305,27 +303,36 @@ window.loadDemoPCStar = function() {
 window.loadDemo = function() {
   window.sysConfirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?", async () => {
     await window.ensureDemoData();
-    if (!window.demoData) {
-      window.sysAlert("Fichier demo-data.js non chargé.", "Erreur");
-      return;
-    }
+    if (!window.assertDemoDataLoaded('demoData')) return;
     window.D = JSON.parse(JSON.stringify(window.demoData));
-    await window.save();
-    location.reload();
+    try {
+      await window.save();
+      location.reload();
+    } catch (e) {
+      window.sysAlert((window.APP_MSG && window.APP_MSG.DEMO_SAVE_FAIL) || 'La démo n\'a pas pu être enregistrée. Réessaie.', (window.APP_MSG && window.APP_MSG.ERROR) || 'Erreur');
+    }
   }, "Mode Démonstration");
 };
 
 window.loadDemoXP = function() {
   window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, ease variés, stats peuplées.\n\nCela remplace tes données actuelles.", async () => {
     await window.ensureDemoData();
-    if (!window.demoDataXP) {
-      window.sysAlert("Fichier demo-data.js non chargé.", "Erreur");
-      return;
-    }
+    if (!window.assertDemoDataLoaded('demoDataXP')) return;
     window.D = JSON.parse(JSON.stringify(window.demoDataXP));
-    await window.save();
-    location.reload();
+    try {
+      await window.save();
+      location.reload();
+    } catch (e) {
+      window.sysAlert((window.APP_MSG && window.APP_MSG.DEMO_SAVE_FAIL) || 'La démo n\'a pas pu être enregistrée. Réessaie.', (window.APP_MSG && window.APP_MSG.ERROR) || 'Erreur');
+    }
   }, "Démo expérimenté");
+};
+
+window.assertDemoDataLoaded = function(key) {
+  if (window[key]) return true;
+  const M = window.APP_MSG || {};
+  window.sysAlert(M.DEMO_DATA_MISSING || 'Fichier demo-data.js non chargé.', M.ERROR || 'Erreur');
+  return false;
 };
 
 window.ensureDemoData = function() {
@@ -423,7 +430,9 @@ window.doAutoFmtScan = function(inputEl) {
       inputEl.value = '';
     }
   } catch(e) {
-     if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur AutoFormat: " + e.message, source: 'app.js' });
+     if (typeof window.recordAppError === 'function') {
+       window.recordAppError('Erreur AutoFormat: ' + e.message, 'app.js');
+     }
   }
 };
 
@@ -432,17 +441,19 @@ window.setupCodeBoxes = function() {
   const boxes = [window.$('cb1'), window.$('cb2'), window.$('cb3'), window.$('cb4'), window.$('cb5')];
   boxes.forEach((box, i) => {
     if(!box) return;
-    
+    if (box.dataset.codeBoxBound === '1') return;
+    box.dataset.codeBoxBound = '1';
+
     box.addEventListener('input', (e) => {
       box.value = box.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if(box.value && i < 4) {
+      if(box.value && i < 4 && boxes[i+1]) {
         boxes[i+1].focus();
       }
       window.checkHomeCode();
     });
     
     box.addEventListener('keydown', (e) => {
-      if(e.key === 'Backspace' && !box.value && i > 0) {
+      if(e.key === 'Backspace' && !box.value && i > 0 && boxes[i-1]) {
         boxes[i-1].focus();
       }
     });
@@ -453,8 +464,8 @@ window.setupCodeBoxes = function() {
         for(let j=0; j<pasted.length; j++) {
             if(boxes[j]) boxes[j].value = pasted[j];
         }
-        if(pasted.length > 0 && pasted.length < 5) boxes[pasted.length].focus();
-        else if(pasted.length === 5) boxes[4].blur(); 
+        if(pasted.length > 0 && pasted.length < 5 && boxes[pasted.length]) boxes[pasted.length].focus();
+        else if(pasted.length === 5 && boxes[4]) boxes[4].blur();
         window.checkHomeCode();
     });
   });
@@ -540,7 +551,9 @@ window.toggleMobileSidebarPanel = function () {
 
 window.syncMobileSidebarPanel = function () {
   const btn = document.getElementById('btnSidebarMobileToggle');
-  const mobile = window.matchMedia('(max-width: 767px)').matches;
+  const mobile = typeof window.isMobileViewport === 'function'
+    ? window.isMobileViewport()
+    : window.matchMedia('(max-width: 767px)').matches;
   const sidebar = document.body.classList.contains('nav-sidebar-left');
   if (typeof window.layoutMobileNavExtras === 'function') window.layoutMobileNavExtras();
   if (!btn) return;
@@ -568,7 +581,9 @@ window.layoutMobileNavExtras = function () {
   const shell = document.getElementById('appShell');
   if (!extras || !bar || !fab || !shell) return;
 
-  const mobile = window.matchMedia('(max-width: 767px)').matches;
+  const mobile = typeof window.isMobileViewport === 'function'
+    ? window.isMobileViewport()
+    : window.matchMedia('(max-width: 767px)').matches;
   const sidebar = document.body.classList.contains('nav-sidebar-left');
   const inExtras = bar.parentElement === syncRow || bar.parentElement === extras || bar.parentElement === actionsRow;
   const fabInExtras = fab.parentElement === actionsRow || fab.parentElement === extras || fab.parentElement === syncRow;
@@ -603,7 +618,7 @@ window.layoutMobileNavExtras = function () {
       }
     });
   }
-  const mq = window.matchMedia('(max-width: 767px)');
+  const mq = window.matchMedia(window.MQ_MOBILE || '(max-width: 767px)');
   if (mq.addEventListener) {
     mq.addEventListener('change', function () {
       if (typeof window.layoutMobileNavExtras === 'function') window.layoutMobileNavExtras();
@@ -646,10 +661,32 @@ window.syncNavSubMenu = function() {
 window.runTabShow = function(tab, overrideResetFilters) {
   switch (tab) {
     case 'home': window.renderDashboard(); break;
-    case 'cours':
-      if (overrideResetFilters) window.resetFilters();
-      else window.renderCours();
+    case 'cours': {
+      const pending = window._pendingCoursFilters;
+      const setFlt = (id, val) => {
+        const el = window.$(id);
+        if (!el) return;
+        if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(el, val);
+        else el.value = val == null ? '' : val;
+      };
+      if (pending && !overrideResetFilters) {
+        window._pendingCoursFilters = null;
+        ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr'].forEach(id => setFlt(id, ''));
+        ['mainSearchText', 'mainSearchCode'].forEach(id => {
+          if (window.$(id)) window.$(id).value = '';
+        });
+        window.chipFilter = null;
+        if (pending.rev) setFlt('fltRev', pending.rev);
+        if (pending.type) setFlt('fltType', pending.type);
+        window.renderCours();
+      } else if (overrideResetFilters) {
+        window._pendingCoursFilters = null;
+        window.resetFilters();
+      } else {
+        window.renderCours();
+      }
       break;
+    }
     case 'notes': window.renderNotes(); break;
     case 'flashcards': window.renderFlashcards(); break;
     case 'ankiV2': if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2(); break;
@@ -668,6 +705,12 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'test': break;
     default: break;
   }
+};
+
+/** Ouvre l'onglet Cours avec filtres (après chargement async — évite la course avec resetFilters) */
+window.openCoursFiltered = function(filters) {
+  window._pendingCoursFilters = filters || {};
+  window.switchTab('cours', false);
 };
 
 window.switchTab = function(tab, overrideResetFilters = false) {
@@ -747,7 +790,9 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   if (typeof window.updateHdrPageTitle === 'function') window.updateHdrPageTitle();
   if (
     typeof window.setMobileSidebarExpanded === 'function'
-    && window.matchMedia('(max-width: 767px)').matches
+    && (typeof window.isMobileViewport === 'function'
+      ? window.isMobileViewport()
+      : window.matchMedia('(max-width: 767px)').matches)
     && document.body.classList.contains('nav-sidebar-left')
   ) {
     window.setMobileSidebarExpanded(false);
@@ -762,13 +807,13 @@ window.renderDashboard = function() {
 
   if(window.$('dashRevGrid')) {
     window.$('dashRevGrid').innerHTML = `
-      <div class="dash-card dash-red" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='red'; window.renderCours();">
+      <div class="dash-card dash-red" onclick="window.openCoursFiltered({rev:'red'})">
         <div class="dash-num">${redCount}</div><div class="dash-lbl">${window.statusLabel('red', 'À revoir urg.')}</div>
       </div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='orange'; window.renderCours();">
+      <div class="dash-card" onclick="window.openCoursFiltered({rev:'orange'})">
         <div class="dash-num" style="color:var(--gold);">${orangeCount}</div><div class="dash-lbl">${window.statusLabel('orange', 'En cours')}</div>
       </div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltRev').value='green'; window.renderCours();">
+      <div class="dash-card" onclick="window.openCoursFiltered({rev:'green'})">
         <div class="dash-num" style="color:var(--grn);">${greenCount}</div><div class="dash-lbl">${window.statusLabel('green', 'Maîtrisés')}</div>
       </div>
     `;
@@ -779,10 +824,10 @@ window.renderDashboard = function() {
       <div class="dash-card dash-acc" onclick="window.switchTab('cours', true);">
         <div class="dash-num">${window.D.cours.length}</div><div class="dash-lbl">${window.iconLabel('book-open', 'Docs Totaux')}</div>
       </div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='FICHE'; window.renderCours();">
+      <div class="dash-card" onclick="window.openCoursFiltered({type:'FICHE'})">
         <div class="dash-num">${window.D.cours.filter(c => c.type === 'FICHE').length}</div><div class="dash-lbl">${window.iconLabel('file-text', 'Fiches')}</div>
       </div>
-      <div class="dash-card" onclick="window.switchTab('cours', true); document.getElementById('fltType').value='DS'; window.renderCours();">
+      <div class="dash-card" onclick="window.openCoursFiltered({type:'DS'})">
         <div class="dash-num">${window.D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">${window.iconLabel('graduation-cap', 'Sujets DS')}</div>
       </div>
     `;
@@ -1118,10 +1163,25 @@ async function initApp(user) {
     if (window.isLocalMode) {
       console.log("🌸 Chargement des données locales...");
       if (window.bootMark) window.bootMark('initApp.local.read.start');
-      let localData = localStorage.getItem('backup_local_cours');
-      if (!localData) {
-        localData = localStorage.getItem('mc_v28');
-        if (localData) localStorage.setItem('backup_local_cours', localData);
+      let localData = null;
+      try {
+        localData = typeof window.safeLocalGet === 'function'
+          ? window.safeLocalGet('backup_local_cours')
+          : localStorage.getItem('backup_local_cours');
+        if (!localData) {
+          localData = typeof window.safeLocalGet === 'function'
+            ? window.safeLocalGet('mc_v28')
+            : localStorage.getItem('mc_v28');
+          if (localData) {
+            if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', localData);
+            else localStorage.setItem('backup_local_cours', localData);
+          }
+        }
+      } catch (storageErr) {
+        localData = null;
+        if (typeof window.recordAppError === 'function') {
+          window.recordAppError('Lecture localStorage impossible : ' + (storageErr && storageErr.message ? storageErr.message : storageErr), 'app.js');
+        }
       }
       if (localData) {
         try {
@@ -1132,8 +1192,8 @@ async function initApp(user) {
           localDataCorrupt = true;
           window.D = null;
           const msg = 'Données locales illisibles : ' + (parseErr && parseErr.message ? parseErr.message : parseErr);
-          if (window.appErrors) {
-            window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: msg, source: 'app.js' });
+          if (typeof window.recordAppError === 'function') {
+            window.recordAppError(msg, 'app.js');
           }
           console.error(msg);
         }
@@ -1316,6 +1376,7 @@ async function initApp(user) {
   if (typeof window.hydrateIcons === 'function') window.hydrateIcons();
   if (window.bootMark) window.bootMark('initApp.render.hydrateIcons');
   if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
+  if (typeof window.ensureCardCreateFab === 'function') window.ensureCardCreateFab();
   window.appReady = true;
   if (window.bootMark) window.bootMark('initApp.done');
   if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
@@ -1380,23 +1441,49 @@ async function initApp(user) {
 }
 
 /**
- * Sauvegarde locale + cloud Firestore
+ * Sauvegarde locale + cloud Firestore (file d'attente : pas d'écritures concurrentes).
+ * Retourne une Promise qui REJECTE en cas d'échec inattendu (les callers await le voient).
+ * La file continue quand même pour les sauvegardes suivantes.
  */
-window.save = async function() {
+window._saveChain = Promise.resolve();
+window.save = function() {
+  const result = window._saveChain.then(function() {
+    return window._saveImpl();
+  });
+  window._saveChain = result.catch(function(e) {
+    console.error('save queue:', e);
+  });
+  return result;
+};
+
+window._saveImpl = async function() {
   if (!window.D) return;
 
+  const M = window.APP_MSG || {};
+
   if (window._persistDisabled) {
-    window.sysAlert(
-      "Enregistrement impossible : tes données n'ont pas pu être chargées au démarrage.<br><br>" +
-      "<b>Rien ne sera sauvegardé</b> dans cette session.",
-      "Sauvegarde désactivée"
-    );
+    if (!window._persistDisabledAlerted) {
+      window._persistDisabledAlerted = true;
+      window.sysAlert(
+        M.SAVE_DISABLED ||
+        "Enregistrement impossible : tes données n'ont pas pu être chargées au démarrage.<br><br>" +
+        "<b>Rien ne sera sauvegardé</b> dans cette session.",
+        M.SAVE_DISABLED_TITLE || "Sauvegarde désactivée"
+      );
+    }
     return;
   }
 
   if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
       && !window.DeviceSession.canFullSave()) {
     console.warn('☁️ Save complète refusée : appareil en mode Secondaire.');
+    const now = Date.now();
+    if (!window._secondarySaveToastAt || now - window._secondarySaveToastAt > 8000) {
+      window._secondarySaveToastAt = now;
+      if (typeof window.showToast === 'function') {
+        window.showToast(M.SECONDARY_READ_ONLY || 'Appareil secondaire : les modifications ne sont pas enregistrées ici.');
+      }
+    }
     return;
   }
 
@@ -1408,15 +1495,17 @@ window.save = async function() {
     window.D.meta.primaryDeviceId = window.DeviceSession.getDeviceId();
   }
 
-  try {
-    localStorage.setItem('backup_local_cours', JSON.stringify(window.D));
-  } catch (e) {
-    if (window.appErrors) {
-      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur sauvegarde: " + e.message, source: 'app.js' });
+  const payload = JSON.stringify(window.D);
+  const okLocal = typeof window.safeLocalSet === 'function'
+    ? window.safeLocalSet('backup_local_cours', payload)
+    : (function () { try { localStorage.setItem('backup_local_cours', payload); return true; } catch (e) { return false; } })();
+  if (!okLocal) {
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Erreur sauvegarde: localStorage indisponible', 'app.js');
     }
-    console.error("Échec sauvegarde locale :", e);
-    window.sysAlert("Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
-    return;
+    console.error("Échec sauvegarde locale");
+    window.sysAlert(M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
+    throw new Error('localStorage save failed');
   }
 
   if (window.isLocalMode) {
@@ -1430,10 +1519,9 @@ window.save = async function() {
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
     } catch (e) {
       const errMsg = e && e.message ? e.message : String(e);
-      if (window.appErrors) {
-        window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur écriture cloud: " + errMsg, source: 'app.js' });
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('Erreur écriture cloud: ' + errMsg, 'app.js');
       }
-      if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
       console.error("Échec Cloud :", e);
       if (!window.isLocalMode && typeof window.sysAlert === 'function') {
         window.sysAlert(
@@ -1441,9 +1529,10 @@ window.save = async function() {
           "mais <b>pas sur le serveur</b> pour l'instant.<br><br>" +
           "Détail : " + window.escHtml(errMsg) + "<br><br>" +
           "Vérifie ta connexion et réessaie (une modification déclenchera une nouvelle sauvegarde).",
-          "Erreur de synchronisation"
+          M.SYNC_TITLE || "Erreur de synchronisation"
         );
       }
+      throw e;
     }
   }
 };
@@ -1453,11 +1542,7 @@ window.save = async function() {
 // =========================================================
 window.initAppAfterAuth = function(user) {
     if (window.bootMark) window.bootMark('initAppAfterAuth', { email: user && user.email });
-    initApp(user);
-};
-
-window.onload = function() {
-  console.log("⏳ En attente de l'authentification...");
+    return initApp(user);
 };
 
 window.dispatchEvent(new CustomEvent('app-js-ready'));

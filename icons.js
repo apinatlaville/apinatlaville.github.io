@@ -159,6 +159,31 @@
     return `<button class="cbt icon-only-btn" aria-label="${label}" title="${label}" ${attrs}>${window.iconHtml(name, 16, 'icon-sm')}</button>`;
   };
 
+  /** Bouton Modifier standard (listes cours / anki) */
+  window.iconEditBtn = function (onclickAttr) {
+    const M = window.APP_MSG || {};
+    const label = M.EDIT || 'Modifier';
+    return window.iconBtn('pencil', label, `onclick="${onclickAttr}"`);
+  };
+
+  /** Bouton Supprimer standard (style danger) */
+  window.iconDeleteBtn = function (onclickAttr, opts) {
+    opts = opts || {};
+    const M = window.APP_MSG || {};
+    const label = M.DELETE || 'Supprimer';
+    const stop = opts.stopPropagation ? 'event.stopPropagation();' : '';
+    return window.iconBtn(
+      'trash-2',
+      label,
+      `style="color:var(--red);border-color:var(--red);" onclick="${stop}${onclickAttr}"`
+    );
+  };
+
+  /** Paire Modifier + Supprimer */
+  window.iconEditDeletePair = function (editOnclick, deleteOnclick, opts) {
+    return window.iconEditBtn(editOnclick) + window.iconDeleteBtn(deleteOnclick, opts);
+  };
+
   window.statusDot = function (color, large) {
     return `<span class="status-dot status-${color}${large ? ' status-dot-lg' : ''}" aria-hidden="true"></span>`;
   };

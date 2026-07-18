@@ -42,6 +42,20 @@
     window.fcEnhanceSelect(sel);
   };
 
+  /** Définit la valeur d'un <select>, y compris s'il est wrappé par Choices.js */
+  window.fcSetSelectValue = function (sel, value) {
+    if (!sel) return;
+    var v = value == null ? '' : String(value);
+    sel.value = v;
+    if (sel._choices) {
+      try {
+        sel._choices.setChoiceByValue(v);
+      } catch (e) {
+        try { sel._choices.setChoiceByValue([v]); } catch (e2) {}
+      }
+    }
+  };
+
   window.fcEnhanceSelect = function (sel) {
     if (!sel || sel.tagName !== 'SELECT' || sel.multiple || sel.dataset.fcSkip !== undefined) return;
     if (!window.Choices) return;
@@ -175,8 +189,6 @@
       hidden._flatpickr.destroy();
       hidden._flatpickr = null;
     }
-    if (mount) mount.innerHTML = '';
-
     if (mount) mount.innerHTML = '';
 
     function shiftBaseDate() {

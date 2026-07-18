@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Mes Cours - PC* Edition</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -17,18 +17,20 @@
 <script src="fuse.js" onerror="window.recordScriptLoadError && window.recordScriptLoadError('fuse.js', true)"></script>
 
 <script>
-  window.appErrors = []; 
+  window.appErrors = [];
   window.onerror = function(message, source, lineno, colno, error) {
-    const time = new Date().toLocaleTimeString();
     const shortSource = source ? source.split('/').pop() : 'Inconnu';
-    window.appErrors.push({ time: time, msg: message, source: shortSource, lineno: lineno });
-    const toast = document.getElementById('errorToast');
-    const toastMsg = document.getElementById('errorToastMsg');
-    if(toast && toastMsg) { 
-      toastMsg.textContent = "Erreur : " + message; 
-      toast.classList.remove('hidden'); 
+    const prefix = (window.APP_MSG && window.APP_MSG.ERROR_PREFIX) || 'Erreur : ';
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError(message, shortSource, {
+        lineno: lineno,
+        toast: true,
+        toastMsg: prefix + message
+      });
+    } else {
+      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: message, source: shortSource, lineno: lineno });
+      if (typeof window.showToast === 'function') window.showToast(prefix + message);
     }
-    if(typeof window.renderErrorLogs === 'function') { window.renderErrorLogs(); }
     return false;
   };
 </script>
@@ -97,7 +99,7 @@
 <div id="errorToast" class="ui-toast hidden" role="alert">
   <span class="ui-toast-icon toast-icon" data-icon="alert-triangle" data-icon-size="20"></span>
   <div class="ui-toast-msg" id="errorToastMsg">Une erreur est survenue.</div>
-  <button type="button" class="ui-toast-close" onclick="document.getElementById('errorToast').classList.add('hidden')" aria-label="Fermer"><span data-icon="x" data-icon-size="16"></span></button>
+  <button type="button" class="ui-toast-close" onclick="(window.hideToast||function(){document.getElementById('errorToast').classList.add('hidden')})()" aria-label="Fermer"><span data-icon="x" data-icon-size="16"></span></button>
 </div>
 
 <div id="appShell">

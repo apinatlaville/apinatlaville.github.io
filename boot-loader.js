@@ -190,21 +190,32 @@
         if (bootFailures.length && typeof window.notifyScriptLoadFailures === 'function') {
           window.notifyScriptLoadFailures(bootFailures);
         }
-        if (typeof window.checkSavedSession === 'function') {
-          return window.checkSavedSession();
+        var fatal = bootFailures.some(function (r) {
+          return r && r.critical;
+        });
+        if (fatal) {
+          if (window.bootMark) window.bootMark('boot.loader.fatal', { failures: bootFailures });
+          if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
+          return { fatal: true };
         }
+        var next = typeof window.checkSavedSession === 'function'
+          ? window.checkSavedSession()
+          : Promise.resolve();
+        return Promise.resolve(next).then(function () { return { fatal: false }; });
       })
-      .then(function () {
+      .then(function (result) {
+        if (result && result.fatal) return;
         loadDeferredBackground();
         if (window.bootMark) window.bootMark('boot.loader.complete');
       })
       .catch(function (err) {
         console.error('Boot loader:', err);
         if (window.bootMark) window.bootMark('boot.loader.error', { error: String(err && err.message ? err.message : err) });
+        var M = window.APP_MSG || {};
         if (typeof window.sysAlert === 'function') {
           window.sysAlert(
-            'Le chargement de l\'application a échoué : ' + window.escHtml(err && err.message ? err.message : err) + '.<br><br>Recharge la page.',
-            'Erreur de démarrage'
+            'Le chargement de l\'application a échoué : ' + window.escHtml(err && err.message ? err.message : err) + '.<br><br>' + (M.RELOAD_SHORT || 'Recharge la page.'),
+            M.BOOT_TITLE || 'Erreur de démarrage'
           );
         }
       });

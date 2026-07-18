@@ -69,8 +69,9 @@
 
   window.uiDialogActions = function (opts) {
     opts = opts || {};
-    var cancelLabel = opts.cancelLabel || 'Annuler';
-    var confirmLabel = opts.confirmLabel || 'Confirmer';
+    var M = window.APP_MSG || {};
+    var cancelLabel = opts.cancelLabel || M.CANCEL || 'Annuler';
+    var confirmLabel = opts.confirmLabel || M.CONFIRM || 'Confirmer';
     var cancelClick = opts.cancelClick || 'window.closeSysDialog()';
     var confirmClick = opts.confirmClick || '';
     return (
@@ -79,6 +80,29 @@
         onclick: confirmClick,
         className: 'ui-dialog-confirm',
         color: opts.confirmColor || (opts.confirmDanger ? 'red' : '')
+      })
+    );
+  };
+
+  /**
+   * Pied de modal formulaire : Annuler (ferme overlay) + action principale.
+   * opts: { overlayId, saveClick, saveLabel, cancelLabel }
+   */
+  window.uiModalActions = function (opts) {
+    opts = opts || {};
+    var M = window.APP_MSG || {};
+    var cancelLabel = opts.cancelLabel || M.CANCEL || 'Annuler';
+    var saveLabel = opts.saveLabel || M.SAVE || 'Enregistrer';
+    var overlayId = opts.overlayId || '';
+    var cancelClick = opts.cancelClick ||
+      (overlayId ? "window.hideOverlay('" + overlayId + "')" : '');
+    var saveClick = opts.saveClick || '';
+    return (
+      window.uiBtnSurface(cancelLabel, { onclick: cancelClick }) +
+      window.uiBtnAccent(saveLabel, {
+        onclick: saveClick,
+        color: opts.saveColor || '',
+        danger: !!opts.saveDanger
       })
     );
   };

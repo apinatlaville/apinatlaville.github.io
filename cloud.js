@@ -161,7 +161,8 @@ window.handleCredentialResponse = async function(response) {
     const credential = window.GoogleAuthProvider.credential(response.credential);
     const userCredential = await window.signInWithCredential(window.auth, credential);
 
-    localStorage.removeItem('active_mode');
+    if (typeof window.safeLocalRemove === 'function') window.safeLocalRemove('active_mode');
+    else try { localStorage.removeItem('active_mode'); } catch (e) {}
 
     if (userCredential.user) {
       if (window.bootMark) window.bootMark('auth.google.ok', { email: userCredential.user.email });
@@ -170,7 +171,11 @@ window.handleCredentialResponse = async function(response) {
   } catch (authError) {
     if (window.bootMark) window.bootMark('auth.google.error', { error: authError.message });
     console.error("❌ Échec de la liaison Firebase Auth:", authError);
-    alert("Erreur d'authentification Firebase : " + authError.message);
+    const M = window.APP_MSG || {};
+    const msg = (M.AUTH_FIREBASE || "Erreur d'authentification Firebase") + ' : ' + authError.message;
+    if (typeof window.sysAlert === 'function') window.sysAlert(window.escHtml(msg), M.ERROR || 'Erreur');
+    else if (typeof window.showToast === 'function') window.showToast(msg);
+    else alert(msg);
   }
 };
 
@@ -180,7 +185,8 @@ window.signOut = async function() {
   if (window.DeviceSession && typeof window.DeviceSession.stop === 'function') {
     try { window.DeviceSession.stop(); } catch (e) { /* ignore */ }
   }
-  localStorage.removeItem('active_mode');
+  if (typeof window.safeLocalRemove === 'function') window.safeLocalRemove('active_mode');
+  else try { localStorage.removeItem('active_mode'); } catch (e) {}
   window.appLaunched = false;
   window.appReady = false;
   window._authListenerAttached = false;
@@ -205,7 +211,10 @@ window.signOut = async function() {
 // 3️⃣ GARDIEN DE SESSION (authStateReady + onAuthStateChanged)
 window.checkSavedSession = async function() {
   if (window.bootMark) window.bootMark('auth.checkSavedSession.start');
-  if (localStorage.getItem('active_mode') === 'local') {
+  var activeMode = typeof window.safeLocalGet === 'function'
+    ? window.safeLocalGet('active_mode')
+    : (function () { try { return localStorage.getItem('active_mode'); } catch (e) { return null; } })();
+  if (activeMode === 'local') {
     console.log("🌸 Reprise automatique du Mode Local.");
     if (window.bootMark) window.bootMark('auth.mode.local');
     window.startLocalMode();
@@ -237,7 +246,14 @@ window.checkSavedSession = async function() {
             handleAuthenticatedUser(authUser);
           }
         } else if (window.appLaunched) {
-          handleNoUser();
+          // Session perdue alors que l'app tournait — handleNoUser ignore appLaunched
+          console.warn('Session Firebase perdue — retour écran de connexion.');
+          window.appLaunched = false;
+          window.appReady = false;
+          if (window.DeviceSession && typeof window.DeviceSession.stop === 'function') {
+            try { window.DeviceSession.stop(); } catch (e) { /* ignore */ }
+          }
+          showLoginUi();
         }
       });
     }
@@ -253,7 +269,8 @@ window.startLocalMode = function() {
   console.log("Mode Local activé !");
   if (window.bootMark) window.bootMark('auth.startLocalMode');
   window.isLocalMode = true;
-  localStorage.setItem('active_mode', 'local');
+  if (typeof window.safeLocalSet === 'function') window.safeLocalSet('active_mode', 'local');
+  else try { localStorage.setItem('active_mode', 'local'); } catch (e) {}
   enterAppUi();
 
   const localPayload = {
