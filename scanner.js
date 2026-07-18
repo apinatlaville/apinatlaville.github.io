@@ -12,9 +12,10 @@
  */
 
 window.$ = window.$ || (id => document.getElementById(id));
-window.printSel = new Set();
-window.curQRUid = null;
-window.html5QrCode = null;
+/* Ne pas réinitialiser si le script est réinjecté (course lazy load) */
+if (!window.printSel) window.printSel = new Set();
+if (window.curQRUid === undefined) window.curQRUid = null;
+if (window.html5QrCode === undefined) window.html5QrCode = null;
 
 // UTILITAIRE : GÉNÉRATEUR DE CODE-BARRES 1D
 window.getBarcodeURL = function(text) {
@@ -196,20 +197,28 @@ window.openCam = function() {
     window.$('camSt').innerHTML = 'Démarrage de la caméra arrière...';
   }
 
-  if (typeof window.Html5Qrcode !== 'function') {
-    const M = window.APP_MSG || {};
-    const msg = M.SCANNER_LIB_MISSING || 'Le module caméra n\'est pas chargé. Utilise la saisie manuelle ou recharge la page.';
-    if (window.$('camSt')) {
-      window.$('camSt').style.color = 'var(--red)';
-      window.$('camSt').innerHTML = window.iconLabel('circle-x', msg);
+  function begin() {
+    if (typeof window.Html5Qrcode !== 'function') {
+      const M = window.APP_MSG || {};
+      const msg = M.SCANNER_LIB_MISSING || 'Le module caméra n\'est pas chargé. Utilise la saisie manuelle ou recharge la page.';
+      if (window.$('camSt')) {
+        window.$('camSt').style.color = 'var(--red)';
+        window.$('camSt').innerHTML = window.iconLabel('circle-x', msg);
+      }
+      if (typeof window.sysAlert === 'function') window.sysAlert(msg, M.ERROR || 'Erreur');
+      return;
     }
-    if (typeof window.sysAlert === 'function') window.sysAlert(msg, M.ERROR || 'Erreur');
-    return;
+    window._camLifecycle = (window._camLifecycle || Promise.resolve()).catch(function() {}).then(function() {
+      return window._openCamImpl();
+    });
   }
 
-  window._camLifecycle = window._camLifecycle.catch(function() {}).then(function() {
-    return window._openCamImpl();
-  });
+  if (typeof window.Html5Qrcode === 'function') {
+    begin();
+    return;
+  }
+  var load = typeof window.ensureScannerLibs === 'function' ? window.ensureScannerLibs() : Promise.resolve();
+  Promise.resolve(load).then(begin);
 };
 
 window._openCamImpl = function() {
@@ -287,7 +296,7 @@ window.processScan = function(uid) {
 
 window.stopCam = function() {
   if(window.$('ovCam')) window.$('ovCam').classList.add('hidden');
-  window._camLifecycle = window._camLifecycle.catch(function() {}).then(function() {
+  window._camLifecycle = (window._camLifecycle || Promise.resolve()).catch(function() {}).then(function() {
     if (!window.html5QrCode) return;
     const inst = window.html5QrCode;
     window.html5QrCode = null;
@@ -318,29 +327,37 @@ window.startDebugScanner = function() {
   if(logs) logs.innerHTML = '';
   window.logDebug("Initialisation de la caméra...", "var(--gold)");
 
-  if (window.debugQrCode) { try { window.debugQrCode.clear(); } catch(e){} }
+  function run() {
+    if (window.debugQrCode) { try { window.debugQrCode.clear(); } catch(e){} }
 
-  try {
-    window.debugQrCode = new window.Html5Qrcode("debug-reader");
-    
-    window.debugQrCode.start(
-      { facingMode: "environment" },
-      { fps: 15 }, 
-      (decodedText, decodedResult) => {
-        const format = (decodedResult && decodedResult.result && decodedResult.result.format && decodedResult.result.format.formatName) ? decodedResult.result.format.formatName : "Inconnu";
-        window.logDebug('<span class="icon-inline-label">' + window.iconHtml('check', 16, 'icon-sm') + '<b>CODE DÉTECTÉ !</b><br>Valeur : <span style="color:#fff">' + window.escHtml(decodedText) + '</span><br>Format : <span style="color:#fff">' + window.escHtml(format) + '</span></span>', "var(--grn)");
-        if (navigator.vibrate) navigator.vibrate(100);
-      },
-      (errorMessage) => {
-      }
-    ).then(() => {
-      window.logDebug("Caméra démarrée ! Place n'importe quel code (Paquet de pâtes, livre, QR) devant l'objectif.", "var(--grn)");
-    }).catch((err) => {
-      window.logDebug(window.iconLabel('circle-x', 'Erreur critique caméra (Permissions iOS ?) : ' + err), "var(--red)");
-    });
-  } catch(e) {
-    window.logDebug(window.iconLabel('circle-x', 'Erreur de lancement : ' + e.message), "var(--red)");
+    if (typeof window.Html5Qrcode !== 'function') {
+      window.logDebug("Module Html5Qrcode manquant.", "var(--red)");
+      return;
+    }
+
+    try {
+      window.debugQrCode = new window.Html5Qrcode("debug-reader");
+      window.debugQrCode.start(
+        { facingMode: "environment" },
+        { fps: 15 },
+        (decodedText, decodedResult) => {
+          const format = (decodedResult && decodedResult.result && decodedResult.result.format && decodedResult.result.format.formatName) ? decodedResult.result.format.formatName : "Inconnu";
+          window.logDebug('<span class="icon-inline-label">' + window.iconHtml('check', 16, 'icon-sm') + '<b>CODE DÉTECTÉ !</b><br>Valeur : <span style="color:#fff">' + window.escHtml(decodedText) + '</span><br>Format : <span style="color:#fff">' + window.escHtml(format) + '</span></span>', "var(--grn)");
+          if (navigator.vibrate) navigator.vibrate(100);
+        },
+        (errorMessage) => {}
+      ).then(() => {
+        window.logDebug("Caméra démarrée ! Place n'importe quel code (Paquet de pâtes, livre, QR) devant l'objectif.", "var(--grn)");
+      }).catch((err) => {
+        window.logDebug(window.iconLabel('circle-x', 'Erreur critique caméra (Permissions iOS ?) : ' + err), "var(--red)");
+      });
+    } catch(e) {
+      window.logDebug(window.iconLabel('circle-x', 'Erreur de lancement : ' + e.message), "var(--red)");
+    }
   }
+
+  var load = typeof window.ensureScannerLibs === 'function' ? window.ensureScannerLibs() : Promise.resolve();
+  Promise.resolve(load).then(run);
 };
 
 window.stopDebugScanner = function() {

@@ -69,12 +69,24 @@
   };
 
   if (typeof document !== 'undefined') {
-    document.addEventListener('DOMContentLoaded', function () {
+    function scheduleSmoke() {
       setTimeout(function () {
-        if (window.AnkiAlgo && window.location.search.indexOf('smoke=1') >= 0) {
-          window.runAnkiSmokeTests();
+        if (!window.AnkiAlgo || window.location.search.indexOf('smoke=1') < 0) return;
+        var chain = Promise.resolve();
+        if (typeof window.ensureAnkiUi === 'function') chain = chain.then(function () { return window.ensureAnkiUi(); });
+        if (typeof window.ensureScriptsForTab === 'function') {
+          chain = chain
+            .then(function () { return window.ensureScriptsForTab('flashcards'); })
+            .then(function () { return window.ensureScriptsForTab('ankiVizV2'); });
         }
-      }, 1500);
-    });
+        chain.then(function () { window.runAnkiSmokeTests(); })
+          .catch(function () { window.runAnkiSmokeTests(); });
+      }, 800);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', scheduleSmoke);
+    } else {
+      scheduleSmoke();
+    }
   }
 })();

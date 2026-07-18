@@ -6,15 +6,31 @@
 <title>Mes Cours - PC* Edition</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>
+  /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
+  window.__BOOT_CACHE_V = '20260718g';
+  window.__bootCacheV = window.__BOOT_CACHE_V;
+</script>
 <link href="fonts-local.css" rel="stylesheet">
-<script src="core-utils.js"></script>
-<script src="boot-profiler.js"></script>
-<script src="boot-loader.js"></script>
-<script src="icons.js"></script>
-
-<script src="JsBarcode.all.min.js"></script>
-<script src="html5-qrcode.js"></script>
-<script src="fuse.js" onerror="window.recordScriptLoadError && window.recordScriptLoadError('fuse.js', true)"></script>
+<script>
+  (function () {
+    var v = window.__BOOT_CACHE_V || '1';
+    function addCss(file) {
+      document.write('<link rel="stylesheet" href="' + file + '?v=' + encodeURIComponent(v) + '">');
+    }
+    function addJs(src, attrs) {
+      document.write('<script src="' + src + '?v=' + encodeURIComponent(v) + '"' + (attrs || '') + '><\/script>');
+    }
+    addCss('icons.css');
+    addCss('style.css');
+    addCss('ui-shell.css');
+    addJs('core-utils.js');
+    addJs('boot-profiler.js');
+    addJs('boot-loader.js');
+    addJs('icons.js');
+    addJs('fuse.js', ' onerror="window.recordScriptLoadError&&window.recordScriptLoadError(\'fuse.js\',true)"');
+  })();
+</script>
 
 <script>
   window.appErrors = [];
@@ -725,62 +741,29 @@
 
 <script>
   (function(){
-    var v = new Date().getTime();
+    var v = window.__BOOT_CACHE_V || window.__bootCacheV || '1';
+    window.__bootCacheV = v;
     if (typeof window.setBootStep === 'function') window.setBootStep('styles');
 
-    var cssIcons = document.createElement('link');
-    cssIcons.rel = 'stylesheet';
-    cssIcons.href = 'icons.css?v=' + v;
-    document.head.appendChild(cssIcons);
-
-    var css = document.createElement('link');
-    css.rel = 'stylesheet';
-    css.href = 'style.css?v=' + v;
-    document.head.appendChild(css);
-
-    var cssUi = document.createElement('link');
-    cssUi.rel = 'stylesheet';
-    cssUi.href = 'ui-themes.css?v=' + v;
-    document.head.appendChild(cssUi);
-
-    var cssUiJuin20 = document.createElement('link');
-    cssUiJuin20.rel = 'stylesheet';
-    cssUiJuin20.href = 'ui-theme-juin20.css?v=' + v;
-    document.head.appendChild(cssUiJuin20);
-
-    var cssUiComp = document.createElement('link');
-    cssUiComp.rel = 'stylesheet';
-    cssUiComp.href = 'ui-components.css?v=' + v;
-    document.head.appendChild(cssUiComp);
-
-    var cssFinderPresets = document.createElement('link');
-    cssFinderPresets.rel = 'stylesheet';
-    cssFinderPresets.href = 'ui-finder-presets.css?v=' + v;
-    document.head.appendChild(cssFinderPresets);
-
-    var cssScannerDiag = document.createElement('link');
-    cssScannerDiag.rel = 'stylesheet';
-    cssScannerDiag.href = 'scanner-diag.css?v=' + v;
-    document.head.appendChild(cssScannerDiag);
-
-    var cssShell = document.createElement('link');
-    cssShell.rel = 'stylesheet';
-    cssShell.href = 'ui-shell.css?v=' + v;
-    document.head.appendChild(cssShell);
-
-    var cssDevice = document.createElement('link');
-    cssDevice.rel = 'stylesheet';
-    cssDevice.href = 'device-session.css?v=' + v;
-    document.head.appendChild(cssDevice);
-
-    ['flatpickr.min.css', 'choices.min.css', 'form-controls.css'].forEach(function (file) {
+    function addCss(file) {
       var l = document.createElement('link');
       l.rel = 'stylesheet';
-      l.href = file + '?v=' + v;
+      l.href = file + '?v=' + encodeURIComponent(v);
       document.head.appendChild(l);
-    });
+    }
 
-    window.__bootCacheV = v;
+    /* Critiques déjà en head : icons / style / ui-shell — ici le reste */
+    [
+      'ui-themes.css',
+      'ui-theme-juin20.css',
+      'ui-components.css',
+      'ui-finder-presets.css',
+      'scanner-diag.css',
+      'device-session.css',
+      'flatpickr.min.css',
+      'choices.min.css',
+      'form-controls.css'
+    ].forEach(addCss);
 
     function startBoot() {
       if (typeof window.bootLoadApplication === 'function') {

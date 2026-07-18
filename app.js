@@ -341,7 +341,7 @@ window.ensureDemoData = function() {
   }
   return new Promise(function(resolve) {
     var s = document.createElement('script');
-    s.src = 'demo-data.js?v=' + (window.__bootCacheV || Date.now());
+    s.src = 'demo-data.js?v=' + (window.__BOOT_CACHE_V || window.__bootCacheV || Date.now());
     s.onload = resolve;
     s.onerror = resolve;
     document.body.appendChild(s);
@@ -691,7 +691,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'flashcards': window.renderFlashcards(); break;
     case 'ankiV2': if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2(); break;
     case 'ankiVizV2': if (typeof window.renderAnkiVizV2 === 'function') window.renderAnkiVizV2(); break;
-    case 'print': window.renderPrintGrid(); break;
+    case 'print': if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid(); break;
     case 'classeurs':
       window.isEditingCl = false;
       window.renderClasseurs();
@@ -782,7 +782,9 @@ window.switchTab = function(tab, overrideResetFilters = false) {
     if (content) content.scrollTop = 0;
   }
 
-  if (tab !== 'test' && typeof window.stopDebugScanner === 'function') {
+  if (tab !== 'test'
+      && typeof window.stopDebugScanner === 'function'
+      && !window.stopDebugScanner._isScannerStub) {
     window.stopDebugScanner();
   }
 
@@ -991,7 +993,7 @@ bindInput('setUserName', withD((e) => { window.D.settings.userName = e.target.va
 
 if (typeof window.bindSettingsThemePicker === 'function') window.bindSettingsThemePicker();
 
-/** scanner.js est chargé à la demande — stub pour l'accueil et le FAB */
+/** scanner.js + libs caméra/code-barres chargés à la demande */
 window.invokeOpenCam = function () {
   function run() {
     if (typeof window.openCam === 'function' && !window.openCam._isScannerStub) {
@@ -1013,6 +1015,114 @@ if (typeof window.openCam !== 'function') {
   _openCamStub._isScannerStub = true;
   window.openCam = _openCamStub;
 }
+
+window.invokeShowQR = function (uid) {
+  function run() {
+    if (typeof window.showQR === 'function' && !window.showQR._isScannerStub) {
+      return window.showQR(uid);
+    }
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert(
+        'Impossible de charger le module code-barres.<br>Recharge la page ou vérifie ta connexion.',
+        'Code-barres indisponible'
+      );
+    }
+  }
+  if (typeof window.showQR === 'function' && !window.showQR._isScannerStub) return run();
+  var load = typeof window.ensureScanner === 'function' ? window.ensureScanner() : Promise.resolve();
+  return Promise.resolve(load).then(run);
+};
+if (typeof window.showQR !== 'function') {
+  var _showQRStub = function (uid) { return window.invokeShowQR(uid); };
+  _showQRStub._isScannerStub = true;
+  window.showQR = _showQRStub;
+}
+
+/** Anki UI (app-v2) — chargé à l'ouverture Synchrotron / Rapide / FAB create */
+window.invokeOpenCardTypePicker = function (opts) {
+  function run() {
+    if (typeof window.openCardTypePicker === 'function' && !window.openCardTypePicker._isAnkiStub) {
+      return window.openCardTypePicker(opts);
+    }
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert(
+        'Impossible de charger le module cartes Anki.<br>Recharge la page ou vérifie ta connexion.',
+        'Anki indisponible'
+      );
+    }
+  }
+  if (typeof window.openCardTypePicker === 'function' && !window.openCardTypePicker._isAnkiStub) {
+    return run();
+  }
+  var load = typeof window.ensureAnkiUi === 'function' ? window.ensureAnkiUi() : Promise.resolve();
+  return Promise.resolve(load).then(run).catch(function () { run(); });
+};
+if (typeof window.openCardTypePicker !== 'function') {
+  var _pickerStub = function (opts) { return window.invokeOpenCardTypePicker(opts); };
+  _pickerStub._isAnkiStub = true;
+  window.openCardTypePicker = _pickerStub;
+}
+
+/** Stubs Anki pour le popup cours (boutons visibles avant le lazy-load) */
+(function installAnkiActionStubs() {
+  function ankiStub(name) {
+    if (typeof window[name] === 'function' && !window[name]._isAnkiStub) return;
+    var placeholder = function () {
+      var args = arguments;
+      var load = typeof window.ensureAnkiUi === 'function' ? window.ensureAnkiUi() : Promise.resolve();
+      return Promise.resolve(load).then(function () {
+        var fn = window[name];
+        if (typeof fn === 'function' && fn !== placeholder) return fn.apply(window, args);
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Module Anki indisponible. Recharge la page.', 'Erreur');
+        }
+      }).catch(function () {
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Module Anki indisponible. Recharge la page.', 'Erreur');
+        }
+      });
+    };
+    placeholder._isAnkiStub = true;
+    window[name] = placeholder;
+  }
+  ['openCardCreateForCours', 'startAnkiV2Colle'].forEach(ankiStub);
+})();
+
+/** Stubs print / diagnostic — attendent scanner.js avant d'appeler la vraie fonction */
+(function installScannerActionStubs() {
+  /* Arrêt : no-op tant que le module n'est pas chargé (évite de le télécharger au simple switchTab) */
+  var STOP_NOOP = { stopDebugScanner: true, stopCam: true };
+
+  function stub(name) {
+    if (typeof window[name] === 'function' && !window[name]._isScannerStub) return;
+
+    if (STOP_NOOP[name]) {
+      var stopPlaceholder = function () { /* rien à arrêter */ };
+      stopPlaceholder._isScannerStub = true;
+      window[name] = stopPlaceholder;
+      return;
+    }
+
+    var placeholder = function () {
+      var args = arguments;
+      var load = typeof window.ensureScanner === 'function' ? window.ensureScanner() : Promise.resolve();
+      return Promise.resolve(load).then(function () {
+        var fn = window[name];
+        if (typeof fn === 'function' && fn !== placeholder) return fn.apply(window, args);
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Module scanner indisponible. Recharge la page.', 'Erreur');
+        }
+      });
+    };
+    placeholder._isScannerStub = true;
+    window[name] = placeholder;
+  }
+  [
+    'selPending', 'selAll', 'selNone', 'executePrint', 'confirmPrintSuccess',
+    'renderPrintGrid', 'startDebugScanner', 'stopDebugScanner',
+    'dlQR', 'markOnePrinted', 'stopCam', 'manualScan'
+  ].forEach(stub);
+})();
 
 bindClick('btnHomeCam', () => window.openCam());
 bindClick('btnKholleDraw', () => window.drawKholle());
