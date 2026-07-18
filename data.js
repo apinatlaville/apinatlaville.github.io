@@ -44,10 +44,19 @@ window.ensureUnsortedMatiere = function () {
   return true;
 };
 
+window._ankiCardsUsingMat = function (matId) {
+  if (!window.D || !matId) return [];
+  const out = [];
+  (window.D.exercices || []).forEach(c => { if (c && c.mat === matId) out.push(c); });
+  (window.D.devoirs || []).forEach(c => { if (c && c.mat === matId) out.push(c); });
+  return out;
+};
+
 window.pruneUnsortedMatiere = function () {
-  if (!window.D || !window.D.matieres || !window.D.cours) return;
-  const used = window.D.cours.some(c => c.mat === window.UNSORTED_MAT_ID);
-  if (!used) {
+  if (!window.D || !window.D.matieres) return;
+  const usedCours = (window.D.cours || []).some(c => c.mat === window.UNSORTED_MAT_ID);
+  const usedAnki = window._ankiCardsUsingMat(window.UNSORTED_MAT_ID).length > 0;
+  if (!usedCours && !usedAnki) {
     window.D.matieres = window.D.matieres.filter(m => m.id !== window.UNSORTED_MAT_ID);
   }
 };
@@ -62,6 +71,7 @@ window.reconcileOrphanCours = function () {
       window.ensureUnsortedMatiere();
       c.mat = window.UNSORTED_MAT_ID;
       changed = true;
+      matIds.add(window.UNSORTED_MAT_ID);
     }
     if (!c.cl || !clIds.has(c.cl)) {
       window.ensureUnsortedClasseur();
@@ -70,6 +80,21 @@ window.reconcileOrphanCours = function () {
       changed = true;
     }
   });
+  // Cartes Anki orphelines (matière supprimée / id invalide)
+  const rehomeAnki = (arr) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(c => {
+      if (!c) return;
+      if (!c.mat || !matIds.has(c.mat)) {
+        window.ensureUnsortedMatiere();
+        c.mat = window.UNSORTED_MAT_ID;
+        matIds.add(window.UNSORTED_MAT_ID);
+        changed = true;
+      }
+    });
+  };
+  rehomeAnki(window.D.exercices);
+  rehomeAnki(window.D.devoirs);
   const matBefore = window.D.matieres.length;
   window.pruneUnsortedMatiere();
   if (window.D.matieres.length !== matBefore) changed = true;
@@ -84,6 +109,17 @@ window.moveCoursToUnsorted = function (fromMatId) {
   window.ensureUnsortedMatiere();
   window.D.cours.forEach(c => {
     if (c.mat === fromMatId) c.mat = window.UNSORTED_MAT_ID;
+  });
+};
+
+window.moveAnkiCardsToUnsorted = function (fromMatId) {
+  if (!window.D || !fromMatId || fromMatId === window.UNSORTED_MAT_ID) return;
+  window.ensureUnsortedMatiere();
+  (window.D.exercices || []).forEach(c => {
+    if (c && c.mat === fromMatId) c.mat = window.UNSORTED_MAT_ID;
+  });
+  (window.D.devoirs || []).forEach(c => {
+    if (c && c.mat === fromMatId) c.mat = window.UNSORTED_MAT_ID;
   });
 };
 
@@ -1071,18 +1107,25 @@ window.delMat = function(id) {
   if (window.isSystemMatiere(id)) return;
 
   const count = window.D.cours.filter(c => c.mat === id).length;
+  const ankiCount = window._ankiCardsUsingMat(id).length;
   const doDel = () => {
     if (count) window.moveCoursToUnsorted(id);
+    if (ankiCount) window.moveAnkiCardsToUnsorted(id);
     window.D.matieres = window.D.matieres.filter(m => m.id !== id);
     window.pruneUnsortedMatiere();
     window.save();
     window.renderMatieres();
     window.renderCours();
+    if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2();
+    if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
   };
 
-  if (count) {
+  if (count || ankiCount) {
+    const bits = [];
+    if (count) bits.push(`${count} document(s)`);
+    if (ankiCount) bits.push(`${ankiCount} carte(s) Anki`);
     window.sysConfirm(
-      `Cette matière contient ${count} document(s). Ils seront déplacés dans « Non trié » pour que tu puisses les reclasser.`,
+      `Cette matière contient ${bits.join(' et ')}. Ils seront déplacés dans « Non trié » pour que tu puisses les reclasser.`,
       doDel,
       "Suppression d'une matière"
     );

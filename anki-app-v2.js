@@ -570,30 +570,39 @@
     return applyAutoAdjustments(base, sessionMin);
   }
 
+  function setSessionMinutesV2(total) {
+    const n = Math.max(5, Math.min(300, parseInt(total, 10) || 90));
+    if (!window.D.settings) window.D.settings = {};
+    if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
+    window.D.settings.algoV2.sessionMinDefault = n;
+    // Alias legacy (anciens écrans / prompts) — une seule source de vérité
+    window.D.settings.ankiSessionMin = n;
+    S.sessionMinTonight = n;
+    return n;
+  }
+
   window.ankiV2SetSessionTime = function () {
     const hEl = document.querySelector('.anki-time-h');
     const mEl = document.querySelector('.anki-time-m');
     const h = hEl ? parseInt(hEl.value, 10) || 0 : 0;
     const m = mEl ? parseInt(mEl.value, 10) || 0 : 0;
-    const total = Math.max(5, Math.min(300, h * 60 + m));
-    if (!window.D.settings) window.D.settings = {};
-    if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
-    window.D.settings.algoV2.sessionMinDefault = total;
-    S.sessionMinTonight = total;
+    const total = setSessionMinutesV2(h * 60 + m);
     window.save();
     syncSessionTimeUi(total);
     refreshQueueOnly();
   };
 
   window.ankiV2SetSessionTimePreset = function (min) {
-    const total = Math.max(5, Math.min(300, parseInt(min, 10) || 60));
-    if (!window.D.settings) window.D.settings = {};
-    if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
-    window.D.settings.algoV2.sessionMinDefault = total;
-    S.sessionMinTonight = total;
+    const total = setSessionMinutesV2(min);
     window.save();
     syncSessionTimeUi(total);
     refreshQueueOnly();
+  };
+
+  window.ankiV2ApplySessionMinSetting = function (val) {
+    setSessionMinutesV2(val);
+    window.save();
+    window.renderAnkiV2();
   };
 
   function syncSessionTimeUi(total) {
@@ -1044,7 +1053,7 @@
         <span class="anki-q-handle" title="Glisser">⋮⋮</span>
         <div class="anki-q-num">${i + 1}</div>
         ${cardTypeBadge(c)}
-        <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? window.iconHtml('file-text', 12) : m.label}</div>
+        <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? window.iconHtml('file-text', 12) : esc(m.label)}</div>
         <div class="anki-q-body" onclick="window.startAnkiV2Single('${c.id}')">
           <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}${sessionInfo}</div>
           <div class="anki-q-meta">${c.id} · ${cardAlgoStatsLine(c)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
@@ -1250,7 +1259,7 @@
   // ===== Sélection style Impression (grille pcard + ordre ↑↓) =====
   function togglePickAuto(id) {
     const base = window.AnkiAlgoV2.buildSession(ankSessionPool(), {
-      sessionMinutes: (window.D.settings && window.D.settings.ankiSessionMin) || 60,
+      sessionMinutes: getSessionMinutesV2(),
       includeNew: (window.D.settings && window.D.settings.ankiIncludeNew) || 5,
       selectedIds: null,
       manualOrder: null
@@ -1360,10 +1369,10 @@
     renderActiveView();
   };
   window.ankiV2QuickEditSession = function () {
-    const cur = (window.D.settings && window.D.settings.ankiSessionMin) || 60;
+    const cur = getSessionMinutesV2();
     const val = prompt("Durée de la session (minutes) :", cur);
     if (val === null) return;
-    window.D.settings.ankiSessionMin = Math.max(5, Math.min(240, parseInt(val) || cur));
+    setSessionMinutesV2(Math.max(5, Math.min(300, parseInt(val) || cur)));
     window.save(); renderActiveView();
   };
 
@@ -1855,7 +1864,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         </div>
         <div class="anki-set-row">
           <label>Durée session par défaut (min)</label>
-          <input type="number" class="fi" min="15" max="300" step="5" value="${av2.sessionMinDefault || 90}" onchange="window.D.settings.algoV2=window.D.settings.algoV2||{};window.D.settings.algoV2.sessionMinDefault=parseInt(this.value)||90;window.save();window.renderAnkiV2();">
+          <input type="number" class="fi" min="5" max="300" step="5" value="${av2.sessionMinDefault || st.ankiSessionMin || 90}" onchange="window.ankiV2ApplySessionMinSetting(this.value)">
+          <p class="anki-mut" style="font-size:11px;margin-top:4px;">Même réglage que la barre « Durée session » en haut du Synchrotron (max 5 h).</p>
         </div>
         <label class="anki-check-row">
           <input type="checkbox" ${av2.pullForward !== false ? 'checked' : ''} onchange="window.D.settings.algoV2=window.D.settings.algoV2||{};window.D.settings.algoV2.pullForward=this.checked;window.save();window.renderAnkiV2();">
@@ -1872,11 +1882,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
       <div class="anki-card-block">
         <h3>Session</h3>
-        <div class="anki-set-row">
-          <label>Durée de session (min)</label>
-          <input type="number" class="fi" min="5" max="300" step="5" value="${st.ankiSessionMin || 60}" onchange="window.D.settings.ankiSessionMin=Math.max(5,Math.min(300,parseInt(this.value)||60));window.save();window.renderAnkiV2();">
-          <p class="anki-mut" style="font-size:11px;margin-top:4px;">Même réglage que la barre « Durée session » en haut du Synchrotron (max 5 h).</p>
-        </div>
         <div class="anki-set-row">
           <label>Nouvelles cartes / session (legacy — réservoir activé manuellement)</label>
           <input type="number" class="fi" min="0" max="30" value="${st.ankiIncludeNew !== undefined ? st.ankiIncludeNew : 0}" onchange="window.D.settings.ankiIncludeNew=parseInt(this.value)||0;window.save();window.renderAnkiV2();">

@@ -28,8 +28,8 @@
     const root = $("paneFlashcards");
     if (!root) return;
 
-    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${Q.mat === m.id ? 'selected' : ''}>${m.label} — ${m.name}</option>`).join('');
-    const filterMatOpts = '<option value="">Toutes</option>' + (window.D.matieres || []).map(m => `<option value="${m.id}" ${Q.filterMat === m.id ? 'selected' : ''}>${m.label}</option>`).join('');
+    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${Q.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const filterMatOpts = '<option value="">Toutes</option>' + (window.D.matieres || []).map(m => `<option value="${m.id}" ${Q.filterMat === m.id ? 'selected' : ''}>${esc(m.label)}</option>`).join('');
 
     root.innerHTML = `
       <div class="quick-head">
@@ -139,7 +139,7 @@
           <div class="qk-front">
             <div class="qk-top">
               ${typeBadge}
-              <span class="qk-mat" style="background:${m.color};">${m.label}</span>
+              <span class="qk-mat" style="background:${m.color};">${esc(m.label)}</span>
               <span class="qk-id">${c.id}</span>
               ${inRes ? `<span class="anki-tag" style="background:rgba(255,170,51,.15);color:var(--gold);">Ancien réservoir</span>` : ''}
             </div>
@@ -192,7 +192,7 @@
         <div class="anki-lib-mat quick-mat${open ? ' open' : ''}">
           <div class="anki-lib-mat-hdr" style="border-left:4px solid ${m.color};" onclick="window.quickToggleMat('${esc(matId)}')" role="button" tabindex="0">
             <span class="anki-lib-chevron">${open ? '▼' : '▶'}</span>
-            <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${m.label}</span>
+            <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
             <span class="anki-lib-mat-name">${esc(m.name || matId)}</span>
             <span class="anki-mut" style="margin-left:auto;">${g.active.length} actives · ${g.reservoir.length} réservoir</span>
           </div>
