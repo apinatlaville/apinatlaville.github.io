@@ -302,7 +302,7 @@ window.renderCours = function() {
         if (!qText && c.mat !== currentMat) {
           html += `
             <div style="grid-column: 1/-1; margin-top: 15px; border-bottom: 2px solid ${mo.color}; padding-bottom: 5px;">
-              <h3 style="font-family: 'Inter'; color: ${mo.color};">${mo.name}</h3>
+              <h3 style="font-family: 'Inter'; color: ${mo.color};">${window.escHtml(mo.name)}</h3>
             </div>
           `;
           currentMat = c.mat;
@@ -484,7 +484,7 @@ window.updateMoveIntercalairesDropdown = function(clIdOverride, interOverride) {
   if(interSelect) {
       interSelect.innerHTML = Array.from({length: maxI}, (_, i) => {
           const val = String(i + 1).padStart(2, '0');
-          return `<option value="${val}" ${val===interOverride?'selected':''}>${window.getInterName(cl, val)}</option>`;
+          return `<option value="${val}" ${val===interOverride?'selected':''}>${window.escHtml(window.getInterName(cl, val))}</option>`;
       }).join('');
   }
 };
@@ -579,7 +579,7 @@ window.updateIntercalairesDropdown = function() {
     const html = '<option value="">—</option>' + 
       Array.from({length: maxI}, (_, i) => {
         const val = String(i + 1).padStart(2, '0');
-        return `<option value="${val}">${window.getInterName(cl, val)}</option>`;
+        return `<option value="${val}">${window.escHtml(window.getInterName(cl, val))}</option>`;
       }).join('');
     if (typeof window.fcRefreshSelect === 'function') {
       window.fcRefreshSelect(window.$('fInter'), html);

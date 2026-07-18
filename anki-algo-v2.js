@@ -44,6 +44,8 @@
   V2.qScoreToButton = function (s) { return needA1().qScoreToButton(s); };
   V2.getCoefs = function () { return needA1().getCoefs(); };
   V2.importanceIntervalMult = function (imp) { return needA1().importanceIntervalMult(imp); };
+  V2.smartOrder = function (cards) { return needA1().smartOrder(cards); };
+  V2.cardDuration = function (c) { return needA1().cardDuration(c); };
 
   V2.getCandidates = function (exercices, ref) {
     return V2.sortByPriority(exercices, ref).map(x => ({ card: x.card, score: { total: x.priority, breakdown: x.breakdown, raw: x.raw } }));

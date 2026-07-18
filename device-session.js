@@ -605,22 +605,35 @@
       && !state.needsRoleChoice;
   }
 
-  function saveSecondaryPatch(mutator) {
+  function saveSecondaryPatch(mutator, _retries) {
     if (!canSecondaryPatch()) return Promise.reject(new Error('Patch secondaire indisponible'));
     if (!window.docRef || !window.getDoc || !window.setDoc) return Promise.reject(new Error('Cloud indisponible'));
+    var retriesLeft = (_retries == null) ? 3 : _retries;
     return window.getDoc(window.docRef).then(function (snap) {
       var data = snap.exists() ? (snap.data() || {}) : (window.D ? JSON.parse(JSON.stringify(window.D)) : {});
       if (!data.meta) data.meta = {};
+      var baseRev = Number(data.meta.revision) || 0;
       mutator(data);
-      data.meta.revision = (Number(data.meta.revision) || 0) + 1;
+      if (!data.meta) data.meta = {};
+      data.meta.revision = baseRev + 1;
       data.meta.updatedAt = now();
       data.meta.updatedBy = getDeviceId();
       data.meta.updatedByRole = CONFIG.ROLES.SECONDARY;
-      return window.setDoc(window.docRef, data).then(function () {
-        window.D = data;
-        if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-        else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
-        return data;
+      // Relecture avant écriture pour limiter les lost updates face au Principal
+      return window.getDoc(window.docRef).then(function (snap2) {
+        var curRev = snap2.exists() && snap2.data() && snap2.data().meta
+          ? (Number(snap2.data().meta.revision) || 0)
+          : 0;
+        if (curRev !== baseRev) {
+          if (retriesLeft > 0) return saveSecondaryPatch(mutator, retriesLeft - 1);
+          return Promise.reject(new Error('Conflit de révision (patch secondaire)'));
+        }
+        return window.setDoc(window.docRef, data).then(function () {
+          window.D = data;
+          if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+          else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+          return data;
+        });
       });
     });
   }

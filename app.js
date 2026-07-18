@@ -1457,7 +1457,11 @@ async function initApp(user) {
     window.D.settings.userName = "Mode Local";
     window.D.settings.appColor = '#5b9aff';
   } else if (user && user.given_name) {
-    window.D.settings.userName = user.given_name;
+    // Ne pas écraser un prénom déjà personnalisé par l'utilisateur
+    const cur = (window.D.settings.userName || '').trim();
+    if (!cur || cur === 'Étudiant' || cur === 'Etudiant') {
+      window.D.settings.userName = user.given_name;
+    }
   }
 
   if (typeof window.updateCloudIndicator === 'function') {

@@ -44,7 +44,7 @@ window.showQR = function(uid) {
   window.curQRUid = uid;
   
   if(window.$('qrTitle')) window.$('qrTitle').innerHTML = window.iconLabel('qr-code', 'Code-Barres');
-  if(window.$('qrSub')) window.$('qrSub').textContent = window.escHtml(c.title);
+  if(window.$('qrSub')) window.$('qrSub').textContent = c.title || '';
   if(window.$('qrLbl')) window.$('qrLbl').textContent = uid;
   
   if(window.$('qrBox')) {
