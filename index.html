@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260718g';
+  window.__BOOT_CACHE_V = '20260718h';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -342,6 +342,24 @@
   </div>
 </div>
 
+<div class="pane ui-pane" id="paneOrphelins">
+  <div class="orphan-head">
+    <div>
+      <h2 class="orphan-title" id="orphanTitle">À ranger</h2>
+      <p class="orphan-sub" id="orphanStats">Documents et cartes sans matière ou classeur valide.</p>
+    </div>
+    <div class="orphan-toolbar">
+      <button type="button" class="cbt" id="btnOrphanSelAllDocs">Sél. docs</button>
+      <button type="button" class="cbt" id="btnOrphanSelAllAnki">Sél. cartes</button>
+      <button type="button" class="cbt" id="btnOrphanSelAll">Tout</button>
+      <button type="button" class="cbt" id="btnOrphanSelNone">Vider</button>
+      <button type="button" class="bp" id="btnOrphanAssign" style="background:var(--grn);color:#000;">Ranger la sélection</button>
+    </div>
+  </div>
+  <p class="orphan-hint"><span data-icon="lightbulb" data-icon-size="14"></span> Clique pour sélectionner. Tu peux tout ranger d’un coup vers une matière / un classeur.</p>
+  <div id="orphanRoot"></div>
+</div>
+
 <div class="pane ui-pane" id="paneSettings">
   
   <h3 style="font-family:'Inter'; margin-bottom:15px; color:var(--txt); font-size:15px;">Profil & Personnalisation</h3>
@@ -529,6 +547,23 @@
     <div class="macts" style="margin-top:20px;">
       <button class="bs" onclick="document.getElementById('ovMove').classList.add('hidden')">Annuler</button>
       <button class="bp" onclick="window.saveMove()">Enregistrer le déplacement</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovOrphanAssign">
+  <div class="modal">
+    <button type="button" onclick="window.closeOrphanAssign()" style="position:absolute; right:15px; top:15px; background:none; border:none; color:var(--mut); cursor:pointer;" aria-label="Fermer"><span data-icon="x" data-icon-size="18"></span></button>
+    <h2 style="margin-bottom:8px;"><span data-icon="inbox"></span> Ranger la sélection</h2>
+    <p id="orphanAssignSummary" class="anki-mut" style="font-size:13px;margin-bottom:16px;"></p>
+    <div class="fg"><label>Matière *</label><select id="fOrphanMat"></select></div>
+    <div id="orphanClFields">
+      <div class="fg"><label>Classeur *</label><select id="fOrphanCl"></select></div>
+      <div class="fg"><label>Intercalaire *</label><select id="fOrphanInter"></select></div>
+    </div>
+    <div class="macts" style="margin-top:20px;">
+      <button type="button" class="bs" onclick="window.closeOrphanAssign()">Annuler</button>
+      <button type="button" class="bp" onclick="window.saveOrphanAssign()">Ranger</button>
     </div>
   </div>
 </div>

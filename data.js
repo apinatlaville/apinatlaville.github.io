@@ -62,7 +62,8 @@ window.pruneUnsortedMatiere = function () {
 };
 
 window.reconcileOrphanCours = function () {
-  if (!window.D || !window.D.cours) return false;
+  if (!window.D) return false;
+  if (!Array.isArray(window.D.cours)) window.D.cours = [];
   let changed = false;
   const matIds = new Set((window.D.matieres || []).map(m => m.id));
   const clIds = new Set((window.D.classeurs || []).map(c => c.id));
@@ -78,6 +79,7 @@ window.reconcileOrphanCours = function () {
       c.cl = window.UNSORTED_CL_ID;
       if (!c.inter) c.inter = '01';
       changed = true;
+      clIds.add(window.UNSORTED_CL_ID);
     }
   });
   // Cartes Anki orphelines (matière supprimée / id invalide)
@@ -95,12 +97,12 @@ window.reconcileOrphanCours = function () {
   };
   rehomeAnki(window.D.exercices);
   rehomeAnki(window.D.devoirs);
-  const matBefore = window.D.matieres.length;
+  const matBefore = (window.D.matieres || []).length;
   window.pruneUnsortedMatiere();
-  if (window.D.matieres.length !== matBefore) changed = true;
-  const clBefore = window.D.classeurs.length;
+  if ((window.D.matieres || []).length !== matBefore) changed = true;
+  const clBefore = (window.D.classeurs || []).length;
   window.pruneUnsortedClasseur();
-  if (window.D.classeurs.length !== clBefore) changed = true;
+  if ((window.D.classeurs || []).length !== clBefore) changed = true;
   return changed;
 };
 
@@ -539,10 +541,14 @@ window.saveMove = function() {
       if (c.stat === 'printed') {
           c.stat = 'active';
       }
+      window.pruneUnsortedMatiere();
+      window.pruneUnsortedClasseur();
       window.save();
       window.renderCours();
       window.renderClasseurs();
+      window.renderMatieres();
       window.renderDashboard();
+      if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
       if(window.$('ovMove')) window.$('ovMove').classList.add('hidden');
       window.sysAlert(window.iconLabel('check', 'Document déplacé avec succès !'), "Déplacement réussi");
   }
@@ -1118,6 +1124,7 @@ window.delMat = function(id) {
     window.renderCours();
     if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2();
     if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+    if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
   };
 
   if (count || ankiCount) {
@@ -1125,7 +1132,7 @@ window.delMat = function(id) {
     if (count) bits.push(`${count} document(s)`);
     if (ankiCount) bits.push(`${ankiCount} carte(s) Anki`);
     window.sysConfirm(
-      `Cette matière contient ${bits.join(' et ')}. Ils seront déplacés dans « Non trié » pour que tu puisses les reclasser.`,
+      `Cette matière contient ${bits.join(' et ')}. Ils seront déplacés dans « Non trié » — tu pourras les reclasser dans l'onglet <b>À ranger</b>.`,
       doDel,
       "Suppression d'une matière"
     );
@@ -1145,15 +1152,277 @@ window.delCl = function(id) {
     window.save();
     window.renderClasseurs();
     window.renderCours();
+    if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
   };
 
   if (count) {
     window.sysConfirm(
-      `Ce classeur contient ${count} document(s). Ils seront déplacés dans « Non classé » pour que tu puisses les reclasser.`,
+      `Ce classeur contient ${count} document(s). Ils seront déplacés dans « Non classé » — tu pourras les reclasser dans l'onglet <b>À ranger</b>.`,
       doDel,
       "Suppression d'un classeur"
     );
   } else {
     doDel();
   }
+};
+
+// =========================================================
+// ONGLET « À RANGER » — orphelins (cours + cartes Anki)
+// =========================================================
+if (!window.orphanSelCours) window.orphanSelCours = new Set();
+if (!window.orphanSelAnki) window.orphanSelAnki = new Set();
+
+window.listOrphanCours = function () {
+  if (!window.D || !Array.isArray(window.D.cours)) return [];
+  const mid = window.UNSORTED_MAT_ID;
+  const cid = window.UNSORTED_CL_ID;
+  return window.D.cours.filter(c => c && (c.mat === mid || c.cl === cid));
+};
+
+window.listOrphanAnki = function () {
+  if (!window.D) return [];
+  const mid = window.UNSORTED_MAT_ID;
+  const out = [];
+  (window.D.exercices || []).forEach(c => { if (c && c.mat === mid) out.push(c); });
+  (window.D.devoirs || []).forEach(c => { if (c && c.mat === mid) out.push(c); });
+  return out;
+};
+
+window.countOrphans = function () {
+  return {
+    cours: window.listOrphanCours().length,
+    anki: window.listOrphanAnki().length
+  };
+};
+
+window._orphanReason = function (c) {
+  const bits = [];
+  if (c.mat === window.UNSORTED_MAT_ID) bits.push('Non trié');
+  if (c.cl === window.UNSORTED_CL_ID) bits.push('Non classé');
+  return bits.join(' · ') || 'À ranger';
+};
+
+window.renderOrphelins = function () {
+  const root = window.$('orphanRoot');
+  if (!root || !window.D) return;
+
+  const docs = window.listOrphanCours();
+  const cards = window.listOrphanAnki();
+  const validCours = new Set(docs.map(c => c.uid));
+  const validAnki = new Set(cards.map(c => c.id));
+  window.orphanSelCours = new Set([...window.orphanSelCours].filter(id => validCours.has(id)));
+  window.orphanSelAnki = new Set([...window.orphanSelAnki].filter(id => validAnki.has(id)));
+
+  const selN = window.orphanSelCours.size + window.orphanSelAnki.size;
+  if (window.$('orphanStats')) {
+    window.$('orphanStats').textContent =
+      `${docs.length} document(s) · ${cards.length} carte(s) Anki · ${selN} sélectionné(s)`;
+  }
+  if (window.$('orphanTitle')) {
+    window.$('orphanTitle').innerHTML = window.iconLabel
+      ? window.iconLabel('inbox', 'À ranger')
+      : 'À ranger';
+  }
+
+  const esc = s => window.escHtml(s);
+  const check = on => (on
+    ? (window.iconHtml ? window.iconHtml('check', 14, 'icon-sm') : '✓')
+    : (window.iconHtml ? window.iconHtml('square', 14, 'icon-sm') : '☐'));
+
+  const drawDoc = (c) => {
+    const on = window.orphanSelCours.has(c.uid);
+    return `
+      <div class="pcard ${on ? 'sel' : ''}" onclick="window.toggleOrphanSel('cours','${esc(c.uid)}')">
+        <div class="pc-check">${check(on)}</div>
+        <div class="orphan-badge">${esc(window._orphanReason(c))}</div>
+        <div class="pc-uid">${esc(c.uid)}</div>
+        <div class="pc-title">${esc(c.title || 'Sans titre')}</div>
+        <div class="orphan-meta">${esc(c.type || 'DOC')}</div>
+      </div>`;
+  };
+
+  const drawAnki = (c) => {
+    const on = window.orphanSelAnki.has(c.id);
+    const kind = (window.AnkiAlgo && window.AnkiAlgo.cardKind)
+      ? window.AnkiAlgo.cardKind(c)
+      : (c.type === 'devoir' || c.type === 'devoir-morceau' ? 'devoir' : 'main');
+    const kindLabel = kind === 'devoir' ? 'Devoir' : (kind === 'quick' ? 'Rapide' : 'Principale');
+    return `
+      <div class="pcard ${on ? 'sel' : ''}" onclick="window.toggleOrphanSel('anki','${esc(c.id)}')">
+        <div class="pc-check">${check(on)}</div>
+        <div class="orphan-badge">Non trié · ${esc(kindLabel)}</div>
+        <div class="pc-uid">${esc(c.id)}</div>
+        <div class="pc-title">${esc(c.titre || (c.question || '').substring(0, 60) || 'Sans titre')}</div>
+      </div>`;
+  };
+
+  let html = '';
+  html += `<div class="orphan-section">
+    <h3>${window.iconLabel ? window.iconLabel('clipboard-list', 'Documents') : 'Documents'}
+      <span class="anki-mut" style="font-weight:500;font-size:12px;">(${docs.length})</span></h3>
+    ${docs.length
+      ? `<div class="cgrid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${docs.map(drawDoc).join('')}</div>`
+      : `<div class="orphan-empty">${window.iconLabel ? window.iconLabel('check', 'Aucun document à ranger.') : 'Aucun document à ranger.'}</div>`}
+  </div>`;
+
+  html += `<div class="orphan-section">
+    <h3>${window.iconLabel ? window.iconLabel('dna', 'Cartes Anki') : 'Cartes Anki'}
+      <span class="anki-mut" style="font-weight:500;font-size:12px;">(${cards.length})</span></h3>
+    ${cards.length
+      ? `<div class="cgrid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${cards.map(drawAnki).join('')}</div>`
+      : `<div class="orphan-empty">${window.iconLabel ? window.iconLabel('check', 'Aucune carte Anki à ranger.') : 'Aucune carte Anki à ranger.'}</div>`}
+  </div>`;
+
+  root.innerHTML = html;
+  if (window.hydrateIcons) window.hydrateIcons(root);
+  const pane = window.$('paneOrphelins');
+  if (pane && window.hydrateIcons) window.hydrateIcons(pane);
+};
+
+window.toggleOrphanSel = function (kind, id) {
+  const set = kind === 'anki' ? window.orphanSelAnki : window.orphanSelCours;
+  if (set.has(id)) set.delete(id);
+  else set.add(id);
+  window.renderOrphelins();
+};
+
+window.orphanSelAllDocs = function () {
+  window.orphanSelCours = new Set(window.listOrphanCours().map(c => c.uid));
+  window.renderOrphelins();
+};
+window.orphanSelAllAnki = function () {
+  window.orphanSelAnki = new Set(window.listOrphanAnki().map(c => c.id));
+  window.renderOrphelins();
+};
+window.orphanSelAll = function () {
+  window.orphanSelCours = new Set(window.listOrphanCours().map(c => c.uid));
+  window.orphanSelAnki = new Set(window.listOrphanAnki().map(c => c.id));
+  window.renderOrphelins();
+};
+window.orphanSelNone = function () {
+  window.orphanSelCours.clear();
+  window.orphanSelAnki.clear();
+  window.renderOrphelins();
+};
+
+window.updateOrphanInterDropdown = function () {
+  const clId = window.$('fOrphanCl') ? window.$('fOrphanCl').value : '';
+  const cl = (window.D.classeurs || []).find(c => c.id === clId);
+  const maxI = cl ? (cl.maxInter || 12) : 12;
+  const sel = window.$('fOrphanInter');
+  if (!sel) return;
+  sel.innerHTML = Array.from({ length: maxI }, (_, i) => {
+    const val = String(i + 1).padStart(2, '0');
+    return `<option value="${val}">${window.escHtml(window.getInterName(cl, val))}</option>`;
+  }).join('');
+};
+
+window.openOrphanAssign = function () {
+  const nDocs = window.orphanSelCours.size;
+  const nAnki = window.orphanSelAnki.size;
+  if (!nDocs && !nAnki) {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Sélectionne au moins un document ou une carte à ranger.', 'À ranger');
+    }
+    return;
+  }
+
+  const mats = (window.D.matieres || []).filter(m => m.id !== window.UNSORTED_MAT_ID);
+  const cls = (window.D.classeurs || []).filter(c => c.id !== window.UNSORTED_CL_ID);
+  if (!mats.length) {
+    return window.sysAlert('Crée d\'abord une matière (hors « Non trié ») pour pouvoir ranger.', 'À ranger');
+  }
+  if (nDocs && !cls.length) {
+    return window.sysAlert('Crée d\'abord un classeur (hors « Non classé ») pour ranger des documents.', 'À ranger');
+  }
+
+  const matSel = window.$('fOrphanMat');
+  if (matSel) {
+    matSel.innerHTML = mats.map(m =>
+      `<option value="${m.id}">${window.escHtml(m.label)} — ${window.escHtml(m.name)}</option>`
+    ).join('');
+  }
+  const clSel = window.$('fOrphanCl');
+  if (clSel) {
+    clSel.innerHTML = cls.map(c =>
+      `<option value="${c.id}">${window.escHtml(c.name)}</option>`
+    ).join('');
+  }
+  window.updateOrphanInterDropdown();
+
+  const clFields = window.$('orphanClFields');
+  if (clFields) clFields.style.display = nDocs ? '' : 'none';
+
+  if (window.$('orphanAssignSummary')) {
+    const bits = [];
+    if (nDocs) bits.push(`${nDocs} document(s)`);
+    if (nAnki) bits.push(`${nAnki} carte(s) Anki`);
+    window.$('orphanAssignSummary').textContent = `Ranger ${bits.join(' et ')} vers…`;
+  }
+  if (window.$('ovOrphanAssign')) window.$('ovOrphanAssign').classList.remove('hidden');
+};
+
+window.closeOrphanAssign = function () {
+  if (window.$('ovOrphanAssign')) window.$('ovOrphanAssign').classList.add('hidden');
+};
+
+window.saveOrphanAssign = function () {
+  const mat = window.$('fOrphanMat') ? window.$('fOrphanMat').value : '';
+  const cl = window.$('fOrphanCl') ? window.$('fOrphanCl').value : '';
+  const inter = window.$('fOrphanInter') ? window.$('fOrphanInter').value : '';
+  const nDocs = window.orphanSelCours.size;
+  const nAnki = window.orphanSelAnki.size;
+
+  if (!mat || mat === window.UNSORTED_MAT_ID) {
+    return window.sysAlert('Choisis une matière valide.', 'À ranger');
+  }
+  if (nDocs && (!cl || cl === window.UNSORTED_CL_ID || !inter)) {
+    return window.sysAlert('Choisis un classeur et un intercalaire pour les documents.', 'À ranger');
+  }
+
+  let movedDocs = 0;
+  let movedAnki = 0;
+  window.orphanSelCours.forEach(uid => {
+    const c = window.D.cours.find(x => x.uid === uid);
+    if (!c) return;
+    c.mat = mat;
+    c.cl = cl;
+    c.inter = inter;
+    if (c.stat === 'printed') c.stat = 'active';
+    movedDocs++;
+  });
+  const applyAnki = (arr) => {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(c => {
+      if (c && window.orphanSelAnki.has(c.id)) {
+        c.mat = mat;
+        movedAnki++;
+      }
+    });
+  };
+  applyAnki(window.D.exercices);
+  applyAnki(window.D.devoirs);
+
+  window.orphanSelCours.clear();
+  window.orphanSelAnki.clear();
+  window.pruneUnsortedMatiere();
+  window.pruneUnsortedClasseur();
+  window.save();
+  window.closeOrphanAssign();
+
+  window.renderCours();
+  window.renderMatieres();
+  window.renderClasseurs();
+  window.renderDashboard();
+  if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2();
+  if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+  window.renderOrphelins();
+
+  const bits = [];
+  if (movedDocs) bits.push(`${movedDocs} document(s)`);
+  if (movedAnki) bits.push(`${movedAnki} carte(s)`);
+  window.sysAlert(
+    window.iconLabel('check', bits.length ? bits.join(' et ') + ' rangé(s).' : 'Rien à ranger.'),
+    'À ranger'
+  );
 };

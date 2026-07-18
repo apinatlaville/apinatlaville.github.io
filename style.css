@@ -732,6 +732,17 @@ body.mode-compact .cdesc { display: none; }
 .pc-uid { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--acc); margin-bottom: 2px; word-break: break-all; }
 .pc-title { font-size: 10px; color: var(--mut); display: -webkit-box; -webkit-line-clamp: 2; overflow: hidden; }
 
+.orphan-head { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.orphan-title { font-family: 'Inter', sans-serif; font-size: 18px; margin: 0 0 4px; }
+.orphan-sub { color: var(--mut); font-size: 13px; margin: 0; }
+.orphan-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.orphan-hint { font-size: 12px; color: var(--mut); margin: 0 0 18px; background: var(--s2); padding: 10px; border-radius: 8px; display: flex; align-items: flex-start; gap: 8px; }
+.orphan-section { margin-bottom: 28px; }
+.orphan-section h3 { font-family: 'Inter', sans-serif; font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.orphan-empty { color: var(--mut); font-size: 13px; text-align: center; padding: 24px 12px; background: var(--s2); border: 1px dashed var(--bd); border-radius: 10px; }
+.orphan-meta { font-size: 11px; color: var(--mut); margin-top: 4px; }
+.orphan-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 999px; background: rgba(240,192,96,.12); color: var(--gold); border: 1px solid rgba(240,192,96,.35); margin-bottom: 6px; }
+
 .cl-card { background: var(--s1); border: 1px solid var(--bd); border-radius: 11px; margin-bottom: 10px; overflow: hidden; }
 .cl-hdr { padding: 14px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
 .cl-ico { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }

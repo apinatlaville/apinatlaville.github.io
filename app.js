@@ -700,6 +700,9 @@ window.runTabShow = function(tab, overrideResetFilters) {
       window.isEditingMat = false;
       window.renderMatieres();
       break;
+    case 'orphelins':
+      if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
+      break;
     case 'settings': window.applySettings(); break;
     case 'logs': window.renderErrorLogs(); break;
     case 'test': break;
@@ -834,6 +837,32 @@ window.renderDashboard = function() {
         <div class="dash-num">${window.D.cours.filter(c => c.type === 'DS').length}</div><div class="dash-lbl">${window.iconLabel('graduation-cap', 'Sujets DS')}</div>
       </div>
     `;
+  }
+
+  // Rappel « À ranger » si orphelins présents
+  let orphanBanner = window.$('dashOrphanBanner');
+  if (!orphanBanner && window.$('paneHome')) {
+    orphanBanner = document.createElement('div');
+    orphanBanner.id = 'dashOrphanBanner';
+    orphanBanner.style.margin = '0 0 14px';
+    const overview = window.$('dashOverviewGrid');
+    if (overview && overview.parentNode) overview.parentNode.insertBefore(orphanBanner, overview);
+    else window.$('paneHome').prepend(orphanBanner);
+  }
+  if (orphanBanner && typeof window.countOrphans === 'function') {
+    const oc = window.countOrphans();
+    const total = oc.cours + oc.anki;
+    if (total > 0) {
+      orphanBanner.innerHTML = `
+        <div class="dash-card" onclick="window.switchTab('orphelins')" style="cursor:pointer;border-color:rgba(240,192,96,.45);background:rgba(240,192,96,.08);">
+          <div class="dash-num" style="color:var(--gold);">${total}</div>
+          <div class="dash-lbl">${window.iconLabel('inbox', 'À ranger')} · ${oc.cours} doc(s) · ${oc.anki} carte(s)</div>
+        </div>`;
+      orphanBanner.style.display = '';
+    } else {
+      orphanBanner.innerHTML = '';
+      orphanBanner.style.display = 'none';
+    }
   }
 
   const todos = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange')
@@ -1142,9 +1171,15 @@ bindChange('fType', () => window.toggleNoteField());
 bindChange('fMat', () => { if(typeof window.updateUidPrefix === 'function') window.updateUidPrefix(); });
 
 bindChange('fMoveCl', () => { if(typeof window.updateMoveIntercalairesDropdown === 'function') window.updateMoveIntercalairesDropdown(); });
+bindChange('fOrphanCl', () => { if (typeof window.updateOrphanInterDropdown === 'function') window.updateOrphanInterDropdown(); });
 
 bindClick('btnAddCl', () => window.addCl());
 bindClick('btnAddMat', () => window.addMat());
+bindClick('btnOrphanSelAllDocs', () => window.orphanSelAllDocs && window.orphanSelAllDocs());
+bindClick('btnOrphanSelAllAnki', () => window.orphanSelAllAnki && window.orphanSelAllAnki());
+bindClick('btnOrphanSelAll', () => window.orphanSelAll && window.orphanSelAll());
+bindClick('btnOrphanSelNone', () => window.orphanSelNone && window.orphanSelNone());
+bindClick('btnOrphanAssign', () => window.openOrphanAssign && window.openOrphanAssign());
 
 ['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, () => window.renderCours()); });
 bindClick('btnResetFilters', () => window.resetFilters());
