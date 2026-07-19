@@ -278,11 +278,11 @@
       <div class="av-v2-banner" id="av-vue">
         <b>Synchrotron en une phrase :</b> tu notes une carte (0–10) → l’algo fixe <i>quand</i> elle revient (SM-2) ·
         les ★ fixent <i>dans quelle fenêtre</i> (une fois mature) · le soir, le Cockpit prend le <b>haut du classement « prio »</b> dans ton budget de temps.<br><br>
-        <b>Cette carte mentale</b> décrit tout le moteur actuel : piles, réservoir, phases, fenêtres, notation, priorité, session, devoirs, modes et prévisions.
+        <b>Cette page</b> décrit le moteur <b>tel qu’il est dans le code</b> (pas un schéma théorique). Le fil est volontairement linéaire : c’est un enchaînement causal (piles → phase → fenêtre → note → prio → session).
       </div>
       <div class="av-map" aria-label="Schéma global Synchrotron">
         <div class="av-map-row">
-          <span class="av-map-chip">Réservoir</span>
+          <span class="av-map-chip">X- Réservoir</span>
           <span class="av-map-arrow">→</span>
           <span class="av-map-chip good">Actif</span>
           <span class="av-map-arrow">→</span>
@@ -301,7 +301,7 @@
           <span class="av-map-arrow">→</span>
           <span class="av-map-chip gold">Session du soir</span>
         </div>
-        <p class="av-map-caption">Lecture de haut en bas · chaque nœud ci-dessous détaille une étape</p>
+        <p class="av-map-caption">Deux fils liés : maturité de la carte (haut) · construction de la soirée (bas). Utilise le sommaire pour sauter.</p>
       </div>
     `;
   }
@@ -342,7 +342,7 @@
             <div style="padding:12px;border-radius:10px;background:rgba(91,141,239,0.1);border:1px solid rgba(91,141,239,0.35);">
               <div style="font-size:11px;color:#5b8def;font-weight:700;">Y- RAPIDES</div>
               <div style="font-size:22px;font-weight:700;">${quick}</div>
-              <p style="font-size:12px;margin:6px 0 0;">Onglet Rapide (midi) · le soir = tissées entre les X- (plafond réglable)</p>
+              <p style="font-size:12px;margin:6px 0 0;">Créées <b>actives</b> depuis Rapide · le soir = tissées entre les X- si éligibles (plafond réglable)</p>
             </div>
           </div>
           <p style="margin-top:12px;font-size:12px;">
@@ -350,7 +350,7 @@
             <span class="av-tag">${fini} DM terminés</span>
           </p>
           <p style="font-size:12px;color:var(--mut);margin:8px 0 0;">
-            Les X- naissent en <b>réservoir</b> — tu les actives quand tu veux. Pas d’injection auto de nouvelles cartes dans la session.
+            Les <b>X-</b> naissent en réservoir (tu actives). Les <b>Y-</b> Rapide naissent déjà actives. Le Cockpit V2 <b>n’injecte pas</b> automatiquement du réservoir dans la session.
           </p>
         </div>
       </div>
@@ -371,12 +371,14 @@
             <div class="av-step"><b>Fini</b>Réservé aux DM (W-) terminés · plus dans le flux</div>
           </div>
           <div class="av-h4">Phase mémoire (calculée, pas un onglet)</div>
-          <div class="av-formula">phase = f(repetitions, ease)
+          <div class="av-formula">phase = f(repetitions, ease)   — code getPhase()
 
 apprentissage  si  rep &lt; 3  OU  ease &lt; 2,2
-consolidation  si  rep &lt; 8  OU  ease &lt; 2,4   (et plus en apprentissage)
-mature         sinon  (rep ≥ 8 ET ease ≥ 2,4)</div>
-          <p style="font-size:12px;margin:0;">Un échec peut faire redescendre l’ease → la carte peut <b>retomber en apprentissage</b> et perdre ses fenêtres ★.</p>
+consolidation  sinon si  rep &lt; 8  OU  ease &lt; 2,4
+mature         sinon  (rep ≥ 8 ET ease ≥ 2,4)
+
+Ex. : rep=10 et ease=2,3 → encore consolidation (ease trop bas)</div>
+          <p style="font-size:12px;margin:0;">Un échec baisse l’ease → la carte peut <b>retomber en apprentissage</b> ; hors mature, les fenêtres ★ sont effacées.</p>
           <div class="av-map" style="margin-top:12px;">
             <div class="av-map-row">
               <span class="av-map-chip">Création</span>
@@ -412,8 +414,8 @@ mature         sinon  (rep ≥ 8 ET ease ≥ 2,4)</div>
               </tr>
               <tr>
                 <td><span class="av-phase-pill av-phase-consolidation">consolidation</span></td>
-                <td>rep 3–7 <b>ou</b> ease &lt; 2,4</td>
-                <td>Encore des paliers · date exacte · « soon » jusqu’à ~4 jours</td>
+                <td>sinon si rep &lt; 8 <b>ou</b> ease &lt; 2,4</td>
+                <td>Encore des paliers · date exacte · « soon » jusqu’à 4 jours</td>
               </tr>
               <tr>
                 <td><span class="av-phase-pill av-phase-mature">mature</span></td>
@@ -437,9 +439,11 @@ mature         sinon  (rep ≥ 8 ET ease ≥ 2,4)</div>
         <div class="av-node-title">${window.iconLabel("star", "Étoiles ★ = fenêtres de révision")}</div>
         <p class="av-node-sub">En mature, les ★ ne « pondèrent » plus 4 scores : elles définissent <b>quand</b> la carte s’ouvre et <b>combien de temps</b> elle reste due</p>
         <div class="av-node-body">
-          <div class="av-formula"><b>Après un succès en mature :</b>
-ouverture = J + openAfter(★)   (échelle selon horizon 1 an / 2 ans)
-fermeture = ouverture + width(★)
+          <div class="av-formula"><b>Après un succès en mature (qScore &gt; 3) :</b>
+w = fenêtre ★ × horizon   (1 an → ×0,55 · 2 ans → ×1)
+openAfter_eff = max(w.openAfter, min(intervalle_SM2, w.openAfter + 5))
+ouverture = J + openAfter_eff
+fermeture = ouverture + w.width
 dateProchaineRevision = début de fenêtre
 
 Tu peux réviser n’importe quand pendant la largeur.
@@ -496,12 +500,12 @@ mature + succès → date = début de fenêtre ★ (pas un jour unique)</div>
 
           <div class="av-branches">
             <div class="av-node av-branch-good">
-              <b style="color:#5cd49a;">Réussite ≥ ${C.BLOCAGE_QSCORE_VALIDATE || 8}</b>
-              <p style="font-size:12px;margin:8px 0 0;">Intervalle progresse · fenêtre ★ recalculée si mature · blocage levé</p>
+              <b style="color:#5cd49a;">Succès &gt; ${C.BLOCAGE_QSCORE_TRIGGER || 3}</b>
+              <p style="font-size:12px;margin:8px 0 0;">Intervalle progresse (paliers puis × ease × qFactor × pénalité tempo × multiplicateur ★). Si mature → fenêtre ★. Le flag blocage ne se lève qu’à note ≥ ${C.BLOCAGE_QSCORE_VALIDATE || 8} <b>ou</b> après ${C.BLOCAGE_TIMEOUT_REV || 5} tentatives (timeout).</p>
             </div>
             <div class="av-node av-branch-bad">
               <b style="color:#f07070;">Échec ≤ ${C.BLOCAGE_QSCORE_TRIGGER || 3}</b>
-              <p style="font-size:12px;margin:8px 0 0;">Ease baisse · _blocageActif → la carte remonte via <code>prio</code> jusqu’à une bonne note</p>
+              <p style="font-size:12px;margin:8px 0 0;">Reset intervalle · ease −${C.EASE_DROP_FAIL != null ? C.EASE_DROP_FAIL : 0.2} · <code>_blocageActif</code>. En V2 le flag <b>n’entre pas</b> dans <code>prio</code> : c’est surtout la baisse d’ease (et un éventuel retard) qui fait remonter la carte.</p>
             </div>
           </div>
 
@@ -543,14 +547,17 @@ mature + succès → date = début de fenêtre ★ (pas un jour unique)</div>
         <div class="av-node-title">${window.iconLabel("layout-list", "Priorité — le seul score de tri")}</div>
         <p class="av-node-sub">Un nombre <code>prio</code> · plus de score d’urgence composite V1 (I_R + coefs W_*)</p>
         <div class="av-node-body">
-          <div class="av-formula"><b>prio</b> = somme simple
+          <div class="av-formula"><b>prio</b> = somme simple (priorityScore)
 
 ① Retard (overdue)     → +10 000 + 100 × jours de retard
-② Fenêtre active       → +5 000 (+ bonus si fin de fenêtre ≤ 5 j)
-③ Bientôt (soon)       → +2 000  (utile surtout avec pullForward)
+② Fenêtre active       → +5 000
+   + si mature et fin de fenêtre dans ≤ 5 j → +(5 − joursRestants) × 80
+③ Bientôt (soon)       → +2 000  (éligible session seulement si pullForward)
 ④ Importance ★         → +200 × étoiles (1→5)
-⑤ Ease bas             → +(2,8 − ease) × 60</div>
-          <p><b>Lecture :</b> une carte en retard domine toujours. Dans la fenêtre active, ★5 passe avant ★2. L’ease bas départage à priorité égale.</p>
+⑤ Ease bas             → +(2,8 − ease) × 60
+
+Pas de terme _blocageActif dans prio V2.</div>
+          <p><b>Lecture :</b> une carte en retard domine toujours. Dans la fenêtre active, ★5 passe avant ★2. L’ease bas départage à priorité égale. Fin de fenêtre mature = petit bonus pour ne pas la rater.</p>
           <div class="av-h4">Simulation — 6 situations</div>
           <div data-testid="viz-v2-sim">${rows}</div>
           <p style="font-size:11px;color:var(--mut);margin-top:8px;">Barres normalisées sur la carte la plus prioritaire du lot.</p>
@@ -591,15 +598,16 @@ mature + succès → date = début de fenêtre ★ (pas un jour unique)</div>
             <label><input type="checkbox" id="av2PullForward" ${pull ? "checked" : ""}> Avancer si budget large (soon)</label>
           </div>
 
-          <div class="av-h4">Ordre de remplissage (buildSession)</div>
+          <div class="av-h4">Ordre de remplissage (buildSession — code réel)</div>
           <ol style="padding-left:20px;font-size:13px;line-height:1.75;margin:0;">
-            <li><b>W- forcés</b> — urgence calendaire ≥ ${seuil} · 1er morceau même si ça surcharge un peu</li>
-            <li><b>X- éligibles</b> — overdue ou active (+ soon si pullForward) · triés par <code>prio</code></li>
-            <li><b>W- supplémentaires</b> — autres bouts des DM forcés, puis DM latents si budget</li>
-            <li><b>Y- tissées</b> — jusqu’à ${maxQuick} rapides entre les cartes longues</li>
+            <li><b>W- forcés</b> — <code>urgenceDevoir</code> ≥ ${seuil} (deadline + morceaux restants) · 1er bout même si ça surcharge un peu</li>
+            <li><b>X- éligibles</b> — overdue / active (+ soon si pullForward) · tri <code>prio</code></li>
+            <li><b>W- extra forcés</b> puis <b>W- latents</b> — d’autres bouts si le budget le permet</li>
+            <li><b>Y- éligibles</b> — même règle overdue/active/soon · tissées dans le long pool (plafond ${maxQuick})</li>
+            <li><b>Y- extras</b> — s’il reste du budget après le tissage, encore des Y- en fin de file</li>
           </ol>
           <p style="font-size:12px;color:var(--mut);margin:10px 0 0;">
-            Éligible ce soir = <code>overdue</code> ou <code>active</code> · et <code>soon</code> seulement si « Avancer » est coché.
+            Éligible = <code>overdue</code> ou <code>active</code> · <code>soon</code> seulement si « Avancer » est coché (X- et Y-).
             Soirée DM courte ? Lance depuis l’Agenda. Soirée longue ? l’algo peut tirer des cartes soon.
           </p>
         </div>
@@ -646,9 +654,9 @@ mature + succès → date = début de fenêtre ★ (pas un jour unique)</div>
         <p class="av-node-sub">Simulation du calendrier · même moteur que la session (fenêtres ★ incluses)</p>
         <div class="av-node-body">
           <div class="av-steps">
-            <div class="av-step"><b>Par jours</b>Combien de cartes / minutes sur N jours (hyp. note ≈ 7)</div>
+            <div class="av-step"><b>Jours</b>Combien de cartes / minutes sur N jours (hyp. note = 7)</div>
             <div class="av-step"><b>Par cours</b>Répartition de la charge par chapitre</div>
-            <div class="av-step"><b>Selon la note</b>Si tu notes X ce soir → prochaine date / fenêtre</div>
+            <div class="av-step"><b>Selon la note</b>Si tu notes X ce soir → prochaine date / fenêtre (<code>projectAfterScore</code>)</div>
           </div>
           <div class="av-formula">forecastSchedule : projette chaque carte active
 mature → première occurrence = ouverture de fenêtre (ou aujourd’hui si déjà due)
@@ -675,8 +683,8 @@ projectAfterScore(carte, note) → intervalle, ease, date, fenêtre, phase</div>
             <div><dt>prio</dt><dd>Score unique de tri pour la session du soir.</dd></div>
             <div><dt>Fenêtre ★</dt><dd>Bande de jours où une carte mature est « due ».</dd></div>
             <div><dt>pullForward</dt><dd>Si budget large, tirer aussi les cartes « soon ».</dd></div>
-            <div><dt>_blocageActif</dt><dd>Flag après échec · la carte reste prioritaire jusqu’à une bonne note.</dd></div>
-            <div><dt>Horizon 1 an / 2 ans</dt><dd>Échelle les fenêtres ★ (cycle court vs long).</dd></div>
+            <div><dt>_blocageActif</dt><dd>Flag après échec · levé à note ≥ validate ou après timeout de révisions. N’entre pas dans prio V2 (l’ease baisse, elle).</dd></div>
+            <div><dt>Horizon 1 an / 2 ans</dt><dd>Échelle les fenêtres ★ : ×0,55 (1 an) ou ×1 (2 ans).</dd></div>
             <div><dt>Importance ★1–5</dt><dd>Poids dans prio + taille/timing des fenêtres mature.</dd></div>
             <div><dt>Morceaux (DM)</dt><dd>Découpage d’un devoir W- en sessions successives.</dd></div>
           </dl>
