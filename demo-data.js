@@ -14,24 +14,33 @@ window.demoData = {
     {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter: 12, interNames: {'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools'}},
     {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
   ],
-  cours: [
-    { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: '2026-04-01' },
-    { uid: 'PH-X9Y', title: 'Thermodynamique', type: 'FICHE', rev: 'orange', mat: 'PHYS', cl: 'A', inter: '02', stat: 'printed', date: '2026-04-02' },
-    { uid: 'MA-7Z3', title: 'Espaces Vectoriels', type: 'COURS', rev: 'red', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: '2026-04-03' },
-    { uid: 'MA-P4L', title: 'Séries Entières', type: 'TD', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'pending', date: '2026-04-04' },
-    { uid: 'CH-W2N', title: 'Cristallographie', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: '2026-04-01' },
-    { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'DS', rev: 'red', note: '12', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: '2026-02-12' },
-    { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'KHOLLE', rev: 'green', note: '16', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: '2026-02-20' },
-    { uid: 'MA-D12', title: 'DS Analyse', type: 'DS', rev: 'orange', note: '11.5', mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: '2026-03-05' },
-    { uid: 'PH-K21', title: 'Colle Mécanique', type: 'KHOLLE', rev: 'green', note: '14', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: '2026-03-12' },
-    { uid: 'CH-K08', title: 'Colle Orga', type: 'KHOLLE', rev: 'orange', note: '13', mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: '2026-03-26' },
-    { uid: 'MA-K33', title: 'Colle Algèbre', type: 'KHOLLE', rev: 'green', note: '17', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: '2026-04-02' },
-    { uid: 'PH-D07', title: 'DS Optique', type: 'DS', rev: 'green', note: '15', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: '2026-04-10' },
-
-    { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: '2026-04-04' },
-    { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: '2026-04-05' },
-    { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: '2026-04-05' }
-  ],
+  cours: (function () {
+    const _d = new Date(); _d.setHours(0, 0, 0, 0);
+    const _shift = function (n) {
+      const d = new Date(_d);
+      d.setDate(d.getDate() + n);
+      return window.localDateISO(d);
+    };
+    return [
+      { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-40) },
+      { uid: 'PH-X9Y', title: 'Thermodynamique', type: 'FICHE', rev: 'orange', mat: 'PHYS', cl: 'A', inter: '02', stat: 'printed', date: _shift(-35) },
+      { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-28) },
+      { uid: 'MA-7Z3', title: 'Espaces Vectoriels', type: 'COURS', rev: 'red', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-38) },
+      { uid: 'MA-P4L', title: 'Séries Entières', type: 'TD', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'pending', date: _shift(-22) },
+      { uid: 'CH-W2N', title: 'Cristallographie', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: _shift(-36) },
+      { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-30) },
+      { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: _shift(-18) },
+      { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: _shift(-12) },
+      { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-10) },
+      { uid: 'CH-N12', title: 'DS Cinétique', type: 'DS', rev: 'red', note: '12', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-45), duree: 180 },
+      { uid: 'PH-N16', title: 'Colle EM', type: 'KHOLLE', rev: 'green', note: '16', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-38), duree: 60 },
+      { uid: 'MA-N11', title: 'DS Analyse', type: 'DS', rev: 'orange', note: '11.5', mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: _shift(-28), duree: 240 },
+      { uid: 'PH-N14', title: 'Colle Mécanique', type: 'KHOLLE', rev: 'green', note: '14', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-21), duree: 60 },
+      { uid: 'CH-N13', title: 'Colle Orga', type: 'KHOLLE', rev: 'orange', note: '13', mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: _shift(-14), duree: 60 },
+      { uid: 'MA-N17', title: 'Colle Algèbre', type: 'KHOLLE', rev: 'green', note: '17', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-7), duree: 60 },
+      { uid: 'PH-N15', title: 'DS Optique', type: 'DS', rev: 'green', note: '15', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-3), duree: 180 }
+    ];
+  })(),
   exercices: (function(){
     const _d = new Date(); _d.setHours(0,0,0,0);
     const _today = window.localDateISO(_d);
@@ -133,7 +142,13 @@ window.demoDataXP = (function() {
       { uid:'MA-P4L', title:'Séries Entières', type:'TD', rev:'orange', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-10) },
       { uid:'MA-V6J', title:'Réduction', type:'FICHE', rev:'orange', mat:'MATH', cl:'B', inter:'03', stat:'active', date:_shift(-5) },
       { uid:'CH-T1R', title:'Chimie Org - Alcools', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'03', stat:'active', date:_shift(-12) },
-      { uid:'CH-8M5', title:'Cinétique Chimique', type:'COURS', rev:'orange', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8) }
+      { uid:'CH-8M5', title:'Cinétique Chimique', type:'COURS', rev:'orange', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8) },
+      { uid:'PH-D1A', title:'DS1 Mécanique', type:'DS', rev:'orange', note:'11', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-18), duree:180 },
+      { uid:'PH-K1A', title:'Colle Thermo', type:'KHOLLE', rev:'green', note:'14', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-14), duree:60 },
+      { uid:'MA-D1A', title:'DS1 Algèbre', type:'DS', rev:'red', note:'9.5', mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-16), duree:240 },
+      { uid:'MA-K1A', title:'Colle Analyse', type:'KHOLLE', rev:'green', note:'15', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-9), duree:60 },
+      { uid:'CH-K1A', title:'Colle Cinétique', type:'KHOLLE', rev:'orange', note:'12.5', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-6), duree:60 },
+      { uid:'PH-D2A', title:'DS2 EM', type:'DS', rev:'green', note:'13', mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-3), duree:180 }
     ],
     exercices: [
       // Cartes maîtrisées (ease haut, intervalle moyen, historique réussi)
@@ -156,8 +171,8 @@ window.demoDataXP = (function() {
       { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
       { id:'Y-C9D', titre:"a breakthrough", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"a breakthrough", reponse:"une percée majeure", tempsCible:20, priorite:2, statut:'actif', intervalle:2, ease:2.2, repetitions:2, dateProchaineRevision:_today, historique:histo([6,7],[22,18]), dateCreation:_dateTime(-8) },
       { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:20, priorite:2, statut:'actif', intervalle:15, ease:2.65, repetitions:5, dateProchaineRevision:_shift(8), historique:histo([8,9,10,9,10],[20,18,15,13,12]), dateCreation:_dateTime(-20) },
-      // Devoir auto-découpé en 3 morceaux
-      { id:'W-DMX', titre:"DM Réduction d'endomorphismes", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 4 exercices de réduction.", reponse:"", tempsCible:4800, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(5), historique:[], _morceauxTotal:3, _morceauxFaits:0, dateCreation:_dateTime(-1) }
+      // Devoir auto-découpé (champs découpage complets)
+      { id:'W-DMX', titre:"DM Réduction d'endomorphismes", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 4 exercices de réduction.", tempsCible:1800, importance:5, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(5), historique:[], _morceauxTotal:3, _morceauxFaits:1, _dureeTotaleMin:90, _tempsProposeMin:90, _tempsRestantMin:60, _sessionMinMin:25, dateCreation:_dateTime(-1) }
     ],
     devoirs: []
   };
@@ -186,6 +201,17 @@ window.demoDataPCStar = (function () {
     d.setDate(d.getDate() + daysFromToday);
     return d.toISOString();
   };
+
+  /** IDs Anki au format app : X-ABC / Y-ABC / W-ABC (exactement 3 alphanum). */
+  var _ankiSeq = 0;
+  var _ANKI_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  function nextAnkiId(prefix) {
+    var n = _ankiSeq++;
+    var c0 = _ANKI_CHARS[n % 32];
+    var c1 = _ANKI_CHARS[Math.floor(n / 32) % 32];
+    var c2 = _ANKI_CHARS[Math.floor(n / 1024) % 32];
+    return prefix + "-" + c0 + c1 + c2;
+  }
 
   function histo(reviews) {
     return reviews.map(function (r) {
@@ -224,7 +250,21 @@ window.demoDataPCStar = (function () {
       c.dateLimite = o.lim;
       c._morceauxTotal = o.pieces || 1;
       c._morceauxFaits = o.done || 0;
-      c._dureeTotaleMin = o.dureeMin || Math.round(c.tempsCible / 60);
+      var duree = o.dureeMin || Math.round((c.tempsCible || 1800) / 60);
+      c._dureeTotaleMin = duree;
+      c.tempsCible = Math.max(60, Math.round(duree * 60 / Math.max(1, c._morceauxTotal)));
+      var restant = o.restantMin != null
+        ? o.restantMin
+        : Math.round(duree * (1 - c._morceauxFaits / Math.max(1, c._morceauxTotal)));
+      c._tempsProposeMin = o.proposeMin != null ? o.proposeMin : duree;
+      c._tempsRestantMin = Math.max(0, restant);
+      c._sessionMinMin = o.sessionMin != null ? o.sessionMin : 25;
+      c._decoupeLocked = !!o.decoupeLocked;
+      if (c._morceauxFaits >= c._morceauxTotal || c._tempsRestantMin <= 0) {
+        c.statut = o.statut || "termine";
+        c._tempsRestantMin = 0;
+        c._morceauxFaits = c._morceauxTotal;
+      }
       delete c.reponse;
     }
     if (o.blocage) {
@@ -350,7 +390,7 @@ window.demoDataPCStar = (function () {
   function chapterCards(ch) {
     return ch.items.map(function (it, i) {
       const spec = stageSpec(it.stage, i + (ch.seed || 0));
-      const id = "X-" + ch.prefix + String(i + 1).padStart(2, "0");
+      const id = nextAnkiId("X");
       const titre = it.qu
         ? (it.q.indexOf("[QU]") === 0 ? "" : "[QU] ") + (it.titre || it.q.substring(0, 44))
         : (it.titre || (it.p === "EXO" ? "Exo — " + it.q.substring(0, 36) : undefined));
@@ -370,6 +410,23 @@ window.demoDataPCStar = (function () {
     });
   }
 
+  /** Note DS / khôlle (0–20) pour peupler l’onglet Notes en mi-année. */
+  function makeNote(o) {
+    return {
+      uid: o.uid,
+      title: o.title,
+      type: o.type,
+      rev: o.rev || "green",
+      note: String(o.note),
+      mat: o.mat,
+      cl: o.cl,
+      inter: o.inter,
+      stat: "active",
+      date: shift(o.days),
+      duree: o.duree != null ? o.duree : (o.type === "KHOLLE" ? 60 : 180)
+    };
+  }
+
   // ——— Documents cours (programme PC* typique S1/S2) ———
   var cours = [
     { uid: "PH-MEC", title: "Mécanique du point", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "01", stat: "active", date: shift(-95) },
@@ -382,7 +439,36 @@ window.demoDataPCStar = (function () {
     { uid: "MA-PRO", title: "Probabilités discrètes", type: "TD", rev: "red", mat: "MATH", cl: "B", inter: "04", stat: "active", date: shift(-20) },
     { uid: "CH-CRU", title: "Cristallographie", type: "COURS", rev: "green", mat: "CHIM", cl: "C", inter: "01", stat: "active", date: shift(-75) },
     { uid: "CH-CIN", title: "Cinétique chimique", type: "COURS", rev: "orange", mat: "CHIM", cl: "C", inter: "02", stat: "active", date: shift(-45) },
-    { uid: "CH-ORG", title: "Chimie org — Alcools & mécanismes", type: "COURS", rev: "orange", mat: "CHIM", cl: "C", inter: "03", stat: "active", date: shift(-25) }
+    { uid: "CH-ORG", title: "Chimie org — Alcools & mécanismes", type: "COURS", rev: "orange", mat: "CHIM", cl: "C", inter: "03", stat: "active", date: shift(-25) },
+
+    // ——— Notes DS / khôlles (progression mi-année, ~4 mois) ———
+    makeNote({ uid: "PH-D01", title: "DS1 Mécanique", type: "DS", note: 8.5, mat: "PHYS", cl: "A", inter: "01", days: -105, rev: "red", duree: 180 }),
+    makeNote({ uid: "PH-K01", title: "Colle Mécanique #1", type: "KHOLLE", note: 11, mat: "PHYS", cl: "A", inter: "01", days: -98, rev: "orange" }),
+    makeNote({ uid: "MA-D01", title: "DS1 Algèbre linéaire", type: "DS", note: 9, mat: "MATH", cl: "B", inter: "01", days: -100, rev: "red", duree: 240 }),
+    makeNote({ uid: "MA-K01", title: "Colle Algèbre #1", type: "KHOLLE", note: 12, mat: "MATH", cl: "B", inter: "01", days: -92, rev: "orange" }),
+    makeNote({ uid: "CH-K01", title: "Colle Cristallo #1", type: "KHOLLE", note: 13, mat: "CHIM", cl: "C", inter: "01", days: -88, rev: "green" }),
+    makeNote({ uid: "PH-K02", title: "Colle Mécanique #2", type: "KHOLLE", note: 13.5, mat: "PHYS", cl: "A", inter: "01", days: -84, rev: "green" }),
+    makeNote({ uid: "PH-D02", title: "DS2 Thermo", type: "DS", note: 10.5, mat: "PHYS", cl: "A", inter: "02", days: -78, rev: "orange", duree: 180 }),
+    makeNote({ uid: "MA-K02", title: "Colle Algèbre #2", type: "KHOLLE", note: 14, mat: "MATH", cl: "B", inter: "01", days: -74, rev: "green" }),
+    makeNote({ uid: "CH-D01", title: "DS1 Cristallo + Cinétique", type: "DS", note: 11, mat: "CHIM", cl: "C", inter: "01", days: -70, rev: "orange", duree: 180 }),
+    makeNote({ uid: "MA-D02", title: "DS2 Analyse", type: "DS", note: 11.5, mat: "MATH", cl: "B", inter: "02", days: -66, rev: "orange", duree: 240 }),
+    makeNote({ uid: "PH-K03", title: "Colle Thermo #1", type: "KHOLLE", note: 12, mat: "PHYS", cl: "A", inter: "02", days: -62, rev: "orange" }),
+    makeNote({ uid: "CH-K02", title: "Colle Cinétique #1", type: "KHOLLE", note: 14.5, mat: "CHIM", cl: "C", inter: "02", days: -58, rev: "green" }),
+    makeNote({ uid: "PH-D03", title: "DS3 Électromagnétisme", type: "DS", note: 12, mat: "PHYS", cl: "A", inter: "03", days: -52, rev: "orange", duree: 180 }),
+    makeNote({ uid: "MA-K03", title: "Colle Analyse #1", type: "KHOLLE", note: 15, mat: "MATH", cl: "B", inter: "02", days: -48, rev: "green" }),
+    makeNote({ uid: "PH-K04", title: "Colle EM #1", type: "KHOLLE", note: 10, mat: "PHYS", cl: "A", inter: "03", days: -44, rev: "red" }),
+    makeNote({ uid: "MA-D03", title: "DS3 Réduction", type: "DS", note: 13, mat: "MATH", cl: "B", inter: "03", days: -40, rev: "green", duree: 240 }),
+    makeNote({ uid: "CH-K03", title: "Colle Orga #1", type: "KHOLLE", note: 12.5, mat: "CHIM", cl: "C", inter: "03", days: -36, rev: "orange" }),
+    makeNote({ uid: "PH-K05", title: "Colle EM #2", type: "KHOLLE", note: 14, mat: "PHYS", cl: "A", inter: "03", days: -32, rev: "green" }),
+    makeNote({ uid: "CH-D02", title: "DS2 Cinétique + Orga", type: "DS", note: 13.5, mat: "CHIM", cl: "C", inter: "02", days: -28, rev: "green", duree: 180 }),
+    makeNote({ uid: "MA-K04", title: "Colle Réduction #1", type: "KHOLLE", note: 11, mat: "MATH", cl: "B", inter: "03", days: -24, rev: "orange" }),
+    makeNote({ uid: "PH-D04", title: "DS4 Optique", type: "DS", note: 14, mat: "PHYS", cl: "A", inter: "04", days: -20, rev: "green", duree: 180 }),
+    makeNote({ uid: "PH-K06", title: "Colle Optique #1", type: "KHOLLE", note: 15.5, mat: "PHYS", cl: "A", inter: "04", days: -16, rev: "green" }),
+    makeNote({ uid: "MA-D04", title: "DS4 Probas", type: "DS", note: 12.5, mat: "MATH", cl: "B", inter: "04", days: -12, rev: "orange", duree: 180 }),
+    makeNote({ uid: "CH-K04", title: "Colle Orga #2", type: "KHOLLE", note: 16, mat: "CHIM", cl: "C", inter: "03", days: -9, rev: "green" }),
+    makeNote({ uid: "MA-K05", title: "Colle Probas #1", type: "KHOLLE", note: 13, mat: "MATH", cl: "B", inter: "04", days: -6, rev: "green" }),
+    makeNote({ uid: "PH-K07", title: "Colle Optique #2", type: "KHOLLE", note: 17, mat: "PHYS", cl: "A", inter: "04", days: -3, rev: "green" }),
+    makeNote({ uid: "CH-K05", title: "Colle Cinétique #2", type: "KHOLLE", note: 14, mat: "CHIM", cl: "C", inter: "02", days: -1, rev: "green" })
   ];
 
   // ——— Cartes X- par chapitre (volume mi-année réaliste) ———
@@ -558,14 +644,14 @@ window.demoDataPCStar = (function () {
 
   // Cartes réservoir supplémentaires (feuilles pas encore traitées)
   xCards = xCards.concat([
-    card({ id: "X-RS01", mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-OPT"], q: "Diffraction fente unique : position minima.", a: "a·sinθ = nλ", temps: 600, created: dateTime(-5) }),
-    card({ id: "X-RS02", mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-PRO"], q: "Loi faible des grands nombres (énoncé).", a: "X̄_n → E(X) en probabilité.", temps: 420, created: dateTime(-4) }),
-    card({ id: "X-RS03", mat: "CHIM", profil: "EXO", imp: 3, statut: "reservoir", due: null, coursIds: ["CH-ORG"], q: "Synthèse aspirine (schéma réactionnel).", a: "Acide salicylique + anhydride acétique → ASA.", temps: 900, created: dateTime(-3) }),
-    card({ id: "X-RS04", mat: "PHYS", profil: "EXO", imp: 4, statut: "reservoir", due: null, coursIds: ["PH-MEC"], q: "Pendule conique : fréquence propre.", a: "ω = √(g/(L·cosα))", temps: 1200, created: dateTime(-2) }),
-    card({ id: "X-RS05", mat: "MATH", profil: "EXO", imp: 5, statut: "reservoir", due: null, coursIds: ["MA-RED"], q: "Réduction matrice 4×4 (TD complet).", a: "(exemple numérique)", temps: 1800, created: dateTime(-1) }),
-    card({ id: "X-RS06", mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-THD"], q: "[QU] Phase et transitions de phase (Clapeyron).", a: "dp/dT = L/(TΔv).", temps: 720, created: dateTime(-6) }),
-    card({ id: "X-RS07", mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-ANL"], q: "[QU] Équations différentielles linéaires ordre 2.", a: "y''+ay'+by=0 → r²+ar+b=0.", temps: 780, created: dateTime(-7) }),
-    card({ id: "X-RS08", mat: "CHIM", profil: "COURS", imp: 2, statut: "reservoir", due: null, coursIds: ["CH-CRU"], q: "[QU] Bandes électroniques (conducteur/isolant).", a: "Gap interdit ; conducteur: bandes chevauchantes.", temps: 660, created: dateTime(-8) })
+    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-OPT"], q: "Diffraction fente unique : position minima.", a: "a·sinθ = nλ", temps: 600, created: dateTime(-5) }),
+    card({ id: nextAnkiId("X"), mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-PRO"], q: "Loi faible des grands nombres (énoncé).", a: "X̄_n → E(X) en probabilité.", temps: 420, created: dateTime(-4) }),
+    card({ id: nextAnkiId("X"), mat: "CHIM", profil: "EXO", imp: 3, statut: "reservoir", due: null, coursIds: ["CH-ORG"], q: "Synthèse aspirine (schéma réactionnel).", a: "Acide salicylique + anhydride acétique → ASA.", temps: 900, created: dateTime(-3) }),
+    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "EXO", imp: 4, statut: "reservoir", due: null, coursIds: ["PH-MEC"], q: "Pendule conique : fréquence propre.", a: "ω = √(g/(L·cosα))", temps: 1200, created: dateTime(-2) }),
+    card({ id: nextAnkiId("X"), mat: "MATH", profil: "EXO", imp: 5, statut: "reservoir", due: null, coursIds: ["MA-RED"], q: "Réduction matrice 4×4 (TD complet).", a: "(exemple numérique)", temps: 1800, created: dateTime(-1) }),
+    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-THD"], q: "[QU] Phase et transitions de phase (Clapeyron).", a: "dp/dT = L/(TΔv).", temps: 720, created: dateTime(-6) }),
+    card({ id: nextAnkiId("X"), mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-ANL"], q: "[QU] Équations différentielles linéaires ordre 2.", a: "y''+ay'+by=0 → r²+ar+b=0.", temps: 780, created: dateTime(-7) }),
+    card({ id: nextAnkiId("X"), mat: "CHIM", profil: "COURS", imp: 2, statut: "reservoir", due: null, coursIds: ["CH-CRU"], q: "[QU] Bandes électroniques (conducteur/isolant).", a: "Gap interdit ; conducteur: bandes chevauchantes.", temps: 660, created: dateTime(-8) })
   ]);
 
   // ——— 50 cartes anglais Y- ———
@@ -591,8 +677,7 @@ window.demoDataPCStar = (function () {
   ].slice(0, 50);
 
   var yCards = EN.map(function (pair, i) {
-    var idx = i + 1;
-    var id = "Y-EN" + String(idx).padStart(2, "0");
+    var id = nextAnkiId("Y");
     var q = pair[0];
     var a = pair[1];
     var tier = i % 5;
@@ -620,12 +705,13 @@ window.demoDataPCStar = (function () {
     }, spec));
   });
 
-  // ——— Devoirs W- ———
+  // ——— Devoirs W- (découpage mi-année : en cours / à faire / terminé) ———
   var wCards = [
-    card({ id: "W-DM1", type: "devoir", mat: "MATH", profil: "EXO", imp: 5, coursIds: ["MA-ALG", "MA-RED"], q: "DM Algèbre : SEV, bases, réduction (6 exos).", pieces: 4, done: 1, dureeMin: 120, lim: shift(5), due: shift(2), created: dateTime(-10) }),
-    card({ id: "W-DM2", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-OPT"], q: "DM Optique : interferences + diffraction.", pieces: 3, done: 0, dureeMin: 90, lim: shift(9), due: shift(5), created: dateTime(-4) }),
-    card({ id: "W-DM3", type: "devoir", mat: "CHIM", profil: "EXO", imp: 5, coursIds: ["CH-CIN"], q: "DM Cinétique : ordres, Arrhenius, mécanismes.", pieces: 2, done: 2, dureeMin: 60, lim: shift(-1), due: shift(-1), created: dateTime(-20) }),
-    card({ id: "W-DM4", type: "devoir", mat: "MATH", profil: "EXO", imp: 3, coursIds: ["MA-PRO"], q: "DM Probas : variables discrètes, espérance.", pieces: 3, done: 0, dureeMin: 75, lim: shift(18), due: shift(11), created: dateTime(-2) })
+    card({ id: "W-DM1", type: "devoir", mat: "MATH", profil: "EXO", imp: 5, coursIds: ["MA-ALG", "MA-RED"], q: "DM Algèbre : SEV, bases, réduction (6 exos).", pieces: 4, done: 1, dureeMin: 120, restantMin: 90, proposeMin: 120, sessionMin: 30, lim: shift(5), due: shift(2), created: dateTime(-10) }),
+    card({ id: "W-DM2", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-OPT"], q: "DM Optique : interférences + diffraction.", pieces: 3, done: 0, dureeMin: 90, restantMin: 90, proposeMin: 90, sessionMin: 25, lim: shift(9), due: shift(5), created: dateTime(-4) }),
+    card({ id: "W-DM3", type: "devoir", mat: "CHIM", profil: "EXO", imp: 5, coursIds: ["CH-CIN"], q: "DM Cinétique : ordres, Arrhenius, mécanismes.", pieces: 2, done: 2, dureeMin: 60, restantMin: 0, proposeMin: 60, sessionMin: 30, lim: shift(-1), due: shift(-1), created: dateTime(-20), statut: "termine" }),
+    card({ id: "W-DM4", type: "devoir", mat: "MATH", profil: "EXO", imp: 3, coursIds: ["MA-PRO"], q: "DM Probas : variables discrètes, espérance.", pieces: 3, done: 0, dureeMin: 75, restantMin: 75, proposeMin: 75, sessionMin: 25, lim: shift(18), due: shift(11), created: dateTime(-2) }),
+    card({ id: "W-DM5", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-EMG"], q: "DM EM : Gauss, induction, RLC (4 exos).", pieces: 4, done: 2, dureeMin: 100, restantMin: 50, proposeMin: 100, sessionMin: 25, lim: shift(3), due: today, created: dateTime(-14) })
   ];
 
   var allExercices = xCards.concat(yCards);

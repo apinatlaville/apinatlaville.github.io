@@ -283,7 +283,7 @@ window.applySettings = function() {
 window.loadDemoPCStar = function() {
   window.sysConfirm(
     "Charger la simulation mi-année PC* ?\n\n" +
-    "~190 cartes : ~130 X- par chapitre (QU/exos/formules), 50 anglais, devoirs.\n" +
+    "~190 cartes Anki (X-/Y- au format ABC), ~27 notes DS/khôlles, devoirs découpés, programme S1/S2.\n" +
     "Remplace tes données actuelles.",
     async () => {
       await window.ensureDemoData();
@@ -315,7 +315,7 @@ window.loadDemo = function() {
 };
 
 window.loadDemoXP = function() {
-  window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, ease variés, stats peuplées.\n\nCela remplace tes données actuelles.", async () => {
+  window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, notes DS/khôlles, ease variés, un DM en cours.\n\nCela remplace tes données actuelles.", async () => {
     await window.ensureDemoData();
     if (!window.assertDemoDataLoaded('demoDataXP')) return;
     window.D = JSON.parse(JSON.stringify(window.demoDataXP));
