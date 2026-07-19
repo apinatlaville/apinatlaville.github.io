@@ -4364,6 +4364,49 @@ body.nav-sidebar-left #paneLatexTest.on {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 }
+.latex-lab-subs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 0 0 auto;
+  padding: 2px 0 4px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.latex-lab-subs[hidden] { display: none !important; }
+.latex-lab-sub {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mut);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.latex-lab-sub:hover {
+  color: var(--txt);
+  background: var(--s2);
+  border-color: var(--bd);
+}
+.latex-lab-sub.is-active {
+  color: var(--txt);
+  background: var(--s2);
+  border-color: var(--acc, #5b9aff);
+}
+.latex-lab-sub-count {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--mut);
+  opacity: .85;
+}
 .latex-lab-cat {
   flex: 0 0 auto;
   display: inline-flex;

@@ -6,14 +6,16 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 4;
+  var UI_REV = 5;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
   var _wired = false;
   var _mf = null;
-  var _activeCat = 'freq';
+  var _activeSection = 'freq';
+  var _activeSub = 'freq';
   var _spaceMode = true; /* Espace clavier → \, dans l'éditeur / le code */
+  var _snipFuse = null;
 
   /** Palettes PC* — volets déroulants, grille dense (clic = structure, Tab pour remplir) */
   var SNIP_GROUPS = [
@@ -601,6 +603,18 @@
     }
   ];
 
+  /**
+   * Onglets principaux (peu) + sous-tris (catégories fines).
+   * Les ids de groups pointent vers SNIP_GROUPS.
+   */
+  var SNIP_SECTIONS = [
+    { id: 'freq', label: 'Fréquents', groups: ['freq'] },
+    { id: 'maths', label: 'Maths', groups: ['base', 'analyse', 'algebre', 'proba', 'fonctions'] },
+    { id: 'symboles', label: 'Symboles', groups: ['grec', 'accents', 'ops', 'relations', 'fleches'] },
+    { id: 'structures', label: 'Structures', groups: ['ensembles', 'delim'] },
+    { id: 'sciences', label: 'Sciences', groups: ['physique', 'chimie'] }
+  ];
+
   function escHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;')
@@ -608,6 +622,13 @@
       .replace(/'/g, '&#39;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  function stripAccents(s) {
+    return String(s == null ? '' : s)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
   }
 
   function findSnipById(id) {
@@ -620,14 +641,223 @@
     return null;
   }
 
+  function getGroupById(id) {
+    for (var i = 0; i < SNIP_GROUPS.length; i++) {
+      if (SNIP_GROUPS[i].id === id) return SNIP_GROUPS[i];
+    }
+    return SNIP_GROUPS[0];
+  }
+
+  function getSectionById(id) {
+    for (var i = 0; i < SNIP_SECTIONS.length; i++) {
+      if (SNIP_SECTIONS[i].id === id) return SNIP_SECTIONS[i];
+    }
+    return SNIP_SECTIONS[0];
+  }
+
+  function sectionGroupCount(section) {
+    var n = 0;
+    for (var i = 0; i < section.groups.length; i++) {
+      var g = getGroupById(section.groups[i]);
+      if (g) n += g.items.length;
+    }
+    return n;
+  }
+
+  /** Mots-clés FR courants (fautes tolérées via Fuse) */
+  function frKeywordsFor(item, group) {
+    var parts = [group.label, item.title || '', item.label || ''];
+    var t = stripAccents(item.title || '');
+    var lab = stripAccents(item.label || '');
+    var lx = String(item.latex || '');
+    var extras = [];
+    if (group.id === 'chimie') {
+      extras.push('chimie', 'chemistry', 'chimestry', 'molecule', 'reaction', 'equilibre');
+    }
+    if (group.id === 'physique') {
+      extras.push('physique', 'mecanique', 'unite');
+    }
+    if (group.id === 'proba') {
+      extras.push('proba', 'probabilite', 'statistique');
+    }
+    if (/\bfraction\b|\bfrac\b|a\/b|\bdemi\b/.test(t + ' ' + lab)) {
+      extras.push('fraction', 'diviser', 'quotient');
+    }
+    if (/\bracine\b/.test(t) || (/\\sqrt/.test(lx) && /racine|√/.test(t + lab))) {
+      extras.push('racine', 'carree', 'sqrt');
+    }
+    if (/\bintegrale\b/.test(t) || (/\\int|\\oint|\\iint|\\iiint|\\oiint/.test(lx) && /integrale|∮|∫/.test(t + lab))) {
+      extras.push('integrale', 'primitive');
+    }
+    if (/\bsomme\b|\bserie\b/.test(t)) extras.push('somme', 'serie');
+    if (/\blimite\b|\blimsup\b|\bliminf\b|\blim\b/.test(t + ' ' + lab)) {
+      extras.push('limite', 'tend vers');
+    }
+    if (/\bmatrice\b|\bsysteme\b|\bdeterminant\b/.test(t)) {
+      extras.push('matrice', 'systeme', 'determinant');
+    }
+    if (/\bvecteur\b/.test(t)) extras.push('vecteur', 'fleche');
+    if (/\bderivee\b|\bpartielle\b/.test(t)) extras.push('derivee', 'differentielle');
+    if (/\bparenthese\b|\bcrochet\b|\baccolade\b|\bnorme\b|valeur absolue/.test(t)) {
+      extras.push('parenthese', 'delimiteur', 'encadrer');
+    }
+    if (/\bimplique\b|\bequivalence\b/.test(t) || (/\bfleche\b/.test(t) && !/\bvecteur\b/.test(t))) {
+      extras.push('implique', 'equivalence', 'fleche');
+    }
+    if (/\bappartient\b|\binclus\b|\bensemble\b|\bnaturels\b|\breels\b|\bcomplexes\b/.test(t)) {
+      extras.push('ensemble', 'appartient', 'inclusion');
+    }
+    if (/\bsinus\b|\bcosinus\b|\btangente\b|\blogarithme\b|\bexponentielle\b/.test(t)) {
+      extras.push('fonction', 'trigo', 'logarithme');
+    }
+    return parts.concat(extras).join(' ');
+  }
+
   function ensureSnipIds() {
     SNIP_GROUPS.forEach(function (group) {
       group.items.forEach(function (item, idx) {
         if (!item.id) item.id = group.id + '-' + idx;
+        item.groupId = group.id;
+        item.groupLabel = group.label;
+        item._search = stripAccents(frKeywordsFor(item, group) + ' ' + (item.latex || ''));
       });
     });
   }
   ensureSnipIds();
+
+  function allSnipsFlat() {
+    var out = [];
+    SNIP_GROUPS.forEach(function (g) {
+      g.items.forEach(function (item) { out.push(item); });
+    });
+    return out;
+  }
+
+  /** Distance d’édition bornée (1–2 fautes), comme une recherche tolérante FR */
+  function editDistanceAtMost(a, b, max) {
+    if (a === b) return 0;
+    var la = a.length;
+    var lb = b.length;
+    if (Math.abs(la - lb) > max) return max + 1;
+    if (!la) return lb;
+    if (!lb) return la;
+    var prev = new Array(lb + 1);
+    var cur = new Array(lb + 1);
+    var j;
+    for (j = 0; j <= lb; j++) prev[j] = j;
+    for (var i = 1; i <= la; i++) {
+      cur[0] = i;
+      var rowMin = cur[0];
+      var ca = a.charCodeAt(i - 1);
+      for (j = 1; j <= lb; j++) {
+        var cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
+        var v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        cur[j] = v;
+        if (v < rowMin) rowMin = v;
+      }
+      if (rowMin > max) return max + 1;
+      var tmp = prev;
+      prev = cur;
+      cur = tmp;
+    }
+    return prev[lb];
+  }
+
+  function typoBudget(q) {
+    if (q.length <= 5) return 1;
+    return 2;
+  }
+
+  /** Sous-chaîne exacte sur un mot entier (évite « limite » dans « delimiteurs ») */
+  function hasExactNeedle(text, qNorm) {
+    if (!text || !qNorm) return false;
+    var words = text.split(/[^a-z0-9]+/);
+    for (var i = 0; i < words.length; i++) {
+      if (words[i] === qNorm) return true;
+      /* Préfixe mot long : « proba » → probabilite */
+      if (qNorm.length >= 4 && words[i].indexOf(qNorm) === 0) return true;
+    }
+    return false;
+  }
+
+  /** Fautes d’orthographe sur les mots (1–2), initiale identique ; 2 fautes ⇒ préfixe 3 lettres */
+  function wordsTypoMatch(text, qNorm, budget) {
+    if (!text || qNorm.length < 2) return false;
+    var words = text.split(/[^a-z0-9]+/);
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (w.length < 3) continue;
+      if (w.charAt(0) !== qNorm.charAt(0)) continue;
+      if (Math.abs(w.length - qNorm.length) > budget) continue;
+      var d = editDistanceAtMost(w, qNorm, budget);
+      if (d > budget) continue;
+      if (d === 2 && w.slice(0, 3) !== qNorm.slice(0, 3)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  function getSnipFuse() {
+    if (_snipFuse) return _snipFuse;
+    if (typeof Fuse === 'undefined') return null;
+    _snipFuse = new Fuse(allSnipsFlat(), {
+      keys: [
+        { name: 'title', weight: 3 },
+        { name: '_search', weight: 2.5 },
+        { name: 'groupLabel', weight: 1.2 },
+        { name: 'label', weight: 1 }
+      ],
+      threshold: 0.4,
+      ignoreLocation: true,
+      isCaseSensitive: false,
+      minMatchCharLength: 2,
+      includeScore: true
+    });
+    return _snipFuse;
+  }
+
+  function searchSnips(query) {
+    var q = (query || '').trim();
+    if (!q) return [];
+    var qNorm = stripAccents(q);
+    if (qNorm.length < 2) return [];
+    var budget = typoBudget(qNorm);
+    var seen = Object.create(null);
+    var out = [];
+
+    function relevant(item) {
+      var titleN = stripAccents(item.title || '');
+      var groupN = stripAccents(item.groupLabel || '');
+      var hay = item._search || '';
+      /* Mot-clé / titre exact (FR, sans accents) */
+      if (hasExactNeedle(hay, qNorm) || hasExactNeedle(titleN, qNorm) || hasExactNeedle(groupN, qNorm)) {
+        return true;
+      }
+      /* 1–2 fautes sur le titre ou la catégorie (pas sur les synonymes courts) */
+      return wordsTypoMatch(titleN, qNorm, budget) || wordsTypoMatch(groupN, qNorm, budget);
+    }
+
+    var fuse = getSnipFuse();
+    var ranked = fuse ? fuse.search(qNorm) : null;
+    if (ranked) {
+      ranked.forEach(function (r) {
+        if (!relevant(r.item)) return;
+        var key = (r.item.latex || '') + '\0' + (r.item.label || '');
+        if (seen[key]) return;
+        seen[key] = true;
+        out.push(r.item);
+      });
+    }
+
+    allSnipsFlat().forEach(function (item) {
+      if (!relevant(item)) return;
+      var key = (item.latex || '') + '\0' + (item.label || '');
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(item);
+    });
+    return out;
+  }
 
   function loadStylesheet(href) {
     if (document.querySelector('link[data-mathlive="' + href + '"]')) return;
@@ -848,77 +1078,124 @@
     insertSpaceToken(e.shiftKey ? 'quad' : 'thin');
   }
 
-  function getGroupById(id) {
-    for (var i = 0; i < SNIP_GROUPS.length; i++) {
-      if (SNIP_GROUPS[i].id === id) return SNIP_GROUPS[i];
-    }
-    return SNIP_GROUPS[0];
-  }
-
-  function renderCatTabs() {
-    return SNIP_GROUPS.map(function (group) {
-      var active = group.id === _activeCat ? ' is-active' : '';
+  function renderSectionTabs() {
+    return SNIP_SECTIONS.map(function (section) {
+      var active = section.id === _activeSection ? ' is-active' : '';
       return (
         '<button type="button" class="latex-lab-cat' + active + '" role="tab" ' +
-          'aria-selected="' + (group.id === _activeCat ? 'true' : 'false') + '" ' +
-          'data-cat="' + escHtml(group.id) + '">' +
-          '<span class="latex-lab-cat-label">' + escHtml(group.label) + '</span>' +
-          '<span class="latex-lab-cat-count">' + group.items.length + '</span>' +
+          'aria-selected="' + (section.id === _activeSection ? 'true' : 'false') + '" ' +
+          'data-section="' + escHtml(section.id) + '">' +
+          '<span class="latex-lab-cat-label">' + escHtml(section.label) + '</span>' +
+          '<span class="latex-lab-cat-count">' + sectionGroupCount(section) + '</span>' +
         '</button>'
       );
     }).join('');
   }
 
-  function renderSnipGrid(group, query) {
-    var q = (query || '').trim().toLowerCase();
-    return group.items.map(function (s) {
-      var hay = (s.label + ' ' + (s.title || '') + ' ' + s.latex).toLowerCase();
-      if (q && hay.indexOf(q) === -1) return '';
+  function renderSubTabs(section) {
+    if (!section || section.groups.length <= 1) return '';
+    return section.groups.map(function (gid) {
+      var group = getGroupById(gid);
+      var active = gid === _activeSub ? ' is-active' : '';
       return (
-        '<button type="button" class="latex-lab-snip" data-snip="' + escHtml(s.id) + '" ' +
-          'title="' + escHtml(s.title || s.label) + '">' + escHtml(s.label) + '</button>'
+        '<button type="button" class="latex-lab-sub' + active + '" role="tab" ' +
+          'aria-selected="' + (gid === _activeSub ? 'true' : 'false') + '" ' +
+          'data-sub="' + escHtml(gid) + '">' +
+          escHtml(group.label) +
+          '<span class="latex-lab-sub-count">' + group.items.length + '</span>' +
+        '</button>'
       );
     }).join('');
   }
 
+  function renderSnipButtons(items) {
+    return items.map(function (s) {
+      var tip = s.title || s.label;
+      if (s.groupLabel && tip.indexOf(s.groupLabel) === -1) tip += ' · ' + s.groupLabel;
+      return (
+        '<button type="button" class="latex-lab-snip" data-snip="' + escHtml(s.id) + '" ' +
+          'title="' + escHtml(tip) + '">' + escHtml(s.label) + '</button>'
+      );
+    }).join('');
+  }
+
+  function ensureActiveSub(section) {
+    if (!section) return;
+    if (section.groups.indexOf(_activeSub) === -1) {
+      _activeSub = section.groups[0];
+    }
+  }
+
   function refreshPalette(query) {
     var tabs = document.getElementById('latexTestCats');
+    var subs = document.getElementById('latexTestSubs');
     var grid = document.getElementById('latexTestSnips');
     var title = document.getElementById('latexTestCatTitle');
+    var hint = document.getElementById('latexTestPaletteHint');
     var q = query != null ? query : ((document.getElementById('latexTestSearch') || {}).value || '');
     q = (q || '').trim();
 
     if (q) {
-      /* Recherche globale : toutes catégories mélangées */
       if (tabs) tabs.querySelectorAll('.latex-lab-cat').forEach(function (btn) {
         btn.classList.remove('is-active');
         btn.setAttribute('aria-selected', 'false');
       });
-      if (title) title.textContent = 'Résultats';
-      var html = '';
-      SNIP_GROUPS.forEach(function (g) {
-        html += renderSnipGrid(g, q);
-      });
+      if (subs) {
+        subs.innerHTML = '';
+        subs.hidden = true;
+      }
+      var hits = searchSnips(q);
+      if (title) title.textContent = hits.length ? ('Résultats (' + hits.length + ')') : 'Aucun résultat';
+      if (hint) hint.textContent = 'Recherche FR · fautes tolérées';
       if (grid) {
-        grid.innerHTML = html || '<p class="anki-mut latex-lab-empty">Aucun symbole</p>';
+        grid.innerHTML = hits.length
+          ? renderSnipButtons(hits)
+          : '<p class="anki-mut latex-lab-empty">Aucun symbole pour « ' + escHtml(q) + ' »</p>';
         wireSnipButtons(grid);
       }
       return;
     }
 
+    var section = getSectionById(_activeSection);
+    ensureActiveSub(section);
+
     if (tabs) {
-      tabs.innerHTML = renderCatTabs();
-      tabs.querySelectorAll('[data-cat]').forEach(function (btn) {
+      tabs.innerHTML = renderSectionTabs();
+      tabs.querySelectorAll('[data-section]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          _activeCat = btn.getAttribute('data-cat');
+          _activeSection = btn.getAttribute('data-section');
+          var sec = getSectionById(_activeSection);
+          _activeSub = sec.groups[0];
           refreshPalette('');
         });
       });
     }
-    var group = getGroupById(_activeCat);
-    if (title) title.textContent = group.label;
+
+    if (subs) {
+      var subHtml = renderSubTabs(section);
+      subs.innerHTML = subHtml;
+      subs.hidden = !subHtml;
+      subs.querySelectorAll('[data-sub]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          _activeSub = btn.getAttribute('data-sub');
+          refreshPalette('');
+        });
+      });
+    }
+
+    var group = getGroupById(_activeSub);
+    if (title) {
+      title.textContent = section.groups.length > 1
+        ? (section.label + ' · ' + group.label)
+        : group.label;
+    }
+    if (hint) {
+      hint.textContent = section.groups.length > 1
+        ? 'Onglet + sous-tri'
+        : 'Symboles fréquents';
+    }
     if (grid) {
-      grid.innerHTML = renderSnipGrid(group, '');
+      grid.innerHTML = renderSnipButtons(group.items);
       wireSnipButtons(grid);
     }
   }
@@ -990,7 +1267,8 @@
             '<h2 class="latex-lab-title"><span data-icon="flask-conical"></span> Labo LaTeX</h2>' +
             '<div class="latex-lab-head-actions">' +
               '<input type="search" id="latexTestSearch" class="latex-lab-search" ' +
-                'placeholder="Rechercher un symbole…" autocomplete="off" spellcheck="false">' +
+                'placeholder="Rechercher : fraction, intégrale, matrice…" ' +
+                'autocomplete="off" spellcheck="true" lang="fr">' +
               '<button type="button" class="bs" id="latexTestCopy" title="Copier le code LaTeX seul">' +
                 '<span data-icon="copy"></span> Copier</button>' +
               '<button type="button" class="bs" id="latexTestCopyFull" title="Copier texte + formule">' +
@@ -1031,9 +1309,10 @@
           '<section class="latex-lab-palette">' +
             '<div class="latex-lab-palette-head">' +
               '<span class="latex-lab-panel-label" id="latexTestCatTitle">Fréquents</span>' +
-              '<span class="anki-mut latex-lab-palette-hint">Onglets = catégories</span>' +
+              '<span class="anki-mut latex-lab-palette-hint" id="latexTestPaletteHint">Symboles fréquents</span>' +
             '</div>' +
-            '<div class="latex-lab-cats" id="latexTestCats" role="tablist" aria-label="Catégories de symboles"></div>' +
+            '<div class="latex-lab-cats" id="latexTestCats" role="tablist" aria-label="Familles de symboles"></div>' +
+            '<div class="latex-lab-subs" id="latexTestSubs" role="tablist" aria-label="Sous-catégories" hidden></div>' +
             '<div class="latex-lab-snip-grid" id="latexTestSnips" role="tabpanel"></div>' +
           '</section>' +
         '</div>' +
