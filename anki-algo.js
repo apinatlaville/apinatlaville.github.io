@@ -905,6 +905,11 @@
 
   ALGO.cardDuration = function (c) {
     if (!c) return 60;
+    // Bout virtuel : toujours lire le parent live (évite tempsCible figé en file)
+    if (c._devoirChunkOf && window.D) {
+      const parent = ALGO.findCard(window.D, c._devoirChunkOf);
+      if (parent) return ALGO.cardDuration(parent);
+    }
     if (c._devoirChunkOf && c.tempsCible) return Math.max(60, c.tempsCible);
     if (c.type === 'devoir' || c.type === 'devoir-morceau' || ALGO.cardKind(c) === 'devoir') {
       const restants = Math.max(1, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));

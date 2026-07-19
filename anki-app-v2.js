@@ -1397,6 +1397,16 @@
       const restantEstime = minVal * boutsRestants;
       const plan = window.AnkiAlgoV2.planifierDecoupeDevoir(restantEstime, sessMin, c.dateLimite);
       window.AnkiAlgoV2.applyDecoupeDevoir(c, plan, { tempsProposeMin: c._tempsProposeMin });
+      // Rafraîchir les bouts en file live
+      if (S.queue && S.queue.length) {
+        S.queue = S.queue.map(x => {
+          if (!x || x._devoirChunkOf !== c.id) return x;
+          return window.AnkiAlgoV2.makeDevoirChunk(c, x._devoirChunkIdx);
+        });
+      }
+      if (S.current && (S.current._devoirChunkOf === c.id || S.current.id === c.id)) {
+        if (S.current._devoirChunkOf) S.current = window.AnkiAlgoV2.makeDevoirChunk(c, S.current._devoirChunkIdx);
+      }
     } else {
       c.tempsCible = Math.round(minVal * 60);
     }
@@ -3028,21 +3038,25 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (snap.statBucket === 'ok')  S.stats.ok  = Math.max(0, S.stats.ok  - 1);
     if (snap.statBucket === 'mid') S.stats.mid = Math.max(0, S.stats.mid - 1);
     if (snap.statBucket === 'bad') S.stats.bad = Math.max(0, S.stats.bad - 1);
-    // Réinjection en tête de file (bout virtuel + frères retirés si DM fini prématurément)
+    // Réinjection en tête de file (bout virtuel + frères, toujours rehydratés depuis le parent restauré)
     const requeueId = snap.chunkId || snap.card.id;
     const restoredCard = rehydrateQueueCard(requeueId) || ankFind(snap.card.id);
     if (restoredCard) {
-      S.queue = S.queue.filter(c => c && c.id !== restoredCard.id && c.id !== snap.card.id);
-      // Restaurer les bouts frères qui avaient été purgés (ex. fini anticipé)
+      const parentId = snap.card.id;
+      // Retirer l'ancien bout + tous les frères (éventuellement périmés post-eval)
+      S.queue = S.queue.filter(c => {
+        if (!c) return false;
+        if (c.id === restoredCard.id || c.id === parentId) return false;
+        if (c._devoirChunkOf === parentId) return false;
+        if ((snap.siblingChunkIds || []).includes(c.id)) return false;
+        return true;
+      });
       const siblings = (snap.siblingChunkIds || [])
         .filter(id => id && id !== restoredCard.id)
         .map(id => rehydrateQueueCard(id))
         .filter(Boolean);
-      siblings.reverse().forEach(ch => {
-        if (!S.queue.some(c => c.id === ch.id)) S.queue.unshift(ch);
-      });
+      siblings.reverse().forEach(ch => S.queue.unshift(ch));
       S.queue.unshift(restoredCard);
-      // On rouvre la carte directement (le chrono repart de 0 pour cette tentative)
       S.current = null;
     }
     window.AnkiAlgoV2.log("undo-eval", { id: snap.card.id, statBucket: snap.statBucket, historiqueConserved: true });
@@ -3528,7 +3542,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
         <div class="fg">
           <label>Cours liés (recherche · plusieurs possibles)</label>
-          ${searchField('Titre, matière, classeur, code...', `id="exoCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value)"`)}
+          ${searchField('Titre, matière, classeur, code...', `id="exoCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value,'exo')"`)}
           <div id="exoCoursSelected" class="anki-link-selected"></div>
           <div id="exoCoursResults" class="anki-link-results"></div>
         </div>
@@ -3542,7 +3556,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         </div>
       </div>
     `;
-    renderCoursLinkUI();
+    renderCoursLinkUI('exo');
     window.hydrateIcons(ov);
     bindAutoGrowTextareas(ov);
   }
@@ -3625,9 +3639,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
         <div class="fg">
           <label>Cours liés (optionnel)</label>
-          ${searchField('Titre, matière, classeur, code...', `id="exoCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value)"`)}
-          <div id="exoCoursSelected" class="anki-link-selected"></div>
-          <div id="exoCoursResults" class="anki-link-results"></div>
+          ${searchField('Titre, matière, classeur, code...', `id="devoirCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value,'devoir')"`)}
+          <div id="devoirCoursSelected" class="anki-link-selected"></div>
+          <div id="devoirCoursResults" class="anki-link-results"></div>
         </div>
 
         ${editingExoId ? `<div class="fg"><label>Identifiant W-</label><div class="uidbox">${c.id}</div></div>` : ''}
@@ -3685,19 +3699,24 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       }
     });
     updateDevoirPlanPreview();
-    renderCoursLinkUI();
+    renderCoursLinkUI('devoir');
     window.hydrateIcons(ov);
     bindAutoGrowTextareas(ov);
   }
 
-  function renderCoursLinkUI() {
-    const sel = $("exoCoursSelected"), res = $("exoCoursResults");
+  function coursLinkPrefix(kind) {
+    return kind === 'devoir' ? 'devoir' : 'exo';
+  }
+  function renderCoursLinkUI(kind) {
+    const prefix = coursLinkPrefix(kind || S._coursLinkKind || 'exo');
+    S._coursLinkKind = prefix;
+    const sel = $(prefix + "CoursSelected"), res = $(prefix + "CoursResults");
     if (!sel || !res) return;
     sel.innerHTML = Array.from(S.coursLinkSelection).map(uid => {
       const co = (window.D.cours || []).find(x => x.uid === uid);
-      if (!co) return `<span class="anki-link-chip" onclick="window.ankiV2CoursLinkToggle('${uid}')">${uid} ${window.iconHtml('x', 12)}</span>`;
+      if (!co) return `<span class="anki-link-chip" onclick="window.ankiV2CoursLinkToggle('${uid}','${prefix}')">${uid} ${window.iconHtml('x', 12)}</span>`;
       const m = mat(co.mat);
-      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${uid}')">${co.uid} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
+      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${uid}','${prefix}')">${co.uid} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
     }).join('') || '<span class="anki-mut" style="font-size:11px;">Aucun cours lié.</span>';
 
     const q = (S.coursLinkQuery || '').toLowerCase().trim();
@@ -3712,7 +3731,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     res.innerHTML = list.map(c => {
       const m = mat(c.mat);
       const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
-      return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${c.uid}')">
+      return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${c.uid}','${prefix}')">
         <span class="anki-link-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
         <span class="anki-link-id">${esc(c.uid)}</span>
         <span class="anki-link-title">${esc(c.title)}</span>
@@ -3720,11 +3739,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       </div>`;
     }).join('');
   }
-  window.ankiV2CoursLinkSearch = function (v) { S.coursLinkQuery = v; renderCoursLinkUI(); };
-  window.ankiV2CoursLinkToggle = function (uid) {
+  window.ankiV2CoursLinkSearch = function (v, kind) { S.coursLinkQuery = v; renderCoursLinkUI(kind); };
+  window.ankiV2CoursLinkToggle = function (uid, kind) {
     if (S.coursLinkSelection.has(uid)) S.coursLinkSelection.delete(uid);
     else S.coursLinkSelection.add(uid);
-    renderCoursLinkUI();
+    renderCoursLinkUI(kind);
   };
 
   /** Applique la découpe auto (temps restant + session min → bouts). */

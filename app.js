@@ -1008,7 +1008,6 @@ window.renderNotes = function() {
 
   const typeSel = window.$('fltNotesType');
   const matSel = window.$('fltNotesMat');
-  if (typeSel && typeSel.value !== f.type) typeSel.value = f.type || '';
 
   const all = _notesAllScored().slice().sort((a, b) => {
     const da = a.date || '';
@@ -1025,10 +1024,21 @@ window.renderNotes = function() {
       .concat(matIds.map(id => {
         const m = (window.D.matieres || []).find(x => x.id === id);
         const label = m ? `${m.label || id}${m.name && m.name !== m.label ? ' — ' + m.name : ''}` : id;
-        return `<option value="${window.escHtml(id)}"${f.mat === id ? ' selected' : ''}>${window.escHtml(label)}</option>`;
+        return `<option value="${window.escHtml(id)}">${window.escHtml(label)}</option>`;
       }));
-    matSel.innerHTML = opts.join('');
-    matSel.value = f.mat || '';
+    if (typeof window.fcRefreshSelect === 'function') {
+      window.fcRefreshSelect(matSel, opts.join(''));
+      if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(matSel, f.mat || '');
+      else matSel.value = f.mat || '';
+    } else {
+      matSel.innerHTML = opts.join('');
+      matSel.value = f.mat || '';
+    }
+  }
+  if (typeSel && typeof window.fcSetSelectValue === 'function') {
+    window.fcSetSelectValue(typeSel, f.type || '');
+  } else if (typeSel) {
+    typeSel.value = f.type || '';
   }
 
   const filtered = all.filter(c => {
