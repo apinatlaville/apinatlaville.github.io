@@ -539,9 +539,25 @@
     });
 
     if (S.manualOrder && S.manualOrder.length) {
+      // Conserve l'ordre manuel pour les cartes encore dans le plan,
+      // puis ajoute les nouvelles éligibles (DM bouts, pull-forward…) à la fin.
       const map = {};
       cartes.forEach(c => { map[c.id] = c; });
-      cartes = S.manualOrder.map(id => map[id]).filter(Boolean);
+      const seen = new Set();
+      const ordered = [];
+      S.manualOrder.forEach(id => {
+        if (map[id] && !seen.has(id)) {
+          ordered.push(map[id]);
+          seen.add(id);
+        }
+      });
+      cartes.forEach(c => {
+        if (!seen.has(c.id)) {
+          ordered.push(c);
+          seen.add(c.id);
+        }
+      });
+      cartes = ordered;
       used = cartes.reduce((s, c) => s + cardDurationSec(c), 0);
     }
 
@@ -1653,7 +1669,8 @@
     const dates = Object.keys(sch).sort();
     const charges = dates.map(d => sch[d].reduce((s, c) => s + (c.tempsCible || 60), 0));
     const max = Math.max(1, ...charges);
-    const maxDay = (window.D.settings.ankiMaxPerDay || 75) * 60;
+    const maxPerDay = (window.D.settings && window.D.settings.ankiMaxPerDay) || 75;
+    const maxDay = maxPerDay * 60;
     const today = window.AnkiAlgoV2.todayISO();
 
     return `
@@ -1671,7 +1688,7 @@
           </div>`;
         }).join('')}
       </div>
-      <p class="anki-mut fc-hint">Simulation V2 (note moyenne 7/10) · barre rouge = au-dessus de ta charge max/jour (${window.D.settings.ankiMaxPerDay || 75} min)</p>
+      <p class="anki-mut fc-hint">Simulation V2 (note moyenne 7/10) · barre rouge = au-dessus de ta charge max/jour (${maxPerDay} min)</p>
       <div class="anki-cal-list" style="margin-top:14px;">
         ${dates.map(d => {
           const cards = sch[d];
@@ -2286,10 +2303,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   window.ankiV2RecalDates = function () {
     const today = window.AnkiAlgoV2.todayISO();
     let n = 0;
-    (window.D.exercices || []).forEach(c => {
+    const all = window.AnkiAlgoV2.allCards
+      ? window.AnkiAlgoV2.allCards(window.D)
+      : (window.D.exercices || []).concat(window.D.devoirs || []);
+    all.forEach(c => {
       if (c.statut !== 'actif') return;
-      // Si dueDate < today : recaler à today
-      // Si dueDate > today + 30 : trop loin, recaler aussi
+      // Si dueDate < today : recaler à today (X-/Y- et DM W-)
       if (!c.dateProchaineRevision || c.dateProchaineRevision < today) {
         c.dateProchaineRevision = today;
         n++;
@@ -4118,5 +4137,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   window.startAnkiSingle = window.startAnkiV2Single;
 
   window.cardAlgoStatsLineV2 = cardAlgoStatsLine;
+  window.cardAlgoStatsLine = cardAlgoStatsLine; /* alias Rapide / rétrocompat */
   window.renderSyncSessionDock = renderSyncSessionDock;
 })();

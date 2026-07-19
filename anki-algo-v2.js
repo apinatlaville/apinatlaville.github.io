@@ -81,6 +81,7 @@
 
   V2.getSettings = function () {
     if (!window.D) return Object.assign({}, V2.DEFAULT_SETTINGS);
+    if (!window.D.settings) window.D.settings = {};
     if (!window.D.settings.algoV2) window.D.settings.algoV2 = Object.assign({}, V2.DEFAULT_SETTINGS);
     return window.D.settings.algoV2;
   };
@@ -451,6 +452,8 @@
       for (const c of ordered) {
         // DM : intercaler autant de bouts que le budget le permet (1er bout forcé comme Phase 0)
         if (V2.cardKind(c) === "devoir") {
+          const restants = Math.max(0, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
+          if (!restants || c.statut === "fini" || c.statut === "termine" || c.statut === "terminé") continue;
           const chunks = V2.chunksDevoirTonight(c, ref, Math.max(0, budget - used), {
             forced: true,
             maxChunks: 8

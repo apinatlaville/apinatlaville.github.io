@@ -416,7 +416,7 @@
    */
   ALGO.chunksDevoirTonight = function (card, refIso, budgetLeftSec, opts) {
     opts = opts || {};
-    if (!card || card.statut === 'fini') return [];
+    if (!card || card.statut === 'fini' || card.statut === 'termine' || card.statut === 'terminé') return [];
     const ref = refIso || ALGO.todayISO();
     const faits = card._morceauxFaits || 0;
     const restants = Math.max(0, (card._morceauxTotal || 1) - faits);
