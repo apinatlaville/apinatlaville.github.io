@@ -261,7 +261,7 @@ window.demoDataPCStar = (function () {
       c._sessionMinMin = o.sessionMin != null ? o.sessionMin : 25;
       c._decoupeLocked = !!o.decoupeLocked;
       if (c._morceauxFaits >= c._morceauxTotal || c._tempsRestantMin <= 0) {
-        c.statut = o.statut || "termine";
+        c.statut = o.statut || "fini";
         c._tempsRestantMin = 0;
         c._morceauxFaits = c._morceauxTotal;
       }
@@ -709,7 +709,7 @@ window.demoDataPCStar = (function () {
   var wCards = [
     card({ id: "W-DM1", type: "devoir", mat: "MATH", profil: "EXO", imp: 5, coursIds: ["MA-ALG", "MA-RED"], q: "DM Algèbre : SEV, bases, réduction (6 exos).", pieces: 4, done: 1, dureeMin: 120, restantMin: 90, proposeMin: 120, sessionMin: 30, lim: shift(5), due: shift(2), created: dateTime(-10) }),
     card({ id: "W-DM2", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-OPT"], q: "DM Optique : interférences + diffraction.", pieces: 3, done: 0, dureeMin: 90, restantMin: 90, proposeMin: 90, sessionMin: 25, lim: shift(9), due: shift(5), created: dateTime(-4) }),
-    card({ id: "W-DM3", type: "devoir", mat: "CHIM", profil: "EXO", imp: 5, coursIds: ["CH-CIN"], q: "DM Cinétique : ordres, Arrhenius, mécanismes.", pieces: 2, done: 2, dureeMin: 60, restantMin: 0, proposeMin: 60, sessionMin: 30, lim: shift(-1), due: shift(-1), created: dateTime(-20), statut: "termine" }),
+    card({ id: "W-DM3", type: "devoir", mat: "CHIM", profil: "EXO", imp: 5, coursIds: ["CH-CIN"], q: "DM Cinétique : ordres, Arrhenius, mécanismes.", pieces: 2, done: 2, dureeMin: 60, restantMin: 0, proposeMin: 60, sessionMin: 30, lim: shift(-1), due: shift(-1), created: dateTime(-20), statut: "fini" }),
     card({ id: "W-DM4", type: "devoir", mat: "MATH", profil: "EXO", imp: 3, coursIds: ["MA-PRO"], q: "DM Probas : variables discrètes, espérance.", pieces: 3, done: 0, dureeMin: 75, restantMin: 75, proposeMin: 75, sessionMin: 25, lim: shift(18), due: shift(11), created: dateTime(-2) }),
     card({ id: "W-DM5", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-EMG"], q: "DM EM : Gauss, induction, RLC (4 exos).", pieces: 4, done: 2, dureeMin: 100, restantMin: 50, proposeMin: 100, sessionMin: 25, lim: shift(3), due: today, created: dateTime(-14) })
   ];

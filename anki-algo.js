@@ -1085,6 +1085,10 @@
     });
     ALGO.allCards(D).forEach(c => {
       if (c.statut === 'attente') c.statut = 'reservoir';
+      // Alias legacy / démo → statut canonique des DM achevés
+      if (c.statut === 'termine' || c.statut === 'terminé' || c.statut === 'Termine' || c.statut === 'Terminé') {
+        c.statut = 'fini';
+      }
       ALGO.migrateImportance(c);
       if (!Array.isArray(c.coursIds)) c.coursIds = c.coursId ? [c.coursId] : [];
       if (!c.profil && ALGO.cardKind(c) === 'quick') c.profil = 'ANGLAIS';
