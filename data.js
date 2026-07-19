@@ -693,26 +693,45 @@ window.editCours = function(uid) {
   if(window.$('mTitle')) window.$('mTitle').innerHTML = window.iconLabel('pencil', 'Modifier le document');
   if(window.$('fTitle')) window.$('fTitle').value = c.title; 
   if(window.$('fDesc')) window.$('fDesc').value = c.desc || ''; 
-  if(window.$('fType')) window.$('fType').value = c.type || 'COURS'; 
-  if(window.$('fRev')) window.$('fRev').value = c.rev || 'green';
   if(window.$('fNote')) window.$('fNote').value = c.note || '';
   
-  window.toggleNoteField();
-  
   if(window.$('fMat')) {
-    window.$('fMat').innerHTML = window.D.matieres.map(m => `
-      <option value="${m.id}" ${m.id===c.mat?'selected':''}>${window.escHtml(m.label)}</option>
-    `).join('');
+    const matHtml = window.D.matieres.map(m =>
+      `<option value="${m.id}">${window.escHtml(m.label)} — ${window.escHtml(m.name || '')}</option>`
+    ).join('');
+    if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(window.$('fMat'), matHtml);
+    else window.$('fMat').innerHTML = matHtml;
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fMat'), c.mat || '');
+    else window.$('fMat').value = c.mat || '';
   }
   
   if(window.$('fCl')) {
-    window.$('fCl').innerHTML = window.D.classeurs.map(x => `
-      <option value="${x.id}" ${x.id===c.cl?'selected':''}>${window.escHtml(x.name)}</option>
-    `).join('');
+    const clHtml = window.D.classeurs.map(x =>
+      `<option value="${x.id}">${window.escHtml(x.name)}</option>`
+    ).join('');
+    if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(window.$('fCl'), clHtml);
+    else window.$('fCl').innerHTML = clHtml;
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fCl'), c.cl || '');
+    else window.$('fCl').value = c.cl || '';
   }
   
   window.updateIntercalairesDropdown();
-  if(window.$('fInter')) window.$('fInter').value = c.inter;
+  if(window.$('fInter')) {
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fInter'), c.inter || '');
+    else window.$('fInter').value = c.inter || '';
+  }
+
+  if(window.$('fType')) {
+    window.$('fType').value = c.type || 'COURS';
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fType'), c.type || 'COURS');
+    else if (window.$('fType')._choices) window.$('fType')._choices.setChoiceByValue(c.type || 'COURS');
+  }
+  if(window.$('fRev')) {
+    window.$('fRev').value = c.rev || 'green';
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fRev'), c.rev || 'green');
+    else if (window.$('fRev')._choices) window.$('fRev')._choices.setChoiceByValue(c.rev || 'green');
+  }
+  window.toggleNoteField();
   
   if(window.$('lblManualUid')) window.$('lblManualUid').style.display = 'none';
   if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'none';

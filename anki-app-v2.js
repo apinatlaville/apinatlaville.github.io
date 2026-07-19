@@ -1397,15 +1397,22 @@
       const restantEstime = minVal * boutsRestants;
       const plan = window.AnkiAlgoV2.planifierDecoupeDevoir(restantEstime, sessMin, c.dateLimite);
       window.AnkiAlgoV2.applyDecoupeDevoir(c, plan, { tempsProposeMin: c._tempsProposeMin });
-      // Rafraîchir les bouts en file live
+      // Rafraîchir / purger les bouts hors plan (si le nb de bouts a diminué)
+      const maxIdx = (c._morceauxTotal || 1) - 1;
       if (S.queue && S.queue.length) {
-        S.queue = S.queue.map(x => {
-          if (!x || x._devoirChunkOf !== c.id) return x;
-          return window.AnkiAlgoV2.makeDevoirChunk(c, x._devoirChunkIdx);
-        });
+        S.queue = S.queue
+          .filter(x => !(x && x._devoirChunkOf === c.id && x._devoirChunkIdx > maxIdx))
+          .map(x => {
+            if (!x || x._devoirChunkOf !== c.id) return x;
+            return window.AnkiAlgoV2.makeDevoirChunk(c, x._devoirChunkIdx);
+          });
       }
-      if (S.current && (S.current._devoirChunkOf === c.id || S.current.id === c.id)) {
-        if (S.current._devoirChunkOf) S.current = window.AnkiAlgoV2.makeDevoirChunk(c, S.current._devoirChunkIdx);
+      if (S.current && S.current._devoirChunkOf === c.id) {
+        if (S.current._devoirChunkIdx > maxIdx) {
+          S.current = null;
+        } else {
+          S.current = window.AnkiAlgoV2.makeDevoirChunk(c, S.current._devoirChunkIdx);
+        }
       }
     } else {
       c.tempsCible = Math.round(minVal * 60);
@@ -2420,6 +2427,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     if (!S.queue || !S.queue.length) {
       S.queue = (sec.queueIds || []).map(id => rehydrateQueueCard(id)).filter(Boolean);
+      // Si tout a disparu (cartes supprimées), nettoyer la session zombie
+      if (!S.queue.length && !rehydrateQueueCard(sec.currentId)) {
+        delete window.D.sessionEnCoursV2;
+        return;
+      }
     }
     S.stats        = Object.assign({ ok: 0, mid: 0, bad: 0, total: 0 }, sec.stats || {});
     S.mode         = sec.mode || "normal";
@@ -2648,6 +2660,16 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (S.queue && S.queue.length) return true;
     const sec = window.D && window.D.sessionEnCoursV2;
     if (!sec) return false;
+    // Ignorer une session persistée dont toutes les cartes ont disparu
+    const ids = [];
+    if (sec.currentId) ids.push(sec.currentId);
+    if (Array.isArray(sec.queueIds)) ids.push.apply(ids, sec.queueIds);
+    const anyAlive = ids.some(qid => !!rehydrateQueueCard(qid));
+    if (!anyAlive) {
+      delete window.D.sessionEnCoursV2;
+      if (typeof window.save === 'function') window.save();
+      return false;
+    }
     if (sec.currentId) return true;
     return !!(Array.isArray(sec.queueIds) && sec.queueIds.length);
   }
@@ -3106,16 +3128,21 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const dmCard = resolveDevoirRef(S.current) || S.current;
       const failDm = qScore <= 3;
       const boutPrevSec = S.current.tempsCible || window.AnkiAlgoV2.cardDuration(dmCard);
-      // Temps consommé : manuel → durée du bout (bandeau) → chrono → prévu
+      // Temps consommé : manuel → chrono réel → bandeau prévu → durée théorique
+      // (évite de décompter le bandeau alors que le chrono dit autre chose)
       const devoirTempsEl = document.getElementById('ankiDevoirTemps');
       let usedMin;
       if (inputManuel && inputManuel.value !== '' && !isNaN(parseFloat(inputManuel.value))) {
         usedMin = Math.max(1, Math.round(parseFloat(inputManuel.value)));
+        tps = usedMin * 60;
+      } else if (tps > 0) {
+        usedMin = Math.max(1, Math.round(tps / 60));
       } else if (devoirTempsEl && devoirTempsEl.value !== '' && !isNaN(parseFloat(devoirTempsEl.value))) {
         usedMin = Math.max(1, Math.round(parseFloat(devoirTempsEl.value)));
-        if (!(tps > 0)) tps = usedMin * 60;
+        tps = usedMin * 60;
       } else {
-        usedMin = Math.max(1, Math.round((tps > 0 ? tps : boutPrevSec) / 60));
+        usedMin = Math.max(1, Math.round(boutPrevSec / 60));
+        tps = usedMin * 60;
       }
       dmCard.historique = dmCard.historique || [];
       dmCard.historique.push({
@@ -3340,6 +3367,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       S.coursLinkSelection = new Set();
     }
     S.coursLinkQuery = "";
+    const ovD = $("ovDevoir"); if (ovD) ovD.classList.add("hidden");
     showExoModal(preset);
   };
   window.ankiV2OpenDevoirModal = function (opts) {
@@ -3357,6 +3385,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       S.coursLinkSelection = new Set();
     }
     S.coursLinkQuery = "";
+    const ovE = $("ovExo"); if (ovE) ovE.classList.add("hidden");
     showDevoirModal(preset);
   };
   window.ankiV2EditExo = function (id) {
@@ -3364,13 +3393,41 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     editingExoId = id;
     S.coursLinkSelection = new Set(c.coursIds || (c.coursId ? [c.coursId] : []));
     S.coursLinkQuery = "";
-    if (isDevoirCard(c)) showDevoirModal(c);
-    else showExoModal(c);
+    if (isDevoirCard(c)) {
+      const ovE = $("ovExo"); if (ovE) ovE.classList.add("hidden");
+      showDevoirModal(c);
+    } else {
+      const ovD = $("ovDevoir"); if (ovD) ovD.classList.add("hidden");
+      showExoModal(c);
+    }
   };
   window.ankiV2DelExo = function (id) {
     window.sysConfirm("Supprimer la carte " + id + " ?", () => {
-      window.D.exercices = (window.D.exercices || []).filter(c => c.id !== id && c._morceauOf !== id);
-      window.D.devoirs = (window.D.devoirs || []).filter(c => c.id !== id && c._morceauOf !== id);
+      const baseId = String(id).split('#')[0];
+      window.D.exercices = (window.D.exercices || []).filter(c => c.id !== id && c.id !== baseId && c._morceauOf !== id && c._morceauOf !== baseId);
+      window.D.devoirs = (window.D.devoirs || []).filter(c => c.id !== id && c.id !== baseId && c._morceauOf !== id && c._morceauOf !== baseId);
+      // Purger la session live / persistée des références à cette carte
+      if (S.current && ((S.current.id === id || S.current.id === baseId) || S.current._devoirChunkOf === baseId)) {
+        S.current = null;
+      }
+      if (S.queue && S.queue.length) {
+        S.queue = S.queue.filter(c => c && c.id !== id && c.id !== baseId && c._devoirChunkOf !== baseId);
+      }
+      if (window.D.sessionEnCoursV2) {
+        const sec = window.D.sessionEnCoursV2;
+        if (sec.currentId && (sec.currentId === id || sec.currentId === baseId || String(sec.currentId).startsWith(baseId + '#'))) {
+          sec.currentId = null;
+        }
+        if (Array.isArray(sec.queueIds)) {
+          sec.queueIds = sec.queueIds.filter(qid => {
+            const b = String(qid).split('#')[0];
+            return b !== baseId && qid !== id;
+          });
+        }
+        if (!sec.currentId && !(sec.queueIds && sec.queueIds.length)) {
+          delete window.D.sessionEnCoursV2;
+        }
+      }
       window.save(); window.renderAnkiV2();
     }, "Suppression");
   };

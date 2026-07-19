@@ -449,6 +449,24 @@
       const ordered = o.manualOrder.map(id => map[id]).filter(Boolean);
       const result = []; let used = 0;
       for (const c of ordered) {
+        // DM : intercaler autant de bouts que le budget le permet (1er bout forcé comme Phase 0)
+        if (V2.cardKind(c) === "devoir") {
+          const chunks = V2.chunksDevoirTonight(c, ref, Math.max(0, budget - used), {
+            forced: true,
+            maxChunks: 8
+          });
+          const list = chunks.length
+            ? chunks
+            : [V2.makeDevoirChunk(c, c._morceauxFaits || 0)].filter(Boolean);
+          for (let i = 0; i < list.length; i++) {
+            const ch = list[i];
+            const t = _tempsCarte(ch);
+            if (i > 0 && used + t > budget) break;
+            result.push(ch);
+            used += t;
+          }
+          continue;
+        }
         const t = _tempsCarte(c);
         if (used + t > budget && result.length) break;
         result.push(c); used += t;
@@ -458,7 +476,7 @@
         countDevoir: result.filter(c => V2.cardKind(c) === "devoir").length,
         countMain: result.filter(c => V2.cardKind(c) === "main").length,
         countQuick: result.filter(c => V2.cardKind(c) === "quick").length,
-        reportees: ordered.filter(c => !result.includes(c)),
+        reportees: ordered.filter(c => !result.some(r => (r._devoirChunkOf || r.id) === c.id)),
         marge: o.marge, overload: false, overloadDelta: 0
       };
     }
@@ -629,6 +647,9 @@
 
       if (c.type === "devoir" || V2.cardKind(c) === "devoir") {
         const restants = Math.max(0, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
+        // Plus de temps restant estimé → rien à projeter
+        if (c._tempsRestantMin != null && c._tempsRestantMin <= 0) return;
+        if (!restants) return;
         const tempsParSession = V2.cardDuration(c);
         let date = c.dateProchaineRevision || today;
         if (date < today) date = today;

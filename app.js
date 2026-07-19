@@ -1026,19 +1026,22 @@ window.renderNotes = function() {
         const label = m ? `${m.label || id}${m.name && m.name !== m.label ? ' — ' + m.name : ''}` : id;
         return `<option value="${window.escHtml(id)}">${window.escHtml(label)}</option>`;
       }));
-    if (typeof window.fcRefreshSelect === 'function') {
-      window.fcRefreshSelect(matSel, opts.join(''));
-      if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(matSel, f.mat || '');
-      else matSel.value = f.mat || '';
-    } else {
-      matSel.innerHTML = opts.join('');
-      matSel.value = f.mat || '';
+    const optsHtml = opts.join('');
+    // Ne recréer Choices que si la liste a changé (évite de fermer le dropdown à chaque render)
+    if (matSel.dataset.notesOpts !== optsHtml) {
+      matSel.dataset.notesOpts = optsHtml;
+      if (typeof window.fcRefreshSelect === 'function') {
+        window.fcRefreshSelect(matSel, optsHtml);
+      } else {
+        matSel.innerHTML = optsHtml;
+      }
     }
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(matSel, f.mat || '');
+    else matSel.value = f.mat || '';
   }
-  if (typeSel && typeof window.fcSetSelectValue === 'function') {
-    window.fcSetSelectValue(typeSel, f.type || '');
-  } else if (typeSel) {
-    typeSel.value = f.type || '';
+  if (typeSel) {
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(typeSel, f.type || '');
+    else typeSel.value = f.type || '';
   }
 
   const filtered = all.filter(c => {
