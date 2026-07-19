@@ -89,7 +89,7 @@ window.demoData = {
     const _today = window.localDateISO(_d);
     const _shift = (n) => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+n); return window.localDateISO(d); };
     return [
-      { id:'W-DM1', titre:"DM Algèbre linéaire (3 sessions de 30 min)", coursIds:['MA-7Z3','MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 6 exercices d'algèbre linéaire (espaces vectoriels + réduction).", tempsCible:1800, importance:5, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(7), historique:[], _morceauxTotal:3, _morceauxFaits:0, _dureeTotaleMin:90, dateCreation:_today }
+      { id:'W-DM1', titre:"DM Algèbre linéaire", coursIds:['MA-7Z3','MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 6 exercices d'algèbre linéaire (espaces vectoriels + réduction).", tempsCible:1800, importance:5, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(7), historique:[], _morceauxTotal:3, _morceauxFaits:0, _dureeTotaleMin:90, _tempsRestantMin:90, _tempsProposeMin:90, _sessionMinMin:30, dateCreation:_today }
     ];
   })(),
 };
