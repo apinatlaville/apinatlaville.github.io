@@ -370,7 +370,10 @@ window.renderCours = function() {
             <span class="cloc cloc-b">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}</span>
           </div>
           ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
-          ${c.note ? `<div class="cnote">Note : ${window.escHtml(c.note)}/20</div>` : ''}
+          ${c.note || c.rang ? `<div class="cnote">${[
+            c.note ? `Note : ${window.escHtml(c.note)}/20` : '',
+            c.rang ? `Rang : ${window.escHtml(String(c.rang))}${c.effectif ? '/' + window.escHtml(String(c.effectif)) : ''}` : ''
+          ].filter(Boolean).join(' · ')}</div>` : ''}
           <div class="cacts" onclick="event.stopPropagation();">
               ${window.iconBtn('refresh-cw', 'Déplacer', `onclick="window.openMove('${window.escHtml(c.uid)}')"`)}
               ${window.iconBtn('qr-code', 'Voir Code-Barres', `onclick="window.showQR('${window.escHtml(c.uid)}')"`)}
@@ -457,7 +460,10 @@ window.doLocate = function(uid) {
             ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}
           </div>
         </div>
-        ${c.note ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">Note : ${window.escHtml(c.note)}/20</div>` : ''}
+        ${(c.note || c.rang) ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">${[
+          c.note ? `Note : ${window.escHtml(c.note)}/20` : '',
+          c.rang ? `Rang : ${window.escHtml(String(c.rang))}${c.effectif ? '/' + window.escHtml(String(c.effectif)) : ''}` : ''
+        ].filter(Boolean).join(' · ')}</div>` : ''}
         ${c.desc ? `<div class="loc-desc">${window.escHtml(c.desc)}</div>` : ''}
 
         <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
@@ -576,6 +582,8 @@ window.toggleNoteField = function() {
     } else {
       window.$('fgNote').style.display = 'none';
       if(window.$('fNote')) window.$('fNote').value = '';
+      if(window.$('fRang')) window.$('fRang').value = '';
+      if(window.$('fEffectif')) window.$('fEffectif').value = '';
     }
   }
 };
@@ -662,6 +670,8 @@ window.openModalCours = function() {
     if (window.$('fRev')._choices) window.$('fRev')._choices.setChoiceByValue('green');
   }
   if(window.$('fNote')) window.$('fNote').value = '';
+  if(window.$('fRang')) window.$('fRang').value = '';
+  if(window.$('fEffectif')) window.$('fEffectif').value = '';
   window.toggleNoteField();
   
   if(window.$('fManualUidToggle')) {
@@ -694,6 +704,8 @@ window.editCours = function(uid) {
   if(window.$('fTitle')) window.$('fTitle').value = c.title; 
   if(window.$('fDesc')) window.$('fDesc').value = c.desc || ''; 
   if(window.$('fNote')) window.$('fNote').value = c.note || '';
+  if(window.$('fRang')) window.$('fRang').value = c.rang != null && c.rang !== '' ? c.rang : '';
+  if(window.$('fEffectif')) window.$('fEffectif').value = c.effectif != null && c.effectif !== '' ? c.effectif : '';
   
   if(window.$('fMat')) {
     const matHtml = window.D.matieres.map(m =>
@@ -765,6 +777,24 @@ window.saveCours = function() {
   } else {
     noteRaw = '';
   }
+
+  let rangRaw = window.$('fRang') ? window.$('fRang').value : '';
+  let rangVal = '';
+  if (rangRaw !== '' && rangRaw != null) {
+    const r = parseInt(String(rangRaw).trim(), 10);
+    if (Number.isFinite(r) && r >= 1) rangVal = r;
+  }
+
+  let effectifRaw = window.$('fEffectif') ? window.$('fEffectif').value : '';
+  let effectifVal = '';
+  if (effectifRaw !== '' && effectifRaw != null) {
+    const e = parseInt(String(effectifRaw).trim(), 10);
+    if (Number.isFinite(e) && e >= 1) effectifVal = e;
+  }
+  if (rangVal !== '' && effectifVal !== '' && rangVal > effectifVal) {
+    effectifVal = rangVal;
+  }
+
   const obj = {
     title, 
     type:window.$('fType')?window.$('fType').value:'', 
@@ -772,18 +802,28 @@ window.saveCours = function() {
     mat, 
     cl, 
     inter, 
-    note: noteRaw, 
+    note: noteRaw,
+    rang: rangVal,
+    effectif: effectifVal,
     desc: window.$('fDesc')?window.$('fDesc').value.trim():''
   };
+  
+  if (obj.type !== 'DS' && obj.type !== 'KHOLLE') {
+    obj.note = '';
+    obj.rang = '';
+    obj.effectif = '';
+  }
   
   if(!obj.date) obj.date = window.localDateISO();
 
   if (window.editUid) {
     const idx = window.D.cours.findIndex(c => c.uid===window.editUid);
     if(idx > -1) {
-      obj.uid = window.D.cours[idx].uid;
-      obj.stat = window.D.cours[idx].stat; 
-      if(window.D.cours[idx].date) obj.date = window.D.cours[idx].date;
+      const prev = window.D.cours[idx];
+      obj.uid = prev.uid;
+      obj.stat = prev.stat; 
+      if(prev.date) obj.date = prev.date;
+      if(prev.duree != null) obj.duree = prev.duree;
       window.D.cours[idx] = obj;
     }
   } else {

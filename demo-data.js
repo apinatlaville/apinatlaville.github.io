@@ -32,13 +32,13 @@ window.demoData = {
       { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: _shift(-18) },
       { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: _shift(-12) },
       { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-10) },
-      { uid: 'CH-N12', title: 'DS Cinétique', type: 'DS', rev: 'red', note: '12', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-45), duree: 180 },
-      { uid: 'PH-N16', title: 'Colle EM', type: 'KHOLLE', rev: 'green', note: '16', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-38), duree: 60 },
-      { uid: 'MA-N11', title: 'DS Analyse', type: 'DS', rev: 'orange', note: '11.5', mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: _shift(-28), duree: 240 },
-      { uid: 'PH-N14', title: 'Colle Mécanique', type: 'KHOLLE', rev: 'green', note: '14', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-21), duree: 60 },
-      { uid: 'CH-N13', title: 'Colle Orga', type: 'KHOLLE', rev: 'orange', note: '13', mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: _shift(-14), duree: 60 },
-      { uid: 'MA-N17', title: 'Colle Algèbre', type: 'KHOLLE', rev: 'green', note: '17', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-7), duree: 60 },
-      { uid: 'PH-N15', title: 'DS Optique', type: 'DS', rev: 'green', note: '15', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-3), duree: 180 }
+      { uid: 'CH-N12', title: 'DS Cinétique', type: 'DS', rev: 'red', note: '12', rang: 18, effectif: 42, mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-45), duree: 180 },
+      { uid: 'PH-N16', title: 'Colle EM', type: 'KHOLLE', rev: 'green', note: '16', rang: 4, effectif: 12, mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-38), duree: 60 },
+      { uid: 'MA-N11', title: 'DS Analyse', type: 'DS', rev: 'orange', note: '11.5', rang: 20, effectif: 42, mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: _shift(-28), duree: 240 },
+      { uid: 'PH-N14', title: 'Colle Mécanique', type: 'KHOLLE', rev: 'green', note: '14', rang: 6, effectif: 12, mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-21), duree: 60 },
+      { uid: 'CH-N13', title: 'Colle Orga', type: 'KHOLLE', rev: 'orange', note: '13', rang: 7, effectif: 12, mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: _shift(-14), duree: 60 },
+      { uid: 'MA-N17', title: 'Colle Algèbre', type: 'KHOLLE', rev: 'green', note: '17', rang: 2, effectif: 12, mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-7), duree: 60 },
+      { uid: 'PH-N15', title: 'DS Optique', type: 'DS', rev: 'green', note: '15', rang: 8, effectif: 42, mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-3), duree: 180 }
     ];
   })(),
   exercices: (function(){
@@ -143,12 +143,12 @@ window.demoDataXP = (function() {
       { uid:'MA-V6J', title:'Réduction', type:'FICHE', rev:'orange', mat:'MATH', cl:'B', inter:'03', stat:'active', date:_shift(-5) },
       { uid:'CH-T1R', title:'Chimie Org - Alcools', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'03', stat:'active', date:_shift(-12) },
       { uid:'CH-8M5', title:'Cinétique Chimique', type:'COURS', rev:'orange', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8) },
-      { uid:'PH-D1A', title:'DS1 Mécanique', type:'DS', rev:'orange', note:'11', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-18), duree:180 },
-      { uid:'PH-K1A', title:'Colle Thermo', type:'KHOLLE', rev:'green', note:'14', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-14), duree:60 },
-      { uid:'MA-D1A', title:'DS1 Algèbre', type:'DS', rev:'red', note:'9.5', mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-16), duree:240 },
-      { uid:'MA-K1A', title:'Colle Analyse', type:'KHOLLE', rev:'green', note:'15', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-9), duree:60 },
-      { uid:'CH-K1A', title:'Colle Cinétique', type:'KHOLLE', rev:'orange', note:'12.5', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-6), duree:60 },
-      { uid:'PH-D2A', title:'DS2 EM', type:'DS', rev:'green', note:'13', mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-3), duree:180 }
+      { uid:'PH-D1A', title:'DS1 Mécanique', type:'DS', rev:'orange', note:'11', rang:22, effectif:42, mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-18), duree:180 },
+      { uid:'PH-K1A', title:'Colle Thermo', type:'KHOLLE', rev:'green', note:'14', rang:5, effectif:12, mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-14), duree:60 },
+      { uid:'MA-D1A', title:'DS1 Algèbre', type:'DS', rev:'red', note:'9.5', rang:28, effectif:42, mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-16), duree:240 },
+      { uid:'MA-K1A', title:'Colle Analyse', type:'KHOLLE', rev:'green', note:'15', rang:3, effectif:12, mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-9), duree:60 },
+      { uid:'CH-K1A', title:'Colle Cinétique', type:'KHOLLE', rev:'orange', note:'12.5', rang:8, effectif:12, mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-6), duree:60 },
+      { uid:'PH-D2A', title:'DS2 EM', type:'DS', rev:'green', note:'13', rang:14, effectif:42, mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-3), duree:180 }
     ],
     exercices: [
       // Cartes maîtrisées (ease haut, intervalle moyen, historique réussi)
@@ -410,14 +410,23 @@ window.demoDataPCStar = (function () {
     });
   }
 
-  /** Note DS / khôlle (0–20) pour peupler l’onglet Notes en mi-année. */
+  /** Note DS / khôlle (0–20) + rang de classe pour peupler l’onglet Notes en mi-année. */
   function makeNote(o) {
+    var effectif = o.effectif != null ? o.effectif : 42;
+    var rang = o.rang;
+    if (rang == null && o.note != null) {
+      var n = Number(o.note);
+      /* Approximation : bonne note → bon rang (1 = premier) */
+      rang = Math.max(1, Math.min(effectif, Math.round(effectif * (1 - n / 20) * 0.9 + 1 + (n % 3) - 1)));
+    }
     return {
       uid: o.uid,
       title: o.title,
       type: o.type,
       rev: o.rev || "green",
       note: String(o.note),
+      rang: rang,
+      effectif: effectif,
       mat: o.mat,
       cl: o.cl,
       inter: o.inter,

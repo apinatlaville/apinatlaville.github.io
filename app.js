@@ -893,7 +893,7 @@ window.drawKholle = function() {
   window.doLocate(winner.uid);
 };
 
-window._notesFilter = window._notesFilter || { type: '', mat: '' };
+window._notesFilter = window._notesFilter || { type: '', mat: '', metric: 'note' };
 
 function _notesParseScore(c) {
   if (!c || c.note === '' || c.note == null) return null;
@@ -903,10 +903,34 @@ function _notesParseScore(c) {
   return Math.max(0, Math.min(20, n));
 }
 
-function _notesAllScored() {
+function _notesParseRang(c) {
+  if (!c || c.rang === '' || c.rang == null) return null;
+  const r = parseInt(String(c.rang).trim(), 10);
+  if (!Number.isFinite(r) || r < 1) return null;
+  return r;
+}
+
+function _notesParseEffectif(c) {
+  if (!c || c.effectif === '' || c.effectif == null) return null;
+  const e = parseInt(String(c.effectif).trim(), 10);
+  if (!Number.isFinite(e) || e < 1) return null;
+  return e;
+}
+
+function _notesMetric() {
+  const f = window._notesFilter || {};
+  return f.metric === 'rang' ? 'rang' : 'note';
+}
+
+function _notesValue(c, metric) {
+  return metric === 'rang' ? _notesParseRang(c) : _notesParseScore(c);
+}
+
+function _notesAllScored(metric) {
+  const m = metric || _notesMetric();
   return (window.D.cours || []).filter(c => {
     if (c.type !== 'DS' && c.type !== 'KHOLLE') return false;
-    return _notesParseScore(c) != null;
+    return _notesValue(c, m) != null;
   });
 }
 
@@ -921,6 +945,35 @@ function _notesFmtDate(iso) {
   return iso.substring(8, 10) + '/' + iso.substring(5, 7);
 }
 
+function _notesFmtRangDisplay(c) {
+  const r = _notesParseRang(c);
+  if (r == null) return '—';
+  const e = _notesParseEffectif(c);
+  return e != null ? (r + '/' + e) : (r + 'ᵉ');
+}
+
+function _notesTone(c, metric) {
+  if (metric === 'rang') {
+    const r = _notesParseRang(c);
+    const e = _notesParseEffectif(c);
+    if (r == null) return 'mid';
+    if (e != null && e > 0) {
+      const ratio = r / e;
+      if (ratio <= 0.25) return 'good';
+      if (ratio <= 0.5) return 'mid';
+      return 'bad';
+    }
+    if (r <= 5) return 'good';
+    if (r <= 15) return 'mid';
+    return 'bad';
+  }
+  const score = _notesParseScore(c);
+  if (score == null) return 'mid';
+  if (score >= 15) return 'good';
+  if (score >= 10) return 'mid';
+  return 'bad';
+}
+
 function _notesMatLabel(matId) {
   const m = (window.D.matieres || []).find(x => x.id === matId);
   return m ? (m.label || m.name || matId) : (matId || '?');
@@ -931,41 +984,84 @@ function _notesMatColor(matId) {
   return (m && m.color) || 'var(--acc)';
 }
 
-function _notesBuildEvolutionSvg(docs) {
+function _notesSyncMetricButtons() {
+  const metric = _notesMetric();
+  ['btnNotesMetricNote', 'btnNotesMetricRang'].forEach(id => {
+    const btn = window.$(id);
+    if (!btn) return;
+    const isActive = btn.getAttribute('data-metric') === metric;
+    btn.classList.toggle('is-active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function _notesBuildEvolutionSvg(docs, metric) {
   const W = 720, H = 240, PAD_L = 36, PAD_R = 18, PAD_T = 22, PAD_B = 36;
   const innerW = W - PAD_L - PAD_R;
   const innerH = H - PAD_T - PAD_B;
-  const yOf = n => PAD_T + innerH - (Math.max(0, Math.min(20, n)) / 20) * innerH;
+  const isRang = metric === 'rang';
 
-  // Axe X : points équidistants dans l'ordre chronologique (dates réelles en labels)
+  let yMax = 20;
+  let yMin = 0;
+  if (isRang) {
+    yMin = 1;
+    const ranks = docs.map(_notesParseRang).filter(v => v != null);
+    const effectifs = docs.map(_notesParseEffectif).filter(v => v != null);
+    const maxR = ranks.length ? Math.max.apply(null, ranks) : 10;
+    const maxE = effectifs.length ? Math.max.apply(null, effectifs) : maxR;
+    yMax = Math.max(5, maxE, maxR);
+  }
+
+  const yOf = v => {
+    if (isRang) {
+      /* Rang 1 en haut (meilleur) */
+      const t = (Math.max(yMin, Math.min(yMax, v)) - yMin) / (yMax - yMin || 1);
+      return PAD_T + t * innerH;
+    }
+    return PAD_T + innerH - (Math.max(0, Math.min(20, v)) / 20) * innerH;
+  };
+
   const n = docs.length;
   const xOf = i => n === 1 ? PAD_L + innerW / 2 : PAD_L + (i / (n - 1)) * innerW;
 
   const pts = docs.map((c, i) => {
-    const score = _notesParseScore(c);
+    const val = _notesValue(c, metric);
     return {
       c,
       i,
       x: xOf(i),
-      y: yOf(score),
-      score,
+      y: yOf(val),
+      val,
       isDs: c.type === 'DS'
     };
   });
 
-  const gridYs = [0, 5, 10, 15, 20].map(v => ({ v, y: yOf(v) }));
+  let gridVals;
+  if (isRang) {
+    const step = yMax <= 10 ? 1 : yMax <= 20 ? 2 : yMax <= 40 ? 5 : 10;
+    gridVals = [];
+    for (let v = yMin; v <= yMax; v += step) gridVals.push(v);
+    if (gridVals[gridVals.length - 1] !== yMax) gridVals.push(yMax);
+  } else {
+    gridVals = [0, 5, 10, 15, 20];
+  }
+  const gridYs = gridVals.map(v => ({ v, y: yOf(v) }));
+
   const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
   const area = pts.length
     ? `${path} L ${pts[pts.length - 1].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} L ${pts[0].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} Z`
     : '';
 
-  // Moyenne mobile visuelle (ligne horizontale de la moyenne filtrée)
-  const scores = pts.map(p => p.score);
-  const avg = scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null;
+  const vals = pts.map(p => p.val);
+  const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
   const avgY = avg != null ? yOf(avg) : null;
+  const avgLbl = isRang
+    ? `moy. ${_notesFmtAvg(vals)}ᵉ`
+    : `moy. ${_notesFmtAvg(vals)}`;
+  const aria = isRang ? 'Évolution des rangs' : 'Évolution des notes';
 
   return `
-    <svg viewBox="0 0 ${W} ${H}" class="notes-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Évolution des notes">
+    <svg viewBox="0 0 ${W} ${H}" class="notes-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${aria}">
       <defs>
         <linearGradient id="notesGrad" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stop-color="var(--acc)" stop-opacity="0.28"/>
@@ -977,19 +1073,21 @@ function _notesBuildEvolutionSvg(docs) {
         <text x="${PAD_L - 8}" y="${g.y + 3}" text-anchor="end" class="notes-axis">${g.v}</text>
       `).join('')}
       ${avgY != null ? `<line x1="${PAD_L}" x2="${W - PAD_R}" y1="${avgY}" y2="${avgY}" class="notes-avg-line"/>
-        <text x="${W - PAD_R}" y="${avgY - 6}" text-anchor="end" class="notes-avg-lbl">moy. ${_notesFmtAvg(scores)}</text>` : ''}
+        <text x="${W - PAD_R}" y="${avgY - 6}" text-anchor="end" class="notes-avg-lbl">${avgLbl}</text>` : ''}
       ${area ? `<path d="${area}" fill="url(#notesGrad)"/>` : ''}
       ${pts.length > 1 ? `<path d="${path}" class="notes-line" fill="none"/>` : ''}
       ${pts.map(p => {
         const col = p.isDs ? 'var(--acc)' : 'var(--gold)';
         const lbl = _notesFmtDate(p.c.date);
-        const tip = `${p.c.title || p.c.uid} · ${p.score}/20 · ${p.c.type === 'KHOLLE' ? 'Khôlle' : 'DS'}`;
+        const tipVal = isRang ? _notesFmtRangDisplay(p.c) : (p.val + '/20');
+        const tip = `${p.c.title || p.c.uid} · ${tipVal} · ${p.c.type === 'KHOLLE' ? 'Khôlle' : 'DS'}`;
+        const ptLbl = isRang ? String(p.val) : String(p.val);
         return `
           <g class="notes-pt" style="cursor:pointer" onclick="window.doLocate('${window.escHtml(p.c.uid)}')">
             <title>${window.escHtml(tip)}</title>
             <circle cx="${p.x}" cy="${p.y}" r="11" fill="transparent"/>
             <circle cx="${p.x}" cy="${p.y}" r="5.5" fill="var(--bg)" stroke="${col}" stroke-width="2.5"/>
-            <text x="${p.x}" y="${p.y - 12}" text-anchor="middle" class="notes-pt-val" fill="${col}">${p.score}</text>
+            <text x="${p.x}" y="${p.y - 12}" text-anchor="middle" class="notes-pt-val" fill="${col}">${window.escHtml(ptLbl)}</text>
             <text x="${p.x}" y="${H - 10}" text-anchor="middle" class="notes-axis">${window.escHtml(lbl)}</text>
           </g>`;
       }).join('')}
@@ -997,26 +1095,28 @@ function _notesBuildEvolutionSvg(docs) {
     <div class="notes-legend">
       <span><span class="notes-leg-dot" style="background:var(--acc);"></span> DS</span>
       <span><span class="notes-leg-dot" style="background:var(--gold);"></span> Khôlle</span>
-      <span><span class="notes-leg-line"></span> Moyenne (filtre)</span>
+      <span><span class="notes-leg-line"></span> Moyenne (filtre)${isRang ? ' · 1 = meilleur' : ''}</span>
     </div>
   `;
 }
 
 window.renderNotes = function() {
   if (!window.D || !window.D.cours) return;
-  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '' });
+  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '', metric: 'note' });
+  if (f.metric !== 'rang') f.metric = 'note';
+  const metric = f.metric;
 
   const typeSel = window.$('fltNotesType');
   const matSel = window.$('fltNotesMat');
+  _notesSyncMetricButtons();
 
-  const all = _notesAllScored().slice().sort((a, b) => {
+  const all = _notesAllScored(metric).slice().sort((a, b) => {
     const da = a.date || '';
     const db = b.date || '';
     if (da !== db) return da < db ? -1 : 1;
     return (a.uid || '').localeCompare(b.uid || '');
   });
 
-  // Remplir le select matières (uniquement celles qui ont des notes)
   const matIds = [...new Set(all.map(c => c.mat).filter(Boolean))].sort();
   if (f.mat && !matIds.includes(f.mat)) f.mat = '';
   if (matSel) {
@@ -1027,7 +1127,6 @@ window.renderNotes = function() {
         return `<option value="${window.escHtml(id)}">${window.escHtml(label)}</option>`;
       }));
     const optsHtml = opts.join('');
-    // Ne recréer Choices que si la liste a changé (évite de fermer le dropdown à chaque render)
     if (matSel.dataset.notesOpts !== optsHtml) {
       matSel.dataset.notesOpts = optsHtml;
       if (typeof window.fcRefreshSelect === 'function') {
@@ -1050,33 +1149,45 @@ window.renderNotes = function() {
     return true;
   });
 
-  const avgAll = _notesFmtAvg(all.map(_notesParseScore));
-  const avgFilt = _notesFmtAvg(filtered.map(_notesParseScore));
-  const avgDs = _notesFmtAvg(all.filter(c => c.type === 'DS').map(_notesParseScore));
-  const avgKh = _notesFmtAvg(all.filter(c => c.type === 'KHOLLE').map(_notesParseScore));
+  const valsAll = all.map(c => _notesValue(c, metric));
+  const valsFilt = filtered.map(c => _notesValue(c, metric));
+  const valsDs = all.filter(c => c.type === 'DS').map(c => _notesValue(c, metric));
+  const valsKh = all.filter(c => c.type === 'KHOLLE').map(c => _notesValue(c, metric));
+  const avgAll = _notesFmtAvg(valsAll);
+  const avgFilt = _notesFmtAvg(valsFilt);
+  const avgDs = _notesFmtAvg(valsDs);
+  const avgKh = _notesFmtAvg(valsKh);
+  const bestRang = valsAll.length ? Math.min.apply(null, valsAll) : null;
+  const unit = metric === 'rang' ? '<span class="notes-stat-unit">ᵉ</span>' : '<span class="notes-stat-unit">/20</span>';
+  const noun = metric === 'rang' ? 'rang' : 'note';
 
   const statsEl = window.$('notesStats');
   if (statsEl) {
     const filterActive = !!(f.type || f.mat);
     statsEl.innerHTML = `
       <div class="notes-stat">
-        <div class="notes-stat-val">${avgAll}<span class="notes-stat-unit">/20</span></div>
-        <div class="notes-stat-lbl">Moyenne générale</div>
-        <div class="notes-stat-sub">${all.length} note${all.length > 1 ? 's' : ''}</div>
+        <div class="notes-stat-val">${avgAll}${unit}</div>
+        <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moyen' : 'Moyenne générale'}</div>
+        <div class="notes-stat-sub">${all.length} ${noun}${all.length > 1 ? 's' : ''}</div>
       </div>
       <div class="notes-stat">
-        <div class="notes-stat-val">${avgDs}<span class="notes-stat-unit">/20</span></div>
-        <div class="notes-stat-lbl">Moyenne DS</div>
+        <div class="notes-stat-val">${avgDs}${unit}</div>
+        <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moy. DS' : 'Moyenne DS'}</div>
       </div>
       <div class="notes-stat">
-        <div class="notes-stat-val">${avgKh}<span class="notes-stat-unit">/20</span></div>
-        <div class="notes-stat-lbl">Moyenne Khôlles</div>
+        <div class="notes-stat-val">${avgKh}${unit}</div>
+        <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moy. Khôlles' : 'Moyenne Khôlles'}</div>
       </div>
+      ${metric === 'rang' && bestRang != null ? `
+        <div class="notes-stat">
+          <div class="notes-stat-val">${bestRang}<span class="notes-stat-unit">ᵉ</span></div>
+          <div class="notes-stat-lbl">Meilleur rang</div>
+        </div>` : ''}
       ${filterActive ? `
         <div class="notes-stat notes-stat-filter">
-          <div class="notes-stat-val">${avgFilt}<span class="notes-stat-unit">/20</span></div>
-          <div class="notes-stat-lbl">Moyenne filtrée</div>
-          <div class="notes-stat-sub">${filtered.length} note${filtered.length > 1 ? 's' : ''}</div>
+          <div class="notes-stat-val">${avgFilt}${unit}</div>
+          <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moy. filtré' : 'Moyenne filtrée'}</div>
+          <div class="notes-stat-sub">${filtered.length} ${noun}${filtered.length > 1 ? 's' : ''}</div>
         </div>` : ''}
     `;
   }
@@ -1086,12 +1197,15 @@ window.renderNotes = function() {
   if (!wrapper) return;
 
   if (!filtered.length) {
-    wrapper.innerHTML = `<div class="notes-empty">Aucune note pour ce filtre.<br>Ajoute un DS ou une Khôlle avec une note, ou élargis le filtre.</div>`;
+    const emptyMsg = metric === 'rang'
+      ? 'Aucun rang pour ce filtre.<br>Ajoute un rang sur un DS / Khôlle (édition du document), ou élargis le filtre.'
+      : 'Aucune note pour ce filtre.<br>Ajoute un DS ou une Khôlle avec une note, ou élargis le filtre.';
+    wrapper.innerHTML = `<div class="notes-empty">${emptyMsg}</div>`;
     if (listEl) listEl.innerHTML = '';
     return;
   }
 
-  wrapper.innerHTML = _notesBuildEvolutionSvg(filtered);
+  wrapper.innerHTML = _notesBuildEvolutionSvg(filtered, metric);
 
   if (listEl) {
     listEl.innerHTML = `
@@ -1100,17 +1214,24 @@ window.renderNotes = function() {
         <span class="anki-mut" style="font-size:12px;">${filtered.length} épreuve${filtered.length > 1 ? 's' : ''} · du plus récent au plus ancien</span>
       </div>
       ${filtered.slice().reverse().map(c => {
-        const score = _notesParseScore(c);
-        const tone = score >= 15 ? 'good' : score >= 10 ? 'mid' : 'bad';
+        const tone = _notesTone(c, metric);
         const typeLbl = c.type === 'KHOLLE' ? 'Khôlle' : 'DS';
         const col = _notesMatColor(c.mat);
+        const scoreHtml = metric === 'rang'
+          ? `${window.escHtml(_notesFmtRangDisplay(c))}`
+          : `${_notesParseScore(c)}<span class="notes-stat-unit">/20</span>`;
+        const sub = metric === 'rang' && _notesParseScore(c) != null
+          ? `<span class="notes-row-sub">${_notesParseScore(c)}/20</span>`
+          : (metric === 'note' && _notesParseRang(c) != null
+            ? `<span class="notes-row-sub">${window.escHtml(_notesFmtRangDisplay(c))}</span>`
+            : '');
         return `
           <div class="notes-row" onclick="window.doLocate('${window.escHtml(c.uid)}')" role="button" tabindex="0">
             <span class="notes-row-date">${window.escHtml(_notesFmtDate(c.date))}</span>
             <span class="notes-row-type notes-type-${c.type === 'KHOLLE' ? 'kh' : 'ds'}">${typeLbl}</span>
             <span class="anki-q-mat" style="background:${col};">${window.escHtml(_notesMatLabel(c.mat))}</span>
             <span class="notes-row-title">${window.escHtml(c.title || c.uid)}</span>
-            <span class="notes-row-score notes-score-${tone}">${score}<span class="notes-stat-unit">/20</span></span>
+            <span class="notes-row-score notes-score-${tone}">${scoreHtml}${sub}</span>
           </div>`;
       }).join('')}
     `;
@@ -1118,10 +1239,17 @@ window.renderNotes = function() {
 };
 
 window.setNotesFilter = function(partial) {
-  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '' });
+  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '', metric: 'note' });
   if (partial && Object.prototype.hasOwnProperty.call(partial, 'type')) f.type = partial.type || '';
   if (partial && Object.prototype.hasOwnProperty.call(partial, 'mat')) f.mat = partial.mat || '';
+  if (partial && Object.prototype.hasOwnProperty.call(partial, 'metric')) {
+    f.metric = partial.metric === 'rang' ? 'rang' : 'note';
+  }
   window.renderNotes();
+};
+
+window.setNotesMetric = function(metric) {
+  window.setNotesFilter({ metric: metric === 'rang' ? 'rang' : 'note' });
 };
 
 window.renderStats = function() {
@@ -1139,13 +1267,13 @@ window.renderStats = function() {
 
 window.exportCsv = function() {
   if (!window.D || !window.D.cours) return;
-  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
+  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Rang','Effectif','Date','Statut_QR'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   
   const rows = window.D.cours.map(c => {
     const mo = window.D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
     const co = window.D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
-    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.date||'', c.stat].map(esc).join(',');
+    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.rang||'', c.effectif||'', c.date||'', c.stat].map(esc).join(',');
   });
   
   const csv = [hdr.join(','), ...rows].join('\n');
@@ -1381,6 +1509,8 @@ bindChange('fltNotesMat', () => {
   const el = window.$('fltNotesMat');
   window.setNotesFilter({ mat: el ? el.value : '' });
 });
+bindClick('btnNotesMetricNote', () => window.setNotesMetric('note'));
+bindClick('btnNotesMetricRang', () => window.setNotesMetric('rang'));
 bindClick('btnResetFilters', () => window.resetFilters());
 
 bindClick('btnSelPending', () => window.selPending());
