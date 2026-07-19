@@ -685,7 +685,7 @@ projectAfterScore(carte, note) → intervalle, ease, date, fenêtre, phase</div>
             <div><dt>pullForward</dt><dd>Si budget large, tirer aussi les cartes « soon ».</dd></div>
             <div><dt>_blocageActif</dt><dd>Flag après échec · levé à note ≥ validate ou après timeout de révisions. N’entre pas dans prio V2 (l’ease baisse, elle).</dd></div>
             <div><dt>Horizon 1 an / 2 ans</dt><dd>Échelle les fenêtres ★ : ×0,55 (1 an) ou ×1 (2 ans).</dd></div>
-            <div><dt>Importance ★1–5</dt><dd>Poids dans prio + taille/timing des fenêtres mature.</dd></div>
+            <div><dt>Importance ★1–5</dt><dd>Poids dans prio (+200×★) · fenêtres mature · et multiplicateur d’intervalle SM-2 (plus de ★ → intervalles un peu plus courts).</dd></div>
             <div><dt>Morceaux (DM)</dt><dd>Découpage d’un devoir W- en sessions successives.</dd></div>
           </dl>
         </div>
@@ -701,7 +701,7 @@ projectAfterScore(carte, note) → intervalle, ease, date, fenêtre, phase</div>
           <thead><tr><th></th><th>Ancien V1</th><th>Synchrotron actuel (V2)</th></tr></thead>
           <tbody>
             <tr><td>Tri session X-</td><td>Score urgence (I_R + coefs)</td><td><b>prio</b> unique</td></tr>
-            <tr><td>Rôle des ★</td><td>Poids score + intervalles</td><td><b>Fenêtres</b> long terme (+ poids prio)</td></tr>
+            <tr><td>Rôle des ★</td><td>Poids score + intervalles</td><td><b>Fenêtres</b> mature + poids prio + multiplicateur d’intervalle SM-2</td></tr>
             <tr><td>Coefficients W_*</td><td>6+ réglages</td><td><b>Aucun</b> pour le tri</td></tr>
             <tr><td>Phases</td><td>Moins visibles</td><td>apprentissage → consolidation → mature</td></tr>
             <tr><td>Données</td><td colspan="2" style="text-align:center;">Mêmes cartes · un seul moteur V2</td></tr>
