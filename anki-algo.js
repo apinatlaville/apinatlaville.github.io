@@ -310,6 +310,7 @@
   };
   ALGO.cardKind = function (card) {
     if (!card) return 'unknown';
+    if (card._devoirChunkOf) return 'devoir';
     const px = ALGO.exoPrefixFromId(card.id);
     if (px === 'W') return 'devoir';
     if (px === 'Y') return 'quick';
@@ -318,6 +319,126 @@
     if (card.type === 'devoir' || card.type === 'devoir-morceau') return 'devoir';
     if (ALGO.QUICK_PROFILES.indexOf(card.profil) >= 0) return 'quick';
     return 'main';
+  };
+
+  /** Temps total proposé pour un DM (minutes), avant saisie utilisateur. */
+  ALGO.proposerTempsDevoir = function (opts) {
+    opts = opts || {};
+    if (opts.tempsRestantConnu != null && Number(opts.tempsRestantConnu) > 0) {
+      return Math.max(5, Math.round(Number(opts.tempsRestantConnu) / 5) * 5);
+    }
+    const imp = Math.max(1, Math.min(5, opts.importance || 3));
+    const today = opts.ref || ALGO.todayISO();
+    let jours = 5;
+    if (opts.dateLimite) {
+      jours = Math.max(1, ALGO.daysBetween(today, opts.dateLimite));
+    }
+    let propose = 25 * imp; // 25–125 min selon ★
+    if (jours <= 2) propose = Math.round(propose * 0.8);
+    else if (jours >= 10) propose = Math.round(propose * 1.2);
+    propose = Math.max(20, Math.min(240, propose));
+    return Math.round(propose / 5) * 5;
+  };
+
+  /**
+   * Découpe auto d'un DM :
+   *  - tempsRestantMin : estimation utilisateur du travail restant
+   *  - sessionMinMin   : durée minimale souhaitée par bout
+   * → nombre de bouts + durée par bout (l'algo décide, pas l'utilisateur)
+   */
+  ALGO.planifierDecoupeDevoir = function (tempsRestantMin, sessionMinMin, dateLimite, refIso) {
+    const today = refIso || ALGO.todayISO();
+    let restant = Math.max(5, Math.round(Number(tempsRestantMin) || 30));
+    let sessMin = Math.max(5, Math.min(180, Math.round(Number(sessionMinMin) || 25)));
+    if (sessMin > restant) sessMin = restant;
+
+    let n = Math.max(1, Math.ceil(restant / sessMin));
+    n = Math.min(n, 30);
+
+    const jours = dateLimite ? ALGO.daysBetween(today, dateLimite) : null;
+    const tempsParBout = Math.max(1, Math.round(restant / n));
+    const boutsParJour = (jours != null && jours > 0)
+      ? Math.max(1, Math.ceil(n / Math.max(1, jours)))
+      : n;
+
+    return {
+      tempsRestantMin: restant,
+      sessionMinMin: sessMin,
+      morceauxTotal: n,
+      tempsParBoutMin: tempsParBout,
+      joursRestants: jours,
+      boutsParJourEstime: boutsParJour
+    };
+  };
+
+  /** Applique un plan de découpe sur la carte DM (conserve les sessions déjà faites). */
+  ALGO.applyDecoupeDevoir = function (card, plan, meta) {
+    if (!card || !plan) return card;
+    meta = meta || {};
+    const faits = Math.max(0, card._morceauxFaits || 0);
+    const remainingBouts = Math.max(1, plan.morceauxTotal || 1);
+    card._tempsProposeMin = meta.tempsProposeMin != null ? meta.tempsProposeMin : (card._tempsProposeMin || plan.tempsRestantMin);
+    card._tempsRestantMin = plan.tempsRestantMin;
+    card._sessionMinMin = plan.sessionMinMin;
+    card._dureeTotaleMin = plan.tempsRestantMin;
+    card._morceauxFaits = faits;
+    card._morceauxTotal = faits + remainingBouts;
+    card.tempsCible = Math.max(60, Math.round((plan.tempsParBoutMin || plan.sessionMinMin || 25) * 60));
+    card.type = 'devoir';
+    return card;
+  };
+
+  /** Bout virtuel pour intercaler un DM plusieurs fois dans une session. */
+  ALGO.makeDevoirChunk = function (parent, chunkIdx) {
+    if (!parent) return null;
+    const boutSec = ALGO.cardDuration(parent);
+    const faits = parent._morceauxFaits || 0;
+    const total = parent._morceauxTotal || 1;
+    const idx = Math.max(0, chunkIdx | 0);
+    return Object.assign({}, parent, {
+      id: parent.id + '#' + idx,
+      type: 'devoir',
+      _devoirChunkOf: parent.id,
+      _devoirChunkIdx: idx,
+      _projSessionIdx: faits + idx + 1,
+      _projSessionTotal: total,
+      tempsCible: boutSec,
+      // Ne pas laisser les fenêtres ★ / historique polluer le bout
+      historique: parent.historique || []
+    });
+  };
+
+  /**
+   * Combien de bouts d'un DM viser ce soir (urgence calendaire),
+   * puis tronqué au budget restant.
+   */
+  ALGO.chunksDevoirTonight = function (card, refIso, budgetLeftSec, opts) {
+    opts = opts || {};
+    if (!card || card.statut === 'fini') return [];
+    const ref = refIso || ALGO.todayISO();
+    const restants = Math.max(0, (card._morceauxTotal || 1) - (card._morceauxFaits || 0));
+    if (!restants) return [];
+    const boutSec = Math.max(60, ALGO.cardDuration(card));
+    const urg = ALGO.urgenceDevoir(card, ref);
+    const jr = urg.joursRestants;
+    let want = 1;
+    if (jr != null && jr <= 0) want = restants;
+    else if (jr != null && jr < restants) want = Math.min(restants, restants - jr + 1);
+    else if (opts.forced) want = 1;
+    else want = 1;
+    if (opts.maxChunks != null) want = Math.min(want, opts.maxChunks);
+    want = Math.min(want, restants, 8);
+
+    const out = [];
+    let used = 0;
+    for (let i = 0; i < want; i++) {
+      // Le 1er bout forcé peut dépasser le budget (overload), les suivants respectent le reste
+      if (i > 0 && used + boutSec > budgetLeftSec) break;
+      if (!opts.forced && used + boutSec > budgetLeftSec) break;
+      out.push(ALGO.makeDevoirChunk(card, i));
+      used += boutSec;
+    }
+    return out;
   };
 
   // ===== URGENCE CALENDAIRE (DEVOIRS) — totalement séparée d'I_R (v4.2) =====
@@ -779,8 +900,24 @@
   };
 
   ALGO.cardDuration = function (c) {
-    if (c.type === 'devoir' || c.type === 'devoir-morceau') {
-      return Math.round(((c._dureeTotaleMin || (c.tempsCible / 60)) / (c._morceauxTotal || 1)) * 60);
+    if (!c) return 60;
+    if (c._devoirChunkOf && c.tempsCible) return Math.max(60, c.tempsCible);
+    if (c.type === 'devoir' || c.type === 'devoir-morceau' || ALGO.cardKind(c) === 'devoir') {
+      const restants = Math.max(1, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
+      let restantMin;
+      if (c._tempsRestantMin != null && c._tempsRestantMin >= 0) {
+        restantMin = c._tempsRestantMin;
+      } else if (c._dureeTotaleMin != null) {
+        // Ancien modèle : durée totale du DM (parfois encore le total initial)
+        const total = Math.max(1, c._morceauxTotal || 1);
+        const faits = c._morceauxFaits || 0;
+        restantMin = faits > 0
+          ? (c._dureeTotaleMin * restants) / total
+          : c._dureeTotaleMin;
+      } else {
+        restantMin = ((c.tempsCible || 60) / 60) * restants;
+      }
+      return Math.max(60, Math.round((restantMin / restants) * 60));
     }
     return (c.tempsCible || 60);
   };
@@ -882,9 +1019,21 @@
 
   ALGO.findCard = function (D, id) {
     if (!D || !id) return null;
-    return (D.exercices || []).find(c => c.id === id)
-      || (D.devoirs || []).find(c => c.id === id)
+    // Bouts virtuels W-xxx#n → parent W-xxx
+    const baseId = String(id).split('#')[0];
+    return (D.exercices || []).find(c => c.id === id || c.id === baseId)
+      || (D.devoirs || []).find(c => c.id === id || c.id === baseId)
       || null;
+  };
+
+  /** Parent réel d'un bout de DM (chunk session) ou de l'ancien devoir-morceau. */
+  ALGO.resolveDevoirParent = function (D, card) {
+    if (!card) return null;
+    if (card._devoirChunkOf) return ALGO.findCard(D, card._devoirChunkOf) || card;
+    if (card.type === 'devoir-morceau' && card._morceauOf) {
+      return ALGO.findCard(D, card._morceauOf) || card;
+    }
+    return card;
   };
 
   ALGO.allExistingIds = function (D) {
@@ -931,6 +1080,26 @@
       if (!Array.isArray(c.coursIds)) c.coursIds = c.coursId ? [c.coursId] : [];
       if (!c.profil && ALGO.cardKind(c) === 'quick') c.profil = 'ANGLAIS';
       else if (!c.profil) c.profil = 'COURS';
+      // DM : renseigner temps restant / session min si absents (rétrocompat)
+      if (ALGO.cardKind(c) === 'devoir' || c.type === 'devoir') {
+        const restants = Math.max(1, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
+        if (c._tempsRestantMin == null) {
+          if (c._dureeTotaleMin != null) {
+            const total = Math.max(1, c._morceauxTotal || 1);
+            const faits = c._morceauxFaits || 0;
+            c._tempsRestantMin = faits > 0
+              ? Math.round((c._dureeTotaleMin * restants) / total)
+              : c._dureeTotaleMin;
+          } else {
+            c._tempsRestantMin = Math.round(((c.tempsCible || 60) / 60) * restants);
+          }
+        }
+        if (c._sessionMinMin == null) {
+          c._sessionMinMin = Math.max(5, Math.round((c.tempsCible || 1500) / 60));
+        }
+        if (c._tempsProposeMin == null) c._tempsProposeMin = c._tempsRestantMin;
+        if (c._dureeTotaleMin == null) c._dureeTotaleMin = c._tempsRestantMin;
+      }
     });
   };
 

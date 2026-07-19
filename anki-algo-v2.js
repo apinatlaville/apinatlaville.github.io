@@ -32,6 +32,12 @@
   V2.secToMin = function (s) { return needA1().secToMin(s); };
   V2.log = function (ev, data) { return needA1().log(ev, Object.assign({ engine: "v2" }, data || {})); };
   V2.urgenceDevoir = function (c, ref) { return needA1().urgenceDevoir(c, ref); };
+  V2.proposerTempsDevoir = function (opts) { return needA1().proposerTempsDevoir(opts); };
+  V2.planifierDecoupeDevoir = function (a, b, c, d) { return needA1().planifierDecoupeDevoir(a, b, c, d); };
+  V2.applyDecoupeDevoir = function (card, plan, meta) { return needA1().applyDecoupeDevoir(card, plan, meta); };
+  V2.makeDevoirChunk = function (parent, idx) { return needA1().makeDevoirChunk(parent, idx); };
+  V2.chunksDevoirTonight = function (card, ref, budget, opts) { return needA1().chunksDevoirTonight(card, ref, budget, opts); };
+  V2.resolveDevoirParent = function (D, card) { return needA1().resolveDevoirParent(D, card); };
   V2.shiftProgramIfMissedDaily = function (D) { return needA1().shiftProgramIfMissedDaily(D); };
   V2.migrateData = function (D) { return needA1().migrateData(D); };
   V2.interleaveMatieres = function (cards) { return needA1().interleaveMatieres(cards); };
@@ -478,9 +484,13 @@
     const devoirsForces = devoirsScored.filter(x => x.score.total >= seuilDevoir);
     const devoirsLatents = devoirsScored.filter(x => x.score.total < seuilDevoir);
 
-    const selected = [];
+    // Phase 0a : 1er bout de chaque DM forcé (peut surcharger le budget)
+    const forcedFirst = [];
     let used = 0;
-    devoirsForces.forEach(x => { selected.push(x.card); used += _tempsCarte(x.card); });
+    devoirsForces.forEach(x => {
+      const chunks = V2.chunksDevoirTonight(x.card, ref, Math.max(0, budget - used), { forced: true, maxChunks: 1 });
+      chunks.forEach(ch => { forcedFirst.push(ch); used += _tempsCarte(ch); });
+    });
     const overload = used > budget;
     const overloadDelta = overload ? used - budget : 0;
 
@@ -492,18 +502,35 @@
     const mainsTaken = [];
     for (const x of mainsSorted) {
       const t = _tempsCarte(x.card);
-      if (used + t > budget && (selected.length || mainsTaken.length)) break;
+      if (used + t > budget && (forcedFirst.length || mainsTaken.length)) break;
       mainsTaken.push(x.card);
       used += t;
     }
 
-    // W- opportunistes (latents) si budget restant — comme v1 / texte Agenda
+    // Phase 0b : bouts supplémentaires des DM forcés (rattrapage calendaire) — intercalés après les X-
+    const forcedExtra = [];
+    devoirsForces.forEach(x => {
+      const allWanted = V2.chunksDevoirTonight(x.card, ref, 1e9, { forced: true });
+      const already = forcedFirst.filter(ch => ch._devoirChunkOf === x.card.id).length;
+      for (let i = already; i < allWanted.length; i++) {
+        const ch = V2.makeDevoirChunk(x.card, i);
+        const t = _tempsCarte(ch);
+        if (used + t > budget) break;
+        forcedExtra.push(ch);
+        used += t;
+      }
+    });
+
+    // W- opportunistes (latents) : autant de bouts que le budget permet
     const latentsTaken = [];
     for (const x of devoirsLatents) {
-      const t = _tempsCarte(x.card);
-      if (used + t > budget) continue;
-      latentsTaken.push(x.card);
-      used += t;
+      const chunks = V2.chunksDevoirTonight(x.card, ref, Math.max(0, budget - used), { forced: false });
+      chunks.forEach(ch => {
+        const t = _tempsCarte(ch);
+        if (used + t > budget) return;
+        latentsTaken.push(ch);
+        used += t;
+      });
     }
 
     const quickSorted = pileQuick
@@ -511,7 +538,7 @@
       .map(c => ({ card: c, sc: V2.priorityScore(c, ref) }))
       .sort((a, b) => b.sc.priority - a.sc.priority);
 
-    // Y- tissées : respectent le budget + plafond ankiMaxAnglaisFill (plus de slice(0,8) hors budget)
+    // Y- tissées : respectent le budget + plafond ankiMaxAnglaisFill
     const maxQuick = (window.D && window.D.settings && window.D.settings.ankiMaxAnglaisFill != null)
       ? Math.max(0, parseInt(window.D.settings.ankiMaxAnglaisFill, 10) || 0)
       : 5;
@@ -524,7 +551,8 @@
       used += t;
     }
 
-    const longPool = selected.concat(mainsTaken).concat(latentsTaken);
+    // Intercalation : 1er bout forcé → X- → bouts extra DM → latents, puis tissage Y-
+    const longPool = forcedFirst.concat(mainsTaken).concat(forcedExtra).concat(latentsTaken);
     const woven = needA1().weaveSession(longPool, quicksWoven);
     let final = woven.slice();
     let usedFinal = final.reduce((s, c) => s + _tempsCarte(c), 0);
@@ -540,12 +568,16 @@
       quicksExtra++;
     }
 
+    const devoirChunks = final.filter(c => V2.cardKind(c) === "devoir");
+    const uniqueDevoirParents = new Set(devoirChunks.map(c => c._devoirChunkOf || c.id));
+
     return {
       cartes: final,
       tempsTotalPrev: usedFinal,
-      countDevoir: devoirsForces.length + latentsTaken.length,
-      countDevoirForce: devoirsForces.length,
+      countDevoir: devoirChunks.length,
+      countDevoirForce: forcedFirst.length + forcedExtra.length,
       countDevoirLatent: latentsTaken.length,
+      countDevoirParents: uniqueDevoirParents.size,
       countMain: mainsTaken.length,
       countQuick: quicksWoven.length + quicksExtra,
       countQuickWoven: quicksWoven.length,
