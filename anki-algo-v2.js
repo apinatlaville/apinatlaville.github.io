@@ -511,9 +511,10 @@
     const forcedExtra = [];
     devoirsForces.forEach(x => {
       const allWanted = V2.chunksDevoirTonight(x.card, ref, 1e9, { forced: true });
-      const already = forcedFirst.filter(ch => ch._devoirChunkOf === x.card.id).length;
-      for (let i = already; i < allWanted.length; i++) {
-        const ch = V2.makeDevoirChunk(x.card, i);
+      const alreadyIds = new Set(forcedFirst.filter(ch => ch._devoirChunkOf === x.card.id).map(ch => ch.id));
+      for (let i = 0; i < allWanted.length; i++) {
+        const ch = allWanted[i];
+        if (alreadyIds.has(ch.id)) continue;
         const t = _tempsCarte(ch);
         if (used + t > budget) break;
         forcedExtra.push(ch);

@@ -2529,9 +2529,13 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (sessionIsLive()) {
       return promptSessionConflict('btn-commencer-session');
     }
-    const c = ankFind(id);
+    const c = rehydrateQueueCard(id) || ankFind(id);
     if (!c) return;
-    if (c.statut !== "actif") { c.statut = "actif"; if (!c.dateProchaineRevision) c.dateProchaineRevision = window.AnkiAlgoV2.todayISO(); }
+    const parent = resolveDevoirRef(c) || c;
+    if (parent.statut !== "actif") {
+      parent.statut = "actif";
+      if (!parent.dateProchaineRevision) parent.dateProchaineRevision = window.AnkiAlgoV2.todayISO();
+    }
     S.queue = [c]; S.mode = "single";
     S.stats = { ok: 0, mid: 0, bad: 0, total: 1 };
     S.sessionUI = 'full';
@@ -3024,11 +3028,19 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (snap.statBucket === 'ok')  S.stats.ok  = Math.max(0, S.stats.ok  - 1);
     if (snap.statBucket === 'mid') S.stats.mid = Math.max(0, S.stats.mid - 1);
     if (snap.statBucket === 'bad') S.stats.bad = Math.max(0, S.stats.bad - 1);
-    // Réinjection en tête de file (bout virtuel si besoin)
+    // Réinjection en tête de file (bout virtuel + frères retirés si DM fini prématurément)
     const requeueId = snap.chunkId || snap.card.id;
     const restoredCard = rehydrateQueueCard(requeueId) || ankFind(snap.card.id);
     if (restoredCard) {
       S.queue = S.queue.filter(c => c && c.id !== restoredCard.id && c.id !== snap.card.id);
+      // Restaurer les bouts frères qui avaient été purgés (ex. fini anticipé)
+      const siblings = (snap.siblingChunkIds || [])
+        .filter(id => id && id !== restoredCard.id)
+        .map(id => rehydrateQueueCard(id))
+        .filter(Boolean);
+      siblings.reverse().forEach(ch => {
+        if (!S.queue.some(c => c.id === ch.id)) S.queue.unshift(ch);
+      });
       S.queue.unshift(restoredCard);
       // On rouvre la carte directement (le chrono repart de 0 pour cette tentative)
       S.current = null;
@@ -3059,11 +3071,15 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     const isDevoir = isDevoirCard(S.current);
 
-    // v4: SNAPSHOT AVANT modification (pour Undo) — toujours le parent réel pour les bouts DM
+    // v4: SNAPSHOT AVANT modification (pour Undo) — parent réel + bouts frères en file
     const snapSource = isDevoir ? resolveDevoirRef(S.current) : S.current;
+    const siblingChunkIds = isDevoir && snapSource
+      ? S.queue.filter(x => x && (x._devoirChunkOf === snapSource.id || x.id === snapSource.id)).map(x => x.id)
+      : [];
     const snapshot = {
       card: cloneCard(snapSource),
       chunkId: S.current && S.current._devoirChunkOf ? S.current.id : null,
+      siblingChunkIds,
       tps,
       qScore,
       isDevoir,
@@ -3073,13 +3089,20 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     if (isDevoir) {
       // DM : progression par bouts (_morceauxTotal / _morceauxFaits), sans ease/intervalle
-      const dmCard = window.AnkiAlgoV2.resolveDevoirParent
-        ? (window.AnkiAlgoV2.resolveDevoirParent(window.D, S.current) || S.current)
-        : (S.current._devoirChunkOf || S.current.type === 'devoir-morceau'
-          ? (ankFind(S.current._devoirChunkOf || S.current._morceauOf) || S.current)
-          : S.current);
+      const dmCard = resolveDevoirRef(S.current) || S.current;
       const failDm = qScore <= 3;
       const boutPrevSec = S.current.tempsCible || window.AnkiAlgoV2.cardDuration(dmCard);
+      // Temps consommé : manuel → durée du bout (bandeau) → chrono → prévu
+      const devoirTempsEl = document.getElementById('ankiDevoirTemps');
+      let usedMin;
+      if (inputManuel && inputManuel.value !== '' && !isNaN(parseFloat(inputManuel.value))) {
+        usedMin = Math.max(1, Math.round(parseFloat(inputManuel.value)));
+      } else if (devoirTempsEl && devoirTempsEl.value !== '' && !isNaN(parseFloat(devoirTempsEl.value))) {
+        usedMin = Math.max(1, Math.round(parseFloat(devoirTempsEl.value)));
+        if (!(tps > 0)) tps = usedMin * 60;
+      } else {
+        usedMin = Math.max(1, Math.round((tps > 0 ? tps : boutPrevSec) / 60));
+      }
       dmCard.historique = dmCard.historique || [];
       dmCard.historique.push({
         date: new Date().toISOString(),
@@ -3106,14 +3129,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         );
       } else {
         dmCard._morceauxFaits = (dmCard._morceauxFaits || 0) + 1;
-        // Décrémente le temps restant (temps réel si saisi, sinon durée prévue du bout)
-        const usedMin = Math.max(1, Math.round((tps > 0 ? tps : boutPrevSec) / 60));
         const prevRest = dmCard._tempsRestantMin != null
           ? dmCard._tempsRestantMin
           : (dmCard._dureeTotaleMin != null ? dmCard._dureeTotaleMin : usedMin);
         dmCard._tempsRestantMin = Math.max(0, prevRest - usedMin);
         dmCard._dureeTotaleMin = dmCard._tempsRestantMin;
-        // Recalcule la durée du prochain bout si encore du travail
         const restants = (dmCard._morceauxTotal || 1) - dmCard._morceauxFaits;
         if (restants <= 0 || dmCard._tempsRestantMin <= 0) {
           dmCard.statut = 'fini';
@@ -3122,8 +3142,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           dmCard._dureeTotaleMin = 0;
         } else {
           dmCard.tempsCible = Math.max(60, Math.round((dmCard._tempsRestantMin / restants) * 60));
-          // Si d'autres bouts du même DM restent dans la file ce soir, on peut enchaîner ;
-          // sinon prochaine révision demain (sauf urgence qui le rappellera).
           const moreTonight = S.queue.some(x =>
             x && ((x._devoirChunkOf || x.id) === dmCard.id || x.id === dmCard.id)
           );
@@ -3131,9 +3149,14 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
             ? window.AnkiAlgoV2.todayISO()
             : window.AnkiAlgoV2.addDays(window.AnkiAlgoV2.todayISO(), 1);
         }
-        // Retirer les bouts virtuels obsolètes du même parent si DM terminé
         if (dmCard.statut === 'fini') {
           S.queue = S.queue.filter(x => !(x && (x._devoirChunkOf === dmCard.id || x.id === dmCard.id)));
+        } else {
+          // Rafraîchir les bouts restants (temps/bout à jour, labels stables via index absolu)
+          S.queue = S.queue.map(x => {
+            if (!x || x._devoirChunkOf !== dmCard.id) return x;
+            return window.AnkiAlgoV2.makeDevoirChunk(dmCard, x._devoirChunkIdx);
+          });
         }
         window.AnkiAlgoV2.log("devoir-session", {
           id: dmCard.id,

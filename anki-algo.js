@@ -388,22 +388,24 @@
     return card;
   };
 
-  /** Bout virtuel pour intercaler un DM plusieurs fois dans une session. */
-  ALGO.makeDevoirChunk = function (parent, chunkIdx) {
+  /**
+   * Bout virtuel pour intercaler un DM plusieurs fois dans une session.
+   * @param boutIndex0 index absolu 0-based dans le plan du DM (stable au restore :
+   *   id W-xxx#2 reste le bout n°3 même après progression).
+   */
+  ALGO.makeDevoirChunk = function (parent, boutIndex0) {
     if (!parent) return null;
     const boutSec = ALGO.cardDuration(parent);
-    const faits = parent._morceauxFaits || 0;
     const total = parent._morceauxTotal || 1;
-    const idx = Math.max(0, chunkIdx | 0);
+    const idx = Math.max(0, boutIndex0 | 0);
     return Object.assign({}, parent, {
       id: parent.id + '#' + idx,
       type: 'devoir',
       _devoirChunkOf: parent.id,
       _devoirChunkIdx: idx,
-      _projSessionIdx: faits + idx + 1,
+      _projSessionIdx: idx + 1,
       _projSessionTotal: total,
       tempsCible: boutSec,
-      // Ne pas laisser les fenêtres ★ / historique polluer le bout
       historique: parent.historique || []
     });
   };
@@ -416,7 +418,8 @@
     opts = opts || {};
     if (!card || card.statut === 'fini') return [];
     const ref = refIso || ALGO.todayISO();
-    const restants = Math.max(0, (card._morceauxTotal || 1) - (card._morceauxFaits || 0));
+    const faits = card._morceauxFaits || 0;
+    const restants = Math.max(0, (card._morceauxTotal || 1) - faits);
     if (!restants) return [];
     const boutSec = Math.max(60, ALGO.cardDuration(card));
     const urg = ALGO.urgenceDevoir(card, ref);
@@ -435,7 +438,8 @@
       // Le 1er bout forcé peut dépasser le budget (overload), les suivants respectent le reste
       if (i > 0 && used + boutSec > budgetLeftSec) break;
       if (!opts.forced && used + boutSec > budgetLeftSec) break;
-      out.push(ALGO.makeDevoirChunk(card, i));
+      // Index absolu = faits + i (stable si on restaure la session plus tard)
+      out.push(ALGO.makeDevoirChunk(card, faits + i));
       used += boutSec;
     }
     return out;
