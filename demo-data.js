@@ -170,11 +170,11 @@ window.demoDataXP = (function() {
       { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter", tempsCible:20, priorite:2, statut:'actif', intervalle:4, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([7,8,7],[18,15,14]), dateCreation:_dateTime(-12) },
       { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
       { id:'Y-C9D', titre:"a breakthrough", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"a breakthrough", reponse:"une percée majeure", tempsCible:20, priorite:2, statut:'actif', intervalle:2, ease:2.2, repetitions:2, dateProchaineRevision:_today, historique:histo([6,7],[22,18]), dateCreation:_dateTime(-8) },
-      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:20, priorite:2, statut:'actif', intervalle:15, ease:2.65, repetitions:5, dateProchaineRevision:_shift(8), historique:histo([8,9,10,9,10],[20,18,15,13,12]), dateCreation:_dateTime(-20) },
-      // Devoir auto-découpé (champs découpage complets)
-      { id:'W-DMX', titre:"DM Réduction d'endomorphismes", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 4 exercices de réduction.", tempsCible:1800, importance:5, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(5), historique:[], _morceauxTotal:3, _morceauxFaits:1, _dureeTotaleMin:90, _tempsProposeMin:90, _tempsRestantMin:60, _sessionMinMin:25, dateCreation:_dateTime(-1) }
+      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:20, priorite:2, statut:'actif', intervalle:15, ease:2.65, repetitions:5, dateProchaineRevision:_shift(8), historique:histo([8,9,10,9,10],[20,18,15,13,12]), dateCreation:_dateTime(-20) }
     ],
-    devoirs: []
+    devoirs: [
+      { id:'W-DMX', titre:"DM Réduction d'endomorphismes", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 4 exercices de réduction.", tempsCible:1800, importance:5, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(5), historique:[], _morceauxTotal:3, _morceauxFaits:1, _dureeTotaleMin:90, _tempsProposeMin:90, _tempsRestantMin:60, _sessionMinMin:25, dateCreation:_dateTime(-1) }
+    ]
   };
 })();
 
