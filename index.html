@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260720m';
+  window.__BOOT_CACHE_V = '20260720n';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -289,10 +289,14 @@
     <div class="notes-hdr">
       <div>
         <h2>Suivi des Notes</h2>
-        <p class="notes-sub">Évolution des notes DS et Khôlles dans le temps. Ajoute une note sur un document DS / Khôlle pour la voir ici.</p>
+        <p class="notes-sub">Évolution des notes et rangs DS / Khôlles. Ajoute une note (et un rang) sur un document DS / Khôlle pour la voir ici.</p>
       </div>
     </div>
     <div class="filters notes-filters" id="notesFilters">
+      <div class="notes-metric-toggle" role="group" aria-label="Afficher notes ou rangs">
+        <button type="button" class="notes-metric-btn is-active" id="btnNotesMetricNote" data-metric="note">Notes</button>
+        <button type="button" class="notes-metric-btn" id="btnNotesMetricRang" data-metric="rang">Rangs</button>
+      </div>
       <select class="fi" id="fltNotesType" aria-label="Type d'épreuve">
         <option value="">DS + Khôlles</option>
         <option value="DS">DS uniquement</option>
@@ -630,8 +634,21 @@
       </div>
     </div>
     <div class="fg" id="fgNote" style="display:none; background:rgba(91,141,247,.1); padding:10px; border-radius:8px; border:1px solid var(--acc);">
-      <label style="color:var(--acc);">Note obtenue (Optionnel)</label>
-      <input type="number" id="fNote" placeholder="Ex: 14.5" min="0" max="20" step="0.5" style="border-color:var(--acc);">
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:110px;">
+          <label style="color:var(--acc);">Note /20</label>
+          <input type="number" id="fNote" placeholder="Ex: 14.5" min="0" max="20" step="0.5" style="border-color:var(--acc);">
+        </div>
+        <div style="flex:1; min-width:90px;">
+          <label style="color:var(--acc);">Rang</label>
+          <input type="number" id="fRang" placeholder="Ex: 5" min="1" max="500" step="1" style="border-color:var(--acc);">
+        </div>
+        <div style="flex:1; min-width:90px;">
+          <label style="color:var(--acc);">Sur (effectif)</label>
+          <input type="number" id="fEffectif" placeholder="Ex: 42" min="1" max="500" step="1" style="border-color:var(--acc);">
+        </div>
+      </div>
+      <p class="anki-mut" style="font-size:11px; margin:8px 0 0;">Optionnel — le rang s’affiche dans l’onglet Notes (bascule Notes / Rangs).</p>
     </div>
     
     <div class="fg"><label>Matière *</label><select id="fMat"></select></div>
