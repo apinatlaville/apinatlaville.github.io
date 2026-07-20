@@ -6,14 +6,14 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 5;
+  var UI_REV = 6;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
   var _wired = false;
   var _mf = null;
-  var _activeSection = 'freq';
-  var _activeSub = 'freq';
+  var _activeSection = 'maths';
+  var _activeSub = 'base';
   var _spaceMode = true; /* Espace clavier → \, dans l'éditeur / le code */
   var _snipFuse = null;
 
@@ -604,16 +604,18 @@
   ];
 
   /**
-   * Onglets principaux (peu) + sous-tris (catégories fines).
-   * Les ids de groups pointent vers SNIP_GROUPS.
+   * Familles (4 boutons) + sous-onglets = les 15 palettes, sans les empiler.
+   * Les « Fréquents » sont toujours en bandeau rapide (comme la barre du haut
+   * des éditeurs LaTeX classiques) — pas un 5ᵉ onglet.
    */
   var SNIP_SECTIONS = [
-    { id: 'freq', label: 'Fréquents', groups: ['freq'] },
     { id: 'maths', label: 'Maths', groups: ['base', 'analyse', 'algebre', 'proba', 'fonctions'] },
     { id: 'symboles', label: 'Symboles', groups: ['grec', 'accents', 'ops', 'relations', 'fleches'] },
     { id: 'structures', label: 'Structures', groups: ['ensembles', 'delim'] },
     { id: 'sciences', label: 'Sciences', groups: ['physique', 'chimie'] }
   ];
+
+  var QUICK_GROUP_ID = 'freq';
 
   function escHtml(s) {
     return String(s == null ? '' : s)
@@ -719,6 +721,9 @@
         if (!item.id) item.id = group.id + '-' + idx;
         item.groupId = group.id;
         item.groupLabel = group.label;
+        item._titleNorm = stripAccents(item.title || '');
+        item._labelNorm = stripAccents(item.label || '');
+        item._groupNorm = stripAccents(group.label || '');
         item._search = stripAccents(frKeywordsFor(item, group) + ' ' + (item.latex || ''));
       });
     });
@@ -800,12 +805,13 @@
   function getSnipFuse() {
     if (_snipFuse) return _snipFuse;
     if (typeof Fuse === 'undefined') return null;
+    /* Uniquement des champs sans accents : « integrale » trouve « Intégrale » */
     _snipFuse = new Fuse(allSnipsFlat(), {
       keys: [
-        { name: 'title', weight: 3 },
+        { name: '_titleNorm', weight: 3 },
         { name: '_search', weight: 2.5 },
-        { name: 'groupLabel', weight: 1.2 },
-        { name: 'label', weight: 1 }
+        { name: '_groupNorm', weight: 1.2 },
+        { name: '_labelNorm', weight: 1 }
       ],
       threshold: 0.4,
       ignoreLocation: true,
@@ -820,25 +826,34 @@
     var q = (query || '').trim();
     if (!q) return [];
     var qNorm = stripAccents(q);
-    if (qNorm.length < 2) return [];
+    if (qNorm.length < 1) return [];
     var budget = typoBudget(qNorm);
     var seen = Object.create(null);
     var out = [];
 
     function relevant(item) {
-      var titleN = stripAccents(item.title || '');
-      var groupN = stripAccents(item.groupLabel || '');
       var hay = item._search || '';
-      /* Mot-clé / titre exact (FR, sans accents) */
+      var titleN = item._titleNorm || stripAccents(item.title || '');
+      var groupN = item._groupNorm || stripAccents(item.groupLabel || '');
+      var labN = item._labelNorm || stripAccents(item.label || '');
+      /* Sous-chaîne sans accents : « algebre », « ete », « integrale »… */
+      if (
+        hay.indexOf(qNorm) !== -1 ||
+        titleN.indexOf(qNorm) !== -1 ||
+        labN.indexOf(qNorm) !== -1 ||
+        groupN.indexOf(qNorm) !== -1
+      ) {
+        return true;
+      }
+      if (qNorm.length < 2) return false;
       if (hasExactNeedle(hay, qNorm) || hasExactNeedle(titleN, qNorm) || hasExactNeedle(groupN, qNorm)) {
         return true;
       }
-      /* 1–2 fautes sur le titre ou la catégorie (pas sur les synonymes courts) */
       return wordsTypoMatch(titleN, qNorm, budget) || wordsTypoMatch(groupN, qNorm, budget);
     }
 
     var fuse = getSnipFuse();
-    var ranked = fuse ? fuse.search(qNorm) : null;
+    var ranked = fuse && qNorm.length >= 2 ? fuse.search(qNorm) : null;
     if (ranked) {
       ranked.forEach(function (r) {
         if (!relevant(r.item)) return;
@@ -1082,18 +1097,18 @@
     return SNIP_SECTIONS.map(function (section) {
       var active = section.id === _activeSection ? ' is-active' : '';
       return (
-        '<button type="button" class="latex-lab-cat' + active + '" role="tab" ' +
+        '<button type="button" class="latex-lab-family' + active + '" role="tab" ' +
           'aria-selected="' + (section.id === _activeSection ? 'true' : 'false') + '" ' +
           'data-section="' + escHtml(section.id) + '">' +
-          '<span class="latex-lab-cat-label">' + escHtml(section.label) + '</span>' +
-          '<span class="latex-lab-cat-count">' + sectionGroupCount(section) + '</span>' +
+          '<span class="latex-lab-family-label">' + escHtml(section.label) + '</span>' +
+          '<span class="latex-lab-family-count">' + sectionGroupCount(section) + '</span>' +
         '</button>'
       );
     }).join('');
   }
 
   function renderSubTabs(section) {
-    if (!section || section.groups.length <= 1) return '';
+    if (!section || !section.groups.length) return '';
     return section.groups.map(function (gid) {
       var group = getGroupById(gid);
       var active = gid === _activeSub ? ' is-active' : '';
@@ -1119,6 +1134,17 @@
     }).join('');
   }
 
+  function renderQuickBar() {
+    var group = getGroupById(QUICK_GROUP_ID);
+    if (!group) return '';
+    return (
+      '<div class="latex-lab-quick-row" role="toolbar" aria-label="Raccourcis fréquents">' +
+        '<span class="latex-lab-quick-label">Raccourcis</span>' +
+        '<div class="latex-lab-quick-snips">' + renderSnipButtons(group.items) + '</div>' +
+      '</div>'
+    );
+  }
+
   function ensureActiveSub(section) {
     if (!section) return;
     if (section.groups.indexOf(_activeSub) === -1) {
@@ -1132,11 +1158,12 @@
     var grid = document.getElementById('latexTestSnips');
     var title = document.getElementById('latexTestCatTitle');
     var hint = document.getElementById('latexTestPaletteHint');
+    var panel = document.getElementById('latexTestFamilyPanel');
     var q = query != null ? query : ((document.getElementById('latexTestSearch') || {}).value || '');
     q = (q || '').trim();
 
     if (q) {
-      if (tabs) tabs.querySelectorAll('.latex-lab-cat').forEach(function (btn) {
+      if (tabs) tabs.querySelectorAll('.latex-lab-family').forEach(function (btn) {
         btn.classList.remove('is-active');
         btn.setAttribute('aria-selected', 'false');
       });
@@ -1144,9 +1171,10 @@
         subs.innerHTML = '';
         subs.hidden = true;
       }
+      if (panel) panel.classList.add('is-searching');
       var hits = searchSnips(q);
       if (title) title.textContent = hits.length ? ('Résultats (' + hits.length + ')') : 'Aucun résultat';
-      if (hint) hint.textContent = 'Recherche FR · fautes tolérées';
+      if (hint) hint.textContent = 'Sans accents · fautes tolérées';
       if (grid) {
         grid.innerHTML = hits.length
           ? renderSnipButtons(hits)
@@ -1156,6 +1184,7 @@
       return;
     }
 
+    if (panel) panel.classList.remove('is-searching');
     var section = getSectionById(_activeSection);
     ensureActiveSub(section);
 
@@ -1185,14 +1214,10 @@
 
     var group = getGroupById(_activeSub);
     if (title) {
-      title.textContent = section.groups.length > 1
-        ? (section.label + ' · ' + group.label)
-        : group.label;
+      title.textContent = section.label + ' · ' + group.label;
     }
     if (hint) {
-      hint.textContent = section.groups.length > 1
-        ? 'Onglet + sous-tri'
-        : 'Symboles fréquents';
+      hint.textContent = 'Sous-onglet · ' + group.items.length + ' symboles';
     }
     if (grid) {
       grid.innerHTML = renderSnipButtons(group.items);
@@ -1267,7 +1292,7 @@
             '<h2 class="latex-lab-title"><span data-icon="flask-conical"></span> Labo LaTeX</h2>' +
             '<div class="latex-lab-head-actions">' +
               '<input type="search" id="latexTestSearch" class="latex-lab-search" ' +
-                'placeholder="Rechercher : fraction, intégrale, matrice…" ' +
+                'placeholder="Sans accents : integrale, algebre, fraction…" ' +
                 'autocomplete="off" spellcheck="true" lang="fr">' +
               '<button type="button" class="bs" id="latexTestCopy" title="Copier le code LaTeX seul">' +
                 '<span data-icon="copy"></span> Copier</button>' +
@@ -1307,13 +1332,16 @@
           '</div>' +
 
           '<section class="latex-lab-palette">' +
-            '<div class="latex-lab-palette-head">' +
-              '<span class="latex-lab-panel-label" id="latexTestCatTitle">Fréquents</span>' +
-              '<span class="anki-mut latex-lab-palette-hint" id="latexTestPaletteHint">Symboles fréquents</span>' +
+            '<div id="latexTestQuick" class="latex-lab-quick-wrap">' + renderQuickBar() + '</div>' +
+            '<div class="latex-lab-families" id="latexTestCats" role="tablist" aria-label="Familles de symboles"></div>' +
+            '<div class="latex-lab-family-panel" id="latexTestFamilyPanel">' +
+              '<div class="latex-lab-palette-head">' +
+                '<span class="latex-lab-panel-label" id="latexTestCatTitle">Maths · Bases</span>' +
+                '<span class="anki-mut latex-lab-palette-hint" id="latexTestPaletteHint">Sous-onglet</span>' +
+              '</div>' +
+              '<div class="latex-lab-subs" id="latexTestSubs" role="tablist" aria-label="Sous-catégories"></div>' +
+              '<div class="latex-lab-snip-grid" id="latexTestSnips" role="tabpanel"></div>' +
             '</div>' +
-            '<div class="latex-lab-cats" id="latexTestCats" role="tablist" aria-label="Familles de symboles"></div>' +
-            '<div class="latex-lab-subs" id="latexTestSubs" role="tablist" aria-label="Sous-catégories" hidden></div>' +
-            '<div class="latex-lab-snip-grid" id="latexTestSnips" role="tabpanel"></div>' +
           '</section>' +
         '</div>' +
 
@@ -1327,6 +1355,8 @@
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(root);
 
     refreshPalette('');
+    var quickWrap = document.getElementById('latexTestQuick');
+    if (quickWrap) wireSnipButtons(quickWrap);
 
     var searchEl = document.getElementById('latexTestSearch');
     if (searchEl) {
