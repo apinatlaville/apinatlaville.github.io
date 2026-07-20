@@ -17,6 +17,7 @@
     'cloud.js': true,
     'device-session.js': true,
     'data.js': true,
+    'profiles-io.js': true,
     'app.js': true
   };
 
@@ -246,6 +247,8 @@
       .then(function (rs) { track(rs); })
       .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js']); })
       .then(function (rs) { track(rs); })
+      .then(function () { return loadScript('profiles-io.js'); })
+      .then(function (r) { track([r]); })
       .then(function () {
         return loadParallel(['device-session.js', 'anki-algo.js', 'anki-algo-v2.js']);
       })

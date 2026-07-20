@@ -277,6 +277,9 @@ window.applySettings = function() {
   if (typeof window.renderAppNav === 'function') window.renderAppNav(window._activeTab || 'home');
   if (typeof window.syncNavSubMenu === 'function') window.syncNavSubMenu();
   if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
+  if (window.ProfilesIO && typeof window.ProfilesIO.renderSettingsBlock === 'function') {
+    window.ProfilesIO.renderSettingsBlock();
+  }
 
 };
 
@@ -1564,10 +1567,28 @@ function isFirestorePermissionDenied(err) {
   return /insufficient permissions|permission[\s_-]?denied|missing or insufficient|Accès Firestore refusé/i.test(msg);
 }
 
-/** Charge le document Firestore via l'UID Google (clé canonique), avec repli e-mail et migration. */
+/** Charge le document Firestore du profil actif (migration auto ancien blob racine). */
 async function resolveCloudUserDoc(user) {
   if (!user || !user.sub) {
     throw new Error('Identifiant Google (UID) manquant.');
+  }
+
+  // Chemin moderne : utilisateurs/{uid}/profiles/{profileId}
+  if (window.ProfilesIO && typeof window.ProfilesIO.resolveProfileCloudDoc === 'function') {
+    try {
+      const resolved = await window.ProfilesIO.resolveProfileCloudDoc(user);
+      return {
+        docRef: resolved.docRef,
+        data: resolved.data,
+        migrated: !!resolved.migrated,
+        storageKey: resolved.legacyRoot ? 'uid-legacy' : 'uid-profile',
+        profileId: resolved.profileId,
+        accountRef: resolved.accountRef
+      };
+    } catch (e) {
+      if (!isFirestorePermissionDenied(e)) throw e;
+      // repli ci-dessous
+    }
   }
 
   const uidRef = window.doc(window.db, 'utilisateurs', user.sub);
@@ -1639,17 +1660,31 @@ async function initApp(user) {
       console.log("🌸 Chargement des données locales...");
       if (window.bootMark) window.bootMark('initApp.local.read.start');
       let localData = null;
+      const profileId = (window.ProfilesIO && window.ProfilesIO.getActiveProfileId)
+        ? window.ProfilesIO.getActiveProfileId()
+        : 'default';
       try {
-        localData = typeof window.safeLocalGet === 'function'
-          ? window.safeLocalGet('backup_local_cours')
-          : localStorage.getItem('backup_local_cours');
+        if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+          const parsed = window.ProfilesIO.readLocalProfileData(profileId);
+          if (parsed) localData = JSON.stringify(parsed);
+        }
+        if (!localData) {
+          localData = typeof window.safeLocalGet === 'function'
+            ? window.safeLocalGet('backup_local_cours')
+            : localStorage.getItem('backup_local_cours');
+        }
         if (!localData) {
           localData = typeof window.safeLocalGet === 'function'
             ? window.safeLocalGet('mc_v28')
             : localStorage.getItem('mc_v28');
           if (localData) {
-            if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', localData);
-            else localStorage.setItem('backup_local_cours', localData);
+            if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+              window.ProfilesIO.writeLocalProfileData(profileId, localData);
+            } else if (typeof window.safeLocalSet === 'function') {
+              window.safeLocalSet('backup_local_cours', localData);
+            } else {
+              localStorage.setItem('backup_local_cours', localData);
+            }
           }
         }
       } catch (storageErr) {
@@ -1675,7 +1710,7 @@ async function initApp(user) {
       } else {
         window.D = null;
       }
-      if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
+      if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0, profileId: profileId });
       window.cloudConnected = false;
     } else {
       // Attendre Firebase avant de tester les modules (évite faux « Modules manquants »)
@@ -1688,14 +1723,19 @@ async function initApp(user) {
           ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () { return resolveCloudUserDoc(user); })
           : resolveCloudUserDoc(user));
         window.docRef = cloud.docRef;
-        if (cloud.data) {
+        window._accountDocRef = cloud.accountRef || null;
+        window._activeProfileId = cloud.profileId || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId());
+        if (cloud.data && cloud.data._deleted) {
+          window.D = null;
+          window.cloudConnected = true;
+        } else if (cloud.data) {
           window.D = cloud.data;
           window.cloudConnected = true;
-          console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ')');
+          console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ', profil ' + (window._activeProfileId || '?') + ')');
         } else {
           window.D = null;
           window.cloudConnected = true;
-          console.log('☁️ Nouveau compte (UID ' + user.sub + ')');
+          console.log('☁️ Nouveau compte / profil (UID ' + user.sub + ')');
         }
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
       } else {
@@ -1712,7 +1752,13 @@ async function initApp(user) {
     // Repli : ne pas écraser avec du vide si une sauvegarde locale existe
     if (!window.D) {
       try {
-        const backup = localStorage.getItem('backup_local_cours');
+        let backup = null;
+        if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+          const pid = window.ProfilesIO.getActiveProfileId();
+          const parsed = window.ProfilesIO.readLocalProfileData(pid);
+          if (parsed) backup = JSON.stringify(parsed);
+        }
+        if (!backup) backup = localStorage.getItem('backup_local_cours');
         if (backup) {
           window.D = JSON.parse(backup);
           console.warn('☁️ Cloud indisponible — reprise de la sauvegarde locale.');
@@ -1984,9 +2030,15 @@ window._saveImpl = async function() {
   }
 
   const payload = JSON.stringify(window.D);
-  const okLocal = typeof window.safeLocalSet === 'function'
-    ? window.safeLocalSet('backup_local_cours', payload)
-    : (function () { try { localStorage.setItem('backup_local_cours', payload); return true; } catch (e) { return false; } })();
+  let okLocal = false;
+  if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+    const pid = window.ProfilesIO.getActiveProfileId();
+    okLocal = !!window.ProfilesIO.writeLocalProfileData(pid, payload);
+  } else {
+    okLocal = typeof window.safeLocalSet === 'function'
+      ? window.safeLocalSet('backup_local_cours', payload)
+      : (function () { try { localStorage.setItem('backup_local_cours', payload); return true; } catch (e) { return false; } })();
+  }
   if (!okLocal) {
     if (typeof window.recordAppError === 'function') {
       window.recordAppError('Erreur sauvegarde: localStorage indisponible', 'app.js');

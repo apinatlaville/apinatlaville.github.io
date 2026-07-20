@@ -630,8 +630,11 @@
         }
         return window.setDoc(window.docRef, data).then(function () {
           window.D = data;
-          if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-          else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+          if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+            window.ProfilesIO.writeLocalProfileData(window.ProfilesIO.getActiveProfileId(), data);
+          } else if (typeof window.safeLocalSet === 'function') {
+            window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+          } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
           return data;
         });
       });
@@ -650,8 +653,11 @@
       var data = snap.data();
       if (!data) return;
       window.D = data;
-      if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-      else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+      if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+        window.ProfilesIO.writeLocalProfileData(window.ProfilesIO.getActiveProfileId(), data);
+      } else if (typeof window.safeLocalSet === 'function') {
+        window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+      } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
     }, function (err) { console.warn('DeviceSession data listen:', err); });
   }

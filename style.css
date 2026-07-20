@@ -4695,3 +4695,93 @@ body.nav-sidebar-left #paneLatexTest.on {
 .latex-lab math-field:focus-within {
   outline: none;
 }
+
+/* ── Profils / Import-Export (Paramètres) ── */
+.pio-settings-root { display: flex; flex-direction: column; gap: 14px; }
+.pio-card {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pio-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--txt);
+}
+.pio-card-sub {
+  font-size: 12px;
+  color: var(--mut);
+  margin: 0;
+  line-height: 1.4;
+}
+.pio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.pio-lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mut);
+  min-width: 5rem;
+}
+.pio-select, .pio-input {
+  flex: 1 1 140px;
+  min-width: 120px;
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  color: var(--txt);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.pio-file { font-size: 12px; color: var(--mut); max-width: 100%; }
+.pio-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+}
+.pio-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--txt);
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.pio-check small {
+  display: block;
+  color: var(--mut);
+  font-size: 11px;
+  margin-top: 2px;
+}
+.pio-check input { margin-top: 2px; accent-color: var(--acc, #5b9aff); }
+.pio-modes { flex-direction: column; align-items: stretch; }
+.pio-danger { border-color: color-mix(in oklab, var(--red) 45%, var(--bd)) !important; color: var(--red) !important; }
+.pio-report-wrap { margin-top: 4px; }
+.pio-report {
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  max-height: 220px;
+  overflow: auto;
+}
+.pio-report.is-ok { border-color: color-mix(in oklab, var(--grn, #50d890) 50%, var(--bd)); }
+.pio-report.is-err { border-color: color-mix(in oklab, var(--red) 50%, var(--bd)); }
+.pio-report-title { font-weight: 700; margin-bottom: 6px; }
+.pio-report-line { margin: 3px 0; color: var(--mut); }
+.pio-report-line.pio-err { color: var(--red); }
+.pio-report-line.pio-warn { color: var(--gold, #f0c060); }
+.pio-report-line.pio-skip { color: var(--mut); }
