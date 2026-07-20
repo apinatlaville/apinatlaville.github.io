@@ -611,6 +611,9 @@
     var retriesLeft = (_retries == null) ? 3 : _retries;
     return window.getDoc(window.docRef).then(function (snap) {
       var data = snap.exists() ? (snap.data() || {}) : (window.D ? JSON.parse(JSON.stringify(window.D)) : {});
+      if (data._account === true || data._deleted) {
+        return Promise.reject(new Error('Document profil invalide (index/supprimé)'));
+      }
       if (!data.meta) data.meta = {};
       var baseRev = Number(data.meta.revision) || 0;
       mutator(data);
@@ -655,7 +658,7 @@
       if (!snap.exists()) return;
       if (state.effectiveRole !== CONFIG.ROLES.SECONDARY) return;
       var data = snap.data();
-      if (!data) return;
+      if (!data || data._account === true || data._deleted) return;
       window.D = data;
       var pid = window._activeProfileId
         || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())

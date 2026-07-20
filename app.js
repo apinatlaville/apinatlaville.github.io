@@ -1714,6 +1714,10 @@ async function initApp(user) {
       const profileId = (window.ProfilesIO && window.ProfilesIO.getActiveProfileId)
         ? window.ProfilesIO.getActiveProfileId()
         : 'default';
+      window._activeProfileId = profileId;
+      if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
+        window.ProfilesIO.pinSessionProfileId(profileId);
+      }
       try {
         if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
           const parsed = window.ProfilesIO.readLocalProfileData(profileId);

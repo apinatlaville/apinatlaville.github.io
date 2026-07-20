@@ -371,7 +371,8 @@
     var meta = ensureLocalRegistry();
     var byId = {};
     meta.profiles.forEach(function (p) { byId[p.id] = p; });
-    accountData.profiles.forEach(function (cp) {
+    (accountData.profiles || []).forEach(function (cp) {
+      if (!cp || !cp.id) return;
       if (byId[cp.id]) {
         byId[cp.id].name = cp.name || byId[cp.id].name;
         byId[cp.id].updatedAt = cp.updatedAt || byId[cp.id].updatedAt;
@@ -387,8 +388,17 @@
     writeMetaLocal(meta);
   }
 
-  async function persistAccountIndexCloud(user, meta) {
+  /**
+   * Écrit l’index compte cloud.
+   * @param opts.removedIds — profils à retirer explicitement (ex. après delete)
+   */
+  async function persistAccountIndexCloud(user, meta, opts) {
     if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return;
+    opts = opts || {};
+    var removedIds = opts.removedIds || [];
+    var removedSet = Object.create(null);
+    removedIds.forEach(function (id) { if (id) removedSet[id] = true; });
+
     var ref = accountDocRef(user.sub);
     var remoteProfiles = [];
     var remoteActive = null;
@@ -401,7 +411,6 @@
             remoteProfiles = remote.profiles || [];
             remoteActive = remote.activeProfile || null;
           } else if (isLegacyDataDoc(remote)) {
-            // Ne jamais écraser un blob legacy encore présent
             console.warn('[ProfilesIO] Index non écrit : racine encore en format legacy');
             return;
           }
@@ -413,7 +422,8 @@
 
     var byId = Object.create(null);
     remoteProfiles.forEach(function (p) {
-      if (p && p.id) byId[p.id] = {
+      if (!p || !p.id || removedSet[p.id]) return;
+      byId[p.id] = {
         id: p.id,
         name: p.name || p.id,
         createdAt: p.createdAt || nowIso(),
@@ -421,7 +431,7 @@
       };
     });
     (meta.profiles || []).forEach(function (p) {
-      if (!p || !p.id) return;
+      if (!p || !p.id || removedSet[p.id]) return;
       if (byId[p.id]) {
         byId[p.id].name = p.name || byId[p.id].name;
         byId[p.id].updatedAt = p.updatedAt || nowIso();
@@ -441,7 +451,7 @@
       activeProfile: meta.activeProfile || remoteActive || DEFAULT_ID,
       profiles: Object.keys(byId).map(function (k) { return byId[k]; })
     };
-    if (!payload.profiles.some(function (p) { return p.id === payload.activeProfile; })) {
+    if (removedSet[payload.activeProfile] || !payload.profiles.some(function (p) { return p.id === payload.activeProfile; })) {
       payload.activeProfile = payload.profiles[0] ? payload.profiles[0].id : DEFAULT_ID;
     }
     try {
@@ -896,7 +906,11 @@
         seed.settings.userName = window.D.settings.userName;
       }
     }
-    writeLocalProfileData(id, seed);
+    if (!writeLocalProfileData(id, seed)) {
+      meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
+      writeMetaLocal(meta);
+      throw new Error('Impossible de créer le profil (stockage navigateur plein ou refusé).');
+    }
 
     var user = window.currentUser;
     await persistAccountIndexCloud(user, meta);
@@ -924,13 +938,14 @@
   async function deleteProfile(id) {
     var meta = ensureLocalRegistry();
     if (meta.profiles.length <= 1) throw new Error('Impossible de supprimer le dernier profil.');
-    if (id === meta.activeProfile) throw new Error('Bascule sur un autre profil avant de supprimer celui-ci.');
+    if (id === getSessionProfileId() || id === meta.activeProfile) {
+      throw new Error('Bascule sur un autre profil avant de supprimer celui-ci.');
+    }
     meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
     writeMetaLocal(meta);
     lsRemove(localDataKey(id));
-    await persistAccountIndexCloud(window.currentUser, meta);
+    await persistAccountIndexCloud(window.currentUser, meta, { removedIds: [id] });
     if (!window.isLocalMode && window.currentUser && window.currentUser.sub && window.setDoc) {
-      // Firestore n’a pas deleteDoc exposé partout — on écrase avec un marqueur vide si besoin
       try {
         if (typeof window.deleteDoc === 'function') {
           await window.deleteDoc(profileDocRef(window.currentUser.sub, id));
@@ -942,14 +957,11 @@
   }
 
   async function switchProfile(id) {
-    if (id === getSessionProfileId() || id === getActiveProfileId()) {
-      if (id === getSessionProfileId()) return;
-    }
+    if (id === getSessionProfileId()) return;
     var meta = ensureLocalRegistry();
     if (!meta.profiles.some(function (p) { return p.id === id; })) {
       throw new Error('Profil inconnu');
     }
-    // Sauvegarder le profil courant avant bascule — refuser si échec
     if (typeof window.save === 'function' && window.D) {
       try {
         await window.save();
@@ -1088,7 +1100,9 @@
         var sel = document.getElementById('pioActiveSelect');
         if (!sel) return;
         var id = sel.value;
-        if (id === getActiveProfileId()) {
+        if (id === getSessionProfileId()) {
+          // Réaligner le LS si désync multi-onglets
+          if (id !== getActiveProfileId()) setActiveProfileId(id);
           if (typeof window.showToast === 'function') window.showToast('Déjà sur ce profil.');
           return;
         }
@@ -1150,7 +1164,7 @@
         var sel = document.getElementById('pioActiveSelect');
         var id = sel ? sel.value : null;
         if (!id) return;
-        if (id === getActiveProfileId()) {
+        if (id === getSessionProfileId()) {
           alert('Tu ne peux pas supprimer le profil actif. Bascule d’abord vers un autre profil.');
           return;
         }
