@@ -9,14 +9,32 @@ window.waitForFirebase = function(maxMs = 20000) {
   if (window.bootMark) window.bootMark('firebase.wait.start', { maxMs: maxMs });
   return new Promise((resolve, reject) => {
     const start = Date.now();
+    let settled = false;
+    function done(ok, value, via) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (ok) {
+        if (window.bootMark) window.bootMark('firebase.wait.done', { ms: Date.now() - start, via: via || undefined });
+        resolve(value);
+      } else {
+        if (window.bootMark) window.bootMark('firebase.wait.error', { ms: Date.now() - start, error: value && value.message });
+        reject(value);
+      }
+    }
+    const timer = setTimeout(function () {
+      if (window.bootMark) window.bootMark('firebase.wait.timeout', { ms: maxMs });
+      done(false, new Error('Firebase non disponible après ' + maxMs + 'ms'));
+    }, maxMs);
+
     function tick() {
+      if (settled) return;
       if (window.firebaseReady) {
+        // Race obligatoire : authStateReady() peut rester pendu sur mauvaise connexion
         window.firebaseReady.then(function (r) {
-          if (window.bootMark) window.bootMark('firebase.wait.done', { ms: Date.now() - start });
-          resolve(r);
+          done(true, r);
         }).catch(function (e) {
-          if (window.bootMark) window.bootMark('firebase.wait.error', { ms: Date.now() - start, error: e.message });
-          reject(e);
+          done(false, e);
         });
         return;
       }
@@ -25,17 +43,10 @@ window.waitForFirebase = function(maxMs = 20000) {
           ? window.auth.authStateReady()
           : Promise.resolve();
         ready.then(function (r) {
-          if (window.bootMark) window.bootMark('firebase.wait.done', { ms: Date.now() - start, via: 'direct' });
-          resolve(r);
+          done(true, r, 'direct');
         }).catch(function (e) {
-          if (window.bootMark) window.bootMark('firebase.wait.error', { ms: Date.now() - start, error: e.message });
-          reject(e);
+          done(false, e);
         });
-        return;
-      }
-      if (Date.now() - start > maxMs) {
-        if (window.bootMark) window.bootMark('firebase.wait.timeout', { ms: maxMs });
-        reject(new Error('Firebase non disponible après ' + maxMs + 'ms'));
         return;
       }
       setTimeout(tick, 50);
@@ -43,6 +54,15 @@ window.waitForFirebase = function(maxMs = 20000) {
     tick();
   });
 };
+
+/** true si l'écran de pré-accueil / login est encore visible */
+function isLoginOverlayVisible() {
+  if (document.body.classList.contains('not-logged-in')) return true;
+  if (document.documentElement.classList.contains('pre-login')) return true;
+  const loginOverlay = document.getElementById('loginOverlay');
+  if (!loginOverlay) return false;
+  return loginOverlay.style.display !== 'none';
+}
 
 function userPayload(user) {
   return {
@@ -138,7 +158,17 @@ window.addEventListener('app-js-ready', function() {
 });
 
 function handleAuthenticatedUser(user) {
-  if (window.isLocalMode || window.appLaunched) return;
+  if (window.isLocalMode) return;
+  // Récupération : app déjà lancée mais overlay login encore visible
+  // (ex. timer 12s a réaffiché le login pendant un initApp lent)
+  if (window.appLaunched) {
+    if (isLoginOverlayVisible()) {
+      console.warn('[Auth] app déjà lancée mais login encore visible — enterAppUi');
+      if (window.bootMark) window.bootMark('auth.recover.overlayWhileLaunched');
+      enterAppUi();
+    }
+    return;
+  }
   const payload = userPayload(user);
   window.currentUser = payload;
   enterAppUi();
@@ -151,15 +181,60 @@ function handleNoUser() {
   showLoginUi();
 }
 
+function setGoogleAuthBusy(busy) {
+  const slot = document.getElementById('gsiButtonSlot');
+  if (!slot) return;
+  if (busy) {
+    slot.setAttribute('aria-busy', 'true');
+    slot.classList.add('gsi-busy');
+    if (!document.getElementById('gsiAuthStatus')) {
+      const status = document.createElement('p');
+      status.id = 'gsiAuthStatus';
+      status.className = 'login-subtitle';
+      status.style.marginTop = '12px';
+      status.textContent = 'Connexion en cours…';
+      slot.parentNode && slot.parentNode.appendChild(status);
+    }
+  } else {
+    slot.removeAttribute('aria-busy');
+    slot.classList.remove('gsi-busy');
+    const status = document.getElementById('gsiAuthStatus');
+    if (status) status.remove();
+  }
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise(function (_, reject) {
+      setTimeout(function () {
+        reject(new Error((label || 'Opération') + ' trop longue (' + ms + 'ms)'));
+      }, ms);
+    })
+  ]);
+}
+
 // 1️⃣ FONCTION DÉCLENCHÉE PAR GOOGLE
 window.handleCredentialResponse = async function(response) {
   if (window.bootMark) window.bootMark('auth.google.start');
   console.log("✅ Authentification Google réussie, liaison Firebase Auth...");
 
+  // Si déjà dans l'app mais bloqué sur le pré-accueil → sortir sans re-auth
+  if (window.appLaunched && isLoginOverlayVisible()) {
+    if (window.bootMark) window.bootMark('auth.google.recover.alreadyLaunched');
+    enterAppUi();
+    return;
+  }
+
+  setGoogleAuthBusy(true);
   try {
-    await window.waitForFirebase();
+    await window.waitForFirebase(20000);
     const credential = window.GoogleAuthProvider.credential(response.credential);
-    const userCredential = await window.signInWithCredential(window.auth, credential);
+    const userCredential = await withTimeout(
+      window.signInWithCredential(window.auth, credential),
+      20000,
+      'Connexion Firebase'
+    );
 
     if (typeof window.safeLocalRemove === 'function') window.safeLocalRemove('active_mode');
     else try { localStorage.removeItem('active_mode'); } catch (e) {}
@@ -168,14 +243,18 @@ window.handleCredentialResponse = async function(response) {
       if (window.bootMark) window.bootMark('auth.google.ok', { email: userCredential.user.email });
       handleAuthenticatedUser(userCredential.user);
     }
+    setGoogleAuthBusy(false);
   } catch (authError) {
     if (window.bootMark) window.bootMark('auth.google.error', { error: authError.message });
     console.error("❌ Échec de la liaison Firebase Auth:", authError);
+    setGoogleAuthBusy(false);
     const M = window.APP_MSG || {};
     const msg = (M.AUTH_FIREBASE || "Erreur d'authentification Firebase") + ' : ' + authError.message;
     if (typeof window.sysAlert === 'function') window.sysAlert(window.escHtml(msg), M.ERROR || 'Erreur');
     else if (typeof window.showToast === 'function') window.showToast(msg);
     else alert(msg);
+    // Réafficher le login pour réessayer
+    if (!window.appLaunched) showLoginUi();
   }
 };
 

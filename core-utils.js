@@ -235,9 +235,9 @@
 
   /** Débloque la page : retire auth-pending + splash */
   window.unlockPage = function () {
+    document.body.classList.remove('boot-active', 'auth-pending');
     if (bootDismissed) return;
     bootDismissed = true;
-    document.body.classList.remove('boot-active', 'auth-pending');
     var splash = splashEl();
     if (!splash) return;
     splash.classList.add('splash-out');
@@ -252,6 +252,15 @@
 
   /** Écran de connexion si le boot reste bloqué */
   window.forceLoginScreen = function () {
+    // Si l'auth a déjà lancé l'app (initApp lent), ne jamais réafficher le login :
+    // sinon l'utilisateur reclique Google et handleAuthenticatedUser no-op (appLaunched).
+    if (window.appLaunched) {
+      if (window.bootMark) window.bootMark('boot.forceLoginScreen.skipped.appLaunched');
+      console.warn('[Auth] forceLoginScreen ignoré — app déjà lancée');
+      if (typeof window.enterApp === 'function') window.enterApp();
+      else window.unlockPage();
+      return;
+    }
     if (window.bootMark) window.bootMark('boot.forceLoginScreen');
     window.unlockPage();
     document.body.classList.add('not-logged-in');
@@ -264,11 +273,18 @@
   /**
    * Secours boot (délai unique) : si l'app n'est pas prête après 12 s
    * et que l'écran d'auth est encore masqué, afficher la connexion.
+   * Ne pas forcer le login si l'utilisateur est déjà authentifié (appLaunched)
+   * — typiquement initApp / Firestore lent sur mauvaise connexion.
    */
   setTimeout(function () {
-    if (!window.appReady && document.body.classList.contains('auth-pending')) {
-      if (window.bootMark) window.bootMark('boot.timeout12s.forceLogin');
-      window.forceLoginScreen();
+    if (window.appReady) return;
+    if (!document.body.classList.contains('auth-pending')) return;
+    if (window.appLaunched) {
+      if (window.bootMark) window.bootMark('boot.timeout12s.appLaunched.keepWaiting');
+      console.warn('[Auth] Timeout 12s — app lancée, init encore en cours (pas de retour login)');
+      return;
     }
+    if (window.bootMark) window.bootMark('boot.timeout12s.forceLogin');
+    window.forceLoginScreen();
   }, 12000);
 })();

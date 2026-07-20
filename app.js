@@ -1763,7 +1763,9 @@ async function initApp(user) {
     window._pendingTabReset = false;
     window.switchTab(pending, reset);
   }
-  if (typeof window.unlockPage === 'function') window.unlockPage();
+  // Toujours sortir du pré-accueil (même si unlockPage déjà appelé par le timer 12s)
+  if (typeof window.enterApp === 'function') window.enterApp();
+  else if (typeof window.unlockPage === 'function') window.unlockPage();
   else if (typeof window.dismissSplash === 'function') window.dismissSplash();
 
   if (localDataCorrupt) {

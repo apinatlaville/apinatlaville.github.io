@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260719j';
+  window.__BOOT_CACHE_V = '20260720a';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -776,7 +776,17 @@
       window.onAuthStateChanged = onAuthStateChanged;
 
       if (window.bootMark) window.bootMark('firebase.authStateReady.start');
-      await auth.authStateReady();
+      // Timeout : authStateReady peut rester pendu sur réseau lent / IndexedDB bloqué
+      await Promise.race([
+        auth.authStateReady(),
+        new Promise(function (resolve) {
+          setTimeout(function () {
+            if (window.bootMark) window.bootMark('firebase.authStateReady.timeout');
+            console.warn('[Auth] authStateReady timeout 8s — poursuite sans attendre');
+            resolve();
+          }, 8000);
+        })
+      ]);
       if (window.bootMark) window.bootMark('firebase.authStateReady.done');
       console.log("Firebase & Firestore & Auth sont initialisés.");
       if (window.bootMark) window.bootMark('firebase.init.done');
