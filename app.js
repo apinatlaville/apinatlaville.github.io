@@ -352,11 +352,22 @@ window.ensureDemoData = function() {
 };
 
 window.resetData = function() {
-  window.sysConfirm(window.iconLabel('alert-triangle', 'ATTENTION !') + "<br><br>Cette action va TOUT effacer pour repartir de ZÉRO (app vide).<br><br>Es-tu sûr ?", async () => {
-    window.D = JSON.parse(JSON.stringify(window.emptyData)); 
-    await window.save(); 
-    location.reload();
-  }, "Réinitialisation Totale");
+  const pid = window._activeProfileId
+    || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+    || 'ce profil';
+  const pname = (window.ProfilesIO && window.ProfilesIO.getProfileMeta && (window.ProfilesIO.getProfileMeta(pid) || {}).name) || pid;
+  window.sysConfirm(
+    window.iconLabel('alert-triangle', 'ATTENTION !') +
+    '<br><br>Cette action vide <b>uniquement le profil actif</b> (« ' +
+    (typeof window.escHtml === 'function' ? window.escHtml(pname) : pname) +
+    ' »).<br>Les autres profils et tes exports JSON ne sont pas touchés.<br><br>Es-tu sûr ?',
+    async () => {
+      window.D = JSON.parse(JSON.stringify(window.emptyData));
+      await window.save();
+      location.reload();
+    },
+    'Réinitialisation du profil'
+  );
 };
 
 window.formatTime = function(s) {
@@ -1577,17 +1588,49 @@ async function resolveCloudUserDoc(user) {
   if (window.ProfilesIO && typeof window.ProfilesIO.resolveProfileCloudDoc === 'function') {
     try {
       const resolved = await window.ProfilesIO.resolveProfileCloudDoc(user);
+      // Jamais charger un index compte comme données app
+      let data = resolved.data;
+      if (data && (data._account === true || (window.ProfilesIO.isAccountIndex && window.ProfilesIO.isAccountIndex(data)))) {
+        console.error('[Auth] Index compte reçu comme payload — ignoré');
+        data = null;
+      }
+      if (data && data._deleted) data = null;
+      if (window.ProfilesIO.pinSessionProfileId) {
+        window.ProfilesIO.pinSessionProfileId(resolved.profileId);
+      }
       return {
         docRef: resolved.docRef,
-        data: resolved.data,
+        data: data,
         migrated: !!resolved.migrated,
         storageKey: resolved.legacyRoot ? 'uid-legacy' : 'uid-profile',
         profileId: resolved.profileId,
-        accountRef: resolved.accountRef
+        accountRef: resolved.accountRef,
+        legacyRoot: !!resolved.legacyRoot
       };
     } catch (e) {
+      // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
+      console.warn('[Auth] resolveProfileCloudDoc échec — repli local profil:', e && e.message);
+      let localData = null;
+      if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+        const pid = window.ProfilesIO.getSessionProfileId
+          ? window.ProfilesIO.getSessionProfileId()
+          : window.ProfilesIO.getActiveProfileId();
+        localData = window.ProfilesIO.readLocalProfileData(pid);
+        if (localData && localData._account) localData = null;
+      }
+      if (localData) {
+        return {
+          docRef: null,
+          data: localData,
+          migrated: false,
+          storageKey: 'local-fallback',
+          profileId: window._activeProfileId || 'default',
+          accountRef: null,
+          localOnly: true
+        };
+      }
       if (!isFirestorePermissionDenied(e)) throw e;
-      // repli ci-dessous
+      throw e;
     }
   }
 
@@ -1603,7 +1646,12 @@ async function resolveCloudUserDoc(user) {
   }
 
   if (uidSnap && uidSnap.exists()) {
-    return { docRef: uidRef, data: uidSnap.data(), migrated: false, storageKey: 'uid' };
+    const raw = uidSnap.data();
+    // Si ProfilesIO absent et racine = index, ne pas charger comme D
+    if (raw && raw._account === true) {
+      return { docRef: uidRef, data: null, migrated: false, storageKey: 'uid-index-only' };
+    }
+    return { docRef: uidRef, data: raw, migrated: false, storageKey: 'uid' };
   }
 
   const tryLegacyEmail = async function () {
@@ -1615,6 +1663,9 @@ async function resolveCloudUserDoc(user) {
         return { docRef: legacyRef, data: null, migrated: false, storageKey: 'email' };
       }
       const data = legacySnap.data();
+      if (data && data._account === true) {
+        return { docRef: legacyRef, data: null, migrated: false, storageKey: 'email-index' };
+      }
       if (!uidDenied && window.setDoc) {
         try {
           await window.setDoc(uidRef, data);
@@ -1725,16 +1776,27 @@ async function initApp(user) {
         window.docRef = cloud.docRef;
         window._accountDocRef = cloud.accountRef || null;
         window._activeProfileId = cloud.profileId || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId());
+        if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
+          window.ProfilesIO.pinSessionProfileId(window._activeProfileId);
+        }
+        if (cloud.localOnly) {
+          window.cloudConnected = false;
+          console.warn('☁️ Repli local profil (cloud indisponible / structure).');
+        }
         if (cloud.data && cloud.data._deleted) {
           window.D = null;
-          window.cloudConnected = true;
+          window.cloudConnected = !cloud.localOnly;
+        } else if (cloud.data && cloud.data._account === true) {
+          console.error('☁️ Index compte refusé comme données app');
+          window.D = null;
+          window.cloudConnected = !cloud.localOnly;
         } else if (cloud.data) {
           window.D = cloud.data;
-          window.cloudConnected = true;
+          window.cloudConnected = !cloud.localOnly;
           console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ', profil ' + (window._activeProfileId || '?') + ')');
         } else {
           window.D = null;
-          window.cloudConnected = true;
+          window.cloudConnected = !cloud.localOnly;
           console.log('☁️ Nouveau compte / profil (UID ' + user.sub + ')');
         }
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
@@ -1754,11 +1816,21 @@ async function initApp(user) {
       try {
         let backup = null;
         if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
-          const pid = window.ProfilesIO.getActiveProfileId();
+          const pid = window.ProfilesIO.getSessionProfileId
+            ? window.ProfilesIO.getSessionProfileId()
+            : window.ProfilesIO.getActiveProfileId();
           const parsed = window.ProfilesIO.readLocalProfileData(pid);
-          if (parsed) backup = JSON.stringify(parsed);
+          if (parsed && !parsed._account) backup = JSON.stringify(parsed);
         }
-        if (!backup) backup = localStorage.getItem('backup_local_cours');
+        if (!backup) {
+          const raw = localStorage.getItem('backup_local_cours');
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && !parsed._account) backup = raw;
+            } catch (_) { /* ignore */ }
+          }
+        }
         if (backup) {
           window.D = JSON.parse(backup);
           console.warn('☁️ Cloud indisponible — reprise de la sauvegarde locale.');
@@ -1775,7 +1847,17 @@ async function initApp(user) {
   }
 
   if (localDataCorrupt) window._persistDisabled = true;
+  if (window.D && window.D._account === true) {
+    console.error('[initApp] window.D était un index compte — reset emptyData');
+    window.D = null;
+  }
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
+  if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
+    window.ProfilesIO.pinSessionProfileId(
+      window._activeProfileId || window.ProfilesIO.getActiveProfileId()
+    );
+    window._activeProfileId = window.ProfilesIO.getSessionProfileId();
+  }
   if(!window.D.cours) window.D.cours = [];
   if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if(!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
@@ -1995,6 +2077,15 @@ window._saveImpl = async function() {
 
   const M = window.APP_MSG || {};
 
+  // Garde-fou : ne jamais persister un index compte
+  if (window.D._account === true) {
+    console.error('[save] Refus : window.D est un index compte');
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Sauvegarde refusée : données corrompues (index compte)', 'app.js');
+    }
+    throw new Error('Données corrompues (index compte) — sauvegarde refusée');
+  }
+
   if (window._persistDisabled) {
     if (!window._persistDisabledAlerted) {
       window._persistDisabledAlerted = true;
@@ -2031,9 +2122,13 @@ window._saveImpl = async function() {
 
   const payload = JSON.stringify(window.D);
   let okLocal = false;
+  // Toujours le profil épinglé de CETTE session (pas le localStorage live multi-onglets)
+  const sessionPid = window._activeProfileId
+    || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+    || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
+    || 'default';
   if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-    const pid = window.ProfilesIO.getActiveProfileId();
-    okLocal = !!window.ProfilesIO.writeLocalProfileData(pid, payload);
+    okLocal = !!window.ProfilesIO.writeLocalProfileData(sessionPid, payload);
   } else {
     okLocal = typeof window.safeLocalSet === 'function'
       ? window.safeLocalSet('backup_local_cours', payload)

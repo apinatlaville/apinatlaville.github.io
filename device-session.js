@@ -630,8 +630,12 @@
         }
         return window.setDoc(window.docRef, data).then(function () {
           window.D = data;
+          var pid = window._activeProfileId
+            || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+            || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
+            || 'default';
           if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-            window.ProfilesIO.writeLocalProfileData(window.ProfilesIO.getActiveProfileId(), data);
+            window.ProfilesIO.writeLocalProfileData(pid, data);
           } else if (typeof window.safeLocalSet === 'function') {
             window.safeLocalSet('backup_local_cours', JSON.stringify(data));
           } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
@@ -653,8 +657,12 @@
       var data = snap.data();
       if (!data) return;
       window.D = data;
+      var pid = window._activeProfileId
+        || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+        || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
+        || 'default';
       if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-        window.ProfilesIO.writeLocalProfileData(window.ProfilesIO.getActiveProfileId(), data);
+        window.ProfilesIO.writeLocalProfileData(pid, data);
       } else if (typeof window.safeLocalSet === 'function') {
         window.safeLocalSet('backup_local_cours', JSON.stringify(data));
       } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}

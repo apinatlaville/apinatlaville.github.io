@@ -81,12 +81,37 @@
   function isLegacyDataDoc(data) {
     if (!data || typeof data !== 'object') return false;
     if (data._account === true) return false;
+    if (data._deleted === true && !Array.isArray(data.cours) && !Array.isArray(data.exercices)) return false;
     return Array.isArray(data.cours) || Array.isArray(data.exercices)
-      || Array.isArray(data.matieres) || Array.isArray(data.classeurs);
+      || Array.isArray(data.matieres) || Array.isArray(data.classeurs)
+      || (data.settings != null && typeof data.settings === 'object' && !Array.isArray(data.settings));
   }
 
   function isAccountIndex(data) {
     return !!(data && data._account === true && Array.isArray(data.profiles));
+  }
+
+  /** true si l'objet ressemble à des données app (pas un index compte) */
+  function isProfilePayload(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (data._account === true) return false;
+    if (data._deleted === true && !isLegacyDataDoc(data)) return false;
+    return isLegacyDataDoc(data)
+      || Array.isArray(data.cours)
+      || Array.isArray(data.exercices)
+      || Array.isArray(data.devoirs)
+      || (data.settings && typeof data.settings === 'object');
+  }
+
+  /** Profil épinglé pour cet onglet (évite corruption multi-onglets) */
+  function getSessionProfileId() {
+    if (window._activeProfileId) return window._activeProfileId;
+    return getActiveProfileId();
+  }
+
+  function pinSessionProfileId(id) {
+    window._activeProfileId = id || getActiveProfileId();
+    return window._activeProfileId;
   }
 
   function readMetaLocal() {
@@ -156,21 +181,51 @@
       raw = lsGet(LEGACY_BACKUP) || lsGet(LEGACY_MC);
     }
     if (!raw) return null;
-    try { return JSON.parse(raw); } catch (e) { return null; }
+    try {
+      var parsed = JSON.parse(raw);
+      if (parsed && parsed._account === true) {
+        console.warn('[ProfilesIO] Ignoré sauvegarde locale corrompue (index compte) pour', profileId);
+        return null;
+      }
+      return parsed;
+    } catch (e) { return null; }
   }
 
   function writeLocalProfileData(profileId, data) {
+    var obj = data;
+    if (typeof data === 'string') {
+      try { obj = JSON.parse(data); } catch (e) {
+        console.error('[ProfilesIO] writeLocal: JSON invalide');
+        return false;
+      }
+    }
+    if (obj && obj._account === true) {
+      console.error('[ProfilesIO] Refus d’écrire un index compte comme données de profil');
+      return false;
+    }
     var payload = typeof data === 'string' ? data : JSON.stringify(data);
     var ok = lsSet(localDataKey(profileId), payload);
-    if (profileId === getActiveProfileId()) {
-      lsSet(LEGACY_BACKUP, payload);
+    if (!ok) {
+      console.error('[ProfilesIO] Échec localStorage pour', profileId);
+      return false;
     }
-    var meta = ensureLocalRegistry();
-    meta.profiles.forEach(function (p) {
-      if (p.id === profileId) p.updatedAt = nowIso();
-    });
-    writeMetaLocal(meta);
-    return ok;
+    // Miroir legacy uniquement pour le profil de CETTE session (pas getActiveProfileId live)
+    if (profileId === getSessionProfileId()) {
+      var okMirror = lsSet(LEGACY_BACKUP, payload);
+      if (!okMirror) {
+        console.warn('[ProfilesIO] Miroir backup_local_cours impossible (quota ?)');
+      }
+    }
+    try {
+      var meta = ensureLocalRegistry();
+      meta.profiles.forEach(function (p) {
+        if (p.id === profileId) p.updatedAt = nowIso();
+      });
+      writeMetaLocal(meta);
+    } catch (e) {
+      console.warn('[ProfilesIO] meta non mise à jour:', e);
+    }
+    return true;
   }
 
   function accountDocRef(uid) {
@@ -207,8 +262,8 @@
         accountData = index;
         console.log('☁️ Migration compte → profils/default effectuée.');
       } catch (e) {
-        // Si écriture sous-chemin échoue, continuer en lecture seule sur la racine
         console.warn('☁️ Migration profils impossible, repli racine legacy:', e);
+        pinSessionProfileId(DEFAULT_ID);
         return {
           docRef: accountRef,
           accountRef: accountRef,
@@ -220,8 +275,8 @@
       }
     }
 
-    if (!accountData || !isAccountIndex(accountData)) {
-      // Nouveau compte
+    if (!accountSnap.exists() || accountData == null) {
+      // Vrai nouveau compte uniquement
       var fresh = emptyAccountIndex();
       ensureLocalRegistry();
       var localActive = getActiveProfileId();
@@ -236,6 +291,13 @@
         if (window.setDoc) await window.setDoc(accountRef, fresh);
       } catch (e) { console.warn('Index compte non écrit:', e); }
       accountData = fresh;
+    } else if (!isAccountIndex(accountData)) {
+      // Document racine inconnu : NE PAS écraser
+      console.error('[ProfilesIO] Document compte non reconnu — pas d’écrasement.', accountData && Object.keys(accountData));
+      throw new Error(
+        'Structure cloud inattendue pour ce compte. Aucune donnée n’a été modifiée. ' +
+        'Recharge ou contacte le support avant de continuer.'
+      );
     }
 
     // Sync local registry names from cloud when possible
@@ -244,26 +306,54 @@
     var profileId = getActiveProfileId();
     if (!accountData.profiles.some(function (p) { return p.id === profileId; })) {
       profileId = accountData.activeProfile || DEFAULT_ID;
+      if (!accountData.profiles.some(function (p) { return p.id === profileId; })) {
+        profileId = accountData.profiles[0] ? accountData.profiles[0].id : DEFAULT_ID;
+      }
       setActiveProfileId(profileId);
     }
+    pinSessionProfileId(profileId);
 
     var pref = profileDocRef(uid, profileId);
     var snap = await window.getDoc(pref);
     if (snap.exists()) {
+      var cloudPayload = snap.data();
+      if (cloudPayload && cloudPayload._deleted) {
+        return {
+          docRef: pref,
+          accountRef: accountRef,
+          data: null,
+          profileId: profileId,
+          legacyRoot: false,
+          migrated: false
+        };
+      }
+      if (cloudPayload && cloudPayload._account === true) {
+        console.error('[ProfilesIO] Profil cloud contient un index — ignoré');
+        return {
+          docRef: pref,
+          accountRef: accountRef,
+          data: null,
+          profileId: profileId,
+          legacyRoot: false,
+          migrated: false
+        };
+      }
       return {
         docRef: pref,
         accountRef: accountRef,
-        data: snap.data(),
+        data: cloudPayload,
         profileId: profileId,
         legacyRoot: false,
         migrated: false
       };
     }
 
-    // Profil cloud absent : tenter données locales de ce profil
+    // Profil cloud absent : tenter données locales de ce profil (jamais un index)
     var localD = readLocalProfileData(profileId);
-    if (localD && window.setDoc) {
+    if (localD && isProfilePayload(localD) && window.setDoc) {
       try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
+    } else if (localD && !isProfilePayload(localD)) {
+      localD = null;
     }
 
     return {
@@ -299,21 +389,63 @@
 
   async function persistAccountIndexCloud(user, meta) {
     if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return;
-    var payload = {
-      _account: true,
-      schemaVersion: SCHEMA,
-      activeProfile: meta.activeProfile,
-      profiles: meta.profiles.map(function (p) {
-        return {
+    var ref = accountDocRef(user.sub);
+    var remoteProfiles = [];
+    var remoteActive = null;
+    try {
+      if (window.getDoc) {
+        var snap = await window.getDoc(ref);
+        if (snap.exists()) {
+          var remote = snap.data();
+          if (isAccountIndex(remote)) {
+            remoteProfiles = remote.profiles || [];
+            remoteActive = remote.activeProfile || null;
+          } else if (isLegacyDataDoc(remote)) {
+            // Ne jamais écraser un blob legacy encore présent
+            console.warn('[ProfilesIO] Index non écrit : racine encore en format legacy');
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[ProfilesIO] Lecture index avant écriture:', e);
+    }
+
+    var byId = Object.create(null);
+    remoteProfiles.forEach(function (p) {
+      if (p && p.id) byId[p.id] = {
+        id: p.id,
+        name: p.name || p.id,
+        createdAt: p.createdAt || nowIso(),
+        updatedAt: p.updatedAt || nowIso()
+      };
+    });
+    (meta.profiles || []).forEach(function (p) {
+      if (!p || !p.id) return;
+      if (byId[p.id]) {
+        byId[p.id].name = p.name || byId[p.id].name;
+        byId[p.id].updatedAt = p.updatedAt || nowIso();
+      } else {
+        byId[p.id] = {
           id: p.id,
-          name: p.name,
+          name: p.name || p.id,
           createdAt: p.createdAt || nowIso(),
           updatedAt: p.updatedAt || nowIso()
         };
-      })
+      }
+    });
+
+    var payload = {
+      _account: true,
+      schemaVersion: SCHEMA,
+      activeProfile: meta.activeProfile || remoteActive || DEFAULT_ID,
+      profiles: Object.keys(byId).map(function (k) { return byId[k]; })
     };
+    if (!payload.profiles.some(function (p) { return p.id === payload.activeProfile; })) {
+      payload.activeProfile = payload.profiles[0] ? payload.profiles[0].id : DEFAULT_ID;
+    }
     try {
-      await window.setDoc(accountDocRef(user.sub), payload);
+      await window.setDoc(ref, payload);
     } catch (e) {
       console.warn('Écriture index profils cloud:', e);
     }
@@ -474,7 +606,7 @@
     var s = [];
     if (data.matieres || data.classeurs) s.push('structure');
     if (data.cours) s.push('cours');
-    if (data._notes || (data.cours && data.cours.some(function (c) {
+    if (data._notes || (Array.isArray(data.cours) && data.cours.some(function (c) {
       return c && (c.type === 'DS' || c.type === 'KHOLLE') && (c.note || c.rang);
     }))) s.push('notes');
     if (data.exercices || data.devoirs || data.sessionEnCoursV2) s.push('synchrotron');
@@ -539,6 +671,11 @@
       if (!report.errors.length) report.errors.push('Import refusé : fichier invalide.');
       return report;
     }
+    if (window.D && window.D._account === true) {
+      report.ok = false;
+      report.errors.push('État app corrompu (index compte). Recharge la page avant d’importer.');
+      return report;
+    }
     if (!window.D) window.D = deepClone(window.emptyData || {});
 
     var src = normalized.data;
@@ -554,7 +691,8 @@
         target.devoirs = deepClone(window.D.devoirs || []);
         if (window.D.sessionEnCoursV2) target.sessionEnCoursV2 = deepClone(window.D.sessionEnCoursV2);
       }
-      if (want.indexOf('cours') === -1 && want.indexOf('notes') === -1) {
+      if (want.indexOf('cours') === -1) {
+        // notes-only ne doit JAMAIS vider les cours : on patche dessus
         target.cours = deepClone(window.D.cours || []);
       }
       if (want.indexOf('structure') === -1) {
@@ -749,6 +887,9 @@
     var seed = opts.copyFromActive
       ? deepClone(window.D || window.emptyData)
       : deepClone(window.emptyData || { settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [] });
+    if (seed && seed._account) {
+      seed = deepClone(window.emptyData || { settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [] });
+    }
     if (seed && seed.settings) {
       // garder le prénom du compte si possible
       if (window.D && window.D.settings && window.D.settings.userName) {
@@ -801,18 +942,27 @@
   }
 
   async function switchProfile(id) {
-    if (id === getActiveProfileId()) return;
+    if (id === getSessionProfileId() || id === getActiveProfileId()) {
+      if (id === getSessionProfileId()) return;
+    }
     var meta = ensureLocalRegistry();
     if (!meta.profiles.some(function (p) { return p.id === id; })) {
       throw new Error('Profil inconnu');
     }
-    // Sauvegarder le profil courant avant bascule
-    try {
-      if (typeof window.save === 'function' && window.D) await window.save();
-    } catch (e) {
-      console.warn('Save avant bascule profil:', e);
+    // Sauvegarder le profil courant avant bascule — refuser si échec
+    if (typeof window.save === 'function' && window.D) {
+      try {
+        await window.save();
+      } catch (e) {
+        console.error('Save avant bascule profil:', e);
+        throw new Error(
+          'Sauvegarde du profil actuel impossible. Bascule annulée pour ne rien perdre. ' +
+          'Réessaie ou exporte tes données d’abord. Détail : ' + (e && e.message ? e.message : e)
+        );
+      }
     }
     setActiveProfileId(id);
+    pinSessionProfileId(id);
     meta = ensureLocalRegistry();
     await persistAccountIndexCloud(window.currentUser, meta);
     location.reload();
@@ -943,9 +1093,13 @@
           return;
         }
         var name = (getProfileMeta(id) || {}).name || id;
-        var go = function () { switchProfile(id); };
+        var go = function () {
+          switchProfile(id).catch(function (e) {
+            alert(e.message || e);
+          });
+        };
         if (typeof window.sysConfirm === 'function') {
-          window.sysConfirm('Basculer vers le profil « ' + name + ' » ? La page va se recharger.', go);
+          window.sysConfirm('Basculer vers le profil « ' + esc(name) + ' » ? La page va se recharger.', go);
         } else if (confirm('Basculer vers « ' + name + ' » ?')) go();
       };
     }
@@ -1008,7 +1162,7 @@
           }).catch(function (e) { alert(e.message || e); });
         };
         if (typeof window.sysConfirm === 'function') {
-          window.sysConfirm('Supprimer définitivement « ' + ((meta && meta.name) || id) + ' » et toutes ses données ?', go);
+          window.sysConfirm('Supprimer définitivement « ' + esc((meta && meta.name) || id) + ' » et toutes ses données ?', go);
         } else if (confirm('Supprimer ?')) go();
       };
     }
@@ -1097,10 +1251,14 @@
     SECTIONS: SECTIONS,
     localDataKey: localDataKey,
     getActiveProfileId: getActiveProfileId,
+    getSessionProfileId: getSessionProfileId,
+    pinSessionProfileId: pinSessionProfileId,
     setActiveProfileId: setActiveProfileId,
     listProfiles: listProfiles,
     getProfileMeta: getProfileMeta,
     ensureLocalRegistry: ensureLocalRegistry,
+    isProfilePayload: isProfilePayload,
+    isAccountIndex: isAccountIndex,
     readLocalProfileData: readLocalProfileData,
     writeLocalProfileData: writeLocalProfileData,
     resolveProfileCloudDoc: resolveProfileCloudDoc,
@@ -1118,5 +1276,8 @@
   };
 
   // Init registre dès le chargement (sans bloquer)
-  try { ensureLocalRegistry(); } catch (e) { console.warn('ProfilesIO init:', e); }
+  try {
+    ensureLocalRegistry();
+    pinSessionProfileId(getActiveProfileId());
+  } catch (e) { console.warn('ProfilesIO init:', e); }
 })();
