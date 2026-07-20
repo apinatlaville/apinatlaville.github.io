@@ -74,7 +74,8 @@
       activeProfile: DEFAULT_ID,
       profiles: [
         { id: DEFAULT_ID, name: 'Principal', createdAt: nowIso(), updatedAt: nowIso() }
-      ]
+      ],
+      deletedProfiles: {}
     };
   }
 
@@ -262,15 +263,16 @@
         accountData = index;
         console.log('☁️ Migration compte → profils/default effectuée.');
       } catch (e) {
-        console.warn('☁️ Migration profils impossible, repli racine legacy:', e);
+        console.warn('☁️ Migration profils impossible — mode local-only (pas d’écriture sur la racine compte):', e);
         pinSessionProfileId(DEFAULT_ID);
         return {
-          docRef: accountRef,
+          docRef: null,
           accountRef: accountRef,
           data: legacyD,
           profileId: DEFAULT_ID,
           legacyRoot: true,
-          migrated: false
+          migrated: false,
+          localOnly: true
         };
       }
     }
@@ -304,6 +306,14 @@
     syncRegistryFromAccount(accountData);
 
     var profileId = getActiveProfileId();
+    var deletedMap = accountData.deletedProfiles || {};
+    if (deletedMap[profileId]) {
+      profileId = accountData.activeProfile || DEFAULT_ID;
+      if (deletedMap[profileId] || !accountData.profiles.some(function (p) { return p.id === profileId; })) {
+        profileId = (accountData.profiles[0] && accountData.profiles[0].id) || DEFAULT_ID;
+      }
+      setActiveProfileId(profileId);
+    }
     if (!accountData.profiles.some(function (p) { return p.id === profileId; })) {
       profileId = accountData.activeProfile || DEFAULT_ID;
       if (!accountData.profiles.some(function (p) { return p.id === profileId; })) {
@@ -348,12 +358,17 @@
       };
     }
 
-    // Profil cloud absent : tenter données locales de ce profil (jamais un index)
-    var localD = readLocalProfileData(profileId);
-    if (localD && isProfilePayload(localD) && window.setDoc) {
-      try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
-    } else if (localD && !isProfilePayload(localD)) {
-      localD = null;
+    // Profil cloud absent : données locales UNIQUEMENT si le profil est dans l’index
+    // (évite de ressusciter un profil tombstoné)
+    var inIndex = accountData.profiles.some(function (p) { return p && p.id === profileId; });
+    var localD = null;
+    if (inIndex && !deletedMap[profileId]) {
+      localD = readLocalProfileData(profileId);
+      if (localD && isProfilePayload(localD) && window.setDoc) {
+        try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
+      } else if (localD && !isProfilePayload(localD)) {
+        localD = null;
+      }
     }
 
     return {
@@ -369,10 +384,11 @@
   function syncRegistryFromAccount(accountData) {
     if (!isAccountIndex(accountData)) return;
     var meta = ensureLocalRegistry();
+    var deleted = accountData.deletedProfiles || {};
     var byId = {};
     meta.profiles.forEach(function (p) { byId[p.id] = p; });
     (accountData.profiles || []).forEach(function (cp) {
-      if (!cp || !cp.id) return;
+      if (!cp || !cp.id || deleted[cp.id]) return;
       if (byId[cp.id]) {
         byId[cp.id].name = cp.name || byId[cp.id].name;
         byId[cp.id].updatedAt = cp.updatedAt || byId[cp.id].updatedAt;
@@ -383,17 +399,25 @@
           createdAt: cp.createdAt || nowIso(),
           updatedAt: cp.updatedAt || nowIso()
         });
+        byId[cp.id] = true;
       }
+    });
+    // Retirer les profils tombstonés (sauf session courante — bascule d’abord)
+    var sessionId = getSessionProfileId();
+    meta.profiles = meta.profiles.filter(function (p) {
+      if (!p || !p.id) return false;
+      if (deleted[p.id] && p.id !== sessionId) return false;
+      return true;
     });
     writeMetaLocal(meta);
   }
 
   /**
    * Écrit l’index compte cloud.
-   * @param opts.removedIds — profils à retirer explicitement (ex. après delete)
+   * @param opts.removedIds — profils à retirer + tombstone
    */
   async function persistAccountIndexCloud(user, meta, opts) {
-    if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return;
+    if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return true;
     opts = opts || {};
     var removedIds = opts.removedIds || [];
     var removedSet = Object.create(null);
@@ -402,6 +426,7 @@
     var ref = accountDocRef(user.sub);
     var remoteProfiles = [];
     var remoteActive = null;
+    var deletedProfiles = {};
     try {
       if (window.getDoc) {
         var snap = await window.getDoc(ref);
@@ -410,9 +435,12 @@
           if (isAccountIndex(remote)) {
             remoteProfiles = remote.profiles || [];
             remoteActive = remote.activeProfile || null;
+            deletedProfiles = remote.deletedProfiles && typeof remote.deletedProfiles === 'object'
+              ? Object.assign({}, remote.deletedProfiles)
+              : {};
           } else if (isLegacyDataDoc(remote)) {
             console.warn('[ProfilesIO] Index non écrit : racine encore en format legacy');
-            return;
+            return false;
           }
         }
       }
@@ -420,9 +448,13 @@
       console.warn('[ProfilesIO] Lecture index avant écriture:', e);
     }
 
+    removedIds.forEach(function (id) {
+      if (id) deletedProfiles[id] = Date.now();
+    });
+
     var byId = Object.create(null);
     remoteProfiles.forEach(function (p) {
-      if (!p || !p.id || removedSet[p.id]) return;
+      if (!p || !p.id || removedSet[p.id] || deletedProfiles[p.id]) return;
       byId[p.id] = {
         id: p.id,
         name: p.name || p.id,
@@ -431,7 +463,7 @@
       };
     });
     (meta.profiles || []).forEach(function (p) {
-      if (!p || !p.id || removedSet[p.id]) return;
+      if (!p || !p.id || removedSet[p.id] || deletedProfiles[p.id]) return;
       if (byId[p.id]) {
         byId[p.id].name = p.name || byId[p.id].name;
         byId[p.id].updatedAt = p.updatedAt || nowIso();
@@ -449,15 +481,19 @@
       _account: true,
       schemaVersion: SCHEMA,
       activeProfile: meta.activeProfile || remoteActive || DEFAULT_ID,
-      profiles: Object.keys(byId).map(function (k) { return byId[k]; })
+      profiles: Object.keys(byId).map(function (k) { return byId[k]; }),
+      deletedProfiles: deletedProfiles
     };
-    if (removedSet[payload.activeProfile] || !payload.profiles.some(function (p) { return p.id === payload.activeProfile; })) {
+    if (removedSet[payload.activeProfile] || deletedProfiles[payload.activeProfile]
+      || !payload.profiles.some(function (p) { return p.id === payload.activeProfile; })) {
       payload.activeProfile = payload.profiles[0] ? payload.profiles[0].id : DEFAULT_ID;
     }
     try {
       await window.setDoc(ref, payload);
+      return true;
     } catch (e) {
       console.warn('Écriture index profils cloud:', e);
+      return false;
     }
   }
 
@@ -913,12 +949,16 @@
     }
 
     var user = window.currentUser;
-    await persistAccountIndexCloud(user, meta);
+    var okIdx = await persistAccountIndexCloud(user, meta);
+    if (!window.isLocalMode && user && user.sub && !okIdx) {
+      console.warn('[ProfilesIO] Index cloud non synchronisé après création');
+    }
     if (!window.isLocalMode && user && user.sub && window.setDoc) {
       try {
         await window.setDoc(profileDocRef(user.sub, id), seed);
       } catch (e) {
         console.warn('Création profil cloud:', e);
+        throw new Error('Profil créé en local, mais la copie cloud a échoué. Réessaie plus tard.');
       }
     }
     return entry;
@@ -944,7 +984,10 @@
     meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
     writeMetaLocal(meta);
     lsRemove(localDataKey(id));
-    await persistAccountIndexCloud(window.currentUser, meta, { removedIds: [id] });
+    var okIdx = await persistAccountIndexCloud(window.currentUser, meta, { removedIds: [id] });
+    if (!window.isLocalMode && window.currentUser && window.currentUser.sub && !okIdx) {
+      throw new Error('Suppression cloud de l’index échouée. Réessaie (le profil est retiré localement).');
+    }
     if (!window.isLocalMode && window.currentUser && window.currentUser.sub && window.setDoc) {
       try {
         if (typeof window.deleteDoc === 'function') {
@@ -962,6 +1005,7 @@
     if (!meta.profiles.some(function (p) { return p.id === id; })) {
       throw new Error('Profil inconnu');
     }
+    var wasLocal = lsGet('active_mode') === 'local' || !!window.isLocalMode;
     if (typeof window.save === 'function' && window.D) {
       try {
         await window.save();
@@ -975,6 +1019,8 @@
     }
     setActiveProfileId(id);
     pinSessionProfileId(id);
+    // Crucial : garder le mode local après reload (sinon splash Firebase infini)
+    if (wasLocal) lsSet('active_mode', 'local');
     meta = ensureLocalRegistry();
     await persistAccountIndexCloud(window.currentUser, meta);
     location.reload();
@@ -1152,7 +1198,7 @@
         var inp = document.getElementById('pioRenameInput');
         var name = inp && inp.value.trim();
         if (!name) return;
-        renameProfile(getActiveProfileId(), name).then(function () {
+        renameProfile(getSessionProfileId(), name).then(function () {
           renderSettingsBlock();
         }).catch(function (e) { alert(e.message || e); });
       };
@@ -1205,6 +1251,11 @@
     var importBtn = document.getElementById('pioImportBtn');
     if (importBtn) {
       importBtn.onclick = function () {
+        if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+            && !window.DeviceSession.canFullSave()) {
+          alert('Appareil secondaire : import désactivé (lecture seule). Passe en Principal pour importer.');
+          return;
+        }
         var fileEl = document.getElementById('pioImportFile');
         var file = fileEl && fileEl.files && fileEl.files[0];
         if (!file) { alert('Choisis un fichier JSON d’abord.'); return; }
@@ -1226,7 +1277,6 @@
             if (report.ok) {
               Promise.resolve(typeof window.save === 'function' ? window.save() : null).then(function () {
                 if (typeof window.showToast === 'function') window.showToast('Données importées et sauvegardées.');
-                // Refresh UI lightly
                 if (typeof window.renderMatieres === 'function') window.renderMatieres();
                 if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
                 if (typeof window.renderStats === 'function') window.renderStats();

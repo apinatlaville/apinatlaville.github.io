@@ -1723,12 +1723,12 @@ async function initApp(user) {
           const parsed = window.ProfilesIO.readLocalProfileData(profileId);
           if (parsed) localData = JSON.stringify(parsed);
         }
-        if (!localData) {
+        if (!localData && profileId === 'default') {
           localData = typeof window.safeLocalGet === 'function'
             ? window.safeLocalGet('backup_local_cours')
             : localStorage.getItem('backup_local_cours');
         }
-        if (!localData) {
+        if (!localData && profileId === 'default') {
           localData = typeof window.safeLocalGet === 'function'
             ? window.safeLocalGet('mc_v28')
             : localStorage.getItem('mc_v28');
@@ -1819,14 +1819,15 @@ async function initApp(user) {
     if (!window.D) {
       try {
         let backup = null;
+        let pid = 'default';
         if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
-          const pid = window.ProfilesIO.getSessionProfileId
+          pid = window.ProfilesIO.getSessionProfileId
             ? window.ProfilesIO.getSessionProfileId()
             : window.ProfilesIO.getActiveProfileId();
           const parsed = window.ProfilesIO.readLocalProfileData(pid);
           if (parsed && !parsed._account) backup = JSON.stringify(parsed);
         }
-        if (!backup) {
+        if (!backup && (pid === 'default' || !pid)) {
           const raw = localStorage.getItem('backup_local_cours');
           if (raw) {
             try {
@@ -2154,6 +2155,21 @@ window._saveImpl = async function() {
 
   if (window.cloudConnected && window.docRef && window.setDoc) {
     try {
+      // Garde-fou : ne jamais écraser un index compte avec un blob profil
+      if (window.getDoc) {
+        try {
+          const snap = await window.getDoc(window.docRef);
+          if (snap.exists()) {
+            const cur = snap.data();
+            if (cur && cur._account === true) {
+              throw new Error('Refus d’écrire le profil sur l’index compte cloud');
+            }
+          }
+        } catch (guardErr) {
+          if (/index compte/i.test(String(guardErr && guardErr.message))) throw guardErr;
+          // getDoc échoue → on tente setDoc quand même
+        }
+      }
       await window.setDoc(window.docRef, window.D);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
     } catch (e) {
@@ -2181,7 +2197,23 @@ window._saveImpl = async function() {
 // =========================================================
 window.initAppAfterAuth = function(user) {
     if (window.bootMark) window.bootMark('initAppAfterAuth', { email: user && user.email });
-    return initApp(user);
+    var done = Promise.resolve().then(function () { return initApp(user); });
+    return done.catch(function (e) {
+      console.error('initAppAfterAuth:', e);
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('initAppAfterAuth: ' + (e && e.message ? e.message : e), 'app.js');
+      }
+    }).finally(function () {
+      // Filet : ne jamais rester bloqué sur le splash après auth / mode local
+      try {
+        if (window.appLaunched || window.isLocalMode || window.currentUser) {
+          if (typeof window.enterApp === 'function') window.enterApp();
+          if (typeof window.unlockPage === 'function') window.unlockPage();
+        }
+      } catch (e2) {
+        console.warn('unlock after init:', e2);
+      }
+    });
 };
 
 window.dispatchEvent(new CustomEvent('app-js-ready'));
