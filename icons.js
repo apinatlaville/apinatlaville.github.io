@@ -273,7 +273,8 @@
     document.body.style.removeProperty('overflow');
     document.body.style.removeProperty('height');
     document.body.style.removeProperty('max-height');
-    document.body.classList.remove('not-logged-in');
+    // Retirer auth-pending évite que le timer 12s réaffiche le login pendant initApp
+    document.body.classList.remove('not-logged-in', 'auth-pending', 'boot-active');
     const loginOverlay = document.getElementById('loginOverlay');
     if (loginOverlay) {
       loginOverlay.style.setProperty('display', 'none', 'important');
