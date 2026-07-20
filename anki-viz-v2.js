@@ -494,9 +494,11 @@ Après fermeture sans révision → overdue → prio explose.</div>
             <span class="av-tag">_v2Window* (si mature)</span>
             <span class="av-tag">historique[]</span>
           </p>
-          <div class="av-formula">qScore ≤ 3 → échec : reset intervalle, ease −${C.EASE_DROP_FAIL != null ? C.EASE_DROP_FAIL : 0.2}, _blocageActif
-qScore 4–10 → succès : paliers profil puis intervalle × ease × facteurs
-mature + succès → date = début de fenêtre ★ (pas un jour unique)</div>
+          <div class="av-formula">qScore ≤ trigger → échec : reset intervalle, ease −${C.EASE_DROP_FAIL != null ? C.EASE_DROP_FAIL : 0.2}, _blocageActif
+qScore &gt; trigger → succès :
+  paliers profil (X-) ou paliers ★ (Y-)
+  puis × ease × qFactor × pénalité tempo × multiplicateur ★
+mature + qScore &gt; 3 → date = début de fenêtre ★ (formule nœud 4)</div>
 
           <div class="av-branches">
             <div class="av-node av-branch-good">
