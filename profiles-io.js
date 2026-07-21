@@ -1050,8 +1050,12 @@
         await window.setDoc(profileDocRef(user.sub, id), seed);
       } catch (e) {
         console.warn('Création profil cloud:', e);
-        // Index déjà à jour : garder le local + index ; signaler l’échec du blob
-        throw new Error('Profil indexé, mais la copie cloud des données a échoué. Réessaie plus tard.');
+        // Annuler index + local pour ne pas laisser un profil vide indexé
+        try {
+          await persistAccountIndexCloud(user, ensureLocalRegistry(), { removedIds: [id] });
+        } catch (e2) { console.warn('[ProfilesIO] Rollback index après échec blob:', e2); }
+        rollbackCreatedProfile(id);
+        throw new Error('Création cloud des données échouée — profil annulé. Réessaie.');
       }
     }
     return entry;
@@ -1088,6 +1092,9 @@
     }
 
     var user = window.currentUser;
+    if (!window.isLocalMode && !(user && user.sub)) {
+      throw new Error('Compte Google requis pour supprimer un profil (mode cloud).');
+    }
     var needsCloud = !window.isLocalMode && user && user.sub;
     if (needsCloud && window.cloudConnected === false) {
       throw new Error(
@@ -1403,17 +1410,19 @@
               showImportReport(normalized.report || { ok: false, errors: ['Fichier invalide'] });
               return;
             }
+            if (window._persistDisabled) {
+              showImportReport({
+                ok: false,
+                errors: ['Sauvegarde désactivée dans cette session — import refusé (rien n’a été modifié).'],
+                warnings: [],
+                skipped: [],
+                imported: {}
+              });
+              return;
+            }
             var report = applyImport(normalized, { sections: secs, mode: mode });
             showImportReport(report);
             if (report.ok) {
-              if (window._persistDisabled) {
-                report.ok = false;
-                report.errors = (report.errors || []).concat([
-                  'Sauvegarde désactivée dans cette session — import en mémoire seulement, non persisté.'
-                ]);
-                showImportReport(report);
-                return;
-              }
               Promise.resolve(typeof window.save === 'function' ? window.save() : null).then(function () {
                 if (typeof window.showToast === 'function') window.showToast('Données importées et sauvegardées.');
                 if (typeof window.renderMatieres === 'function') window.renderMatieres();
