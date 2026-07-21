@@ -283,12 +283,29 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.cours-wiz-inv-type {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--acc) 28%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  line-height: 1.4;
+}
 .cours-wiz-inv-meta {
   font-size: 10px;
   color: var(--mut);
-  white-space: nowrap;
+  line-height: 1.35;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .cours-wiz-inv-acts {
   display: flex;
@@ -616,12 +633,18 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       var mo = matById(c.mat);
       var co = clById(c.cl);
       var interLabel = window.getInterName ? window.getInterName(co, c.inter) : (c.inter || '');
-      var meta = [mo ? mo.label : c.mat, co ? co.name : c.cl, interLabel].filter(Boolean).join(' · ');
+      var typeLabel = c.type || '';
+      var meta = [
+        mo ? (mo.name || mo.label) : c.mat,
+        co ? co.name : c.cl,
+        interLabel
+      ].filter(Boolean).join(' · ');
       return '<div class="cours-wiz-inv-row">' +
         '<div class="cours-wiz-inv-main">' +
           '<div class="cours-wiz-inv-uid">' + esc(c.uid) + '</div>' +
           '<div class="cours-wiz-inv-title">' + esc(c.title || 'Sans titre') + '</div>' +
-          '<div class="cours-wiz-inv-meta">' + esc(meta) + '</div>' +
+          (typeLabel ? '<div class="cours-wiz-inv-type">' + esc(typeLabel) + '</div>' : '') +
+          (meta ? '<div class="cours-wiz-inv-meta">' + esc(meta) + '</div>' : '') +
         '</div>' +
         '<div class="cours-wiz-inv-acts">' +
           '<button type="button" title="Modifier" onclick="window.coursWizardEditCreated(\'' + esc(c.uid) + '\')">' + iconHtml('pencil', 14) + '</button>' +
