@@ -833,6 +833,11 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     };
     var ov = document.getElementById('ovCoursWizard');
     if (ov) ov.classList.add('hidden');
+    if (!window.D) {
+      if (ov) ov.classList.remove('hidden');
+      paint();
+      return;
+    }
     if (typeof window.openModalCours === 'function') {
       window.openModalCours({
         fromWizard: true,
@@ -840,6 +845,15 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         cl: window._coursWizardCtx.cl,
         inter: window._coursWizardCtx.inter
       });
+      /* Si le formulaire n’a pas pu s’ouvrir, réafficher le wizard */
+      var formOv = document.getElementById('ovCours');
+      if (formOv && formOv.classList.contains('hidden') && ov) {
+        ov.classList.remove('hidden');
+        paint();
+      }
+    } else if (ov) {
+      ov.classList.remove('hidden');
+      paint();
     }
   }
 

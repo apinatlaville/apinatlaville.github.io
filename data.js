@@ -450,6 +450,8 @@ window.renderCoursBrowseHtml = function(list, mode) {
 window.renderCours = function() {
   try {
     if (!window.D || !window.D.cours) return;
+    if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
+    if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
     const allM = [...new Set(window.D.cours.map(c => c.mat))];
     const allC = [...new Set(window.D.cours.map(c => c.cl))];
     const ms = window.$('fltMat');
@@ -541,9 +543,11 @@ window.renderCours = function() {
 
     if (!qText) {
       list.sort((a,b) => {
-        if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
-        if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
-        return a.inter.localeCompare(b.inter);
+        const am = String(a.mat || ''), bm = String(b.mat || '');
+        if (am !== bm) return am.localeCompare(bm);
+        const ac = String(a.cl || ''), bc = String(b.cl || '');
+        if (ac !== bc) return ac.localeCompare(bc);
+        return String(a.inter || '').localeCompare(String(b.inter || ''));
       });
     }
 

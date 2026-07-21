@@ -294,6 +294,34 @@ console.log('\n[4] Gardes D=null openModal / editCours');
   assert(!threw, 'editCours ne throw pas si D null');
 }
 
+console.log('\n[4b] Tri Base Doc inter null + recovery wizard si D=null');
+{
+  const W = buildEnv();
+  W.D.cours = [
+    { uid: 'A1', title: 'Sans inter', mat: 'PHYS', cl: 'A', inter: null, type: 'COURS', stat: 'active' },
+    { uid: 'A2', title: 'Avec inter', mat: 'PHYS', cl: 'A', inter: '01', type: 'TD', stat: 'active' }
+  ];
+  let threw = false;
+  try { W.renderCours(); } catch (e) { threw = true; }
+  assert(!threw, 'renderCours ne throw pas si inter null');
+  assert(W._els.coursGrid.innerHTML.includes('cours-tree'), 'grille arbre malgré inter null');
+
+  W.D = {
+    settings: { showInitWarn: true },
+    matieres: [{ id: 'PHYS', label: 'PHYS', name: 'Physique', color: '#5b8df7' }],
+    classeurs: [{ id: 'A', name: 'Classeur A', icon: 'folder', color: '#5b8df7', maxInter: 4, interNames: {} }],
+    cours: []
+  };
+  W.openCoursWizard('batch');
+  W.coursWizardPickMat('PHYS');
+  W.coursWizardPickCl('A');
+  W.D = null;
+  threw = false;
+  try { W.coursWizardPickInter('01'); } catch (e) { threw = true; }
+  assert(!threw, 'pick inter avec D=null ne throw pas');
+  assert(!W._els.ovCoursWizard.classList.contains('hidden'), 'wizard réaffiché si formulaire impossible');
+}
+
 console.log('\n[5] Arbre Base Doc — collapse, mode, carte');
 {
   const W = buildEnv();
