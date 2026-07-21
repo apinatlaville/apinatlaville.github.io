@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260721i';
+  window.__BOOT_CACHE_V = '20260721j';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -251,6 +251,11 @@
 </div>
 
 <div class="pane ui-pane" id="paneCours">
+  <div class="cours-pane-toolbar" id="coursPaneToolbar">
+    <button type="button" class="bp" id="btnCoursBatchCreate" title="Créer plusieurs documents à la suite (reste sur l’intercalaire)">
+      <span data-icon="layers"></span> Création rapide
+    </button>
+  </div>
   <div class="filters">
     <select class="fi" id="fltType">
       <option value="">Tous les types</option>
@@ -533,7 +538,7 @@
     <button class="fab-mini" onclick="window.closeFab(); window.switchTab('print')" title="Impression" aria-label="Impression"><span data-icon="printer"></span></button>
     <button class="fab-mini" onclick="window.closeFab(); window.exportCsv()" title="Export CSV" aria-label="Export CSV"><span data-icon="download"></span></button>
     <button class="fab-mini" onclick="window.closeFab(); window.openCam()" title="Scanner Code" aria-label="Scanner"><span data-icon="camera"></span></button>
-    <button class="fab-mini" style="background:var(--acc);color:#fff;border:none;" onclick="window.closeFab(); window.openModalCours()" title="Ajouter un document" aria-label="Ajouter"><span data-icon="plus"></span></button>
+    <button class="fab-mini" style="background:var(--acc);color:#fff;border:none;" onclick="window.closeFab(); (window.openCoursWizard||window.openModalCours)('single')" title="Ajouter un document" aria-label="Ajouter"><span data-icon="plus"></span></button>
   </div>
   <button class="fab-main" onclick="window.toggleFab()" id="btnFabMain" aria-label="Actions rapides"><span data-icon="zap" data-icon-size="22"></span></button>
 </div>

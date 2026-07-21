@@ -161,7 +161,16 @@ window.closeLocPopup = function() {
   const bd = window.$('locBackdrop');
   if(bd) bd.style.display = 'none';
 };
-window.closeModalCours = function() { const ov = window.$('ovCours'); if(ov) ov.classList.add('hidden'); };
+window.closeModalCours = function(opts) {
+  const o = opts || {};
+  const ov = window.$('ovCours');
+  if (ov) ov.classList.add('hidden');
+  if (o.skipWizard) return;
+  /* Annulation depuis le formulaire wizard → revenir au parcours Finder */
+  if (window._coursWizardMode && typeof window.coursWizardCancelForm === 'function') {
+    window.coursWizardCancelForm();
+  }
+};
 window.closeQRModal = function() { const ov = window.$('ovQR'); if(ov) ov.classList.add('hidden'); };
 window.closePrintConfirm = function() { const ov = window.$('ovPrintConfirm'); if(ov) ov.classList.add('hidden'); };
 
@@ -171,6 +180,7 @@ document.addEventListener('click', function(e) {
       if (ov.id === 'ovCam') window.stopCam();
       else if (ov.id === 'ovQR') window.closeQRModal();
       else if (ov.id === 'ovCours') window.closeModalCours();
+      else if (ov.id === 'ovCoursWizard' && typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
       else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
@@ -677,6 +687,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
   switch (tab) {
     case 'home': window.renderDashboard(); break;
     case 'cours': {
+      if (typeof window.ensureCoursPaneToolbar === 'function') window.ensureCoursPaneToolbar();
       const pending = window._pendingCoursFilters;
       const setFlt = (id, val) => {
         const el = window.$(id);

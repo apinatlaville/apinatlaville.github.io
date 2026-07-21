@@ -245,7 +245,7 @@
 
     return loadParallel(['ui-appearance.js', 'ui-components.js'])
       .then(function (rs) { track(rs); })
-      .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js']); })
+      .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js', 'cours-wizard.js']); })
       .then(function (rs) { track(rs); })
       .then(function () { return loadScript('profiles-io.js'); })
       .then(function (r) { track([r]); })
