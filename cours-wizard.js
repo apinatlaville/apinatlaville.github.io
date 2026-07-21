@@ -237,8 +237,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   margin: 12px 0 0;
   padding: 10px;
   border-radius: 10px;
-  border: 0.5px solid var(--bd);
-  background: color-mix(in srgb, var(--s2) 70%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--acc) 28%, var(--bd));
+  background: color-mix(in srgb, var(--s2) 85%, transparent);
   max-height: 160px;
   overflow-y: auto;
 }
@@ -317,7 +317,53 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   color: var(--red);
 }
 .cours-wiz-modal.cours-wiz-wide {
-  max-width: 600px;
+  max-width: min(920px, 96vw);
+  width: min(920px, 96vw);
+}
+.cours-wiz-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+.cours-wiz-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cours-wiz-session {
+  flex: 0 0 auto;
+  border-top: 1px dashed color-mix(in srgb, var(--bd) 80%, transparent);
+  padding-top: 12px;
+  margin-top: 2px;
+}
+.cours-wiz-session .cours-wiz-inventory {
+  margin: 0;
+  max-height: min(32vh, 220px);
+}
+@media (min-width: 780px) {
+  .cours-wiz-layout {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .cours-wiz-main {
+    flex: 1 1 0;
+  }
+  .cours-wiz-session {
+    flex: 0 0 250px;
+    width: 250px;
+    max-width: 280px;
+    border-top: none;
+    border-left: 1px solid var(--bd);
+    padding-top: 0;
+    padding-left: 14px;
+    margin-top: 0;
+  }
+  .cours-wiz-session .cours-wiz-inventory {
+    max-height: min(58vh, 460px);
+    height: 100%;
+    box-sizing: border-box;
+  }
 }
 
 .cours-pane-toolbar {
@@ -589,6 +635,16 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       '</div>';
   }
 
+  /** Contenu principal + inventaire session (bas mobile / droite desktop). */
+  function withSessionLayout(mainHtml, actionsHtml) {
+    var inv = inventoryHtml();
+    if (!inv) return mainHtml + (actionsHtml || '');
+    return '<div class="cours-wiz-layout">' +
+      '<div class="cours-wiz-main">' + mainHtml + '</div>' +
+      '<aside class="cours-wiz-session" aria-label="Créés dans cette session">' + inv + '</aside>' +
+      '</div>' + (actionsHtml || '');
+  }
+
   function exitActionsHtml(backStep) {
     var back = backStep
       ? '<button type="button" class="bs" onclick="window.coursWizardGo(\'' + backStep + '\')">Retour</button>'
@@ -607,13 +663,13 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   }
 
   function renderEntry() {
-    return `
+    var head = `
       <h2>${iconLabel('folders', 'Nouveau document')}${modePill()}</h2>
       <p class="cours-wiz-sub">${STATE.mode === 'batch'
         ? 'Création rapide : après chaque enregistrement, tu restes sur l’intercalaire pour enchaîner. Termine pour revoir la liste.'
         : 'Choisis comment placer le document — comme dans un explorateur de fichiers.'}</p>
-      ${bannerHtml()}
-      ${inventoryHtml()}
+      ${bannerHtml()}`;
+    var main = `
       <div class="cours-wiz-entry">
         <button type="button" class="cours-wiz-opt" style="--wiz-color:var(--acc);" onclick="window.coursWizardPickDirect()">
           <span class="cours-wiz-ico">${iconHtml('zap', 18)}</span>
@@ -625,8 +681,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           <strong>Parcourir (Finder)</strong>
           <span class="cours-wiz-hint">Matière → classeur → intercalaire, puis titre et détails.</span>
         </button>
-      </div>
-      ${exitActionsHtml(null)}`;
+      </div>`;
+    return head + withSessionLayout(main, exitActionsHtml(null));
   }
 
   function renderMat() {
@@ -641,14 +697,12 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           </button>`;
         }).join('')
       : '<div class="cours-wiz-empty">Aucune matière. Crée-en une dans Réglages.</div>';
-    return `
+    var head = `
       <h2>${iconLabel('book-open', 'Choisir une matière')}${modePill()}</h2>
       <p class="cours-wiz-sub">Sélectionne la matière du document.</p>
       ${crumbHtml()}
-      ${bannerHtml()}
-      ${inventoryHtml()}
-      <div class="cours-wiz-grid">${grid}</div>
-      ${exitActionsHtml('entry')}`;
+      ${bannerHtml()}`;
+    return head + withSessionLayout('<div class="cours-wiz-grid">' + grid + '</div>', exitActionsHtml('entry'));
   }
 
   function renderCl() {
@@ -666,14 +720,12 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           </button>`;
         }).join('')
       : '<div class="cours-wiz-empty">Aucun classeur. Crée-en un dans Réglages.</div>';
-    return `
+    var head = `
       <h2>${iconLabel('folder', 'Choisir un classeur')}${modePill()}</h2>
       <p class="cours-wiz-sub">Où ranger ce document dans ta base.</p>
       ${crumbHtml()}
-      ${bannerHtml()}
-      ${inventoryHtml()}
-      <div class="cours-wiz-grid">${grid}</div>
-      ${exitActionsHtml('mat')}`;
+      ${bannerHtml()}`;
+    return head + withSessionLayout('<div class="cours-wiz-grid">' + grid + '</div>', exitActionsHtml('mat'));
   }
 
   function renderInter() {
@@ -690,16 +742,17 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         <span class="cours-wiz-hint">n° ${val} · ${n} doc${n > 1 ? 's' : ''}</span>
       </button>`);
     }
-    return `
+    var head = `
       <h2>${iconLabel('bookmark', 'Choisir un intercalaire')}${modePill()}</h2>
       <p class="cours-wiz-sub">${STATE.mode === 'batch'
         ? 'Après enregistrement, tu reviendras ici pour enchaîner.'
         : 'Dernière étape avant le titre et les détails.'}</p>
       ${crumbHtml()}
-      ${bannerHtml()}
-      ${inventoryHtml()}
-      <div class="cours-wiz-grid cours-wiz-grid-inter">${cells.join('')}</div>
-      ${exitActionsHtml('cl')}`;
+      ${bannerHtml()}`;
+    return head + withSessionLayout(
+      '<div class="cours-wiz-grid cours-wiz-grid-inter">' + cells.join('') + '</div>',
+      exitActionsHtml('cl')
+    );
   }
 
   function renderSummary() {
