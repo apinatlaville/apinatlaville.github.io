@@ -280,6 +280,8 @@ console.log('\n[3] Prefill Finder → save batch → retour intercalaire');
   assert(W._coursWizardActive === true, 'wizard actif');
   assert(W._els.ovCours.classList.contains('hidden'), 'form fermé');
   assert(W._els.ovCoursWizard._html.includes('ajouté') || W._els.ovCoursWizard._html.includes('PH-T1'), 'bannière succès');
+  assert(W._els.ovCoursWizard._html.includes('cours-wiz-inv-type') && W._els.ovCoursWizard._html.includes('COURS'), 'type sous le doc créé');
+  assert(W._els.ovCoursWizard._html.includes('cours-wiz-session'), 'inventaire en panneau session');
 }
 
 console.log('\n[4] Mode single ferme après save');
