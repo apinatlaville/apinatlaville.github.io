@@ -45,7 +45,7 @@
   }
 
   function injectStyles() {
-    var STYLE_V = '20260721w';
+    var STYLE_V = '20260721x';
     var tag = document.getElementById('cours-wizard-styles');
     if (!tag) {
       tag = document.createElement('style');
@@ -259,6 +259,16 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   background: color-mix(in srgb, var(--s2) 85%, transparent);
   max-height: 160px;
   overflow-y: auto;
+}
+.cours-wiz-inventory--summary {
+  margin-top: 8px;
+  max-height: min(58vh, 520px);
+  min-height: min(280px, 42vh);
+  padding: 12px;
+}
+.cours-wiz-modal.cours-wiz-summary {
+  max-width: min(640px, 96vw);
+  width: min(640px, 96vw);
 }
 .cours-wiz-inventory-title {
   font-size: 11px;
@@ -664,8 +674,9 @@ body.theme-light .cours-create-item:focus-visible {
     if (STATE.mode !== 'batch') return '';
     var docs = createdDocs();
     if (!docs.length && !o.force) return '';
+    var invClass = 'cours-wiz-inventory' + (o.summary ? ' cours-wiz-inventory--summary' : '');
     if (!docs.length) {
-      return '<div class="cours-wiz-inventory"><div class="cours-wiz-inventory-title">Session</div>' +
+      return '<div class="' + invClass + '"><div class="cours-wiz-inventory-title">Session</div>' +
         '<div class="cours-wiz-empty" style="padding:10px;">Aucun document créé pour l’instant.</div></div>';
     }
     var rows = docs.map(function (c) {
@@ -691,7 +702,7 @@ body.theme-light .cours-create-item:focus-visible {
         '</div>' +
       '</div>';
     }).join('');
-    return '<div class="cours-wiz-inventory">' +
+    return '<div class="' + invClass + '">' +
       '<div class="cours-wiz-inventory-title"><span>Créés dans cette session</span><span>' + docs.length + '</span></div>' +
       rows +
       '</div>';
@@ -823,7 +834,7 @@ body.theme-light .cours-create-item:focus-visible {
       <p class="cours-wiz-sub">${n
         ? (n + ' document' + (n > 1 ? 's' : '') + ' créé' + (n > 1 ? 's' : '') + ' — tu peux encore modifier ou supprimer.')
         : 'Aucun document dans cette session.'}</p>
-      ${inventoryHtml({ force: true })}
+      ${inventoryHtml({ force: true, summary: true })}
       <div class="macts" style="margin-top:16px;">
         <button type="button" class="bs" onclick="window.coursWizardContinueFromSummary()">Continuer</button>
         <button type="button" class="bp" onclick="window.closeCoursWizard()">Valider</button>
@@ -841,7 +852,8 @@ body.theme-light .cours-create-item:focus-visible {
     else body = renderEntry();
 
     var wide = STATE.step === 'summary' || (STATE.mode === 'batch' && STATE.createdUids.length > 0);
-    ov.innerHTML = '<div class="modal cours-wiz-modal card-type-surface' + (wide ? ' cours-wiz-wide' : '') + '" role="dialog" aria-modal="true">' + body + '</div>';
+    var summaryCls = STATE.step === 'summary' ? ' cours-wiz-summary' : '';
+    ov.innerHTML = '<div class="modal cours-wiz-modal card-type-surface' + (wide ? ' cours-wiz-wide' : '') + summaryCls + '" role="dialog" aria-modal="true">' + body + '</div>';
     ov.classList.remove('hidden');
     if (window.hydrateIcons) window.hydrateIcons(ov);
   }
