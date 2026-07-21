@@ -12,12 +12,13 @@
 
   var STATE = {
     mode: 'single', // 'single' | 'batch'
-    step: 'entry',  // entry | mat | cl | inter | form
+    step: 'entry',  // entry | mat | cl | inter | form | summary
     mat: null,
     cl: null,
     inter: null,
     createdCount: 0,
-    lastUid: null
+    lastUid: null,
+    createdUids: []
   };
 
   function esc(s) {
@@ -204,6 +205,93 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   color: var(--mut);
   font-size: 13px;
 }
+.cours-wiz-inventory {
+  margin: 12px 0 0;
+  padding: 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--bd);
+  background: color-mix(in srgb, var(--s2) 70%, transparent);
+  max-height: 160px;
+  overflow-y: auto;
+}
+.cours-wiz-inventory-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mut);
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cours-wiz-inv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 0.5px solid transparent;
+}
+.cours-wiz-inv-row:hover {
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
+  border-color: var(--bd);
+}
+.cours-wiz-inv-main {
+  flex: 1;
+  min-width: 0;
+}
+.cours-wiz-inv-uid {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--acc);
+  font-weight: 700;
+}
+.cours-wiz-inv-title {
+  font-size: 12px;
+  color: var(--txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cours-wiz-inv-meta {
+  font-size: 10px;
+  color: var(--mut);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cours-wiz-inv-acts {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.cours-wiz-inv-acts button {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 0.5px solid var(--bd);
+  background: var(--s1);
+  color: var(--txt);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.cours-wiz-inv-acts button:hover {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+.cours-wiz-inv-acts button.is-danger:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+.cours-wiz-modal.cours-wiz-wide {
+  max-width: 600px;
+}
+
 .cours-pane-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -314,7 +402,10 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       ov.className = 'ov hidden';
       document.body.appendChild(ov);
       ov.addEventListener('click', function (e) {
-        if (e.target === ov) window.closeCoursWizard();
+        if (e.target === ov) {
+          if (typeof window.coursWizardQuit === 'function') window.coursWizardQuit();
+          else window.closeCoursWizard();
+        }
       });
     }
     return ov;
@@ -419,7 +510,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     if (!STATE.lastUid && !STATE.createdCount) return '';
     var msg = STATE.lastUid
       ? ('Document <b>' + esc(STATE.lastUid) + '</b> ajouté' +
-        (STATE.mode === 'batch' ? ' — continue sur cet intercalaire.' : '.'))
+        (STATE.mode === 'batch' ? ' — continue ou termine quand tu as fini.' : '.'))
       : '';
     if (STATE.mode === 'batch' && STATE.createdCount > 1) {
       msg += ' <span style="color:var(--mut);">(' + STATE.createdCount + ' créés)</span>';
@@ -427,13 +518,70 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     return msg ? '<div class="cours-wiz-banner">' + msg + '</div>' : '';
   }
 
+  function createdDocs() {
+    if (!window.D || !window.D.cours || !STATE.createdUids.length) return [];
+    var byUid = {};
+    window.D.cours.forEach(function (c) { if (c && c.uid) byUid[c.uid] = c; });
+    return STATE.createdUids.map(function (uid) { return byUid[uid]; }).filter(Boolean);
+  }
+
+  function inventoryHtml(opts) {
+    var o = opts || {};
+    if (STATE.mode !== 'batch') return '';
+    var docs = createdDocs();
+    if (!docs.length && !o.force) return '';
+    if (!docs.length) {
+      return '<div class="cours-wiz-inventory"><div class="cours-wiz-inventory-title">Session</div>' +
+        '<div class="cours-wiz-empty" style="padding:10px;">Aucun document créé pour l’instant.</div></div>';
+    }
+    var rows = docs.map(function (c) {
+      var mo = matById(c.mat);
+      var co = clById(c.cl);
+      var interLabel = window.getInterName ? window.getInterName(co, c.inter) : (c.inter || '');
+      var meta = [mo ? mo.label : c.mat, co ? co.name : c.cl, interLabel].filter(Boolean).join(' · ');
+      return '<div class="cours-wiz-inv-row">' +
+        '<div class="cours-wiz-inv-main">' +
+          '<div class="cours-wiz-inv-uid">' + esc(c.uid) + '</div>' +
+          '<div class="cours-wiz-inv-title">' + esc(c.title || 'Sans titre') + '</div>' +
+          '<div class="cours-wiz-inv-meta">' + esc(meta) + '</div>' +
+        '</div>' +
+        '<div class="cours-wiz-inv-acts">' +
+          '<button type="button" title="Modifier" onclick="window.coursWizardEditCreated(\'' + esc(c.uid) + '\')">' + iconHtml('pencil', 14) + '</button>' +
+          '<button type="button" class="is-danger" title="Supprimer" onclick="window.coursWizardDeleteCreated(\'' + esc(c.uid) + '\')">' + iconHtml('trash-2', 14) + '</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    return '<div class="cours-wiz-inventory">' +
+      '<div class="cours-wiz-inventory-title"><span>Créés dans cette session</span><span>' + docs.length + '</span></div>' +
+      rows +
+      '</div>';
+  }
+
+  function exitActionsHtml(backStep) {
+    var back = backStep
+      ? '<button type="button" class="bs" onclick="window.coursWizardGo(\'' + backStep + '\')">Retour</button>'
+      : '';
+    if (STATE.mode === 'batch') {
+      var finish = STATE.createdUids.length
+        ? '<button type="button" class="bp" onclick="window.coursWizardGo(\'summary\')">Terminer</button>'
+        : '';
+      return '<div class="macts" style="margin-top:16px;">' + back +
+        '<button type="button" class="bs" onclick="window.coursWizardQuit()">' +
+        (STATE.createdUids.length ? 'Quitter' : 'Quitter') + '</button>' +
+        finish + '</div>';
+    }
+    return '<div class="macts" style="margin-top:16px;">' + back +
+      '<button type="button" class="bs" onclick="window.closeCoursWizard()">Annuler</button></div>';
+  }
+
   function renderEntry() {
     return `
       <h2>${iconLabel('folders', 'Nouveau document')}${modePill()}</h2>
       <p class="cours-wiz-sub">${STATE.mode === 'batch'
-        ? 'Création rapide : après chaque enregistrement, tu restes sur l’intercalaire pour enchaîner le catalogue virtuel.'
+        ? 'Création rapide : après chaque enregistrement, tu restes sur l’intercalaire pour enchaîner. Termine pour revoir la liste.'
         : 'Choisis comment placer le document — comme dans un explorateur de fichiers.'}</p>
       ${bannerHtml()}
+      ${inventoryHtml()}
       <div class="cours-wiz-entry">
         <button type="button" class="cours-wiz-opt" style="--wiz-color:var(--acc);" onclick="window.coursWizardPickDirect()">
           <span class="cours-wiz-ico">${iconHtml('zap', 18)}</span>
@@ -446,9 +594,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           <span class="cours-wiz-hint">Matière → classeur → intercalaire, puis titre et détails.</span>
         </button>
       </div>
-      <div class="macts" style="margin-top:16px;">
-        <button type="button" class="bs" onclick="window.closeCoursWizard()">Annuler</button>
-      </div>`;
+      ${exitActionsHtml(null)}`;
   }
 
   function renderMat() {
@@ -468,11 +614,9 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       <p class="cours-wiz-sub">Sélectionne la matière du document.</p>
       ${crumbHtml()}
       ${bannerHtml()}
+      ${inventoryHtml()}
       <div class="cours-wiz-grid">${grid}</div>
-      <div class="macts" style="margin-top:16px;">
-        <button type="button" class="bs" onclick="window.coursWizardGo('entry')">Retour</button>
-        <button type="button" class="bs" onclick="window.closeCoursWizard()">Annuler</button>
-      </div>`;
+      ${exitActionsHtml('entry')}`;
   }
 
   function renderCl() {
@@ -495,11 +639,9 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       <p class="cours-wiz-sub">Où ranger ce document dans ta base.</p>
       ${crumbHtml()}
       ${bannerHtml()}
+      ${inventoryHtml()}
       <div class="cours-wiz-grid">${grid}</div>
-      <div class="macts" style="margin-top:16px;">
-        <button type="button" class="bs" onclick="window.coursWizardGo('mat')">Retour</button>
-        <button type="button" class="bs" onclick="window.closeCoursWizard()">Annuler</button>
-      </div>`;
+      ${exitActionsHtml('mat')}`;
   }
 
   function renderInter() {
@@ -523,10 +665,22 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         : 'Dernière étape avant le titre et les détails.'}</p>
       ${crumbHtml()}
       ${bannerHtml()}
+      ${inventoryHtml()}
       <div class="cours-wiz-grid cours-wiz-grid-inter">${cells.join('')}</div>
+      ${exitActionsHtml('cl')}`;
+  }
+
+  function renderSummary() {
+    var n = createdDocs().length;
+    return `
+      <h2>${iconLabel('layers', 'Résumé de la session')}${modePill()}</h2>
+      <p class="cours-wiz-sub">${n
+        ? (n + ' document' + (n > 1 ? 's' : '') + ' créé' + (n > 1 ? 's' : '') + ' — tu peux encore modifier ou supprimer.')
+        : 'Aucun document dans cette session.'}</p>
+      ${inventoryHtml({ force: true })}
       <div class="macts" style="margin-top:16px;">
-        <button type="button" class="bs" onclick="window.coursWizardGo('cl')">Retour</button>
-        <button type="button" class="bs" onclick="window.closeCoursWizard()">Annuler</button>
+        <button type="button" class="bs" onclick="window.coursWizardContinueFromSummary()">Continuer</button>
+        <button type="button" class="bp" onclick="window.closeCoursWizard()">Valider</button>
       </div>`;
   }
 
@@ -537,9 +691,11 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     else if (STATE.step === 'mat') body = renderMat();
     else if (STATE.step === 'cl') body = renderCl();
     else if (STATE.step === 'inter') body = renderInter();
+    else if (STATE.step === 'summary') body = renderSummary();
     else body = renderEntry();
 
-    ov.innerHTML = `<div class="modal cours-wiz-modal card-type-surface" role="dialog" aria-modal="true">${body}</div>`;
+    var wide = STATE.step === 'summary' || (STATE.mode === 'batch' && STATE.createdUids.length > 0);
+    ov.innerHTML = '<div class="modal cours-wiz-modal card-type-surface' + (wide ? ' cours-wiz-wide' : '') + '" role="dialog" aria-modal="true">' + body + '</div>';
     ov.classList.remove('hidden');
     if (window.hydrateIcons) window.hydrateIcons(ov);
   }
@@ -577,6 +733,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     STATE.inter = null;
     STATE.createdCount = 0;
     STATE.lastUid = null;
+    STATE.createdUids = [];
+    window._coursWizardResumeAfterEdit = false;
     window._coursWizardActive = true;
     window._coursWizardMode = STATE.mode;
     window._coursWizardCtx = { mode: STATE.mode };
@@ -589,7 +747,29 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     window._coursWizardActive = false;
     window._coursWizardMode = null;
     window._coursWizardCtx = null;
+    window._coursWizardResumeAfterEdit = false;
     STATE.step = 'entry';
+    STATE.createdUids = [];
+    STATE.createdCount = 0;
+    STATE.lastUid = null;
+  };
+
+  window.coursWizardQuit = function () {
+    if (STATE.mode === 'batch' && STATE.createdUids.length) {
+      STATE.step = 'summary';
+      paint();
+      return;
+    }
+    window.closeCoursWizard();
+  };
+
+  window.coursWizardContinueFromSummary = function () {
+    if (STATE.mat && STATE.cl) {
+      STATE.step = 'inter';
+    } else {
+      STATE.step = 'entry';
+    }
+    paint();
   };
 
   window.coursWizardGo = function (step) {
@@ -611,12 +791,18 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       if (!STATE.mat) { STATE.step = 'mat'; paint(); return; }
       if (!STATE.cl) { STATE.step = 'cl'; paint(); return; }
       STATE.step = 'inter';
+    } else if (step === 'summary') {
+      STATE.step = 'summary';
     }
     paint();
   };
 
   /** Annulation du formulaire : revenir au wizard sans fermer (surtout mode batch). */
   window.coursWizardCancelForm = function () {
+    if (window._coursWizardResumeAfterEdit) {
+      window.coursWizardResumeAfterEdit();
+      return;
+    }
     var mode = window._coursWizardMode || (window._coursWizardCtx && window._coursWizardCtx.mode);
     var ctx = window._coursWizardCtx || {};
     if (!mode) {
@@ -636,6 +822,59 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       STATE.step = 'entry';
     }
     window._coursWizardActive = true;
+    paint();
+  };
+
+  window.coursWizardEditCreated = function (uid) {
+    if (!uid) return;
+    window._coursWizardResumeAfterEdit = true;
+    window._coursWizardActive = true;
+    window._coursWizardMode = 'batch';
+    var ov = document.getElementById('ovCoursWizard');
+    if (ov) ov.classList.add('hidden');
+    if (typeof window.editCours === 'function') {
+      window.editCours(uid, { keepWizard: true });
+    }
+  };
+
+  window.coursWizardDeleteCreated = function (uid) {
+    if (!uid) return;
+    var run = function () {
+      if (!window.D || !window.D.cours) return;
+      window.D.cours = window.D.cours.filter(function (c) { return c.uid !== uid; });
+      STATE.createdUids = STATE.createdUids.filter(function (u) { return u !== uid; });
+      STATE.createdCount = STATE.createdUids.length;
+      if (STATE.lastUid === uid) STATE.lastUid = STATE.createdUids[STATE.createdUids.length - 1] || null;
+      if (typeof window.pruneUnsortedMatiere === 'function') window.pruneUnsortedMatiere();
+      if (typeof window.pruneUnsortedClasseur === 'function') window.pruneUnsortedClasseur();
+      if (typeof window.save === 'function') window.save();
+      if (typeof window.renderCours === 'function') window.renderCours();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+      if (typeof window.renderMatieres === 'function') window.renderMatieres();
+      if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
+      if (typeof window.renderNotes === 'function') window.renderNotes();
+      paint();
+    };
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', run, 'Suppression');
+    } else {
+      run();
+    }
+  };
+
+  window.coursWizardResumeAfterEdit = function () {
+    window._coursWizardResumeAfterEdit = false;
+    STATE.mode = 'batch';
+    STATE.step = 'summary';
+    window._coursWizardActive = true;
+    window._coursWizardMode = 'batch';
+    window._coursWizardCtx = {
+      mat: STATE.mat,
+      cl: STATE.cl,
+      inter: STATE.inter,
+      mode: 'batch',
+      fromBrowse: !!(STATE.mat && STATE.cl)
+    };
     paint();
   };
 
@@ -684,6 +923,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     STATE.mode = 'batch';
     STATE.createdCount += 1;
     STATE.lastUid = uid || null;
+    if (uid && STATE.createdUids.indexOf(uid) === -1) STATE.createdUids.push(uid);
     /* Toujours revenir à l’intercalaire du document venant d’être créé */
     if (s.mat && s.cl) {
       STATE.mat = s.mat;
