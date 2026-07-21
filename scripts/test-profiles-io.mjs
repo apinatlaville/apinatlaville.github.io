@@ -334,6 +334,62 @@ async function testImportMergeNotes() {
   assert(ds && ds.note === 15 && ds.rang === 1, 'note/rang updated');
 }
 
+async function testArchiveAndSnapshots() {
+  console.log('\n[7] Archive + snapshots + sizes');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const env = baseEnv(store, fsMock, { isLocalMode: true });
+  env.D = {
+    settings: { userName: 'A' },
+    matieres: [{ id: 'm1', name: 'Math' }],
+    classeurs: [],
+    cours: [{ uid: 'c1', titre: 'Cours', mat: 'm1' }],
+    exercices: [],
+    devoirs: [],
+    meta: {}
+  };
+  const PIO = loadProfilesIO(env);
+
+  // seed second profile locally
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't' }
+    ]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__labo', JSON.stringify(env.D));
+  store.setItem('backup_local_cours__default', JSON.stringify(env.D));
+  env._activeProfileId = 'default';
+
+  const snap = PIO.createSnapshot('default', 'Avant test');
+  assert(!!snap && snap.bytes > 0, 'snapshot created with size');
+  assert(PIO.listSnapshots('default').length === 1, 'one snapshot listed');
+  const info = PIO.getProfileStorageInfo('default');
+  assert(info.liveBytes > 0 && info.snapBytes > 0, 'live + snap sizes reported');
+  assert(info.totalBytes === info.liveBytes + info.snapBytes, 'total = live + snaps');
+
+  await PIO.archiveProfile('labo');
+  assert(PIO.listProfiles().every((p) => p.id !== 'labo'), 'archived hidden from active list');
+  assert(PIO.listArchivedProfiles().some((p) => p.id === 'labo'), 'in archived list');
+
+  let blocked = false;
+  try { await PIO.switchProfile('labo'); } catch (e) { blocked = /archiv/i.test(String(e.message || e)); }
+  assert(blocked, 'cannot switch to archived');
+
+  await PIO.unarchiveProfile('labo');
+  assert(PIO.listProfiles().some((p) => p.id === 'labo'), 'unarchived visible again');
+
+  // restore overwrites D
+  env.D.cours = [];
+  await PIO.restoreSnapshot('default', snap.id);
+  assert(env.D.cours && env.D.cours.length === 1, 'restore brings cours back');
+
+  PIO.deleteSnapshot('default', snap.id);
+  assert(PIO.listSnapshots('default').length === 0, 'snapshot deleted');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -342,6 +398,7 @@ async function main() {
   await testSyncPurgesTombstoneGhost();
   await testCreateRollbackOnIndexFail();
   await testImportMergeNotes();
+  await testArchiveAndSnapshots();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }

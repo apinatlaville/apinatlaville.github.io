@@ -106,6 +106,9 @@ window.updateCloudIndicator = function() {
       box.removeAttribute('title');
     }
   }
+  if (window.ProfilesIO && typeof window.ProfilesIO.updateProfileIndicator === 'function') {
+    window.ProfilesIO.updateProfileIndicator();
+  }
 };
 
 window.triggerHaptic = function() {

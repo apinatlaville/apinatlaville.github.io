@@ -16,6 +16,9 @@
   var ACTIVE_KEY = 'active_profile';
   var LEGACY_BACKUP = 'backup_local_cours';
   var LEGACY_MC = 'mc_v28';
+  var SNAP_INDEX_PREFIX = 'mc_profile_snaps__';
+  var SNAP_DATA_PREFIX = 'backup_snap__';
+  var MAX_SNAPSHOTS = 8;
 
   /** Sections importables (cases à cocher) */
   var SECTIONS = [
@@ -49,6 +52,23 @@
     return JSON.parse(JSON.stringify(o));
   }
   function nowIso() { return new Date().toISOString(); }
+  function byteSizeOfString(s) {
+    if (s == null || s === '') return 0;
+    try { return new Blob([String(s)]).size; } catch (e) {
+      try { return unescape(encodeURIComponent(String(s))).length; } catch (e2) {
+        return String(s).length;
+      }
+    }
+  }
+  function formatBytes(n) {
+    n = Number(n) || 0;
+    if (n < 1024) return n + ' o';
+    if (n < 1024 * 1024) {
+      var ko = n / 1024;
+      return (ko >= 10 ? ko.toFixed(0) : ko.toFixed(1)) + ' Ko';
+    }
+    return (n / (1024 * 1024)).toFixed(2) + ' Mo';
+  }
   function slugify(name) {
     var s = String(name || 'profil')
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -65,6 +85,12 @@
 
   function localDataKey(profileId) {
     return LEGACY_BACKUP + '__' + (profileId || DEFAULT_ID);
+  }
+  function snapIndexKey(profileId) {
+    return SNAP_INDEX_PREFIX + (profileId || DEFAULT_ID);
+  }
+  function snapDataKey(profileId, snapId) {
+    return SNAP_DATA_PREFIX + (profileId || DEFAULT_ID) + '__' + snapId;
   }
 
   function emptyAccountIndex() {
@@ -145,8 +171,10 @@
       writeMetaLocal(meta);
     }
     var active = lsGet(ACTIVE_KEY) || meta.activeProfile || DEFAULT_ID;
-    if (!meta.profiles.some(function (p) { return p.id === active; })) {
-      active = meta.profiles[0].id;
+    var activeEntry = meta.profiles.find(function (p) { return p.id === active; });
+    if (!activeEntry || activeEntry.archived) {
+      var firstLive = meta.profiles.find(function (p) { return p && p.id && !p.archived; });
+      active = firstLive ? firstLive.id : (meta.profiles[0] && meta.profiles[0].id) || DEFAULT_ID;
     }
     meta.activeProfile = active;
     writeMetaLocal(meta);
@@ -158,19 +186,27 @@
     return meta.activeProfile || DEFAULT_ID;
   }
 
-  function listProfiles() {
+  function listAllProfiles() {
     return ensureLocalRegistry().profiles.slice();
   }
 
+  function listProfiles() {
+    return listAllProfiles().filter(function (p) { return p && !p.archived; });
+  }
+
+  function listArchivedProfiles() {
+    return listAllProfiles().filter(function (p) { return p && p.archived; });
+  }
+
   function getProfileMeta(id) {
-    return listProfiles().find(function (p) { return p.id === id; }) || null;
+    return listAllProfiles().find(function (p) { return p.id === id; }) || null;
   }
 
   function setActiveProfileId(id) {
     var meta = ensureLocalRegistry();
-    if (!meta.profiles.some(function (p) { return p.id === id; })) {
-      throw new Error('Profil inconnu : ' + id);
-    }
+    var p = meta.profiles.find(function (x) { return x.id === id; });
+    if (!p) throw new Error('Profil inconnu : ' + id);
+    if (p.archived) throw new Error('Ce profil est archivé. Désarchive-le avant de l’activer.');
     meta.activeProfile = id;
     writeMetaLocal(meta);
   }
@@ -226,6 +262,140 @@
     } catch (e) {
       console.warn('[ProfilesIO] meta non mise à jour:', e);
     }
+    return true;
+  }
+
+  function getLocalProfileRaw(profileId) {
+    var raw = lsGet(localDataKey(profileId));
+    if (!raw && profileId === DEFAULT_ID) {
+      raw = lsGet(LEGACY_BACKUP) || lsGet(LEGACY_MC);
+    }
+    return raw || null;
+  }
+
+  function getProfileLiveBytes(profileId) {
+    return byteSizeOfString(getLocalProfileRaw(profileId));
+  }
+
+  function readSnapIndex(profileId) {
+    try {
+      var raw = lsGet(snapIndexKey(profileId));
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+
+  function writeSnapIndex(profileId, arr) {
+    return lsSet(snapIndexKey(profileId), JSON.stringify(arr || []));
+  }
+
+  function listSnapshots(profileId) {
+    return readSnapIndex(profileId).map(function (s) {
+      var raw = lsGet(snapDataKey(profileId, s.id));
+      var bytes = s.bytes != null ? s.bytes : byteSizeOfString(raw);
+      return {
+        id: s.id,
+        label: s.label || 'Sauvegarde',
+        createdAt: s.createdAt || '',
+        bytes: bytes,
+        sizeLabel: formatBytes(bytes)
+      };
+    }).sort(function (a, b) {
+      return String(b.createdAt).localeCompare(String(a.createdAt));
+    });
+  }
+
+  function wipeSnapshots(profileId) {
+    var idx = readSnapIndex(profileId);
+    idx.forEach(function (s) {
+      if (s && s.id) lsRemove(snapDataKey(profileId, s.id));
+    });
+    lsRemove(snapIndexKey(profileId));
+  }
+
+  function getProfileStorageInfo(profileId) {
+    var liveBytes = getProfileLiveBytes(profileId);
+    var snaps = listSnapshots(profileId);
+    var snapBytes = snaps.reduce(function (sum, s) { return sum + (s.bytes || 0); }, 0);
+    return {
+      profileId: profileId,
+      liveBytes: liveBytes,
+      liveLabel: formatBytes(liveBytes),
+      snapCount: snaps.length,
+      snapBytes: snapBytes,
+      snapLabel: formatBytes(snapBytes),
+      totalBytes: liveBytes + snapBytes,
+      totalLabel: formatBytes(liveBytes + snapBytes),
+      snapshots: snaps
+    };
+  }
+
+  function createSnapshot(profileId, label) {
+    profileId = profileId || getSessionProfileId();
+    if (!getProfileMeta(profileId)) throw new Error('Profil introuvable');
+    var dataObj;
+    if (profileId === getSessionProfileId() && window.D && isProfilePayload(window.D)) {
+      dataObj = deepClone(window.D);
+    } else {
+      dataObj = readLocalProfileData(profileId);
+    }
+    if (!dataObj || !isProfilePayload(dataObj)) {
+      throw new Error('Aucune donnée à sauvegarder pour ce profil.');
+    }
+    var payload = JSON.stringify(dataObj);
+    var bytes = byteSizeOfString(payload);
+    var snapId = 's' + Date.now().toString(36);
+    if (!lsSet(snapDataKey(profileId, snapId), payload)) {
+      throw new Error('Stockage navigateur plein — impossible de créer la sauvegarde.');
+    }
+    var idx = readSnapIndex(profileId);
+    idx.unshift({
+      id: snapId,
+      label: String(label || 'Sauvegarde').trim().slice(0, 60) || 'Sauvegarde',
+      createdAt: nowIso(),
+      bytes: bytes
+    });
+    while (idx.length > MAX_SNAPSHOTS) {
+      var old = idx.pop();
+      if (old && old.id) lsRemove(snapDataKey(profileId, old.id));
+    }
+    if (!writeSnapIndex(profileId, idx)) {
+      lsRemove(snapDataKey(profileId, snapId));
+      throw new Error('Impossible d’enregistrer l’index des sauvegardes (quota).');
+    }
+    return listSnapshots(profileId).find(function (s) { return s.id === snapId; });
+  }
+
+  async function restoreSnapshot(profileId, snapId) {
+    profileId = profileId || getSessionProfileId();
+    var raw = lsGet(snapDataKey(profileId, snapId));
+    if (!raw) throw new Error('Sauvegarde introuvable.');
+    var data;
+    try { data = JSON.parse(raw); } catch (e) {
+      throw new Error('Sauvegarde corrompue.');
+    }
+    if (!isProfilePayload(data)) throw new Error('Sauvegarde invalide.');
+    if (!writeLocalProfileData(profileId, data)) {
+      throw new Error('Impossible d’écrire la restauration (quota navigateur).');
+    }
+    if (profileId === getSessionProfileId()) {
+      window.D = data;
+      if (typeof window.save === 'function') {
+        try { await window.save(); } catch (e) {
+          throw new Error('Données restaurées en local, sauvegarde cloud : ' + (e.message || e));
+        }
+      }
+      if (typeof window.applySettings === 'function') window.applySettings();
+    }
+    return true;
+  }
+
+  function deleteSnapshot(profileId, snapId) {
+    profileId = profileId || getSessionProfileId();
+    var idx = readSnapIndex(profileId).filter(function (s) { return s.id !== snapId; });
+    lsRemove(snapDataKey(profileId, snapId));
+    writeSnapIndex(profileId, idx);
     return true;
   }
 
@@ -389,33 +559,42 @@
     meta.profiles.forEach(function (p) { byId[p.id] = p; });
     (accountData.profiles || []).forEach(function (cp) {
       if (!cp || !cp.id || deleted[cp.id]) return;
-      if (byId[cp.id]) {
+      if (byId[cp.id] && byId[cp.id] !== true) {
         byId[cp.id].name = cp.name || byId[cp.id].name;
         byId[cp.id].updatedAt = cp.updatedAt || byId[cp.id].updatedAt;
+        byId[cp.id].archived = !!cp.archived;
       } else {
         meta.profiles.push({
           id: cp.id,
           name: cp.name || cp.id,
           createdAt: cp.createdAt || nowIso(),
-          updatedAt: cp.updatedAt || nowIso()
+          updatedAt: cp.updatedAt || nowIso(),
+          archived: !!cp.archived
         });
-        byId[cp.id] = true;
+        byId[cp.id] = meta.profiles[meta.profiles.length - 1];
       }
     });
 
-    // Si la session courante est tombstonée, basculer AVANT de purger la liste
-    // (évite un fantôme dans le select toute la session)
-    var sessionId = getSessionProfileId();
-    if (deleted[sessionId] || deleted[meta.activeProfile]) {
-      var nextId = accountData.activeProfile;
-      if (!nextId || deleted[nextId] || !(accountData.profiles || []).some(function (p) { return p && p.id === nextId; })) {
-        nextId = null;
-        (accountData.profiles || []).some(function (p) {
-          if (p && p.id && !deleted[p.id]) { nextId = p.id; return true; }
-          return false;
-        });
+    function pickNonArchived(preferred) {
+      if (preferred && !deleted[preferred]) {
+        var pref = meta.profiles.find(function (p) { return p.id === preferred && !p.archived; });
+        if (pref) return preferred;
       }
-      if (!nextId) nextId = DEFAULT_ID;
+      var found = null;
+      meta.profiles.some(function (p) {
+        if (p && p.id && !deleted[p.id] && !p.archived) { found = p.id; return true; }
+        return false;
+      });
+      return found || DEFAULT_ID;
+    }
+
+    // Si la session courante est tombstonée ou archivée, basculer AVANT de purger
+    var sessionId = getSessionProfileId();
+    var sessionMeta = meta.profiles.find(function (p) { return p.id === sessionId; });
+    var activeMeta = meta.profiles.find(function (p) { return p.id === meta.activeProfile; });
+    if (deleted[sessionId] || deleted[meta.activeProfile]
+        || (sessionMeta && sessionMeta.archived) || (activeMeta && activeMeta.archived)) {
+      var nextId = pickNonArchived(accountData.activeProfile);
       meta.activeProfile = nextId;
       lsSet(ACTIVE_KEY, nextId);
       pinSessionProfileId(nextId);
@@ -428,8 +607,8 @@
       if (deleted[p.id]) return false;
       return true;
     });
-    if (!meta.profiles.some(function (p) { return p.id === meta.activeProfile; })) {
-      meta.activeProfile = (meta.profiles[0] && meta.profiles[0].id) || DEFAULT_ID;
+    if (!meta.profiles.some(function (p) { return p.id === meta.activeProfile && !p.archived; })) {
+      meta.activeProfile = pickNonArchived(null);
       lsSet(ACTIVE_KEY, meta.activeProfile);
       pinSessionProfileId(meta.activeProfile);
     }
@@ -478,7 +657,8 @@
         id: p.id,
         name: p.name || p.id,
         createdAt: p.createdAt || nowIso(),
-        updatedAt: p.updatedAt || nowIso()
+        updatedAt: p.updatedAt || nowIso(),
+        archived: !!p.archived
       };
     });
     (meta.profiles || []).forEach(function (p) {
@@ -486,12 +666,14 @@
       if (byId[p.id]) {
         byId[p.id].name = p.name || byId[p.id].name;
         byId[p.id].updatedAt = p.updatedAt || nowIso();
+        byId[p.id].archived = !!p.archived;
       } else {
         byId[p.id] = {
           id: p.id,
           name: p.name || p.id,
           createdAt: p.createdAt || nowIso(),
-          updatedAt: p.updatedAt || nowIso()
+          updatedAt: p.updatedAt || nowIso(),
+          archived: !!p.archived
         };
       }
     });
@@ -503,9 +685,11 @@
       profiles: Object.keys(byId).map(function (k) { return byId[k]; }),
       deletedProfiles: deletedProfiles
     };
+    var activeEntry = payload.profiles.find(function (p) { return p.id === payload.activeProfile; });
     if (removedSet[payload.activeProfile] || deletedProfiles[payload.activeProfile]
-      || !payload.profiles.some(function (p) { return p.id === payload.activeProfile; })) {
-      payload.activeProfile = payload.profiles[0] ? payload.profiles[0].id : DEFAULT_ID;
+      || !activeEntry || activeEntry.archived) {
+      var fallback = payload.profiles.find(function (p) { return p && !p.archived; });
+      payload.activeProfile = fallback ? fallback.id : (payload.profiles[0] ? payload.profiles[0].id : DEFAULT_ID);
     }
     return { ok: true, payload: payload };
   }
@@ -1115,6 +1299,7 @@
     meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
     writeMetaLocal(meta);
     lsRemove(localDataKey(id));
+    wipeSnapshots(id);
 
     if (needsCloud && window.cloudConnected && window.setDoc) {
       try {
@@ -1127,12 +1312,65 @@
     }
   }
 
+  async function archiveProfile(id) {
+    var meta = ensureLocalRegistry();
+    var p = meta.profiles.find(function (x) { return x.id === id; });
+    if (!p) throw new Error('Profil introuvable');
+    if (id === getSessionProfileId() || id === meta.activeProfile) {
+      throw new Error('Bascule sur un autre profil avant d’archiver celui-ci.');
+    }
+    var activeCount = meta.profiles.filter(function (x) { return x && !x.archived; }).length;
+    if (!p.archived && activeCount <= 1) {
+      throw new Error('Impossible d’archiver le dernier profil actif.');
+    }
+    if (p.archived) return p;
+    p.archived = true;
+    p.updatedAt = nowIso();
+    writeMetaLocal(meta);
+    var user = window.currentUser;
+    if (!window.isLocalMode && user && user.sub && window.cloudConnected === false) {
+      p.archived = false;
+      writeMetaLocal(meta);
+      throw new Error('Connexion cloud requise pour archiver un profil.');
+    }
+    var okIdx = await persistAccountIndexCloud(user, meta);
+    if (!window.isLocalMode && window.cloudConnected && user && user.sub && !okIdx) {
+      p.archived = false;
+      writeMetaLocal(meta);
+      throw new Error('Archivage cloud échoué. Réessaie.');
+    }
+    return p;
+  }
+
+  async function unarchiveProfile(id) {
+    var meta = ensureLocalRegistry();
+    var p = meta.profiles.find(function (x) { return x.id === id; });
+    if (!p) throw new Error('Profil introuvable');
+    if (!p.archived) return p;
+    p.archived = false;
+    p.updatedAt = nowIso();
+    writeMetaLocal(meta);
+    var user = window.currentUser;
+    if (!window.isLocalMode && user && user.sub && window.cloudConnected === false) {
+      p.archived = true;
+      writeMetaLocal(meta);
+      throw new Error('Connexion cloud requise pour désarchiver un profil.');
+    }
+    var okIdx = await persistAccountIndexCloud(user, meta);
+    if (!window.isLocalMode && window.cloudConnected && user && user.sub && !okIdx) {
+      p.archived = true;
+      writeMetaLocal(meta);
+      throw new Error('Désarchivage cloud échoué. Réessaie.');
+    }
+    return p;
+  }
+
   async function switchProfile(id) {
     if (id === getSessionProfileId()) return;
     var meta = ensureLocalRegistry();
-    if (!meta.profiles.some(function (p) { return p.id === id; })) {
-      throw new Error('Profil inconnu');
-    }
+    var target = meta.profiles.find(function (p) { return p.id === id; });
+    if (!target) throw new Error('Profil inconnu');
+    if (target.archived) throw new Error('Profil archivé — désarchive-le avant de basculer.');
     var wasLocal = lsGet('active_mode') === 'local' || !!window.isLocalMode;
     var fromId = getSessionProfileId();
 
@@ -1194,16 +1432,90 @@
     return lines.join('');
   }
 
+  function formatSnapDate(iso) {
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return iso || '';
+      return d.toLocaleString('fr-FR', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    } catch (e) { return iso || ''; }
+  }
+
+  function updateProfileIndicator() {
+    var chip = document.getElementById('activeProfileChip');
+    if (!chip) return;
+    var meta = getProfileMeta(getSessionProfileId());
+    var name = (meta && meta.name) || 'Principal';
+    chip.hidden = false;
+    chip.textContent = name;
+    chip.setAttribute('title', 'Profil actif : ' + name);
+  }
+
   function renderSettingsBlock() {
     var root = document.getElementById('pioSettingsRoot');
     if (!root) return;
     var meta = ensureLocalRegistry();
-    var active = meta.activeProfile;
+    var active = getSessionProfileId() || meta.activeProfile;
+    var activeProfiles = listProfiles();
+    var archived = listArchivedProfiles();
 
-    var profileOpts = meta.profiles.map(function (p) {
+    var profileOpts = activeProfiles.map(function (p) {
+      var info = getProfileStorageInfo(p.id);
       return '<option value="' + esc(p.id) + '"' + (p.id === active ? ' selected' : '') + '>' +
-        esc(p.name) + (p.id === active ? ' (actif)' : '') + '</option>';
+        esc(p.name) + (p.id === active ? ' (actif)' : '') +
+        ' — ' + esc(info.totalLabel) + '</option>';
     }).join('');
+
+    var storageRows = listAllProfiles().map(function (p) {
+      var info = getProfileStorageInfo(p.id);
+      var tag = p.archived ? ' <span class="pio-tag">archivé</span>' : (p.id === active ? ' <span class="pio-tag pio-tag-on">actif</span>' : '');
+      return '<div class="pio-storage-row">' +
+        '<div class="pio-storage-name">' + esc(p.name) + tag + '</div>' +
+        '<div class="pio-storage-meta">Données ' + esc(info.liveLabel) +
+          (info.snapCount ? ' · ' + info.snapCount + ' sav. ' + esc(info.snapLabel) : '') +
+          ' · total <b>' + esc(info.totalLabel) + '</b></div>' +
+        '</div>';
+    }).join('');
+
+    var snaps = listSnapshots(active);
+    var snapRows = snaps.length
+      ? snaps.map(function (s) {
+          return '<div class="pio-snap-row" data-snap-id="' + esc(s.id) + '">' +
+            '<div class="pio-snap-info">' +
+              '<div class="pio-snap-label">' + esc(s.label) + '</div>' +
+              '<div class="pio-snap-meta">' + esc(formatSnapDate(s.createdAt)) +
+                ' · <b>' + esc(s.sizeLabel) + '</b></div>' +
+            '</div>' +
+            '<div class="pio-snap-actions">' +
+              '<button type="button" class="bs" data-pio-restore-snap="' + esc(s.id) + '">Restaurer</button>' +
+              '<button type="button" class="bs pio-danger" data-pio-del-snap="' + esc(s.id) + '">Effacer</button>' +
+            '</div>' +
+          '</div>';
+        }).join('')
+      : '<p class="pio-card-sub">Aucune sauvegarde locale pour ce profil.</p>';
+
+    var archivedBlock = archived.length
+      ? '<div class="pio-card">' +
+          '<div class="pio-card-title">Profils archivés</div>' +
+          '<p class="pio-card-sub">Masqués du sélecteur. Tu peux les désarchiver ou les supprimer définitivement (données + sauvegardes locales).</p>' +
+          archived.map(function (p) {
+            var info = getProfileStorageInfo(p.id);
+            return '<div class="pio-snap-row">' +
+              '<div class="pio-snap-info">' +
+                '<div class="pio-snap-label">' + esc(p.name) + '</div>' +
+                '<div class="pio-snap-meta">total <b>' + esc(info.totalLabel) + '</b>' +
+                  (info.snapCount ? ' · ' + info.snapCount + ' sav.' : '') + '</div>' +
+              '</div>' +
+              '<div class="pio-snap-actions">' +
+                '<button type="button" class="bs" data-pio-unarchive="' + esc(p.id) + '">Désarchiver</button>' +
+                '<button type="button" class="bs pio-danger" data-pio-purge="' + esc(p.id) + '">Supprimer…</button>' +
+              '</div>' +
+            '</div>';
+          }).join('') +
+        '</div>'
+      : '';
 
     var sectionChecks = SECTIONS.map(function (s) {
       return '<label class="pio-check"><input type="checkbox" data-pio-section="' + esc(s.id) + '" checked> ' +
@@ -1213,7 +1525,7 @@
     root.innerHTML =
       '<div class="pio-card">' +
         '<div class="pio-card-title">Profils de données</div>' +
-        '<p class="pio-card-sub">Plusieurs espaces isolés sous le même compte Google. Les IDs peuvent se croiser d’un profil à l’autre sans collision.</p>' +
+        '<p class="pio-card-sub">Plusieurs espaces isolés sous le même compte Google. Archiver masque un profil ; supprimer l’efface définitivement.</p>' +
         '<div class="pio-row">' +
           '<label class="pio-lbl">Profil actif</label>' +
           '<select id="pioActiveSelect" class="pio-select">' + profileOpts + '</select>' +
@@ -1227,9 +1539,28 @@
         '<div class="pio-row">' +
           '<input type="text" id="pioRenameInput" class="pio-input" placeholder="Nouveau nom du profil actif" maxlength="40">' +
           '<button type="button" class="bs" id="pioRenameBtn">Renommer</button>' +
+          '<button type="button" class="bs" id="pioArchiveBtn">Archiver…</button>' +
           '<button type="button" class="bs pio-danger" id="pioDeleteBtn">Supprimer…</button>' +
         '</div>' +
       '</div>' +
+
+      '<div class="pio-card">' +
+        '<div class="pio-card-title">Espace local</div>' +
+        '<p class="pio-card-sub">Taille des données et sauvegardes stockées dans ce navigateur (pas le cloud).</p>' +
+        '<div class="pio-storage-list">' + (storageRows || '<p class="pio-card-sub">Aucun profil.</p>') + '</div>' +
+      '</div>' +
+
+      '<div class="pio-card">' +
+        '<div class="pio-card-title">Sauvegardes locales du profil actif</div>' +
+        '<p class="pio-card-sub">Jusqu’à ' + MAX_SNAPSHOTS + ' snapshots par profil. Utile avant un import ou une grosse modif.</p>' +
+        '<div class="pio-row">' +
+          '<input type="text" id="pioSnapLabel" class="pio-input" placeholder="Libellé (ex. Avant import notes)" maxlength="60">' +
+          '<button type="button" class="bp" id="pioSnapCreate">Créer une sauvegarde</button>' +
+        '</div>' +
+        '<div class="pio-snap-list">' + snapRows + '</div>' +
+      '</div>' +
+
+      archivedBlock +
 
       '<div class="pio-card">' +
         '<div class="pio-card-title">Export</div>' +
@@ -1265,6 +1596,7 @@
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(root);
     wireSettingsBlock();
+    updateProfileIndicator();
   }
 
   function selectedSections(containerSel, attr) {
@@ -1338,6 +1670,7 @@
         if (!name) return;
         renameProfile(getSessionProfileId(), name).then(function () {
           renderSettingsBlock();
+          updateProfileIndicator();
         }).catch(function (e) { alert(e.message || e); });
       };
     }
@@ -1353,16 +1686,108 @@
           return;
         }
         var meta = getProfileMeta(id);
+        var info = getProfileStorageInfo(id);
         var go = function () {
           deleteProfile(id).then(function () {
-            if (typeof window.showToast === 'function') window.showToast('Profil « ' + ((meta && meta.name) || id) + ' » supprimé.');
+            if (typeof window.showToast === 'function') window.showToast('Profil « ' + ((meta && meta.name) || id) + ' » supprimé définitivement.');
+            renderSettingsBlock();
+            updateProfileIndicator();
+          }).catch(function (e) { alert(e.message || e); });
+        };
+        var msg = 'Supprimer définitivement « ' + esc((meta && meta.name) || id) +
+          ' » (' + esc(info.totalLabel) + ' local) et toutes ses sauvegardes ? Irréversible.';
+        if (typeof window.sysConfirm === 'function') {
+          window.sysConfirm(msg, go);
+        } else if (confirm('Supprimer définitivement ?')) go();
+      };
+    }
+
+    var archiveBtn = document.getElementById('pioArchiveBtn');
+    if (archiveBtn) {
+      archiveBtn.onclick = function () {
+        var sel = document.getElementById('pioActiveSelect');
+        var id = sel ? sel.value : null;
+        if (!id) return;
+        if (id === getSessionProfileId()) {
+          alert('Tu ne peux pas archiver le profil actif. Bascule d’abord vers un autre profil.');
+          return;
+        }
+        var meta = getProfileMeta(id);
+        var go = function () {
+          archiveProfile(id).then(function () {
+            if (typeof window.showToast === 'function') window.showToast('Profil « ' + ((meta && meta.name) || id) + ' » archivé.');
             renderSettingsBlock();
           }).catch(function (e) { alert(e.message || e); });
         };
         if (typeof window.sysConfirm === 'function') {
-          window.sysConfirm('Supprimer définitivement « ' + esc((meta && meta.name) || id) + ' » et toutes ses données ?', go);
-        } else if (confirm('Supprimer ?')) go();
+          window.sysConfirm('Archiver « ' + esc((meta && meta.name) || id) + ' » ? Tu pourras le désarchiver plus tard.', go);
+        } else if (confirm('Archiver ?')) go();
       };
+    }
+
+    var snapCreate = document.getElementById('pioSnapCreate');
+    if (snapCreate) {
+      snapCreate.onclick = function () {
+        var lab = document.getElementById('pioSnapLabel');
+        var label = (lab && lab.value.trim()) || ('Sauvegarde ' + new Date().toLocaleString('fr-FR'));
+        try {
+          var snap = createSnapshot(getSessionProfileId(), label);
+          if (typeof window.showToast === 'function') {
+            window.showToast('Sauvegarde créée (' + ((snap && snap.sizeLabel) || '?') + ').');
+          }
+          if (lab) lab.value = '';
+          renderSettingsBlock();
+        } catch (e) { alert(e.message || e); }
+      };
+    }
+
+    var rootEl = document.getElementById('pioSettingsRoot');
+    if (rootEl) {
+      rootEl.querySelectorAll('[data-pio-restore-snap]').forEach(function (btn) {
+        btn.onclick = function () {
+          var snapId = btn.getAttribute('data-pio-restore-snap');
+          var go = function () {
+            restoreSnapshot(getSessionProfileId(), snapId).then(function () {
+              if (typeof window.showToast === 'function') window.showToast('Sauvegarde restaurée.');
+              renderSettingsBlock();
+            }).catch(function (e) { alert(e.message || e); });
+          };
+          if (typeof window.sysConfirm === 'function') {
+            window.sysConfirm('Restaurer cette sauvegarde ? Les données actuelles du profil actif seront écrasées (crée d’abord une sauvegarde si besoin).', go);
+          } else if (confirm('Restaurer ?')) go();
+        };
+      });
+      rootEl.querySelectorAll('[data-pio-del-snap]').forEach(function (btn) {
+        btn.onclick = function () {
+          var snapId = btn.getAttribute('data-pio-del-snap');
+          deleteSnapshot(getSessionProfileId(), snapId);
+          renderSettingsBlock();
+        };
+      });
+      rootEl.querySelectorAll('[data-pio-unarchive]').forEach(function (btn) {
+        btn.onclick = function () {
+          unarchiveProfile(btn.getAttribute('data-pio-unarchive')).then(function () {
+            renderSettingsBlock();
+          }).catch(function (e) { alert(e.message || e); });
+        };
+      });
+      rootEl.querySelectorAll('[data-pio-purge]').forEach(function (btn) {
+        btn.onclick = function () {
+          var id = btn.getAttribute('data-pio-purge');
+          var meta = getProfileMeta(id);
+          var info = getProfileStorageInfo(id);
+          var go = function () {
+            deleteProfile(id).then(function () {
+              if (typeof window.showToast === 'function') window.showToast('Profil supprimé définitivement.');
+              renderSettingsBlock();
+            }).catch(function (e) { alert(e.message || e); });
+          };
+          var msg = 'Supprimer définitivement « ' + esc((meta && meta.name) || id) +
+            ' » (' + esc(info.totalLabel) + ') ? Irréversible.';
+          if (typeof window.sysConfirm === 'function') window.sysConfirm(msg, go);
+          else if (confirm('Supprimer ?')) go();
+        };
+      });
     }
 
     var exportBtn = document.getElementById('pioExportBtn');
@@ -1462,12 +1887,15 @@
     SCHEMA: SCHEMA,
     DEFAULT_ID: DEFAULT_ID,
     SECTIONS: SECTIONS,
+    MAX_SNAPSHOTS: MAX_SNAPSHOTS,
     localDataKey: localDataKey,
     getActiveProfileId: getActiveProfileId,
     getSessionProfileId: getSessionProfileId,
     pinSessionProfileId: pinSessionProfileId,
     setActiveProfileId: setActiveProfileId,
     listProfiles: listProfiles,
+    listAllProfiles: listAllProfiles,
+    listArchivedProfiles: listArchivedProfiles,
     getProfileMeta: getProfileMeta,
     ensureLocalRegistry: ensureLocalRegistry,
     isProfilePayload: isProfilePayload,
@@ -1483,7 +1911,16 @@
     createProfile: createProfile,
     renameProfile: renameProfile,
     deleteProfile: deleteProfile,
+    archiveProfile: archiveProfile,
+    unarchiveProfile: unarchiveProfile,
     switchProfile: switchProfile,
+    createSnapshot: createSnapshot,
+    restoreSnapshot: restoreSnapshot,
+    deleteSnapshot: deleteSnapshot,
+    listSnapshots: listSnapshots,
+    getProfileStorageInfo: getProfileStorageInfo,
+    formatBytes: formatBytes,
+    updateProfileIndicator: updateProfileIndicator,
     renderSettingsBlock: renderSettingsBlock,
     formatReportHtml: formatReportHtml
   };
@@ -1492,5 +1929,12 @@
   try {
     ensureLocalRegistry();
     pinSessionProfileId(getActiveProfileId());
+    if (typeof document !== 'undefined') {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateProfileIndicator);
+      } else {
+        updateProfileIndicator();
+      }
+    }
   } catch (e) { console.warn('ProfilesIO init:', e); }
 })();

@@ -4785,3 +4785,70 @@ body.nav-sidebar-left #paneLatexTest.on {
 .pio-report-line.pio-err { color: var(--red); }
 .pio-report-line.pio-warn { color: var(--gold, #f0c060); }
 .pio-report-line.pio-skip { color: var(--mut); }
+
+.profile-status-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 9.5rem;
+  padding: 4px 9px;
+  border-radius: 12px;
+  border: 1px solid var(--bd);
+  background: color-mix(in oklab, var(--acc, #5b9aff) 12%, rgba(255,255,255,0.04));
+  color: var(--txt);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.profile-status-chip::before {
+  content: 'Profil';
+  font-weight: 500;
+  color: var(--mut);
+  margin-right: 5px;
+  flex-shrink: 0;
+}
+.pio-storage-list, .pio-snap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pio-storage-row, .pio-snap-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--s2, var(--s1)) 80%, transparent);
+}
+.pio-storage-name, .pio-snap-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt);
+}
+.pio-storage-meta, .pio-snap-meta {
+  font-size: 11px;
+  color: var(--mut);
+}
+.pio-snap-info { min-width: 0; flex: 1 1 140px; }
+.pio-snap-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.pio-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--mut);
+  border: 1px solid var(--bd);
+  vertical-align: middle;
+}
+.pio-tag-on {
+  color: var(--acc, #5b9aff);
+  border-color: color-mix(in oklab, var(--acc, #5b9aff) 40%, var(--bd));
+}
