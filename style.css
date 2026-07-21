@@ -883,6 +883,13 @@ body.mode-compact .cdesc { display: none; }
   font-weight: 700;
   font-size: 14px;
 }
+.cours-tree-hdr.is-locked {
+  cursor: default;
+}
+.cours-tree-hdr.is-locked:hover {
+  border-color: color-mix(in srgb, var(--tree-accent, var(--acc)) 45%, var(--bd));
+  background: var(--s1);
+}
 .cours-tree-hdr--cl {
   font-weight: 600;
   font-size: 13px;

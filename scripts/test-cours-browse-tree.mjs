@@ -87,7 +87,8 @@ assert(typeof w.buildCoursBrowseTree === 'function', 'buildCoursBrowseTree expos
 assert(typeof w.setCoursBrowseMode === 'function', 'setCoursBrowseMode exposé');
 assert(typeof w.toggleCoursTreeNode === 'function', 'toggleCoursTreeNode exposé');
 assert(w.coursBrowseMode === 'tree', 'mode par défaut = tree');
-assert(Object.keys(w.coursExpanded || {}).length === 0, 'rien déplié par défaut');
+assert(Object.keys(w.coursExpanded || {}).length === 0, 'classeurs/inter repliés par défaut');
+assert(w.isCoursTreeExpanded('m:PHYS') === true, 'matières toujours considérées ouvertes');
 
 const tree = w.buildCoursBrowseTree(w.D.cours);
 assert(tree.length === 2, '2 matières dans l’arbre');
@@ -119,9 +120,11 @@ assert(aNode.inters.length === 2, 'Classeur A : 2 intercalaires');
 assert(aNode.inters[0].id === '01' && aNode.inters[1].id === '02', 'intercalaires triés');
 
 w.toggleCoursTreeNode('m:PHYS');
-assert(w.isCoursTreeExpanded('m:PHYS') === true, 'déplier matière PHYS');
-w.toggleCoursTreeNode('m:PHYS');
-assert(w.isCoursTreeExpanded('m:PHYS') === false, 'replier matière PHYS');
+assert(w.isCoursTreeExpanded('m:PHYS') === true, 'toggle matière ignoré — reste ouverte');
+w.toggleCoursTreeNode('c:PHYS|A');
+assert(w.isCoursTreeExpanded('c:PHYS|A') === true, 'déplier classeur A');
+w.toggleCoursTreeNode('c:PHYS|A');
+assert(w.isCoursTreeExpanded('c:PHYS|A') === false, 'replier classeur A');
 
 w.setCoursBrowseMode('mat');
 assert(w.coursBrowseMode === 'mat', 'bascule mode matières');
@@ -130,16 +133,16 @@ assert(w.coursBrowseMode === 'tree', 'retour mode arbre');
 
 const htmlTree = w.renderCoursBrowseHtml(w.D.cours, 'tree');
 assert(htmlTree.includes('cours-tree') && htmlTree.includes('Physique'), 'HTML arbre contient Physique');
-assert(!htmlTree.includes('Cinématique'), 'HTML arbre replié : pas de cartes visibles');
-w.coursExpanded['m:PHYS'] = true;
+assert(htmlTree.includes('Classeur A') && htmlTree.includes('Classeur Partagé'), 'matière ouverte : classeurs visibles');
+assert(htmlTree.includes('is-locked'), 'en-tête matière verrouillé ouvert');
+assert(!htmlTree.includes('Cinématique'), 'cartes encore cachées (classeurs repliés)');
 w.coursExpanded['c:PHYS|A'] = true;
 w.coursExpanded['i:PHYS|A|01'] = true;
 const htmlOpen = w.renderCoursBrowseHtml(w.D.cours, 'tree');
-assert(htmlOpen.includes('Cinématique'), 'après expand mat→cl→inter : carte visible');
+assert(htmlOpen.includes('Cinématique'), 'après expand cl→inter : carte visible');
 assert(htmlOpen.includes('Classeur A'), 'en-tête classeur visible');
 
 w.coursExpanded = Object.create(null);
-w.coursExpanded['m:PHYS'] = true;
 const htmlMatOnly = w.renderCoursBrowseHtml(w.D.cours, 'mat');
 assert(htmlMatOnly.includes('Cinématique') && htmlMatOnly.includes('Optique'), 'mode matières : cartes sous matière ouverte');
 assert(!htmlMatOnly.includes('cours-tree-hdr--cl'), 'mode matières : pas d’en-têtes classeur');
