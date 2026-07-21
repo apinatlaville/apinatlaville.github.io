@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260721f';
+  window.__BOOT_CACHE_V = '20260721i';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -236,14 +236,9 @@
     </div>
   </div>
 
-  <div id="dashRevArea">
-    <h3 style="font-family:'Inter'; margin-bottom:12px; margin-top:30px;">Statut des Révisions</h3>
-    <div class="dash-grid" id="dashRevGrid"></div>
-  </div>
-
   <h3 style="font-family:'Inter'; margin-bottom:12px; margin-top:30px; display:flex; align-items:center; gap:10px;">
-    <span data-icon="calendar" data-icon-size="16"></span> À faire cette semaine 
-    <span style="font-size:10px; background:var(--red); padding:2px 6px; border-radius:10px;">Priorités</span>
+    <span data-icon="qr-code" data-icon-size="16"></span> À initialiser
+    <span style="font-size:10px; background:var(--gold); color:#1a2030; padding:2px 6px; border-radius:10px;">QR</span>
   </h3>
   <div id="todoList"></div>
 
@@ -264,12 +259,6 @@
       <option value="DS">DS</option>
       <option value="KHOLLE">Khôlle</option>
       <option value="FICHE">Fiche</option>
-    </select>
-    <select class="fi" id="fltRev">
-      <option value="">Toutes maîtrises</option>
-      <option value="red">À revoir d'urgence</option>
-      <option value="orange">En cours d'acquisition</option>
-      <option value="green">Maîtrisé</option>
     </select>
     <select class="fi" id="fltMat"></select>
     <select class="fi" id="fltCl"></select>
@@ -442,7 +431,6 @@
 
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Modules de l'Accueil</h3>
   <div class="set-row"><div><div class="set-lbl">Accès Rapide (Code)</div></div><button class="toggle-btn" id="btnDashHeroToggle">Oui</button></div>
-  <div class="set-row"><div><div class="set-lbl">Statut des révisions</div></div><button class="toggle-btn" id="btnDashRevToggle">Oui</button></div>
   <div class="set-row"><div><div class="set-lbl">Vue d'ensemble</div></div><button class="toggle-btn" id="btnDashOverToggle">Oui</button></div>
 
 
@@ -632,13 +620,6 @@
           <option value="DS">DS</option>
           <option value="KHOLLE">Khôlle</option>
           <option value="FICHE">Fiche</option>
-        </select>
-      </div>
-      <div class="fg" style="flex:1;"><label>Maîtrise</label>
-        <select id="fRev">
-          <option value="red">À revoir (Urg.)</option>
-          <option value="orange">En cours</option>
-          <option value="green">Maîtrisé</option>
         </select>
       </div>
     </div>

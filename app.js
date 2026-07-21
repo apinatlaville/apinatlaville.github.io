@@ -228,7 +228,6 @@ window.applySettings = function() {
 
   if(window.$('matChips')) window.$('matChips').classList.toggle('hidden-ui', !window.D.settings.showChips);
   if(window.$('dashHeroArea')) window.$('dashHeroArea').style.display = window.D.settings.showDashHero ? 'block' : 'none';
-  if(window.$('dashRevArea')) window.$('dashRevArea').style.display = window.D.settings.showDashRev ? 'block' : 'none';
   if(window.$('dashOverviewArea')) window.$('dashOverviewArea').style.display = window.D.settings.showDashOver ? 'block' : 'none';
   if(window.$('btnCompactToggle')) window.$('btnCompactToggle').textContent = window.D.settings.compact ? 'Activé' : 'Désactivé';
   if(window.$('btnHeaderClockToggle')) window.$('btnHeaderClockToggle').textContent = window.D.settings.showHeaderClock ? 'Activé' : 'Désactivé';
@@ -244,7 +243,6 @@ window.applySettings = function() {
   if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
   if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
   if(window.$('btnDashHeroToggle')) window.$('btnDashHeroToggle').textContent = window.D.settings.showDashHero ? 'Oui' : 'Non';
-  if(window.$('btnDashRevToggle')) window.$('btnDashRevToggle').textContent = window.D.settings.showDashRev ? 'Oui' : 'Non';
   if(window.$('btnDashOverToggle')) window.$('btnDashOverToggle').textContent = window.D.settings.showDashOver ? 'Oui' : 'Non';
   if(window.$('setUserName')) window.$('setUserName').value = window.D.settings.userName;
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
@@ -688,12 +686,11 @@ window.runTabShow = function(tab, overrideResetFilters) {
       };
       if (pending && !overrideResetFilters) {
         window._pendingCoursFilters = null;
-        ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr'].forEach(id => setFlt(id, ''));
+        ['fltType', 'fltMat', 'fltCl', 'fltQr'].forEach(id => setFlt(id, ''));
         ['mainSearchText', 'mainSearchCode'].forEach(id => {
           if (window.$(id)) window.$(id).value = '';
         });
         window.chipFilter = null;
-        if (pending.rev) setFlt('fltRev', pending.rev);
         if (pending.type) setFlt('fltType', pending.type);
         window.renderCours();
       } else if (overrideResetFilters) {
@@ -824,23 +821,6 @@ window.switchTab = function(tab, overrideResetFilters = false) {
 
 window.renderDashboard = function() {
   if (!window.D || !window.D.cours) return;
-  const redCount = window.D.cours.filter(c => c.rev === 'red').length;
-  const orangeCount = window.D.cours.filter(c => c.rev === 'orange').length;
-  const greenCount = window.D.cours.filter(c => c.rev === 'green').length;
-
-  if(window.$('dashRevGrid')) {
-    window.$('dashRevGrid').innerHTML = `
-      <div class="dash-card dash-red" onclick="window.openCoursFiltered({rev:'red'})">
-        <div class="dash-num">${redCount}</div><div class="dash-lbl">${window.statusLabel('red', 'À revoir urg.')}</div>
-      </div>
-      <div class="dash-card" onclick="window.openCoursFiltered({rev:'orange'})">
-        <div class="dash-num" style="color:var(--gold);">${orangeCount}</div><div class="dash-lbl">${window.statusLabel('orange', 'En cours')}</div>
-      </div>
-      <div class="dash-card" onclick="window.openCoursFiltered({rev:'green'})">
-        <div class="dash-num" style="color:var(--grn);">${greenCount}</div><div class="dash-lbl">${window.statusLabel('green', 'Maîtrisés')}</div>
-      </div>
-    `;
-  }
 
   if(window.$('dashOverviewGrid')) {
     window.$('dashOverviewGrid').innerHTML = `
@@ -874,22 +854,22 @@ window.renderDashboard = function() {
     }
   }
 
-  const todos = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange')
+  const todos = window.D.cours.filter(c => c.stat === 'pending' || c.stat === 'printed')
                        .sort((a,b) => {
-                          if(a.rev === 'red' && b.rev !== 'red') return -1;
-                          if(a.rev !== 'red' && b.rev === 'red') return 1;
+                          if(a.stat === 'pending' && b.stat !== 'pending') return -1;
+                          if(a.stat !== 'pending' && b.stat === 'pending') return 1;
                           return new Date(a.date) - new Date(b.date);
                        }).slice(0, 5);
   
   if(window.$('todoList')) {
     if(!todos.length) {
-      window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">' + window.iconLabel('sparkles', 'Rien d\'urgent ! Tout est maîtrisé.') + '</div>';
+      window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">' + window.iconLabel('sparkles', 'Tous les QR sont initialisés.') + '</div>';
     } else {
       window.$('todoList').innerHTML = todos.map(c => `
-        <div class="todo-item" onclick="window.doLocate('${window.escHtml(c.uid)}')" style="border-left-color: ${c.rev === 'red' ? 'var(--red)' : 'var(--gold)'};">
+        <div class="todo-item" onclick="window.doLocate('${window.escHtml(c.uid)}')" style="border-left-color: ${c.stat === 'pending' ? 'var(--red)' : 'var(--gold)'};">
           <div>
             <div class="todo-tit">${window.escHtml(c.title)}</div>
-            <div class="todo-sub">${window.statusDot(c.rev === 'red' ? 'red' : 'orange')} ${window.escHtml(c.mat)} • ${window.escHtml(c.type)}</div>
+            <div class="todo-sub">${window.statusDot(c.stat === 'pending' ? 'red' : 'orange')} ${c.stat === 'pending' ? 'À imprimer' : 'À scanner'} · ${window.escHtml(c.mat)} • ${window.escHtml(c.type)}</div>
           </div>
           <button class="cbt">${window.iconLabel('arrow-right', 'Go')}</button>
         </div>
@@ -904,9 +884,9 @@ window.renderDashboard = function() {
 
 window.drawKholle = function() {
   if (!window.D || !window.D.cours) return;
-  const toReview = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange');
-  if(!toReview.length) return window.sysAlert("Bravo ! Aucun document urgent à réviser.", "Khôlle");
-  const winner = toReview[Math.floor(Math.random() * toReview.length)];
+  const pool = window.D.cours.filter(c => ['COURS', 'TD', 'FICHE', 'KHOLLE'].includes(c.type));
+  if(!pool.length) return window.sysAlert("Aucun cours, TD, fiche ou khôlle à tirer au sort.", "Khôlle");
+  const winner = pool[Math.floor(Math.random() * pool.length)];
   window.doLocate(winner.uid);
 };
 
@@ -1284,13 +1264,13 @@ window.renderStats = function() {
 
 window.exportCsv = function() {
   if (!window.D || !window.D.cours) return;
-  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Rang','Effectif','Date','Statut_QR'];
+  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Note','Rang','Effectif','Date','Statut_QR'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   
   const rows = window.D.cours.map(c => {
     const mo = window.D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
     const co = window.D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
-    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.rang||'', c.effectif||'', c.date||'', c.stat].map(esc).join(',');
+    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.note||'', c.rang||'', c.effectif||'', c.date||'', c.stat].map(esc).join(',');
   });
   
   const csv = [hdr.join(','), ...rows].join('\n');
@@ -1350,7 +1330,6 @@ bindClick('btnCompactToggle', withD(() => { window.D.settings.compact = !window.
 bindClick('btnStatsToggle', withD(() => { window.D.settings.showStats = !window.D.settings.showStats; window.save(); window.applySettings(); }));
 bindClick('btnChipsToggle', withD(() => { window.D.settings.showChips = !window.D.settings.showChips; window.save(); window.applySettings(); }));
 bindClick('btnDashHeroToggle', withD(() => { window.D.settings.showDashHero = !window.D.settings.showDashHero; window.save(); window.applySettings(); }));
-bindClick('btnDashRevToggle', withD(() => { window.D.settings.showDashRev = !window.D.settings.showDashRev; window.save(); window.applySettings(); }));
 bindClick('btnDashOverToggle', withD(() => { window.D.settings.showDashOver = !window.D.settings.showDashOver; window.save(); window.applySettings(); }));
 bindClick('btnInitWarnToggle', withD(() => { window.D.settings.showInitWarn = !window.D.settings.showInitWarn; window.save(); window.applySettings(); }));
 
@@ -1517,7 +1496,7 @@ bindClick('btnOrphanSelAll', () => window.orphanSelAll && window.orphanSelAll())
 bindClick('btnOrphanSelNone', () => window.orphanSelNone && window.orphanSelNone());
 bindClick('btnOrphanAssign', () => window.openOrphanAssign && window.openOrphanAssign());
 
-['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, () => window.renderCours()); });
+['fltMat', 'fltCl', 'fltQr', 'fltType'].forEach(id => { bindChange(id, () => window.renderCours()); });
 bindChange('fltNotesType', () => {
   const el = window.$('fltNotesType');
   window.setNotesFilter({ type: el ? el.value : '' });

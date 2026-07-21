@@ -9,7 +9,7 @@ window.localDateISO = window.localDateISO || function(d) {
 };
 
 window.emptyData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashRev: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, ankiQuotaMin: 90 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
@@ -206,7 +206,7 @@ window.toggleEditCl = function() {
 };
 
 window.resetFilters = function() {
-  ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr'].forEach(id => {
+  ['fltType', 'fltMat', 'fltCl', 'fltQr'].forEach(id => {
     const el = window.$(id);
     if (!el) return;
     if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(el, '');
@@ -265,7 +265,6 @@ window.renderCours = function() {
     const qCode = qCodeRaw.replace(/[^A-Z0-9]/g, '');
     const qrf = window.$('fltQr') ? window.$('fltQr').value : '';
     const fType = window.$('fltType') ? window.$('fltType').value : '';
-    const fRev = window.$('fltRev') ? window.$('fltRev').value : '';
 
     let baseList = window.D.cours;
 
@@ -309,7 +308,6 @@ window.renderCours = function() {
         && (!window.chipFilter || c.mat===window.chipFilter)
         && (!qrf || c.stat === qrf)
         && (!fType || c.type === fType)
-        && (!fRev || c.rev === fRev)
         && (!qCode || uidNorm.includes(qCode));
     });
 
@@ -357,7 +355,6 @@ window.renderCours = function() {
 
         html += `
         <div class="card" style="--mat-color:${mo.color}" onclick="window.doLocate('${window.escHtml(c.uid)}')">
-          <div class="rev-dot rev-${c.rev}"></div>
           <div class="uid-badge">${window.escHtml(c.uid)}</div>
           <div class="ctop">
             <div class="cbadges">
@@ -666,10 +663,6 @@ window.openModalCours = function() {
     window.$('fType').value = 'COURS';
     if (window.$('fType')._choices) window.$('fType')._choices.setChoiceByValue('COURS');
   }
-  if(window.$('fRev')) {
-    window.$('fRev').value = 'green';
-    if (window.$('fRev')._choices) window.$('fRev')._choices.setChoiceByValue('green');
-  }
   if(window.$('fNote')) window.$('fNote').value = '';
   if(window.$('fRang')) window.$('fRang').value = '';
   if(window.$('fEffectif')) window.$('fEffectif').value = '';
@@ -739,11 +732,6 @@ window.editCours = function(uid) {
     if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fType'), c.type || 'COURS');
     else if (window.$('fType')._choices) window.$('fType')._choices.setChoiceByValue(c.type || 'COURS');
   }
-  if(window.$('fRev')) {
-    window.$('fRev').value = c.rev || 'green';
-    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fRev'), c.rev || 'green');
-    else if (window.$('fRev')._choices) window.$('fRev')._choices.setChoiceByValue(c.rev || 'green');
-  }
   window.toggleNoteField();
   
   if(window.$('lblManualUid')) window.$('lblManualUid').style.display = 'none';
@@ -799,7 +787,6 @@ window.saveCours = function() {
   const obj = {
     title, 
     type:window.$('fType')?window.$('fType').value:'', 
-    rev:window.$('fRev')?window.$('fRev').value:'', 
     mat, 
     cl, 
     inter, 
@@ -822,12 +809,15 @@ window.saveCours = function() {
     if(idx > -1) {
       const prev = window.D.cours[idx];
       obj.uid = prev.uid;
-      obj.stat = prev.stat; 
+      obj.stat = prev.stat;
+      /* rev conservé en arrière-plan (compat données anciennes, plus exposé UI) */
+      obj.rev = prev.rev || 'green';
       if(prev.date) obj.date = prev.date;
       if(prev.duree != null) obj.duree = prev.duree;
       window.D.cours[idx] = obj;
     }
   } else {
+    obj.rev = 'green';
     let newUid = '';
     if (window.$('fManualUidToggle') && window.$('fManualUidToggle').checked) {
       const prefixEl = window.$('fUidPrefix');
