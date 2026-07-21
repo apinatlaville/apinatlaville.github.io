@@ -1433,7 +1433,11 @@
     if (wasLocal) lsSet('active_mode', 'local');
     meta = ensureLocalRegistry();
     await persistAccountIndexCloud(window.currentUser, meta);
-    location.reload();
+    if (window.location && typeof window.location.reload === 'function') {
+      window.location.reload();
+    } else if (typeof location !== 'undefined' && location.reload) {
+      location.reload();
+    }
   }
 
   // ─── UI Paramètres ──────────────────────────────────────
