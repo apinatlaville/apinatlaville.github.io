@@ -988,7 +988,7 @@ window.renderClasseurs = function() {
               </div>`).join('');
             return `
               <div class="inter-group">
-                <div class="inter-group-hdr" style="background:${cl.color}15; color:${cl.color}; border-left:3px solid ${cl.color}; padding:8px 12px; font-family:'DM Mono',monospace; font-weight:bold; font-size:12px; letter-spacing:0.5px; margin-top:4px;">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interHeader)} <span style="float:right;color:var(--mut);font-weight:normal;">${groups[k].length} doc${groups[k].length>1?'s':''}</span></div>
+                <div class="inter-group-hdr" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.22) : (cl.color + '33')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}; border-left:4px solid ${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}; padding:8px 12px; font-family:'DM Mono',monospace; font-weight:bold; font-size:12px; letter-spacing:0.5px; margin-top:4px;">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interHeader)} <span style="float:right;color:var(--mut);font-weight:normal;">${groups[k].length} doc${groups[k].length>1?'s':''}</span></div>
                 ${items}
               </div>`;
           }).join('');
