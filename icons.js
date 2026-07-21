@@ -195,10 +195,34 @@
     return `<span class="status-label">${window.statusDot(color)}${text}</span>`;
   };
 
-  window.renderClasseurIcon = function (key, size) {
+  window.renderClasseurIcon = function (key, size, color) {
     const resolved = EMOJI_MAP[key] ? resolveName(key) : (CLASSEUR_KEYS[key] || 'folder');
-    const colorCls = CLASSEUR_COLORS[key] || '';
-    return window.iconHtml(resolved, size || 18, colorCls ? 'icon-md ' + colorCls : 'icon-md');
+    const colorCls = (!color && CLASSEUR_COLORS[key]) ? CLASSEUR_COLORS[key] : '';
+    const cls = ['icon', 'icon-md'];
+    if (colorCls) cls.push(colorCls);
+    const style = color ? ' style="color:' + String(color).replace(/"/g, '') + '"' : '';
+    const s = size || 18;
+    const inner = P[resolved] || P['circle-dot'] || P.folder;
+    return '<span class="' + cls.join(' ') + '"' + style + ' aria-hidden="true">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '" viewBox="0 0 24 24">' +
+      (inner || '') + '</svg></span>';
+  };
+
+  /** Choix d’icône classeur : dossier ou livre (style classeur) */
+  window.CL_ICON_CHOICES = [
+    { id: 'folder', label: 'Dossier', icon: 'folder' },
+    { id: 'book', label: 'Classeur', icon: 'book' }
+  ];
+
+  window.normalizeClasseurIcon = function (key) {
+    if (!key) return 'folder';
+    if (key === 'book' || key === 'folder' || key === 'library' || key === 'languages') return key;
+    if (CLASSEUR_KEYS[key]) {
+      // book-blue / book-green… → book pour l’édition
+      if (String(key).indexOf('book') === 0) return 'book';
+      return CLASSEUR_KEYS[key];
+    }
+    return 'folder';
   };
 
   window.docTypeLabel = function (type) {

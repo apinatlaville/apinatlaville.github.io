@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260721d';
+  window.__BOOT_CACHE_V = '20260721e';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -351,6 +351,9 @@
       <div class="sws" id="swCl"></div>
       <div class="sw-preview-bar" id="nClColorPreview" aria-hidden="true"></div>
     </div>
+    <div class="fg"><label>Icône</label>
+      <div class="cl-icon-pick" id="nClIconPick" role="group" aria-label="Icône du classeur"></div>
+    </div>
     <button class="bp" id="btnAddCl" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
   </div>
 </div>
@@ -679,6 +682,9 @@
     <div class="fg"><label>Couleur du classeur</label>
       <div class="sws" id="eClSw"></div>
       <div class="sw-preview-bar" id="eClColorPreview" aria-hidden="true"></div>
+    </div>
+    <div class="fg"><label>Icône</label>
+      <div class="cl-icon-pick" id="eClIconPick" role="group" aria-label="Icône du classeur"></div>
     </div>
     <div class="fg"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.onEditClMaxChange()"></div>
     

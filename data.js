@@ -176,7 +176,8 @@ window.isEditingCl = false;
 window.currentEditClId = null;
 window.chipFilter = null;
 window.newColor = window.COLORS[0];
-window.newColorCl = window.COLORS[0]; 
+window.newColorCl = window.COLORS[0];
+window.newIconCl = 'folder'; 
 window.editUid = null;
 window.moveUid = null; // 🚨 ÉTAT : Sauvegarde l'id du cours qu'on déplace
 
@@ -333,7 +334,7 @@ window.renderCours = function() {
 
       list.forEach(c => {
         const mo = window.D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
-        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'book-blue'};
+        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'book-blue', color:'#5b8df7'};
         
         const interNameDisplay = window.getInterName(co, c.inter);
 
@@ -366,7 +367,7 @@ window.renderCours = function() {
           </div>
           <div class="ctitle">${window.escHtml(c.title)}</div>
           <div class="clocs">
-            <span class="cloc cloc-a">${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)}</span>
+            <span class="cloc cloc-a">${window.renderClasseurIcon(co.icon, 14, co.color)} ${window.escHtml(co.name)}</span>
             <span class="cloc cloc-b">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}</span>
           </div>
           ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
@@ -414,7 +415,7 @@ window.doLocate = function(uid) {
   window.triggerHaptic();
 
   const mo = window.D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
-  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue'};
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue', color: '#5b8df7'};
   const interNameDisplay = window.getInterName(co, c.inter);
   
   const baseInfoHtml = `
@@ -432,7 +433,7 @@ window.doLocate = function(uid) {
         <p style="font-size:12px; color:var(--mut); margin-bottom:15px; text-align:center;">Confirme l'emplacement de ce document :</p>
         <div class="loc-cards" style="margin-bottom:15px;">
           <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
-            ${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)}
+            ${window.renderClasseurIcon(co.icon, 16, co.color)} ${window.escHtml(co.name)}
           </div>
           <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
             ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}
@@ -454,7 +455,7 @@ window.doLocate = function(uid) {
      window.$('locContent').innerHTML = baseInfoHtml + `
         <div class="loc-cards">
           <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
-            ${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)}
+            ${window.renderClasseurIcon(co.icon, 16, co.color)} ${window.escHtml(co.name)}
           </div>
           <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
             ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}
@@ -499,11 +500,11 @@ window.openMove = function(uid) {
   if(!c) return;
   window.moveUid = uid;
   
-  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue'};
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue', color: '#5b8df7'};
   const interNameDisplay = window.getInterName(co, c.inter);
   
   if(window.$('moveCurrentLoc')) {
-      window.$('moveCurrentLoc').innerHTML = `${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)} <br> ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}`;
+      window.$('moveCurrentLoc').innerHTML = `${window.renderClasseurIcon(co.icon, 16, co.color)} ${window.escHtml(co.name)} <br> ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}`;
   }
 
   const moveClSelect = window.$('fMoveCl');
@@ -868,6 +869,32 @@ window.setNewColorCl = function(col) {
   window.renderClasseurs();
 };
 
+window.setNewIconCl = function(icon) {
+  window.newIconCl = icon === 'book' ? 'book' : 'folder';
+  window.renderClasseurs();
+};
+
+window.renderClIconPicker = function(containerId, selected, onClickFnName, color) {
+  const el = window.$(containerId);
+  if (!el) return;
+  const choices = window.CL_ICON_CHOICES || [
+    { id: 'folder', label: 'Dossier', icon: 'folder' },
+    { id: 'book', label: 'Classeur', icon: 'book' }
+  ];
+  const sel = (typeof window.normalizeClasseurIcon === 'function'
+    ? window.normalizeClasseurIcon(selected)
+    : selected) || 'folder';
+  const tint = color || window.newColorCl || (window.COLORS && window.COLORS[0]) || '#5b8df7';
+  el.innerHTML = choices.map(function (ch) {
+    const on = ch.id === sel ? ' on' : '';
+    const ico = typeof window.renderClasseurIcon === 'function'
+      ? window.renderClasseurIcon(ch.icon, 18, tint)
+      : '';
+    return '<button type="button" class="cl-icon-opt' + on + '" onclick="' + onClickFnName + '(\'' + ch.id + '\')">' +
+      ico + '<span>' + ch.label + '</span></button>';
+  }).join('');
+};
+
 window.renderColorSwatches = function(containerId, selected, onClickFnName, previewId) {
   const el = window.$(containerId);
   if (!el) return;
@@ -887,10 +914,14 @@ window.editClasseur = function(id) {
   if(!cl) return;
   window.currentEditClId = id;
   window.editClColor = cl.color || (window.COLORS && window.COLORS[0]) || '#5b8df7';
+  window.editClIcon = typeof window.normalizeClasseurIcon === 'function'
+    ? window.normalizeClasseurIcon(cl.icon)
+    : (cl.icon === 'book' ? 'book' : 'folder');
   
   if(window.$('eClNm')) window.$('eClNm').value = cl.name;
   if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
   window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
+  window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
   
   window.renderEditClInters(); 
   
@@ -901,6 +932,12 @@ window.editClasseur = function(id) {
 window.setEditClColor = function(col) {
   window.editClColor = col;
   window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
+  window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
+};
+
+window.setEditClIcon = function(icon) {
+  window.editClIcon = icon === 'book' ? 'book' : 'folder';
+  window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
 };
 
 window.renderClasseurs = function() {
@@ -962,7 +999,7 @@ window.renderClasseurs = function() {
         return `
           <div class="cl-card">
             <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
-              <div class="cl-ico" style="background:${cl.color}20">${window.renderClasseurIcon(cl.icon)}</div>
+              <div class="cl-ico" style="background:${cl.color}20; color:${cl.color}">${window.renderClasseurIcon(cl.icon, 18, cl.color)}</div>
               <div class="cl-info" style="flex:1;">
                 <div class="cl-nm">${window.escHtml(cl.name)}${isSystem ? '<span style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : ''}</div>
                 <div class="cl-sb">${cl.maxInter || 12} inter. max</div>
@@ -980,6 +1017,7 @@ window.renderClasseurs = function() {
     g.innerHTML = html;
     
     window.renderColorSwatches('swCl', window.newColorCl, 'window.setNewColorCl', 'nClColorPreview');
+    window.renderClIconPicker('nClIconPick', window.newIconCl || 'folder', 'window.setNewIconCl', window.newColorCl);
 
   } catch(e) {
     if (typeof window.recordAppError === 'function') {
@@ -1062,6 +1100,7 @@ window.saveClEdit = function() {
   cl.name = window.$('eClNm').value.trim() || cl.name;
   cl.maxInter = newMax;
   if (window.editClColor) cl.color = window.editClColor;
+  if (window.editClIcon === 'book' || window.editClIcon === 'folder') cl.icon = window.editClIcon;
   
   if(!cl.interNames) cl.interNames = {};
   for(let i=1; i<=cl.maxInter; i++) {
@@ -1223,7 +1262,7 @@ window.addCl = function() {
   window.D.classeurs.push({
     id: newId, 
     name: name, 
-    icon: 'folder', 
+    icon: (window.newIconCl === 'book' ? 'book' : 'folder'), 
     color: window.newColorCl || (window.COLORS && window.COLORS[0]) || '#ccc', 
     maxInter: 12, 
     interNames: {}
@@ -1234,6 +1273,7 @@ window.addCl = function() {
   window.renderCours();
   
   nameInput.value = '';
+  window.newIconCl = 'folder';
 };
 
 window.delMat = function(id) {

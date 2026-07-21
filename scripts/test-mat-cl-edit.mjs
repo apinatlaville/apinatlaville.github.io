@@ -39,6 +39,12 @@ function loadDataJs() {
     escHtml: (s) => String(s == null ? '' : s),
     iconLabel: (a, b) => b || a,
     iconHtml: () => '',
+    renderClasseurIcon: () => '',
+    normalizeClasseurIcon: (k) => (k === 'book' || String(k || '').indexOf('book') === 0) ? 'book' : 'folder',
+    CL_ICON_CHOICES: [
+      { id: 'folder', label: 'Dossier', icon: 'folder' },
+      { id: 'book', label: 'Classeur', icon: 'book' }
+    ],
     save: () => { env._saved = true; },
     renderCours: () => {},
     renderClasseurs: () => {},
@@ -86,10 +92,12 @@ assert(info.id === 'INFO' && info.label === 'INFO', 'id matière = code 4 lettre
 
 // Création classeur avec couleur
 env.newColorCl = '#50d890';
+env.newIconCl = 'book';
 env.$('nClNm').value = 'Classeur Vert';
 env.addCl();
 const clNew = env.D.classeurs.find((c) => c.name === 'Classeur Vert');
 assert(!!clNew && clNew.color === '#50d890', 'création classeur prend la couleur choisie');
+assert(clNew.icon === 'book', 'création classeur icône livre/classeur');
 assert(/^CL-/.test(clNew.id), 'id classeur auto CL-…');
 
 // Édition matière : nom + couleur, id fixe
@@ -102,14 +110,16 @@ assert(phys.name === 'Physique PC*' && phys.color === '#b06af7', 'édition mati�
 assert(phys.id === 'PHYS' && phys.label === 'PHYS', 'id matière inchangé');
 assert(env.D.cours.find((c) => c.uid === 'PH-8X2').mat === 'PHYS', 'cours toujours lié par id PHYS');
 
-// Édition classeur : nom + couleur, id fixe
+// Édition classeur : nom + couleur + icône, id fixe
 env.currentEditClId = 'CL-ABC12';
 env.editClColor = '#f06ab0';
+env.editClIcon = 'folder';
 env.$('eClNm').value = 'Classeur Phys Renommé';
 env.$('eClMax').value = '12';
 env.saveClEdit();
 const cl = env.D.classeurs.find((c) => c.id === 'CL-ABC12');
 assert(cl.name === 'Classeur Phys Renommé' && cl.color === '#f06ab0', 'édition classeur nom+couleur');
+assert(cl.icon === 'folder', 'édition classeur icône dossier');
 assert(cl.id === 'CL-ABC12', 'id classeur inchangé');
 assert(env.D.cours.every((c) => c.cl === 'CL-ABC12' || c.cl !== 'CL-ABC12'), 'liens cours.cl stables');
 assert(env.D.cours.filter((c) => c.cl === 'CL-ABC12').length === 2, '2 cours toujours sur le même id classeur');
