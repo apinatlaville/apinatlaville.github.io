@@ -1605,7 +1605,8 @@ async function resolveCloudUserDoc(user) {
         storageKey: resolved.legacyRoot ? 'uid-legacy' : 'uid-profile',
         profileId: resolved.profileId,
         accountRef: resolved.accountRef,
-        legacyRoot: !!resolved.legacyRoot
+        legacyRoot: !!resolved.legacyRoot,
+        localOnly: !!resolved.localOnly
       };
     } catch (e) {
       // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
@@ -2114,7 +2115,7 @@ window._saveImpl = async function() {
         window.showToast(M.SECONDARY_READ_ONLY || 'Appareil secondaire : les modifications ne sont pas enregistrées ici.');
       }
     }
-    return;
+    throw new Error('SECONDARY_READ_ONLY');
   }
 
   if (!window.D.meta) window.D.meta = {};

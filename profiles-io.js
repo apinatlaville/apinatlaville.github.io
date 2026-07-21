@@ -210,8 +210,8 @@
       console.error('[ProfilesIO] Échec localStorage pour', profileId);
       return false;
     }
-    // Miroir legacy uniquement pour le profil de CETTE session (pas getActiveProfileId live)
-    if (profileId === getSessionProfileId()) {
+    // Miroir legacy UNIQUEMENT pour le profil default (évite de polluer le repli)
+    if (profileId === DEFAULT_ID) {
       var okMirror = lsSet(LEGACY_BACKUP, payload);
       if (!okMirror) {
         console.warn('[ProfilesIO] Miroir backup_local_cours impossible (quota ?)');
@@ -418,34 +418,44 @@
    */
   async function persistAccountIndexCloud(user, meta, opts) {
     if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return true;
+    if (window.cloudConnected === false) return false;
     opts = opts || {};
     var removedIds = opts.removedIds || [];
     var removedSet = Object.create(null);
     removedIds.forEach(function (id) { if (id) removedSet[id] = true; });
 
+    if (!window.getDoc) {
+      console.warn('[ProfilesIO] Index non écrit : getDoc indisponible');
+      return false;
+    }
+
     var ref = accountDocRef(user.sub);
     var remoteProfiles = [];
     var remoteActive = null;
     var deletedProfiles = {};
+    var remoteExists = false;
     try {
-      if (window.getDoc) {
-        var snap = await window.getDoc(ref);
-        if (snap.exists()) {
-          var remote = snap.data();
-          if (isAccountIndex(remote)) {
-            remoteProfiles = remote.profiles || [];
-            remoteActive = remote.activeProfile || null;
-            deletedProfiles = remote.deletedProfiles && typeof remote.deletedProfiles === 'object'
-              ? Object.assign({}, remote.deletedProfiles)
-              : {};
-          } else if (isLegacyDataDoc(remote)) {
-            console.warn('[ProfilesIO] Index non écrit : racine encore en format legacy');
-            return false;
-          }
+      var snap = await window.getDoc(ref);
+      if (snap.exists()) {
+        remoteExists = true;
+        var remote = snap.data();
+        if (isAccountIndex(remote)) {
+          remoteProfiles = remote.profiles || [];
+          remoteActive = remote.activeProfile || null;
+          deletedProfiles = remote.deletedProfiles && typeof remote.deletedProfiles === 'object'
+            ? Object.assign({}, remote.deletedProfiles)
+            : {};
+        } else if (isLegacyDataDoc(remote)) {
+          console.warn('[ProfilesIO] Index non écrit : racine encore en format legacy');
+          return false;
+        } else {
+          console.warn('[ProfilesIO] Index non écrit : document racine non reconnu');
+          return false;
         }
       }
     } catch (e) {
-      console.warn('[ProfilesIO] Lecture index avant écriture:', e);
+      console.warn('[ProfilesIO] Lecture index échouée — pas d’écriture:', e);
+      return false;
     }
 
     removedIds.forEach(function (id) {
@@ -950,10 +960,10 @@
 
     var user = window.currentUser;
     var okIdx = await persistAccountIndexCloud(user, meta);
-    if (!window.isLocalMode && user && user.sub && !okIdx) {
+    if (!window.isLocalMode && window.cloudConnected && user && user.sub && !okIdx) {
       console.warn('[ProfilesIO] Index cloud non synchronisé après création');
     }
-    if (!window.isLocalMode && user && user.sub && window.setDoc) {
+    if (!window.isLocalMode && window.cloudConnected && user && user.sub && window.setDoc) {
       try {
         await window.setDoc(profileDocRef(user.sub, id), seed);
       } catch (e) {
@@ -985,10 +995,10 @@
     writeMetaLocal(meta);
     lsRemove(localDataKey(id));
     var okIdx = await persistAccountIndexCloud(window.currentUser, meta, { removedIds: [id] });
-    if (!window.isLocalMode && window.currentUser && window.currentUser.sub && !okIdx) {
+    if (!window.isLocalMode && window.cloudConnected && window.currentUser && window.currentUser.sub && !okIdx) {
       throw new Error('Suppression cloud de l’index échouée. Réessaie (le profil est retiré localement).');
     }
-    if (!window.isLocalMode && window.currentUser && window.currentUser.sub && window.setDoc) {
+    if (!window.isLocalMode && window.cloudConnected && window.currentUser && window.currentUser.sub && window.setDoc) {
       try {
         if (typeof window.deleteDoc === 'function') {
           await window.deleteDoc(profileDocRef(window.currentUser.sub, id));
@@ -1006,7 +1016,15 @@
       throw new Error('Profil inconnu');
     }
     var wasLocal = lsGet('active_mode') === 'local' || !!window.isLocalMode;
-    if (typeof window.save === 'function' && window.D) {
+    var fromId = getSessionProfileId();
+
+    // Secondaire : forcer une sauvegarde locale du profil courant avant bascule
+    if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+        && !window.DeviceSession.canFullSave()) {
+      if (window.D && !writeLocalProfileData(fromId, window.D)) {
+        throw new Error('Sauvegarde locale impossible avant bascule (appareil secondaire).');
+      }
+    } else if (typeof window.save === 'function' && window.D) {
       try {
         await window.save();
       } catch (e) {
@@ -1017,9 +1035,11 @@
         );
       }
     }
+
+    // Ne PAS re-pincher vers le nouveau profil tant que D = ancien blob
+    // (évite qu’un save concurrent écrive l’ancien D dans le nouveau profil)
+    window._persistDisabled = true;
     setActiveProfileId(id);
-    pinSessionProfileId(id);
-    // Crucial : garder le mode local après reload (sinon splash Firebase infini)
     if (wasLocal) lsSet('active_mode', 'local');
     meta = ensureLocalRegistry();
     await persistAccountIndexCloud(window.currentUser, meta);
