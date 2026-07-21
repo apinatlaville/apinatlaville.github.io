@@ -245,6 +245,8 @@ window.toggleCoursTreeNode = function(key, ev) {
     ev.preventDefault();
     ev.stopPropagation();
   }
+  /* Les matières restent toujours ouvertes (classeurs visibles). */
+  if (String(key || '').indexOf('m:') === 0) return;
   if (!window.coursExpanded) window.coursExpanded = Object.create(null);
   if (window.coursExpanded[key]) delete window.coursExpanded[key];
   else window.coursExpanded[key] = true;
@@ -252,6 +254,7 @@ window.toggleCoursTreeNode = function(key, ev) {
 };
 
 window.isCoursTreeExpanded = function(key) {
+  if (String(key || '').indexOf('m:') === 0) return true;
   return !!(window.coursExpanded && window.coursExpanded[key]);
 };
 
@@ -349,21 +352,26 @@ window.renderCoursCardHtml = function(c) {
 
 window.renderCoursTreeHdr = function(opts) {
   const open = !!opts.open;
-  const chev = window.iconHtml(open ? 'chevron-down' : 'chevron-right', 14, 'icon-sm');
+  const locked = !!opts.locked;
+  const chev = locked
+    ? ''
+    : window.iconHtml(open ? 'chevron-down' : 'chevron-right', 14, 'icon-sm');
   const color = opts.color || 'var(--acc)';
   const icon = opts.iconHtml || '';
   const count = opts.count || 0;
   const safeKey = String(opts.key || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const tag = locked ? 'div' : 'button';
+  const clickAttr = locked ? '' : ` onclick="window.toggleCoursTreeNode('${safeKey}', event)"`;
+  const typeAttr = locked ? '' : ' type="button"';
   return `
-    <button type="button" class="cours-tree-hdr cours-tree-hdr--${opts.level || 'mat'}${open ? ' is-open' : ''}"
+    <${tag}${typeAttr} class="cours-tree-hdr cours-tree-hdr--${opts.level || 'mat'}${open ? ' is-open' : ''}${locked ? ' is-locked' : ''}"
       style="--tree-accent:${color}"
-      aria-expanded="${open ? 'true' : 'false'}"
-      onclick="window.toggleCoursTreeNode('${safeKey}', event)">
-      <span class="cours-tree-chev">${chev}</span>
+      aria-expanded="${open ? 'true' : 'false'}"${locked ? ' aria-disabled="true"' : ''}${clickAttr}>
+      ${chev ? `<span class="cours-tree-chev">${chev}</span>` : ''}
       ${icon ? `<span class="cours-tree-ico">${icon}</span>` : ''}
       <span class="cours-tree-label">${opts.labelHtml || ''}</span>
       <span class="cours-tree-count">${count} doc${count > 1 ? 's' : ''}</span>
-    </button>`;
+    </${tag}>`;
 };
 
 window.renderCoursCardsGrid = function(coursList) {
@@ -380,12 +388,13 @@ window.renderCoursBrowseHtml = function(list, mode) {
   tree.forEach(matNode => {
     const mo = mats.find(x => x.id === matNode.id) || { color: '#6a6a88', name: matNode.id, label: matNode.id };
     const matKey = 'm:' + matNode.id;
-    const matOpen = window.isCoursTreeExpanded(matKey);
+    const matOpen = true; /* matières toujours ouvertes → classeurs visibles */
     html += '<div class="cours-tree-section cours-tree-section--mat">';
     html += window.renderCoursTreeHdr({
       key: matKey,
       level: 'mat',
       open: matOpen,
+      locked: true,
       color: mo.color,
       labelHtml: `<span class="cours-tree-mat-dot" style="background:${mo.color}"></span>${window.escHtml(mo.name)}`,
       count: matNode.count
