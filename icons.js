@@ -130,6 +130,45 @@
     'book-red': 'cl-icon-book-red', 'book-orange': 'cl-icon-book-orange', folder: 'cl-icon-folder'
   };
 
+  /** Renforce saturation / contraste d’une couleur hex pour les icônes */
+  window.intensifyColor = function (hex) {
+    if (!hex || typeof hex !== 'string') return hex || '#5b8df7';
+    var raw = hex.trim();
+    var m = raw.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (!m) return raw;
+    var h = m[1];
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var r = parseInt(h.slice(0, 2), 16);
+    var g = parseInt(h.slice(2, 4), 16);
+    var b = parseInt(h.slice(4, 6), 16);
+    var avg = (r + g + b) / 3;
+    var sat = 1.45;
+    r = Math.max(0, Math.min(255, Math.round(avg + (r - avg) * sat)));
+    g = Math.max(0, Math.min(255, Math.round(avg + (g - avg) * sat)));
+    b = Math.max(0, Math.min(255, Math.round(avg + (b - avg) * sat)));
+    // Légère remontée de luminosité si trop sombre
+    var lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (lum < 90) {
+      var lift = 90 - lum;
+      r = Math.min(255, Math.round(r + lift * 0.55));
+      g = Math.min(255, Math.round(g + lift * 0.55));
+      b = Math.min(255, Math.round(b + lift * 0.55));
+    }
+    function toHex(n) { return ('0' + n.toString(16)).slice(-2); }
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  };
+
+  window.colorWithAlpha = function (hex, alpha) {
+    var c = window.intensifyColor(hex);
+    var m = String(c).replace('#', '').match(/^([0-9a-f]{6})$/i);
+    if (!m) return c;
+    var a = Math.max(0, Math.min(1, Number(alpha)));
+    var r = parseInt(m[1].slice(0, 2), 16);
+    var g = parseInt(m[1].slice(2, 4), 16);
+    var b = parseInt(m[1].slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+  };
+
   function resolveName(name) {
     if (!name) return 'circle-dot';
     if (P[name]) return name;
@@ -197,11 +236,12 @@
 
   window.renderClasseurIcon = function (key, size, color) {
     const resolved = EMOJI_MAP[key] ? resolveName(key) : (CLASSEUR_KEYS[key] || 'folder');
-    const colorCls = (!color && CLASSEUR_COLORS[key]) ? CLASSEUR_COLORS[key] : '';
-    const cls = ['icon', 'icon-md'];
+    const vivid = color ? window.intensifyColor(color) : '';
+    const colorCls = (!vivid && CLASSEUR_COLORS[key]) ? CLASSEUR_COLORS[key] : '';
+    const cls = ['icon', 'icon-md', 'cl-icon-vivid'];
     if (colorCls) cls.push(colorCls);
-    const style = color ? ' style="color:' + String(color).replace(/"/g, '') + '"' : '';
-    const s = size || 18;
+    const style = vivid ? ' style="color:' + String(vivid).replace(/"/g, '') + '"' : '';
+    const s = size || 20;
     const inner = P[resolved] || P['circle-dot'] || P.folder;
     return '<span class="' + cls.join(' ') + '"' + style + ' aria-hidden="true">' +
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '" viewBox="0 0 24 24">' +

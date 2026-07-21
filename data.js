@@ -1,5 +1,5 @@
 window.$ = window.$ || (id => document.getElementById(id));
-window.COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
+window.COLORS = ['#3b82f6','#f59e0b','#22c55e','#ef4444','#a855f7','#ec4899','#06b6d4','#f97316'];
 
 /** Alias — implémentation dans core-utils.js */
 window.localDateISO = window.localDateISO || function(d) {
@@ -999,7 +999,7 @@ window.renderClasseurs = function() {
         return `
           <div class="cl-card">
             <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
-              <div class="cl-ico" style="background:${cl.color}20; color:${cl.color}">${window.renderClasseurIcon(cl.icon, 18, cl.color)}</div>
+              <div class="cl-ico" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.38) : (cl.color + '55')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}">${window.renderClasseurIcon(cl.icon, 22, cl.color)}</div>
               <div class="cl-info" style="flex:1;">
                 <div class="cl-nm">${window.escHtml(cl.name)}${isSystem ? '<span style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : ''}</div>
                 <div class="cl-sb">${cl.maxInter || 12} inter. max</div>
@@ -1144,7 +1144,7 @@ window.renderMatieres = function() {
     const hint = isSystem ? '<span class="mnm" style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : '';
     return `
     <div class="mr">
-      <div class="mdot" style="background:${m.color}"></div>
+      <div class="mdot" style="background:${typeof window.intensifyColor === 'function' ? window.intensifyColor(m.color) : m.color}; color:${m.color}"></div>
       <div class="mlbl">${window.escHtml(m.label)}</div><div class="mnm" style="flex:1;">${window.escHtml(m.name)}${hint}</div>
       ${editBtns}
     </div>`;
