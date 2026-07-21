@@ -210,11 +210,97 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
+  position: relative;
+  z-index: 5;
 }
-.cours-pane-toolbar .bp {
-  padding: 8px 14px;
+.cours-create-menu {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.cours-create-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  width: auto;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: var(--txt);
+  background: var(--s2);
+  border: 0.5px solid var(--bd);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  box-shadow: none;
+  white-space: nowrap;
+}
+.cours-create-trigger:hover {
+  border-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 10%, var(--s2));
+}
+.cours-create-trigger[aria-expanded="true"] {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+.cours-create-chevron {
+  opacity: 0.65;
+  transition: transform 0.15s;
+}
+.cours-create-trigger[aria-expanded="true"] .cours-create-chevron {
+  transform: rotate(180deg);
+}
+.cours-create-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 0.5px solid var(--bd);
+  background: var(--s1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 40;
+}
+.cours-create-menu.open .cours-create-dropdown {
+  display: flex;
+}
+.cours-create-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--txt);
+  cursor: pointer;
+  font: inherit;
+}
+.cours-create-item:hover {
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+}
+.cours-create-item strong {
   font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+.cours-create-item span.hint {
+  font-size: 11px;
+  color: var(--mut);
+  line-height: 1.3;
+}
+
 `;
     document.head.appendChild(tag);
   }
@@ -623,40 +709,90 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     return true;
   };
 
+  window.closeCoursCreateMenu = function () {
+    var menu = document.getElementById('coursCreateMenu');
+    var trigger = document.getElementById('btnCoursCreateMenu');
+    if (menu) menu.classList.remove('open');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  };
+
+  window.toggleCoursCreateMenu = function () {
+    var menu = document.getElementById('coursCreateMenu');
+    var trigger = document.getElementById('btnCoursCreateMenu');
+    if (!menu || !trigger) return;
+    var open = !menu.classList.contains('open');
+    menu.classList.toggle('open', open);
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
   window.ensureCoursPaneToolbar = function () {
     injectStyles();
-    var btn = document.getElementById('btnCoursBatchCreate');
-    if (!btn) {
-      var pane = document.getElementById('paneCours');
-      if (!pane) return;
-      var existing = document.getElementById('coursPaneToolbar');
-      if (!existing) {
-        existing = document.createElement('div');
-        existing.id = 'coursPaneToolbar';
-        existing.className = 'cours-pane-toolbar';
-        existing.innerHTML = '<button type="button" class="bp" id="btnCoursBatchCreate" title="Créer plusieurs documents à la suite">' +
-          (window.iconLabel ? window.iconLabel('layers', 'Création rapide') : 'Création rapide') +
-          '</button>';
-        var filters = pane.querySelector('.filters');
-        if (filters) pane.insertBefore(existing, filters);
-        else pane.insertBefore(existing, pane.firstChild);
-        btn = document.getElementById('btnCoursBatchCreate');
-      } else {
-        btn = existing.querySelector('#btnCoursBatchCreate') || document.getElementById('btnCoursBatchCreate');
-      }
+    var pane = document.getElementById('paneCours');
+    if (!pane) return;
+
+    var existing = document.getElementById('coursPaneToolbar');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.id = 'coursPaneToolbar';
+      existing.className = 'cours-pane-toolbar';
+      existing.innerHTML =
+        '<div class="cours-create-menu" id="coursCreateMenu">' +
+          '<button type="button" class="cours-create-trigger" id="btnCoursCreateMenu" aria-expanded="false" aria-haspopup="true" title="Créer un document">' +
+            (window.iconLabel ? window.iconLabel('plus', 'Créer') : 'Créer') +
+          '</button>' +
+          '<div class="cours-create-dropdown" role="menu">' +
+            '<button type="button" class="cours-create-item" id="btnCoursCreateSingle" role="menuitem">' +
+              '<strong>Nouveau document</strong><span class="hint">1 cours — comme le menu éclair</span>' +
+            '</button>' +
+            '<button type="button" class="cours-create-item" id="btnCoursBatchCreate" role="menuitem">' +
+              '<strong>Création rapide</strong><span class="hint">Enchaîne plusieurs docs</span>' +
+            '</button>' +
+          '</div>' +
+        '</div>';
+      var filters = pane.querySelector('.filters');
+      if (filters) pane.insertBefore(existing, filters);
+      else pane.insertBefore(existing, pane.firstChild);
     }
-    if (btn && !btn._coursWizBound) {
-      btn._coursWizBound = true;
-      /* Pas de addEventListener si onclick HTML déjà présent (évite double ouverture) */
-      if (!btn.getAttribute('onclick')) {
-        btn.addEventListener('click', function () {
-          window.openCoursWizard('batch');
-        });
-      }
+
+    var trigger = document.getElementById('btnCoursCreateMenu');
+    var btnSingle = document.getElementById('btnCoursCreateSingle');
+    var btnBatch = document.getElementById('btnCoursBatchCreate');
+
+    if (trigger && !trigger._coursWizBound) {
+      trigger._coursWizBound = true;
+      trigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        window.toggleCoursCreateMenu();
+      });
     }
-    var bar = document.getElementById('coursPaneToolbar');
-    if (bar && typeof window.hydrateIcons === 'function') {
-      try { window.hydrateIcons(bar); } catch (err) { /* non bloquant */ }
+    if (btnSingle && !btnSingle._coursWizBound) {
+      btnSingle._coursWizBound = true;
+      btnSingle.addEventListener('click', function () {
+        window.closeCoursCreateMenu();
+        window.openCoursWizard('single');
+      });
+    }
+    if (btnBatch && !btnBatch._coursWizBound) {
+      btnBatch._coursWizBound = true;
+      if (typeof btnBatch.removeAttribute === 'function') btnBatch.removeAttribute('onclick');
+      btnBatch.addEventListener('click', function () {
+        window.closeCoursCreateMenu();
+        window.openCoursWizard('batch');
+      });
+    }
+
+    if (!window._coursCreateMenuDocBound) {
+      window._coursCreateMenuDocBound = true;
+      document.addEventListener('click', function (e) {
+        var menu = document.getElementById('coursCreateMenu');
+        if (!menu || !menu.classList.contains('open')) return;
+        if (menu.contains(e.target)) return;
+        window.closeCoursCreateMenu();
+      });
+    }
+
+    if (existing && typeof window.hydrateIcons === 'function') {
+      try { window.hydrateIcons(existing); } catch (err) { /* non bloquant */ }
     }
   };
 

@@ -81,9 +81,9 @@ function buildEnv() {
   [
     'mTitle', 'fTitle', 'fDesc', 'fMat', 'fCl', 'fInter', 'fType', 'fRev', 'fNote', 'fRang', 'fEffectif',
     'fManualUidToggle', 'lblManualUid', 'fUidInput', 'manualUidContainer', 'uidBox', 'fUidPrefix', 'ovCours',
-    'btnCoursBatchCreate', 'coursPaneToolbar', 'paneCours'
+    'btnCoursBatchCreate', 'btnCoursCreateSingle', 'btnCoursCreateMenu', 'coursCreateMenu', 'coursPaneToolbar', 'paneCours'
   ].forEach((id) => doc.getElementById(id));
-  els.btnCoursBatchCreate.setAttribute('onclick', "window.openCoursWizard&&window.openCoursWizard('batch')");
+  els.coursCreateMenu.contains = (node) => node === els.coursCreateMenu || node === els.btnCoursCreateMenu;
 
   const alerts = [];
   const windowObj = {
@@ -354,13 +354,14 @@ console.log('\n[8] D=null ne crash pas le wizard');
   assert(!threw, 'pas de throw si D null');
 }
 
-console.log('\n[9] Toolbar bound une seule fois');
+console.log('\n[9] Toolbar menu bound une seule fois');
 {
   const W = buildEnv();
   W.ensureCoursPaneToolbar();
   W.ensureCoursPaneToolbar();
-  assert(W._els.btnCoursBatchCreate._coursWizBound === true, 'flag bound');
-  assert(!!W._els.btnCoursBatchCreate.getAttribute('onclick'), 'onclick HTML présent (pas de double listener)');
+  assert(W._els.btnCoursCreateMenu._coursWizBound === true, 'trigger bound');
+  assert(W._els.btnCoursCreateSingle._coursWizBound === true, 'single bound');
+  assert(W._els.btnCoursBatchCreate._coursWizBound === true, 'batch bound');
 }
 
 console.log('\n[10] Boot-loader référence cours-wizard.js');
@@ -368,7 +369,8 @@ console.log('\n[10] Boot-loader référence cours-wizard.js');
   const boot = fs.readFileSync(path.join(root, 'boot-loader.js'), 'utf8');
   assert(boot.includes("'cours-wizard.js'"), 'cours-wizard.js dans loadParallel');
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert(html.includes('btnCoursBatchCreate'), 'bouton Base Doc');
+  assert(html.includes('btnCoursBatchCreate'), 'bouton batch Base Doc');
+  assert(html.includes('btnCoursCreateSingle'), 'bouton single Base Doc');
   assert(html.includes('openCoursWizard'), 'FAB/openCoursWizard');
 }
 
