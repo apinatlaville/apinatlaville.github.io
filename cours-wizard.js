@@ -152,17 +152,29 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   border-radius: 10px;
   border: 1px solid var(--bd);
   background: var(--s1);
+  background-clip: padding-box;
+  overflow: hidden;
+  isolation: isolate;
+  -webkit-appearance: none;
+  appearance: none;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s, background 0.15s, transform 0.12s;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
   color: inherit;
   font: inherit;
   width: 100%;
+  box-shadow: none;
 }
-.cours-wiz-opt:hover {
-  transform: translateY(-1px);
+.cours-wiz-opt:hover,
+.cours-wiz-opt:focus-visible {
   border-color: var(--wiz-color, var(--acc));
   background: color-mix(in srgb, var(--wiz-color, var(--acc)) 8%, var(--s1));
+  background-clip: padding-box;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--wiz-color, var(--acc)) 35%, transparent);
+  outline: none;
+}
+.cours-wiz-opt:active {
+  background: color-mix(in srgb, var(--wiz-color, var(--acc)) 12%, var(--s1));
 }
 .cours-wiz-opt strong { font-size: 14px; color: var(--txt); }
 .cours-wiz-opt .cours-wiz-hint { font-size: 11px; color: var(--mut); line-height: 1.35; }
