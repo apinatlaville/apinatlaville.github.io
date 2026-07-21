@@ -637,9 +637,16 @@ window.updateIntercalairesDropdown = function() {
   }
 };
 
-window.openModalCours = function() {
+window.openModalCours = function(opts) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
   window.editUid = null;
-  if(window.$('mTitle')) window.$('mTitle').innerHTML = window.iconLabel('sparkles', 'Ajouter un document');
+  if(window.$('mTitle')) {
+    const batch = window._coursWizardMode === 'batch';
+    window.$('mTitle').innerHTML = window.iconLabel(
+      batch ? 'layers' : 'sparkles',
+      batch ? 'Création rapide — document' : 'Ajouter un document'
+    );
+  }
   if(window.$('fTitle')) window.$('fTitle').value = ''; 
   if(window.$('fDesc')) window.$('fDesc').value = ''; 
   
@@ -682,6 +689,21 @@ window.openModalCours = function() {
     window.$('uidBox').style.display = 'block';
     window.$('uidBox').innerHTML = '—<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code-barres généré automatiquement</small>';
   }
+
+  if (o.mat && window.$('fMat')) {
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fMat'), o.mat);
+    else window.$('fMat').value = o.mat;
+    window.updateUidPrefix();
+  }
+  if (o.cl && window.$('fCl')) {
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fCl'), o.cl);
+    else window.$('fCl').value = o.cl;
+    window.updateIntercalairesDropdown();
+  }
+  if (o.inter && window.$('fInter')) {
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fInter'), o.inter);
+    else window.$('fInter').value = o.inter;
+  }
   
   if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
   if (typeof window.enhanceFormControls === 'function') {
@@ -690,6 +712,7 @@ window.openModalCours = function() {
 };
 
 window.editCours = function(uid) {
+  if (typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
   const c = window.D.cours.find(x => x.uid===uid);
   if (!c) return;
   window.editUid = uid;
@@ -804,6 +827,9 @@ window.saveCours = function() {
   
   if(!obj.date) obj.date = window.localDateISO();
 
+  const wasEdit = !!window.editUid;
+  let createdUid = null;
+
   if (window.editUid) {
     const idx = window.D.cours.findIndex(c => c.uid===window.editUid);
     if(idx > -1) {
@@ -841,13 +867,33 @@ window.saveCours = function() {
     obj.uid = newUid;
     obj.stat = 'pending'; 
     window.D.cours.unshift(obj);
+    createdUid = newUid;
   }
   
   window.save();
   window.pruneUnsortedMatiere();
   window.pruneUnsortedClasseur();
   window.renderMatieres();
-  window.closeModalCours();
+  window.closeModalCours({ skipWizard: true });
+
+  /* Handoff wizard avant les re-renders (évite mode orphelin si un render plante) */
+  let wizardHandled = false;
+  try {
+    if (!wasEdit && createdUid && typeof window.coursWizardAfterCreate === 'function' && window._coursWizardMode) {
+      wizardHandled = !!window.coursWizardAfterCreate(createdUid, { mat: obj.mat, cl: obj.cl, inter: obj.inter });
+    } else if (!wasEdit && typeof window.closeCoursWizard === 'function') {
+      window.closeCoursWizard();
+      wizardHandled = true;
+    }
+  } catch (err) {
+    console.error('coursWizard handoff:', err);
+    if (typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
+    wizardHandled = true;
+  }
+  if (!wasEdit && !wizardHandled && typeof window.closeCoursWizard === 'function') {
+    window.closeCoursWizard();
+  }
+
   window.renderCours();
   window.renderDashboard();
   window.renderClasseurs();
