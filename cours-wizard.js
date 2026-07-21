@@ -244,11 +244,11 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   }
 
   function matById(id) {
-    return (window.D.matieres || []).find(function (m) { return m.id === id; }) || null;
+    return ((window.D && window.D.matieres) || []).find(function (m) { return m.id === id; }) || null;
   }
 
   function clById(id) {
-    return (window.D.classeurs || []).find(function (c) { return c.id === id; }) || null;
+    return ((window.D && window.D.classeurs) || []).find(function (c) { return c.id === id; }) || null;
   }
 
   function modePill() {
@@ -380,7 +380,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       ? cls.map(function (c) {
           var n = countDocs(STATE.mat, c.id);
           var ico = window.renderClasseurIcon
-            ? window.renderClasseurIcon(c.icon, 18, c.color)
+            ? window.renderClasseurIcon(c.icon, 18)
             : iconHtml('folder', 18);
           return `<button type="button" class="cours-wiz-opt" style="--wiz-color:${esc(c.color || '#5b9aff')};" onclick="window.coursWizardPickCl('${esc(c.id)}')">
             <span class="cours-wiz-ico">${ico}</span>
@@ -499,6 +499,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       STATE.inter = null;
     } else if (step === 'mat') {
       STATE.step = 'mat';
+      STATE.mat = null;
       STATE.cl = null;
       STATE.inter = null;
     } else if (step === 'cl') {
@@ -631,9 +632,12 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     }
     if (btn && !btn._coursWizBound) {
       btn._coursWizBound = true;
-      btn.addEventListener('click', function () {
-        window.openCoursWizard('batch');
-      });
+      /* Pas de addEventListener si onclick HTML déjà présent (évite double ouverture) */
+      if (!btn.getAttribute('onclick')) {
+        btn.addEventListener('click', function () {
+          window.openCoursWizard('batch');
+        });
+      }
     }
     var bar = document.getElementById('coursPaneToolbar');
     if (bar && window.hydrateIcons) window.hydrateIcons(bar);

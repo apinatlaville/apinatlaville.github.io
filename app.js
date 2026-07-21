@@ -167,7 +167,7 @@ window.closeModalCours = function(opts) {
   if (ov) ov.classList.add('hidden');
   if (o.skipWizard) return;
   /* Annulation depuis le formulaire wizard → revenir au parcours Finder */
-  if (window._coursWizardMode && typeof window.coursWizardCancelForm === 'function') {
+  if (window._coursWizardActive && window._coursWizardMode && typeof window.coursWizardCancelForm === 'function') {
     window.coursWizardCancelForm();
   }
 };

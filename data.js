@@ -712,6 +712,7 @@ window.openModalCours = function(opts) {
 };
 
 window.editCours = function(uid) {
+  if (typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
   const c = window.D.cours.find(x => x.uid===uid);
   if (!c) return;
   window.editUid = uid;
@@ -874,16 +875,29 @@ window.saveCours = function() {
   window.pruneUnsortedClasseur();
   window.renderMatieres();
   window.closeModalCours({ skipWizard: true });
+
+  /* Handoff wizard avant les re-renders (évite mode orphelin si un render plante) */
+  let wizardHandled = false;
+  try {
+    if (!wasEdit && createdUid && typeof window.coursWizardAfterCreate === 'function' && window._coursWizardMode) {
+      wizardHandled = !!window.coursWizardAfterCreate(createdUid, { mat: obj.mat, cl: obj.cl, inter: obj.inter });
+    } else if (!wasEdit && typeof window.closeCoursWizard === 'function') {
+      window.closeCoursWizard();
+      wizardHandled = true;
+    }
+  } catch (err) {
+    console.error('coursWizard handoff:', err);
+    if (typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
+    wizardHandled = true;
+  }
+  if (!wasEdit && !wizardHandled && typeof window.closeCoursWizard === 'function') {
+    window.closeCoursWizard();
+  }
+
   window.renderCours();
   window.renderDashboard();
   window.renderClasseurs();
   if (typeof window.renderNotes === 'function') window.renderNotes();
-
-  if (!wasEdit && createdUid && typeof window.coursWizardAfterCreate === 'function' && window._coursWizardMode) {
-    window.coursWizardAfterCreate(createdUid, { mat: obj.mat, cl: obj.cl, inter: obj.inter });
-  } else if (!wasEdit && typeof window.closeCoursWizard === 'function') {
-    window.closeCoursWizard();
-  }
 };
 
 window.setNewColorCl = function(col) {
