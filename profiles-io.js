@@ -170,6 +170,10 @@
       }
       writeMetaLocal(meta);
     }
+    // Jamais tous archivés : sinon plus de profil sélectionnable
+    if (meta.profiles.length && !meta.profiles.some(function (p) { return p && !p.archived; })) {
+      meta.profiles[0].archived = false;
+    }
     var active = lsGet(ACTIVE_KEY) || meta.activeProfile || DEFAULT_ID;
     var activeEntry = meta.profiles.find(function (p) { return p.id === active; });
     if (!activeEntry || activeEntry.archived) {
@@ -274,7 +278,15 @@
   }
 
   function getProfileLiveBytes(profileId) {
-    return byteSizeOfString(getLocalProfileRaw(profileId));
+    var bytes = byteSizeOfString(getLocalProfileRaw(profileId));
+    // Profil de cette session : tenir compte de window.D non encore flushé
+    if (profileId === getSessionProfileId() && window.D && isProfilePayload(window.D)) {
+      try {
+        var mem = byteSizeOfString(JSON.stringify(window.D));
+        if (mem > bytes) bytes = mem;
+      } catch (e) { /* ignore */ }
+    }
+    return bytes;
   }
 
   function readSnapIndex(profileId) {
@@ -356,14 +368,18 @@
       createdAt: nowIso(),
       bytes: bytes
     });
+    // Eviction différée : ne pas effacer les blobs tant que l’index n’est pas écrit
+    var evicted = [];
     while (idx.length > MAX_SNAPSHOTS) {
-      var old = idx.pop();
-      if (old && old.id) lsRemove(snapDataKey(profileId, old.id));
+      evicted.push(idx.pop());
     }
     if (!writeSnapIndex(profileId, idx)) {
       lsRemove(snapDataKey(profileId, snapId));
       throw new Error('Impossible d’enregistrer l’index des sauvegardes (quota).');
     }
+    evicted.forEach(function (old) {
+      if (old && old.id) lsRemove(snapDataKey(profileId, old.id));
+    });
     return listSnapshots(profileId).find(function (s) { return s.id === snapId; });
   }
 
@@ -585,7 +601,16 @@
         if (p && p.id && !deleted[p.id] && !p.archived) { found = p.id; return true; }
         return false;
       });
-      return found || DEFAULT_ID;
+      if (found) return found;
+      // Tous archivés (ou vides) : désarchiver un profil pour garder une issue
+      var revive = meta.profiles.find(function (p) {
+        return p && p.id && !deleted[p.id];
+      });
+      if (revive) {
+        revive.archived = false;
+        return revive.id;
+      }
+      return DEFAULT_ID;
     }
 
     // Si la session courante est tombstonée ou archivée, basculer AVANT de purger
@@ -689,7 +714,16 @@
     if (removedSet[payload.activeProfile] || deletedProfiles[payload.activeProfile]
       || !activeEntry || activeEntry.archived) {
       var fallback = payload.profiles.find(function (p) { return p && !p.archived; });
-      payload.activeProfile = fallback ? fallback.id : (payload.profiles[0] ? payload.profiles[0].id : DEFAULT_ID);
+      if (!fallback && payload.profiles[0]) {
+        payload.profiles[0].archived = false;
+        fallback = payload.profiles[0];
+      }
+      payload.activeProfile = fallback ? fallback.id : DEFAULT_ID;
+    }
+    // Sécurité : au moins un profil non archivé dans l’index cloud
+    if (payload.profiles.length && !payload.profiles.some(function (p) { return p && !p.archived; })) {
+      payload.profiles[0].archived = false;
+      payload.activeProfile = payload.profiles[0].id;
     }
     return { ok: true, payload: payload };
   }

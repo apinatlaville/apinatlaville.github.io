@@ -4803,6 +4803,9 @@ body.nav-sidebar-left #paneLatexTest.on {
   flex-shrink: 1;
   min-width: 0;
 }
+.profile-status-chip[hidden] {
+  display: none !important;
+}
 .profile-status-chip::before {
   content: 'Profil';
   font-weight: 500;
