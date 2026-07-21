@@ -1521,8 +1521,6 @@ bindChange('fltNotesMat', () => {
 });
 bindClick('btnNotesMetricNote', () => window.setNotesMetric('note'));
 bindClick('btnNotesMetricRang', () => window.setNotesMetric('rang'));
-bindClick('btnCoursBrowseTree', () => window.setCoursBrowseMode('tree'));
-bindClick('btnCoursBrowseMat', () => window.setCoursBrowseMode('mat'));
 bindClick('btnResetFilters', () => window.resetFilters());
 
 bindClick('btnSelPending', () => window.selPending());

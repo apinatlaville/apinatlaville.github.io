@@ -25,6 +25,17 @@
     return window.escHtml ? window.escHtml(s) : String(s == null ? '' : s);
   }
 
+  /** Escape pour chaînes JS dans des attributs onclick="...('...')". */
+  function jsStr(s) {
+    return String(s == null ? '' : s)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
+  }
+
   function iconLabel(name, text) {
     return window.iconLabel ? window.iconLabel(name, text) : esc(text);
   }
@@ -485,7 +496,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
 }
 
 `;
-    document.head.appendChild(tag);
+    var host = document.head || document.body || document.documentElement;
+    if (host && host.appendChild) host.appendChild(tag);
   }
 
   function ensureOverlay() {
@@ -647,8 +659,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           (meta ? '<div class="cours-wiz-inv-meta">' + esc(meta) + '</div>' : '') +
         '</div>' +
         '<div class="cours-wiz-inv-acts">' +
-          '<button type="button" title="Modifier" onclick="window.coursWizardEditCreated(\'' + esc(c.uid) + '\')">' + iconHtml('pencil', 14) + '</button>' +
-          '<button type="button" class="is-danger" title="Supprimer" onclick="window.coursWizardDeleteCreated(\'' + esc(c.uid) + '\')">' + iconHtml('trash-2', 14) + '</button>' +
+          '<button type="button" title="Modifier" onclick="window.coursWizardEditCreated(\'' + jsStr(c.uid) + '\')">' + iconHtml('pencil', 14) + '</button>' +
+          '<button type="button" class="is-danger" title="Supprimer" onclick="window.coursWizardDeleteCreated(\'' + jsStr(c.uid) + '\')">' + iconHtml('trash-2', 14) + '</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -678,7 +690,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         : '';
       return '<div class="macts" style="margin-top:16px;">' + back +
         '<button type="button" class="bs" onclick="window.coursWizardQuit()">' +
-        (STATE.createdUids.length ? 'Quitter' : 'Quitter') + '</button>' +
+        (STATE.createdUids.length ? 'Quitter' : 'Annuler') + '</button>' +
         finish + '</div>';
     }
     return '<div class="macts" style="margin-top:16px;">' + back +
@@ -934,6 +946,9 @@ body.theme-light .cours-wiz-modal.card-type-surface {
 
   window.coursWizardEditCreated = function (uid) {
     if (!uid) return;
+    if (!window.D || !window.D.cours || !window.D.cours.some(function (c) { return c && c.uid === uid; })) {
+      return;
+    }
     window._coursWizardResumeAfterEdit = true;
     window._coursWizardActive = true;
     window._coursWizardMode = 'batch';
@@ -941,6 +956,12 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     if (ov) ov.classList.add('hidden');
     if (typeof window.editCours === 'function') {
       window.editCours(uid, { keepWizard: true });
+      /* Si editCours a échoué sans ouvrir le form, ne pas laisser le flag coincé */
+      if (!window.editUid) {
+        window._coursWizardResumeAfterEdit = false;
+        if (ov) ov.classList.remove('hidden');
+        paint();
+      }
     }
   };
 
