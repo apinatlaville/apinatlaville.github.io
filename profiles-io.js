@@ -1049,13 +1049,13 @@
       try {
         await window.setDoc(profileDocRef(user.sub, id), seed);
       } catch (e) {
-        console.warn('Création profil cloud:', e);
-        // Annuler index + local pour ne pas laisser un profil vide indexé
-        try {
-          await persistAccountIndexCloud(user, ensureLocalRegistry(), { removedIds: [id] });
-        } catch (e2) { console.warn('[ProfilesIO] Rollback index après échec blob:', e2); }
-        rollbackCreatedProfile(id);
-        throw new Error('Création cloud des données échouée — profil annulé. Réessaie.');
+        console.warn('Création profil cloud (blob):', e);
+        // Index + local déjà OK : au prochain chargement du profil, resolveProfileCloudDoc
+        // republie le blob local → cloud. Pas de rollback (évite index orphelin si undo échoue).
+        throw new Error(
+          'Profil créé, mais la copie cloud des données a échoué. ' +
+          'Ouvre ce profil (ou réessaie) pour synchroniser. Détail : ' + (e && e.message ? e.message : e)
+        );
       }
     }
     return entry;
