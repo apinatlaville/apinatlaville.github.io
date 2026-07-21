@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260720n';
+  window.__BOOT_CACHE_V = '20260721c';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -171,6 +171,7 @@
             <span id="cDot" class="cloud-status-dot"></span>
             <span class="cloud-status-txt"><span class="cloud-status-txt-track"><span id="cTxt">Init...</span><span id="cTxtExtra" class="cloud-status-extra"></span></span></span>
           </div>
+          <span id="activeProfileChip" class="profile-status-chip" hidden title="Profil de données actif"></span>
           <span id="deviceRoleChip" class="device-role-chip" hidden>Principal</span>
           <div class="hdr-actions-btns">
             <button class="btn-settings" id="btnRefresh" title="Actualiser la page" aria-label="Actualiser"><span data-icon="refresh-cw"></span></button>
@@ -439,6 +440,9 @@
   <div class="set-row"><div><div class="set-lbl">Statut des révisions</div></div><button class="toggle-btn" id="btnDashRevToggle">Oui</button></div>
   <div class="set-row"><div><div class="set-lbl">Vue d'ensemble</div></div><button class="toggle-btn" id="btnDashOverToggle">Oui</button></div>
 
+
+  <h3 style="font-family:'Inter'; margin-top:30px; margin-bottom:15px; color:var(--acc); font-size:15px;">Profils, sauvegarde &amp; import</h3>
+  <div id="pioSettingsRoot" class="pio-settings-root" aria-live="polite"></div>
 
   <h3 style="font-family:'Inter'; margin-top:30px; margin-bottom:15px; color:var(--acc); font-size:15px;">Mode Démonstration</h3>
   <div style="background:rgba(91,141,247,.05); border:1px solid rgba(91,141,247,.3); padding:15px; border-radius:12px; text-align:center;">
@@ -759,7 +763,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   const firebaseConfig = {
@@ -786,6 +790,8 @@
       window.doc = doc;
       window.getDoc = getDoc;
       window.setDoc = setDoc;
+      window.deleteDoc = deleteDoc;
+      window.runTransaction = runTransaction;
       window.onSnapshot = onSnapshot;
       window.auth = auth;
       window.signInWithCredential = signInWithCredential;
