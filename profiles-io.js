@@ -402,64 +402,73 @@
         byId[cp.id] = true;
       }
     });
-    // Retirer les profils tombstonés (sauf session courante — bascule d’abord)
+
+    // Si la session courante est tombstonée, basculer AVANT de purger la liste
+    // (évite un fantôme dans le select toute la session)
     var sessionId = getSessionProfileId();
+    if (deleted[sessionId] || deleted[meta.activeProfile]) {
+      var nextId = accountData.activeProfile;
+      if (!nextId || deleted[nextId] || !(accountData.profiles || []).some(function (p) { return p && p.id === nextId; })) {
+        nextId = null;
+        (accountData.profiles || []).some(function (p) {
+          if (p && p.id && !deleted[p.id]) { nextId = p.id; return true; }
+          return false;
+        });
+      }
+      if (!nextId) nextId = DEFAULT_ID;
+      meta.activeProfile = nextId;
+      lsSet(ACTIVE_KEY, nextId);
+      pinSessionProfileId(nextId);
+      sessionId = nextId;
+    }
+
+    // Purger tous les tombstones (plus d’exception session)
     meta.profiles = meta.profiles.filter(function (p) {
       if (!p || !p.id) return false;
-      if (deleted[p.id] && p.id !== sessionId) return false;
+      if (deleted[p.id]) return false;
       return true;
     });
+    if (!meta.profiles.some(function (p) { return p.id === meta.activeProfile; })) {
+      meta.activeProfile = (meta.profiles[0] && meta.profiles[0].id) || DEFAULT_ID;
+      lsSet(ACTIVE_KEY, meta.activeProfile);
+      pinSessionProfileId(meta.activeProfile);
+    }
     writeMetaLocal(meta);
   }
 
   /**
-   * Écrit l’index compte cloud.
-   * @param opts.removedIds — profils à retirer + tombstone
+   * Fusionne meta locale + index remote + tombstones / revives.
+   * @returns {{ ok:boolean, payload?:object, reason?:string }}
    */
-  async function persistAccountIndexCloud(user, meta, opts) {
-    if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return true;
-    if (window.cloudConnected === false) return false;
+  function mergeAccountIndexPayload(remote, meta, opts) {
     opts = opts || {};
     var removedIds = opts.removedIds || [];
     var removedSet = Object.create(null);
     removedIds.forEach(function (id) { if (id) removedSet[id] = true; });
 
-    if (!window.getDoc) {
-      console.warn('[ProfilesIO] Index non écrit : getDoc indisponible');
-      return false;
-    }
-
-    var ref = accountDocRef(user.sub);
     var remoteProfiles = [];
     var remoteActive = null;
     var deletedProfiles = {};
-    var remoteExists = false;
-    try {
-      var snap = await window.getDoc(ref);
-      if (snap.exists()) {
-        remoteExists = true;
-        var remote = snap.data();
-        if (isAccountIndex(remote)) {
-          remoteProfiles = remote.profiles || [];
-          remoteActive = remote.activeProfile || null;
-          deletedProfiles = remote.deletedProfiles && typeof remote.deletedProfiles === 'object'
-            ? Object.assign({}, remote.deletedProfiles)
-            : {};
-        } else if (isLegacyDataDoc(remote)) {
-          console.warn('[ProfilesIO] Index non écrit : racine encore en format legacy');
-          return false;
-        } else {
-          console.warn('[ProfilesIO] Index non écrit : document racine non reconnu');
-          return false;
-        }
+
+    if (remote != null) {
+      if (isAccountIndex(remote)) {
+        remoteProfiles = remote.profiles || [];
+        remoteActive = remote.activeProfile || null;
+        deletedProfiles = remote.deletedProfiles && typeof remote.deletedProfiles === 'object'
+          ? Object.assign({}, remote.deletedProfiles)
+          : {};
+      } else if (isLegacyDataDoc(remote)) {
+        return { ok: false, reason: 'legacy' };
+      } else {
+        return { ok: false, reason: 'unrecognized' };
       }
-    } catch (e) {
-      console.warn('[ProfilesIO] Lecture index échouée — pas d’écriture:', e);
-      return false;
     }
 
     removedIds.forEach(function (id) {
       if (id) deletedProfiles[id] = Date.now();
+    });
+    (opts.revivedIds || []).forEach(function (id) {
+      if (id) delete deletedProfiles[id];
     });
 
     var byId = Object.create(null);
@@ -498,8 +507,67 @@
       || !payload.profiles.some(function (p) { return p.id === payload.activeProfile; })) {
       payload.activeProfile = payload.profiles[0] ? payload.profiles[0].id : DEFAULT_ID;
     }
+    return { ok: true, payload: payload };
+  }
+
+  /**
+   * Écrit l’index compte cloud (transaction si dispo → moins de LWW multi-onglets).
+   * @param opts.removedIds — profils à retirer + tombstone
+   * @param opts.revivedIds — profils à retirer des tombstones (recréation même id)
+   */
+  async function persistAccountIndexCloud(user, meta, opts) {
+    if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return true;
+    if (window.cloudConnected === false) return false;
+    opts = opts || {};
+
+    if (!window.getDoc && !window.runTransaction) {
+      console.warn('[ProfilesIO] Index non écrit : getDoc indisponible');
+      return false;
+    }
+
+    var ref = accountDocRef(user.sub);
+
+    // Chemin transactionnel (Firestore) — sérialise les merges concurrent
+    if (typeof window.runTransaction === 'function') {
+      try {
+        await window.runTransaction(window.db, async function (tx) {
+          var snap = await tx.get(ref);
+          var remote = snap.exists() ? snap.data() : null;
+          var merged = mergeAccountIndexPayload(remote, meta, opts);
+          if (!merged.ok) {
+            var err = new Error(merged.reason === 'legacy' ? 'legacy' : 'unrecognized');
+            err.code = 'INDEX_MERGE_REFUSED';
+            throw err;
+          }
+          tx.set(ref, merged.payload);
+        });
+        return true;
+      } catch (e) {
+        if (e && e.code === 'INDEX_MERGE_REFUSED') {
+          console.warn('[ProfilesIO] Index non écrit :', e.message);
+          return false;
+        }
+        console.warn('[ProfilesIO] Transaction index échouée — repli getDoc/setDoc:', e);
+        // fall through
+      }
+    }
+
+    var remote = null;
     try {
-      await window.setDoc(ref, payload);
+      var snap = await window.getDoc(ref);
+      if (snap.exists()) remote = snap.data();
+    } catch (e) {
+      console.warn('[ProfilesIO] Lecture index échouée — pas d’écriture:', e);
+      return false;
+    }
+
+    var merged = mergeAccountIndexPayload(remote, meta, opts);
+    if (!merged.ok) {
+      console.warn('[ProfilesIO] Index non écrit :', merged.reason);
+      return false;
+    }
+    try {
+      await window.setDoc(ref, merged.payload);
       return true;
     } catch (e) {
       console.warn('Écriture index profils cloud:', e);
@@ -925,6 +993,13 @@
 
   // ─── Profils CRUD ───────────────────────────────────────
 
+  function rollbackCreatedProfile(id) {
+    var meta = ensureLocalRegistry();
+    meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
+    writeMetaLocal(meta);
+    lsRemove(localDataKey(id));
+  }
+
   async function createProfile(name, opts) {
     opts = opts || {};
     var meta = ensureLocalRegistry();
@@ -953,22 +1028,30 @@
       }
     }
     if (!writeLocalProfileData(id, seed)) {
-      meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
-      writeMetaLocal(meta);
+      rollbackCreatedProfile(id);
       throw new Error('Impossible de créer le profil (stockage navigateur plein ou refusé).');
     }
 
     var user = window.currentUser;
-    var okIdx = await persistAccountIndexCloud(user, meta);
-    if (!window.isLocalMode && window.cloudConnected && user && user.sub && !okIdx) {
-      console.warn('[ProfilesIO] Index cloud non synchronisé après création');
+    var needsCloud = !window.isLocalMode && user && user.sub;
+    if (needsCloud && window.cloudConnected === false) {
+      rollbackCreatedProfile(id);
+      throw new Error('Connexion cloud requise pour créer un profil (évite un profil fantôme au prochain sync).');
     }
-    if (!window.isLocalMode && window.cloudConnected && user && user.sub && window.setDoc) {
+
+    // revivedIds : si on recrée un nom déjà tombstoné, on lève le tombstone
+    var okIdx = await persistAccountIndexCloud(user, meta, { revivedIds: [id] });
+    if (needsCloud && window.cloudConnected && !okIdx) {
+      rollbackCreatedProfile(id);
+      throw new Error('Index cloud non synchronisé — création annulée. Réessaie.');
+    }
+    if (needsCloud && window.cloudConnected && window.setDoc) {
       try {
         await window.setDoc(profileDocRef(user.sub, id), seed);
       } catch (e) {
         console.warn('Création profil cloud:', e);
-        throw new Error('Profil créé en local, mais la copie cloud a échoué. Réessaie plus tard.');
+        // Index déjà à jour : garder le local + index ; signaler l’échec du blob
+        throw new Error('Profil indexé, mais la copie cloud des données a échoué. Réessaie plus tard.');
       }
     }
     return entry;
@@ -978,10 +1061,22 @@
     var meta = ensureLocalRegistry();
     var p = meta.profiles.find(function (x) { return x.id === id; });
     if (!p) throw new Error('Profil introuvable');
+    var prevName = p.name;
     p.name = String(name || p.name).trim() || p.name;
     p.updatedAt = nowIso();
     writeMetaLocal(meta);
-    await persistAccountIndexCloud(window.currentUser, meta);
+    var user = window.currentUser;
+    if (!window.isLocalMode && user && user.sub && window.cloudConnected === false) {
+      p.name = prevName;
+      writeMetaLocal(meta);
+      throw new Error('Connexion cloud requise pour renommer un profil.');
+    }
+    var okIdx = await persistAccountIndexCloud(user, meta);
+    if (!window.isLocalMode && window.cloudConnected && user && user.sub && !okIdx) {
+      p.name = prevName;
+      writeMetaLocal(meta);
+      throw new Error('Renommage cloud échoué. Réessaie.');
+    }
     return p;
   }
 
@@ -991,19 +1086,35 @@
     if (id === getSessionProfileId() || id === meta.activeProfile) {
       throw new Error('Bascule sur un autre profil avant de supprimer celui-ci.');
     }
+
+    var user = window.currentUser;
+    var needsCloud = !window.isLocalMode && user && user.sub;
+    if (needsCloud && window.cloudConnected === false) {
+      throw new Error(
+        'Connexion cloud requise pour supprimer un profil ' +
+        '(sinon il réapparaîtrait au prochain sync).'
+      );
+    }
+
+    // Cloud d’abord : tombstone index avant mutation locale (évite wipe local + restore cloud)
+    if (needsCloud) {
+      var okIdx = await persistAccountIndexCloud(user, meta, { removedIds: [id] });
+      if (window.cloudConnected && !okIdx) {
+        throw new Error('Suppression cloud de l’index échouée. Réessaie (rien n’a été modifié localement).');
+      }
+    }
+
+    meta = ensureLocalRegistry();
     meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
     writeMetaLocal(meta);
     lsRemove(localDataKey(id));
-    var okIdx = await persistAccountIndexCloud(window.currentUser, meta, { removedIds: [id] });
-    if (!window.isLocalMode && window.cloudConnected && window.currentUser && window.currentUser.sub && !okIdx) {
-      throw new Error('Suppression cloud de l’index échouée. Réessaie (le profil est retiré localement).');
-    }
-    if (!window.isLocalMode && window.cloudConnected && window.currentUser && window.currentUser.sub && window.setDoc) {
+
+    if (needsCloud && window.cloudConnected && window.setDoc) {
       try {
         if (typeof window.deleteDoc === 'function') {
-          await window.deleteDoc(profileDocRef(window.currentUser.sub, id));
+          await window.deleteDoc(profileDocRef(user.sub, id));
         } else {
-          await window.setDoc(profileDocRef(window.currentUser.sub, id), { _deleted: true, deletedAt: nowIso() });
+          await window.setDoc(profileDocRef(user.sub, id), { _deleted: true, deletedAt: nowIso() });
         }
       } catch (e) { console.warn('Suppression cloud profil:', e); }
     }
@@ -1295,6 +1406,14 @@
             var report = applyImport(normalized, { sections: secs, mode: mode });
             showImportReport(report);
             if (report.ok) {
+              if (window._persistDisabled) {
+                report.ok = false;
+                report.errors = (report.errors || []).concat([
+                  'Sauvegarde désactivée dans cette session — import en mémoire seulement, non persisté.'
+                ]);
+                showImportReport(report);
+                return;
+              }
               Promise.resolve(typeof window.save === 'function' ? window.save() : null).then(function () {
                 if (typeof window.showToast === 'function') window.showToast('Données importées et sauvegardées.');
                 if (typeof window.renderMatieres === 'function') window.renderMatieres();
@@ -1305,6 +1424,7 @@
                 if (typeof window.applySettings === 'function') window.applySettings();
               }).catch(function (e) {
                 report.warnings = (report.warnings || []).concat(['Sauvegarde post-import : ' + (e.message || e)]);
+                report.ok = false;
                 showImportReport(report);
               });
             }
