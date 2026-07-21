@@ -388,6 +388,19 @@ async function testArchiveAndSnapshots() {
 
   PIO.deleteSnapshot('default', snap.id);
   assert(PIO.listSnapshots('default').length === 0, 'snapshot deleted');
+
+  // Tous archivés → ensureLocalRegistry doit en rouvrir un
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'labo',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', archived: true },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', archived: true }
+    ]
+  }));
+  store.setItem('active_profile', 'labo');
+  const live = PIO.listProfiles();
+  assert(live.length >= 1, 'at least one live after all-archived repair');
+  assert(live.some((p) => !p.archived), 'live list has non-archived');
 }
 
 async function main() {
