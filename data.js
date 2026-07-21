@@ -1,5 +1,5 @@
 window.$ = window.$ || (id => document.getElementById(id));
-window.COLORS = ['#5b8df7','#f0c060','#50d890','#f06060','#b06af7','#f06ab0','#60d0f0','#f09060'];
+window.COLORS = ['#3b82f6','#f59e0b','#22c55e','#ef4444','#a855f7','#ec4899','#06b6d4','#f97316'];
 
 /** Alias — implémentation dans core-utils.js */
 window.localDateISO = window.localDateISO || function(d) {
@@ -176,7 +176,8 @@ window.isEditingCl = false;
 window.currentEditClId = null;
 window.chipFilter = null;
 window.newColor = window.COLORS[0];
-window.newColorCl = window.COLORS[0]; 
+window.newColorCl = window.COLORS[0];
+window.newIconCl = 'folder'; 
 window.editUid = null;
 window.moveUid = null; // 🚨 ÉTAT : Sauvegarde l'id du cours qu'on déplace
 
@@ -333,7 +334,7 @@ window.renderCours = function() {
 
       list.forEach(c => {
         const mo = window.D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
-        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'book-blue'};
+        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'book-blue', color:'#5b8df7'};
         
         const interNameDisplay = window.getInterName(co, c.inter);
 
@@ -366,7 +367,7 @@ window.renderCours = function() {
           </div>
           <div class="ctitle">${window.escHtml(c.title)}</div>
           <div class="clocs">
-            <span class="cloc cloc-a">${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)}</span>
+            <span class="cloc cloc-a">${window.renderClasseurIcon(co.icon, 14, co.color)} ${window.escHtml(co.name)}</span>
             <span class="cloc cloc-b">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}</span>
           </div>
           ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
@@ -414,7 +415,7 @@ window.doLocate = function(uid) {
   window.triggerHaptic();
 
   const mo = window.D.matieres.find(m => m.id === c.mat) || {name: c.mat, color:'#5b8df7'};
-  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue'};
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue', color: '#5b8df7'};
   const interNameDisplay = window.getInterName(co, c.inter);
   
   const baseInfoHtml = `
@@ -432,7 +433,7 @@ window.doLocate = function(uid) {
         <p style="font-size:12px; color:var(--mut); margin-bottom:15px; text-align:center;">Confirme l'emplacement de ce document :</p>
         <div class="loc-cards" style="margin-bottom:15px;">
           <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
-            ${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)}
+            ${window.renderClasseurIcon(co.icon, 16, co.color)} ${window.escHtml(co.name)}
           </div>
           <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
             ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}
@@ -454,7 +455,7 @@ window.doLocate = function(uid) {
      window.$('locContent').innerHTML = baseInfoHtml + `
         <div class="loc-cards">
           <div class="loc-c" style="background:rgba(91,141,247,.15);color:var(--acc);border:1px solid var(--acc);">
-            ${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)}
+            ${window.renderClasseurIcon(co.icon, 16, co.color)} ${window.escHtml(co.name)}
           </div>
           <div class="loc-c" style="background:rgba(240,192,96,.15);color:var(--gold);border:1px solid var(--gold);">
             ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}
@@ -499,11 +500,11 @@ window.openMove = function(uid) {
   if(!c) return;
   window.moveUid = uid;
   
-  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue'};
+  const co = window.D.classeurs.find(x => x.id === c.cl) || {name: c.cl, icon: 'book-blue', color: '#5b8df7'};
   const interNameDisplay = window.getInterName(co, c.inter);
   
   if(window.$('moveCurrentLoc')) {
-      window.$('moveCurrentLoc').innerHTML = `${window.renderClasseurIcon(co.icon)} ${window.escHtml(co.name)} <br> ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}`;
+      window.$('moveCurrentLoc').innerHTML = `${window.renderClasseurIcon(co.icon, 16, co.color)} ${window.escHtml(co.name)} <br> ${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}`;
   }
 
   const moveClSelect = window.$('fMoveCl');
@@ -868,6 +869,77 @@ window.setNewColorCl = function(col) {
   window.renderClasseurs();
 };
 
+window.setNewIconCl = function(icon) {
+  window.newIconCl = icon === 'book' ? 'book' : 'folder';
+  window.renderClasseurs();
+};
+
+window.renderClIconPicker = function(containerId, selected, onClickFnName, color) {
+  const el = window.$(containerId);
+  if (!el) return;
+  const choices = window.CL_ICON_CHOICES || [
+    { id: 'folder', label: 'Dossier', icon: 'folder' },
+    { id: 'book', label: 'Classeur', icon: 'book' }
+  ];
+  const sel = (typeof window.normalizeClasseurIcon === 'function'
+    ? window.normalizeClasseurIcon(selected)
+    : selected) || 'folder';
+  const tint = color || window.newColorCl || (window.COLORS && window.COLORS[0]) || '#5b8df7';
+  el.innerHTML = choices.map(function (ch) {
+    const on = ch.id === sel ? ' on' : '';
+    const ico = typeof window.renderClasseurIcon === 'function'
+      ? window.renderClasseurIcon(ch.icon, 18, tint)
+      : '';
+    return '<button type="button" class="cl-icon-opt' + on + '" onclick="' + onClickFnName + '(\'' + ch.id + '\')">' +
+      ico + '<span>' + ch.label + '</span></button>';
+  }).join('');
+};
+
+window.renderColorSwatches = function(containerId, selected, onClickFnName, previewId) {
+  const el = window.$(containerId);
+  if (!el) return;
+  const colors = window.COLORS || [];
+  const sel = selected || colors[0] || '#5b8df7';
+  el.innerHTML = colors.map(c => `
+    <div class="sw${c === sel ? ' on' : ''}" style="background:${c}"
+      onclick="${onClickFnName}('${c}')" title="${c}" role="button" tabindex="0"></div>
+  `).join('');
+  const prev = previewId ? window.$(previewId) : null;
+  if (prev) prev.style.background = sel;
+};
+
+window.editClasseur = function(id) {
+  if (window.isSystemClasseur(id)) return;
+  const cl = window.D.classeurs.find(c => c.id === id);
+  if(!cl) return;
+  window.currentEditClId = id;
+  window.editClColor = cl.color || (window.COLORS && window.COLORS[0]) || '#5b8df7';
+  window.editClIcon = typeof window.normalizeClasseurIcon === 'function'
+    ? window.normalizeClasseurIcon(cl.icon)
+    : (cl.icon === 'book' ? 'book' : 'folder');
+  
+  if(window.$('eClNm')) window.$('eClNm').value = cl.name;
+  if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
+  window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
+  window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
+  
+  window.renderEditClInters(); 
+  
+  if(window.$('ovEditCl')) window.$('ovEditCl').classList.remove('hidden');
+  if (typeof window.hydrateIcons === 'function' && window.$('ovEditCl')) window.hydrateIcons(window.$('ovEditCl'));
+};
+
+window.setEditClColor = function(col) {
+  window.editClColor = col;
+  window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
+  window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
+};
+
+window.setEditClIcon = function(icon) {
+  window.editClIcon = icon === 'book' ? 'book' : 'folder';
+  window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
+};
+
 window.renderClasseurs = function() {
   try {
     const g = window.$('clGrid');
@@ -916,7 +988,7 @@ window.renderClasseurs = function() {
               </div>`).join('');
             return `
               <div class="inter-group">
-                <div class="inter-group-hdr" style="background:${cl.color}15; color:${cl.color}; border-left:3px solid ${cl.color}; padding:8px 12px; font-family:'DM Mono',monospace; font-weight:bold; font-size:12px; letter-spacing:0.5px; margin-top:4px;">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interHeader)} <span style="float:right;color:var(--mut);font-weight:normal;">${groups[k].length} doc${groups[k].length>1?'s':''}</span></div>
+                <div class="inter-group-hdr" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.22) : (cl.color + '33')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}; border-left:4px solid ${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}; padding:8px 12px; font-family:'DM Mono',monospace; font-weight:bold; font-size:12px; letter-spacing:0.5px; margin-top:4px;">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interHeader)} <span style="float:right;color:var(--mut);font-weight:normal;">${groups[k].length} doc${groups[k].length>1?'s':''}</span></div>
                 ${items}
               </div>`;
           }).join('');
@@ -927,7 +999,7 @@ window.renderClasseurs = function() {
         return `
           <div class="cl-card">
             <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
-              <div class="cl-ico" style="background:${cl.color}20">${window.renderClasseurIcon(cl.icon)}</div>
+              <div class="cl-ico" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.38) : (cl.color + '55')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}">${window.renderClasseurIcon(cl.icon, 22, cl.color)}</div>
               <div class="cl-info" style="flex:1;">
                 <div class="cl-nm">${window.escHtml(cl.name)}${isSystem ? '<span style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : ''}</div>
                 <div class="cl-sb">${cl.maxInter || 12} inter. max</div>
@@ -944,31 +1016,14 @@ window.renderClasseurs = function() {
 
     g.innerHTML = html;
     
-    if(window.$('swCl')) {
-      window.$('swCl').innerHTML = window.COLORS.map(c => `
-        <div class="sw${c===window.newColorCl?' on':''}" style="background:${c}" onclick="window.setNewColorCl('${c}')"></div>
-      `).join('');
-    }
+    window.renderColorSwatches('swCl', window.newColorCl, 'window.setNewColorCl', 'nClColorPreview');
+    window.renderClIconPicker('nClIconPick', window.newIconCl || 'folder', 'window.setNewIconCl', window.newColorCl);
 
   } catch(e) {
     if (typeof window.recordAppError === 'function') {
       window.recordAppError('Crash renderClasseurs: ' + e.message, 'data.js');
     }
   }
-};
-
-window.editClasseur = function(id) {
-  if (window.isSystemClasseur(id)) return;
-  const cl = window.D.classeurs.find(c => c.id === id);
-  if(!cl) return;
-  window.currentEditClId = id;
-  
-  if(window.$('eClNm')) window.$('eClNm').value = cl.name;
-  if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
-  
-  window.renderEditClInters(); 
-  
-  if(window.$('ovEditCl')) window.$('ovEditCl').classList.remove('hidden');
 };
 
 window.renderEditClInters = function() {
@@ -1044,6 +1099,8 @@ window.saveClEdit = function() {
   
   cl.name = window.$('eClNm').value.trim() || cl.name;
   cl.maxInter = newMax;
+  if (window.editClColor) cl.color = window.editClColor;
+  if (window.editClIcon === 'book' || window.editClIcon === 'folder') cl.icon = window.editClIcon;
   
   if(!cl.interNames) cl.interNames = {};
   for(let i=1; i<=cl.maxInter; i++) {
@@ -1060,6 +1117,7 @@ window.saveClEdit = function() {
   if(window.$('ovEditCl')) window.$('ovEditCl').classList.add('hidden');
   window.renderClasseurs(); 
   window.renderCours();
+  if (typeof window.renderDashboard === 'function') window.renderDashboard();
 };
 
 window.renderMatieres = function() {
@@ -1076,30 +1134,70 @@ window.renderMatieres = function() {
 
   html += window.D.matieres.map(m => {
     const isSystem = window.isSystemMatiere(m.id);
-    let delBtn = (window.isEditingMat && !isSystem)
-      ? `<button class="mdel" onclick="window.delMat('${m.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>`
-      : '';
+    let editBtns = '';
+    if (window.isEditingMat && !isSystem) {
+      editBtns = `
+        <button class="cbt" style="padding:4px 8px; margin-left:8px; background:var(--acc); color:#fff; border:none;"
+          onclick="window.editMatiere('${m.id}')">${window.iconLabel('pencil', 'Éditer')}</button>
+        <button class="mdel" onclick="window.delMat('${m.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>`;
+    }
     const hint = isSystem ? '<span class="mnm" style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : '';
     return `
     <div class="mr">
-      <div class="mdot" style="background:${m.color}"></div>
+      <div class="mdot" style="background:${typeof window.intensifyColor === 'function' ? window.intensifyColor(m.color) : m.color}; color:${m.color}"></div>
       <div class="mlbl">${window.escHtml(m.label)}</div><div class="mnm" style="flex:1;">${window.escHtml(m.name)}${hint}</div>
-      ${delBtn}
+      ${editBtns}
     </div>`;
   }).join('');
   
   el.innerHTML = html;
   
-  if(window.$('swMat')) {
-    window.$('swMat').innerHTML = window.COLORS.map(c => `
-      <div class="sw${c===window.newColor?' on':''}" style="background:${c}" onclick="window.setNewColor('${c}')"></div>
-    `).join('');
-  }
+  window.renderColorSwatches('swMat', window.newColor, 'window.setNewColor', 'nMatColorPreview');
 };
 
 window.setNewColor = function(col) {
   window.newColor = col;
   window.renderMatieres();
+};
+
+window.editMatiere = function(id) {
+  if (window.isSystemMatiere(id)) return;
+  const m = window.D.matieres.find(x => x.id === id);
+  if (!m) return;
+  window.currentEditMatId = id;
+  window.editMatColor = m.color || (window.COLORS && window.COLORS[0]) || '#5b8df7';
+  if (window.$('eMatId')) window.$('eMatId').value = m.id;
+  if (window.$('eMatNm')) window.$('eMatNm').value = m.name || '';
+  window.renderColorSwatches('eMatSw', window.editMatColor, 'window.setEditMatColor', 'eMatColorPreview');
+  if (window.$('ovEditMat')) window.$('ovEditMat').classList.remove('hidden');
+  if (typeof window.hydrateIcons === 'function' && window.$('ovEditMat')) window.hydrateIcons(window.$('ovEditMat'));
+};
+
+window.setEditMatColor = function(col) {
+  window.editMatColor = col;
+  window.renderColorSwatches('eMatSw', window.editMatColor, 'window.setEditMatColor', 'eMatColorPreview');
+};
+
+window.saveMatEdit = function() {
+  const m = window.D.matieres.find(x => x.id === window.currentEditMatId);
+  if (!m) return;
+  const nameEl = window.$('eMatNm');
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) {
+    if (typeof window.showInlineError === 'function') window.showInlineError(nameEl, 'Le nom ne peut pas être vide.');
+    else if (typeof window.sysAlert === 'function') window.sysAlert('Le nom ne peut pas être vide.');
+    return;
+  }
+  m.name = name;
+  // id / label inchangés — les cours restent liés via c.mat === m.id
+  if (window.editMatColor) m.color = window.editMatColor;
+  window.save();
+  if (window.$('ovEditMat')) window.$('ovEditMat').classList.add('hidden');
+  window.renderMatieres();
+  window.renderCours();
+  if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
+  if (typeof window.renderDashboard === 'function') window.renderDashboard();
+  if (typeof window.renderNotes === 'function') window.renderNotes();
 };
 
 // =========================================================
@@ -1164,7 +1262,7 @@ window.addCl = function() {
   window.D.classeurs.push({
     id: newId, 
     name: name, 
-    icon: 'folder', 
+    icon: (window.newIconCl === 'book' ? 'book' : 'folder'), 
     color: window.newColorCl || (window.COLORS && window.COLORS[0]) || '#ccc', 
     maxInter: 12, 
     interNames: {}
@@ -1175,6 +1273,7 @@ window.addCl = function() {
   window.renderCours();
   
   nameInput.value = '';
+  window.newIconCl = 'folder';
 };
 
 window.delMat = function(id) {
