@@ -180,7 +180,10 @@ document.addEventListener('click', function(e) {
       if (ov.id === 'ovCam') window.stopCam();
       else if (ov.id === 'ovQR') window.closeQRModal();
       else if (ov.id === 'ovCours') window.closeModalCours();
-      else if (ov.id === 'ovCoursWizard' && typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
+      else if (ov.id === 'ovCoursWizard') {
+        if (typeof window.coursWizardQuit === 'function') window.coursWizardQuit();
+        else if (typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
+      }
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
       else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 

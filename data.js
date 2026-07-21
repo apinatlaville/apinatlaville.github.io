@@ -711,8 +711,9 @@ window.openModalCours = function(opts) {
   }
 };
 
-window.editCours = function(uid) {
-  if (typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
+window.editCours = function(uid, opts) {
+  const o = (opts && typeof opts === 'object') ? opts : {};
+  if (!o.keepWizard && typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
   const c = window.D.cours.find(x => x.uid===uid);
   if (!c) return;
   window.editUid = uid;
@@ -892,6 +893,10 @@ window.saveCours = function() {
   }
   if (!wasEdit && !wizardHandled && typeof window.closeCoursWizard === 'function') {
     window.closeCoursWizard();
+  }
+
+  if (wasEdit && window._coursWizardResumeAfterEdit && typeof window.coursWizardResumeAfterEdit === 'function') {
+    window.coursWizardResumeAfterEdit();
   }
 
   window.renderCours();
