@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260721l';
+  window.__BOOT_CACHE_V = '20260721m';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -647,11 +647,10 @@
     </div>
     
     <div class="fg"><label>Matière *</label><select id="fMat"></select></div>
-    <div style="display:flex; gap:10px;">
-      <div class="fg" style="flex:1.5;"><label>Classeur *</label><select id="fCl"></select></div>
-      <div class="fg" style="flex:1;"><label>Intercalaire *</label>
-        <select id="fInter"></select>
-      </div>
+    <div class="fg"><label>Classeur *</label><select id="fCl"></select></div>
+    <div class="fg cours-inter-linked">
+      <label>Intercalaire *</label>
+      <select id="fInter"></select>
     </div>
     <div class="fg"><label>Notes / Infos</label><textarea id="fDesc" rows="2" placeholder="Astuces de résolution..."></textarea></div>
     <div class="macts">
