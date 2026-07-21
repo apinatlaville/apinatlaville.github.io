@@ -868,6 +868,41 @@ window.setNewColorCl = function(col) {
   window.renderClasseurs();
 };
 
+window.renderColorSwatches = function(containerId, selected, onClickFnName, previewId) {
+  const el = window.$(containerId);
+  if (!el) return;
+  const colors = window.COLORS || [];
+  const sel = selected || colors[0] || '#5b8df7';
+  el.innerHTML = colors.map(c => `
+    <div class="sw${c === sel ? ' on' : ''}" style="background:${c}"
+      onclick="${onClickFnName}('${c}')" title="${c}" role="button" tabindex="0"></div>
+  `).join('');
+  const prev = previewId ? window.$(previewId) : null;
+  if (prev) prev.style.background = sel;
+};
+
+window.editClasseur = function(id) {
+  if (window.isSystemClasseur(id)) return;
+  const cl = window.D.classeurs.find(c => c.id === id);
+  if(!cl) return;
+  window.currentEditClId = id;
+  window.editClColor = cl.color || (window.COLORS && window.COLORS[0]) || '#5b8df7';
+  
+  if(window.$('eClNm')) window.$('eClNm').value = cl.name;
+  if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
+  window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
+  
+  window.renderEditClInters(); 
+  
+  if(window.$('ovEditCl')) window.$('ovEditCl').classList.remove('hidden');
+  if (typeof window.hydrateIcons === 'function' && window.$('ovEditCl')) window.hydrateIcons(window.$('ovEditCl'));
+};
+
+window.setEditClColor = function(col) {
+  window.editClColor = col;
+  window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
+};
+
 window.renderClasseurs = function() {
   try {
     const g = window.$('clGrid');
@@ -944,31 +979,13 @@ window.renderClasseurs = function() {
 
     g.innerHTML = html;
     
-    if(window.$('swCl')) {
-      window.$('swCl').innerHTML = window.COLORS.map(c => `
-        <div class="sw${c===window.newColorCl?' on':''}" style="background:${c}" onclick="window.setNewColorCl('${c}')"></div>
-      `).join('');
-    }
+    window.renderColorSwatches('swCl', window.newColorCl, 'window.setNewColorCl', 'nClColorPreview');
 
   } catch(e) {
     if (typeof window.recordAppError === 'function') {
       window.recordAppError('Crash renderClasseurs: ' + e.message, 'data.js');
     }
   }
-};
-
-window.editClasseur = function(id) {
-  if (window.isSystemClasseur(id)) return;
-  const cl = window.D.classeurs.find(c => c.id === id);
-  if(!cl) return;
-  window.currentEditClId = id;
-  
-  if(window.$('eClNm')) window.$('eClNm').value = cl.name;
-  if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
-  
-  window.renderEditClInters(); 
-  
-  if(window.$('ovEditCl')) window.$('ovEditCl').classList.remove('hidden');
 };
 
 window.renderEditClInters = function() {
@@ -1044,6 +1061,7 @@ window.saveClEdit = function() {
   
   cl.name = window.$('eClNm').value.trim() || cl.name;
   cl.maxInter = newMax;
+  if (window.editClColor) cl.color = window.editClColor;
   
   if(!cl.interNames) cl.interNames = {};
   for(let i=1; i<=cl.maxInter; i++) {
@@ -1060,6 +1078,7 @@ window.saveClEdit = function() {
   if(window.$('ovEditCl')) window.$('ovEditCl').classList.add('hidden');
   window.renderClasseurs(); 
   window.renderCours();
+  if (typeof window.renderDashboard === 'function') window.renderDashboard();
 };
 
 window.renderMatieres = function() {
@@ -1076,30 +1095,70 @@ window.renderMatieres = function() {
 
   html += window.D.matieres.map(m => {
     const isSystem = window.isSystemMatiere(m.id);
-    let delBtn = (window.isEditingMat && !isSystem)
-      ? `<button class="mdel" onclick="window.delMat('${m.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>`
-      : '';
+    let editBtns = '';
+    if (window.isEditingMat && !isSystem) {
+      editBtns = `
+        <button class="cbt" style="padding:4px 8px; margin-left:8px; background:var(--acc); color:#fff; border:none;"
+          onclick="window.editMatiere('${m.id}')">${window.iconLabel('pencil', 'Éditer')}</button>
+        <button class="mdel" onclick="window.delMat('${m.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>`;
+    }
     const hint = isSystem ? '<span class="mnm" style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : '';
     return `
     <div class="mr">
       <div class="mdot" style="background:${m.color}"></div>
       <div class="mlbl">${window.escHtml(m.label)}</div><div class="mnm" style="flex:1;">${window.escHtml(m.name)}${hint}</div>
-      ${delBtn}
+      ${editBtns}
     </div>`;
   }).join('');
   
   el.innerHTML = html;
   
-  if(window.$('swMat')) {
-    window.$('swMat').innerHTML = window.COLORS.map(c => `
-      <div class="sw${c===window.newColor?' on':''}" style="background:${c}" onclick="window.setNewColor('${c}')"></div>
-    `).join('');
-  }
+  window.renderColorSwatches('swMat', window.newColor, 'window.setNewColor', 'nMatColorPreview');
 };
 
 window.setNewColor = function(col) {
   window.newColor = col;
   window.renderMatieres();
+};
+
+window.editMatiere = function(id) {
+  if (window.isSystemMatiere(id)) return;
+  const m = window.D.matieres.find(x => x.id === id);
+  if (!m) return;
+  window.currentEditMatId = id;
+  window.editMatColor = m.color || (window.COLORS && window.COLORS[0]) || '#5b8df7';
+  if (window.$('eMatId')) window.$('eMatId').value = m.id;
+  if (window.$('eMatNm')) window.$('eMatNm').value = m.name || '';
+  window.renderColorSwatches('eMatSw', window.editMatColor, 'window.setEditMatColor', 'eMatColorPreview');
+  if (window.$('ovEditMat')) window.$('ovEditMat').classList.remove('hidden');
+  if (typeof window.hydrateIcons === 'function' && window.$('ovEditMat')) window.hydrateIcons(window.$('ovEditMat'));
+};
+
+window.setEditMatColor = function(col) {
+  window.editMatColor = col;
+  window.renderColorSwatches('eMatSw', window.editMatColor, 'window.setEditMatColor', 'eMatColorPreview');
+};
+
+window.saveMatEdit = function() {
+  const m = window.D.matieres.find(x => x.id === window.currentEditMatId);
+  if (!m) return;
+  const nameEl = window.$('eMatNm');
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) {
+    if (typeof window.showInlineError === 'function') window.showInlineError(nameEl, 'Le nom ne peut pas être vide.');
+    else if (typeof window.sysAlert === 'function') window.sysAlert('Le nom ne peut pas être vide.');
+    return;
+  }
+  m.name = name;
+  // id / label inchangés — les cours restent liés via c.mat === m.id
+  if (window.editMatColor) m.color = window.editMatColor;
+  window.save();
+  if (window.$('ovEditMat')) window.$('ovEditMat').classList.add('hidden');
+  window.renderMatieres();
+  window.renderCours();
+  if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
+  if (typeof window.renderDashboard === 'function') window.renderDashboard();
+  if (typeof window.renderNotes === 'function') window.renderNotes();
 };
 
 // =========================================================

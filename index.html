@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260721c';
+  window.__BOOT_CACHE_V = '20260721d';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -349,6 +349,7 @@
     <div class="fg"><label>Nom complet</label><input type="text" id="nClNm" placeholder="Nom du classeur"></div>
     <div class="fg"><label>Couleur du classeur</label>
       <div class="sws" id="swCl"></div>
+      <div class="sw-preview-bar" id="nClColorPreview" aria-hidden="true"></div>
     </div>
     <button class="bp" id="btnAddCl" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
   </div>
@@ -362,6 +363,7 @@
     <div class="fg"><label>Nom complet</label><input type="text" id="nMname" placeholder="Mathématiques"></div>
     <div class="fg"><label>Couleur</label>
       <div class="sws" id="swMat"></div>
+      <div class="sw-preview-bar" id="nMatColorPreview" aria-hidden="true"></div>
     </div>
     <button class="bp" id="btnAddMat" style="width:100%; margin-top:15px;">+ Ajouter la matière</button>
   </div>
@@ -674,6 +676,10 @@
   <div class="modal">
     <h2 style="margin-bottom:15px;"><span data-icon="pencil"></span> Éditer le classeur</h2>
     <div class="fg"><label>Nom du classeur</label><input type="text" id="eClNm"></div>
+    <div class="fg"><label>Couleur du classeur</label>
+      <div class="sws" id="eClSw"></div>
+      <div class="sw-preview-bar" id="eClColorPreview" aria-hidden="true"></div>
+    </div>
     <div class="fg"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.onEditClMaxChange()"></div>
     
     <h3 style="font-family:'Inter'; font-size:14px; margin:15px 0 10px; color:var(--acc);">Noms des intercalaires</h3>
@@ -684,6 +690,23 @@
     <div class="macts">
       <button class="bs" onclick="document.getElementById('ovEditCl').classList.add('hidden')">Annuler</button>
       <button class="bp" onclick="window.saveClEdit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovEditMat">
+  <div class="modal">
+    <h2 style="margin-bottom:15px;"><span data-icon="pencil"></span> Éditer la matière</h2>
+    <div class="fg"><label>Code (ID permanent)</label><input type="text" id="eMatId" disabled style="opacity:0.7; cursor:not-allowed;"></div>
+    <p style="font-size:11px; color:var(--mut); margin:-6px 0 12px;">L’ID ne change pas : tes cours restent liés à cette matière.</p>
+    <div class="fg"><label>Nom complet</label><input type="text" id="eMatNm"></div>
+    <div class="fg"><label>Couleur</label>
+      <div class="sws" id="eMatSw"></div>
+      <div class="sw-preview-bar" id="eMatColorPreview" aria-hidden="true"></div>
+    </div>
+    <div class="macts">
+      <button class="bs" onclick="document.getElementById('ovEditMat').classList.add('hidden')">Annuler</button>
+      <button class="bp" onclick="window.saveMatEdit()">Enregistrer</button>
     </div>
   </div>
 </div>

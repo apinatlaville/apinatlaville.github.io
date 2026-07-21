@@ -948,6 +948,13 @@ body.mode-compact .cdesc { display: none; }
 .sws { display: flex; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
 .sw { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.2s; }
 .sw.on { border-color: var(--txt); transform: scale(1.15); box-shadow: 0 0 8px rgba(0,0,0,0.3); }
+.sw-preview-bar {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--s3, var(--s2));
+  border: 1px solid var(--bd);
+}
 
 .set-row { display: flex; justify-content: space-between; align-items: center; background: var(--s1); border: 1px solid var(--bd); padding: 14px; border-radius: 10px; margin-bottom: 10px; }
 .settings-theme-row {
