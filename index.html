@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260721m';
+  window.__BOOT_CACHE_V = '20260721n';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -252,9 +252,23 @@
 
 <div class="pane ui-pane" id="paneCours">
   <div class="cours-pane-toolbar" id="coursPaneToolbar">
-    <button type="button" class="bp" id="btnCoursBatchCreate" title="Créer plusieurs documents à la suite (reste sur l’intercalaire)" onclick="window.openCoursWizard&&window.openCoursWizard('batch')">
-      <span data-icon="layers"></span> Création rapide
-    </button>
+    <div class="cours-create-menu" id="coursCreateMenu">
+      <button type="button" class="cours-create-trigger" id="btnCoursCreateMenu" aria-expanded="false" aria-haspopup="true" title="Créer un document">
+        <span data-icon="plus" data-icon-size="14"></span>
+        Créer
+        <span class="cours-create-chevron" data-icon="chevron-down" data-icon-size="12"></span>
+      </button>
+      <div class="cours-create-dropdown" role="menu">
+        <button type="button" class="cours-create-item" id="btnCoursCreateSingle" role="menuitem">
+          <strong><span data-icon="file-text" data-icon-size="14"></span> Nouveau document</strong>
+          <span class="hint">1 cours — comme le menu éclair</span>
+        </button>
+        <button type="button" class="cours-create-item" id="btnCoursBatchCreate" role="menuitem">
+          <strong><span data-icon="layers" data-icon-size="14"></span> Création rapide</strong>
+          <span class="hint">Enchaîne plusieurs docs (reste sur l’intercalaire)</span>
+        </button>
+      </div>
+    </div>
   </div>
   <div class="filters">
     <select class="fi" id="fltType">
