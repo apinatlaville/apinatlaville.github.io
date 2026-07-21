@@ -143,6 +143,34 @@ body.theme-light .cours-wiz-modal.card-type-surface {
 }
 .cours-wiz-grid.cours-wiz-grid-inter {
   grid-template-columns: 1fr;
+  gap: 6px;
+  max-height: min(58vh, 480px);
+}
+.cours-wiz-opt.cours-wiz-opt-compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+.cours-wiz-opt.cours-wiz-opt-compact .cours-wiz-ico {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 6px;
+}
+.cours-wiz-opt.cours-wiz-opt-compact strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cours-wiz-opt.cours-wiz-opt-compact .cours-wiz-hint {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
 }
 @media (max-width: 560px) {
   .cours-wiz-grid { grid-template-columns: 1fr; max-height: min(48vh, 360px); }
@@ -656,8 +684,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       var val = String(i).padStart(2, '0');
       var label = window.getInterName ? window.getInterName(cl, val) : val;
       var n = countDocs(STATE.mat, STATE.cl, val);
-      cells.push(`<button type="button" class="cours-wiz-opt" style="--wiz-color:var(--gold);" onclick="window.coursWizardPickInter('${val}')">
-        <span class="cours-wiz-ico">${iconHtml('bookmark', 18)}</span>
+      cells.push(`<button type="button" class="cours-wiz-opt cours-wiz-opt-compact" style="--wiz-color:var(--gold);" onclick="window.coursWizardPickInter('${val}')">
+        <span class="cours-wiz-ico">${iconHtml('bookmark', 14)}</span>
         <strong>${esc(label)}</strong>
         <span class="cours-wiz-hint">n° ${val} · ${n} doc${n > 1 ? 's' : ''}</span>
       </button>`);
