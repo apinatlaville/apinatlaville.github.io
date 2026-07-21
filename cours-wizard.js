@@ -640,15 +640,22 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       }
     }
     var bar = document.getElementById('coursPaneToolbar');
-    if (bar && window.hydrateIcons) window.hydrateIcons(bar);
+    if (bar && typeof window.hydrateIcons === 'function') {
+      try { window.hydrateIcons(bar); } catch (err) { /* non bloquant */ }
+    }
   };
 
-  /* Init toolbar dès que le DOM est prêt */
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
+  /* Init toolbar dès que le DOM est prêt (jamais bloquer le chargement du module) */
+  function safeInitToolbar() {
+    try {
       window.ensureCoursPaneToolbar();
-    });
+    } catch (err) {
+      console.error('cours-wizard toolbar init:', err);
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', safeInitToolbar);
   } else {
-    window.ensureCoursPaneToolbar();
+    safeInitToolbar();
   }
 })();
