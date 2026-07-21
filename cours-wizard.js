@@ -437,7 +437,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         : 'Dernière étape avant le titre et les détails.'}</p>
       ${crumbHtml()}
       ${bannerHtml()}
-      <div class="cours-wiz-grid">${cells.join('')}</div>
+      <div class="cours-wiz-grid cours-wiz-grid-inter">${cells.join('')}</div>
       <div class="macts" style="margin-top:16px;">
         <button type="button" class="bs" onclick="window.coursWizardGo('cl')">Retour</button>
         <button type="button" class="bs" onclick="window.closeCoursWizard()">Annuler</button>
