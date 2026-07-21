@@ -525,8 +525,6 @@ body.theme-light .cours-create-item:focus-visible {
 }
 
 `;
-    var host = document.head || document.body || document.documentElement;
-    if (host && host.appendChild) host.appendChild(tag);
   }
 
   function ensureOverlay() {
