@@ -219,9 +219,239 @@ window.resetFilters = function() {
   window.renderCours();
 };
 
+window.coursBrowseMode = 'tree';
+window.coursExpanded = Object.create(null);
+
+/** Escape pour chaînes dans onclick="fn('...')". */
+window.escapeJsStr = function(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n');
+};
+
+window.setCoursBrowseMode = function(mode) {
+  window.coursBrowseMode = mode === 'mat' ? 'mat' : 'tree';
+  const btnTree = window.$('btnCoursBrowseTree');
+  const btnMat = window.$('btnCoursBrowseMat');
+  if (btnTree) btnTree.classList.toggle('is-active', window.coursBrowseMode === 'tree');
+  if (btnMat) btnMat.classList.toggle('is-active', window.coursBrowseMode === 'mat');
+  window.renderCours();
+};
+
+window.toggleCoursTreeNode = function(key, ev) {
+  if (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+  if (!window.coursExpanded) window.coursExpanded = Object.create(null);
+  if (window.coursExpanded[key]) delete window.coursExpanded[key];
+  else window.coursExpanded[key] = true;
+  window.renderCours();
+};
+
+window.isCoursTreeExpanded = function(key) {
+  return !!(window.coursExpanded && window.coursExpanded[key]);
+};
+
+/** Groupe les cours filtrés : matière → classeur → intercalaire (chaque cours une seule fois). */
+window.buildCoursBrowseTree = function(list) {
+  const matMap = new Map();
+  (list || []).forEach(c => {
+    if (!c) return;
+    const matId = c.mat || '';
+    const clId = c.cl || '';
+    const inter = c.inter || '00';
+    if (!matMap.has(matId)) matMap.set(matId, { id: matId, classeurs: new Map(), count: 0 });
+    const matNode = matMap.get(matId);
+    matNode.count += 1;
+    if (!matNode.classeurs.has(clId)) matNode.classeurs.set(clId, { id: clId, inters: new Map(), count: 0 });
+    const clNode = matNode.classeurs.get(clId);
+    clNode.count += 1;
+    if (!clNode.inters.has(inter)) clNode.inters.set(inter, []);
+    clNode.inters.get(inter).push(c);
+  });
+
+  const matName = (id) => {
+    const mo = (window.D && window.D.matieres || []).find(x => x.id === id);
+    return (mo && mo.name) || id || '';
+  };
+  const clName = (id) => {
+    const co = (window.D && window.D.classeurs || []).find(x => x.id === id);
+    return (co && co.name) || id || '';
+  };
+
+  return [...matMap.values()].sort((a, b) => matName(a.id).localeCompare(matName(b.id), 'fr')).map(matNode => ({
+    id: matNode.id,
+    count: matNode.count,
+    classeurs: [...matNode.classeurs.values()]
+      .sort((a, b) => clName(a.id).localeCompare(clName(b.id), 'fr'))
+      .map(clNode => ({
+        id: clNode.id,
+        count: clNode.count,
+        inters: [...clNode.inters.entries()]
+          .sort((a, b) => String(a[0]).localeCompare(String(b[0]), 'fr'))
+          .map(([inter, cours]) => ({
+            id: inter,
+            count: cours.length,
+            cours: cours.slice().sort((a, b) => String(a.title || '').localeCompare(String(b.title || ''), 'fr'))
+          }))
+      }))
+  }));
+};
+
+window.renderCoursCardHtml = function(c) {
+  const mats = (window.D && Array.isArray(window.D.matieres)) ? window.D.matieres : [];
+  const cls = (window.D && Array.isArray(window.D.classeurs)) ? window.D.classeurs : [];
+  const mo = mats.find(x => x.id === c.mat) || { color: '#6a6a88', label: c.mat, name: c.mat };
+  const co = cls.find(x => x.id === c.cl) || { name: c.cl, icon: 'book-blue', color: '#5b8df7' };
+  const interNameDisplay = window.getInterName(co, c.inter);
+
+  let warnHtml = '';
+  const showWarn = !(window.D && window.D.settings && window.D.settings.showInitWarn === false);
+  if (showWarn && c.stat === 'pending') {
+    warnHtml = '<div class="qr-warn">' + window.statusLabel('red', 'À imprimer') + '</div>';
+  } else if (showWarn && c.stat === 'printed') {
+    warnHtml = '<div class="qr-scan-req">' + window.statusLabel('orange', 'Imprimé. Scanne pour initialiser.') + '</div>';
+  }
+
+  return `
+  <div class="card" style="--mat-color:${mo.color}" onclick="window.doLocate('${window.escapeJsStr(c.uid)}')">
+    <div class="uid-badge">${window.escHtml(c.uid)}</div>
+    <div class="ctop">
+      <div class="cbadges">
+        <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${window.escHtml(mo.label)}</span>
+        <span class="bm badge-type">${window.escHtml(c.type)}</span>
+      </div>
+    </div>
+    <div class="ctitle">${window.escHtml(c.title)}</div>
+    <div class="clocs">
+      <span class="cloc cloc-a">${window.renderClasseurIcon(co.icon, 14, co.color)} ${window.escHtml(co.name)}</span>
+      <span class="cloc cloc-b">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}</span>
+    </div>
+    ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
+    ${c.note || c.rang ? `<div class="cnote">${[
+      c.note ? `Note : ${window.escHtml(c.note)}/20` : '',
+      c.rang ? `Rang : ${window.escHtml(String(c.rang))}${c.effectif ? '/' + window.escHtml(String(c.effectif)) : ''}` : ''
+    ].filter(Boolean).join(' · ')}</div>` : ''}
+    <div class="cacts" onclick="event.stopPropagation();">
+        ${window.iconBtn('refresh-cw', 'Déplacer', `onclick="window.openMove('${window.escapeJsStr(c.uid)}')"`)}
+        ${window.iconBtn('qr-code', 'Voir Code-Barres', `onclick="window.showQR('${window.escapeJsStr(c.uid)}')"`)}
+        ${window.iconEditDeletePair(
+          `window.editCours('${window.escapeJsStr(c.uid)}')`,
+          `window.delCours('${window.escapeJsStr(c.uid)}')`
+        )}
+    </div>
+    ${warnHtml}
+  </div>`;
+};
+
+window.renderCoursTreeHdr = function(opts) {
+  const open = !!opts.open;
+  const chev = window.iconHtml(open ? 'chevron-down' : 'chevron-right', 14, 'icon-sm');
+  const color = opts.color || 'var(--acc)';
+  const icon = opts.iconHtml || '';
+  const count = opts.count || 0;
+  const safeKey = String(opts.key || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  return `
+    <button type="button" class="cours-tree-hdr cours-tree-hdr--${opts.level || 'mat'}${open ? ' is-open' : ''}"
+      style="--tree-accent:${color}"
+      aria-expanded="${open ? 'true' : 'false'}"
+      onclick="window.toggleCoursTreeNode('${safeKey}', event)">
+      <span class="cours-tree-chev">${chev}</span>
+      ${icon ? `<span class="cours-tree-ico">${icon}</span>` : ''}
+      <span class="cours-tree-label">${opts.labelHtml || ''}</span>
+      <span class="cours-tree-count">${count} doc${count > 1 ? 's' : ''}</span>
+    </button>`;
+};
+
+window.renderCoursCardsGrid = function(coursList) {
+  return `<div class="cgrid cours-tree-cards">${(coursList || []).map(c => window.renderCoursCardHtml(c)).join('')}</div>`;
+};
+
+window.renderCoursBrowseHtml = function(list, mode) {
+  const mats = (window.D && Array.isArray(window.D.matieres)) ? window.D.matieres : [];
+  const cls = (window.D && Array.isArray(window.D.classeurs)) ? window.D.classeurs : [];
+  const tree = window.buildCoursBrowseTree(list);
+  const browseMode = mode === 'mat' ? 'mat' : 'tree';
+  let html = '<div class="cours-tree">';
+
+  tree.forEach(matNode => {
+    const mo = mats.find(x => x.id === matNode.id) || { color: '#6a6a88', name: matNode.id, label: matNode.id };
+    const matKey = 'm:' + matNode.id;
+    const matOpen = window.isCoursTreeExpanded(matKey);
+    html += '<div class="cours-tree-section cours-tree-section--mat">';
+    html += window.renderCoursTreeHdr({
+      key: matKey,
+      level: 'mat',
+      open: matOpen,
+      color: mo.color,
+      labelHtml: `<span class="cours-tree-mat-dot" style="background:${mo.color}"></span>${window.escHtml(mo.name)}`,
+      count: matNode.count
+    });
+
+    if (matOpen) {
+      html += '<div class="cours-tree-body is-open">';
+      if (browseMode === 'mat') {
+        const flat = [];
+        matNode.classeurs.forEach(cl => cl.inters.forEach(inter => inter.cours.forEach(c => flat.push(c))));
+        html += window.renderCoursCardsGrid(flat);
+      } else {
+        matNode.classeurs.forEach(clNode => {
+          const co = cls.find(x => x.id === clNode.id) || { name: clNode.id, icon: 'book-blue', color: '#5b8df7' };
+          const clKey = 'c:' + matNode.id + '|' + clNode.id;
+          const clOpen = window.isCoursTreeExpanded(clKey);
+          html += '<div class="cours-tree-section cours-tree-section--cl">';
+          html += window.renderCoursTreeHdr({
+            key: clKey,
+            level: 'cl',
+            open: clOpen,
+            color: co.color || mo.color,
+            iconHtml: window.renderClasseurIcon(co.icon, 16, co.color || mo.color),
+            labelHtml: window.escHtml(co.name),
+            count: clNode.count
+          });
+          if (clOpen) {
+            html += '<div class="cours-tree-body is-open">';
+            clNode.inters.forEach(interNode => {
+              const interKey = 'i:' + matNode.id + '|' + clNode.id + '|' + interNode.id;
+              const interOpen = window.isCoursTreeExpanded(interKey);
+              const interLabel = window.getInterName(co, interNode.id);
+              html += '<div class="cours-tree-section cours-tree-section--inter">';
+              html += window.renderCoursTreeHdr({
+                key: interKey,
+                level: 'inter',
+                open: interOpen,
+                color: mo.color,
+                iconHtml: window.iconHtml('bookmark', 14, 'icon-sm'),
+                labelHtml: window.escHtml(interLabel),
+                count: interNode.count
+              });
+              if (interOpen) {
+                html += '<div class="cours-tree-body is-open">' + window.renderCoursCardsGrid(interNode.cours) + '</div>';
+              }
+              html += '</div>';
+            });
+            html += '</div>';
+          }
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+
+  html += '</div>';
+  return html;
+};
+
 window.renderCours = function() {
   try {
     if (!window.D || !window.D.cours) return;
+    if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
+    if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
     const allM = [...new Set(window.D.cours.map(c => c.mat))];
     const allC = [...new Set(window.D.cours.map(c => c.cl))];
     const ms = window.$('fltMat');
@@ -313,77 +543,37 @@ window.renderCours = function() {
 
     if (!qText) {
       list.sort((a,b) => {
-        if(a.mat !== b.mat) return a.mat.localeCompare(b.mat);
-        if(a.cl !== b.cl) return a.cl.localeCompare(b.cl);
-        return a.inter.localeCompare(b.inter);
+        const am = String(a.mat || ''), bm = String(b.mat || '');
+        if (am !== bm) return am.localeCompare(bm);
+        const ac = String(a.cl || ''), bc = String(b.cl || '');
+        if (ac !== bc) return ac.localeCompare(bc);
+        return String(a.inter || '').localeCompare(String(b.inter || ''));
       });
     }
+
+    const btnTree = window.$('btnCoursBrowseTree');
+    const btnMat = window.$('btnCoursBrowseMat');
+    const browseMode = window.coursBrowseMode === 'mat' ? 'mat' : 'tree';
+    if (btnTree) btnTree.classList.toggle('is-active', browseMode === 'tree');
+    if (btnMat) btnMat.classList.toggle('is-active', browseMode === 'mat');
 
     const grid = window.$('coursGrid');
     if(grid) {
       if (!list.length) {
+        grid.className = 'cgrid';
         grid.innerHTML = '<div class="empty"><h3>Aucun document trouvé</h3></div>';
         window.renderStats();
         return;
       }
 
-      let html = '';
-      let currentMat = '';
-
-      list.forEach(c => {
-        const mo = window.D.matieres.find(x => x.id===c.mat) || {color:'#6a6a88', label:c.mat, name:c.mat};
-        const co = window.D.classeurs.find(x => x.id===c.cl) || {name:c.cl, icon:'book-blue', color:'#5b8df7'};
-        
-        const interNameDisplay = window.getInterName(co, c.inter);
-
-        if (!qText && c.mat !== currentMat) {
-          html += `
-            <div style="grid-column: 1/-1; margin-top: 15px; border-bottom: 2px solid ${mo.color}; padding-bottom: 5px;">
-              <h3 style="font-family: 'Inter'; color: ${mo.color};">${window.escHtml(mo.name)}</h3>
-            </div>
-          `;
-          currentMat = c.mat;
-        }
-
-        let warnHtml = '';
-        const showWarn = window.D.settings.showInitWarn !== false;
-        if (showWarn && c.stat === 'pending') {
-          warnHtml = '<div class="qr-warn">' + window.statusLabel('red', 'À imprimer') + '</div>';
-        } else if (showWarn && c.stat === 'printed') {
-          warnHtml = '<div class="qr-scan-req">' + window.statusLabel('orange', 'Imprimé. Scanne pour initialiser.') + '</div>';
-        }
-
-        html += `
-        <div class="card" style="--mat-color:${mo.color}" onclick="window.doLocate('${window.escHtml(c.uid)}')">
-          <div class="uid-badge">${window.escHtml(c.uid)}</div>
-          <div class="ctop">
-            <div class="cbadges">
-              <span class="bm" style="background:${mo.color}20;color:${mo.color};border:1px solid ${mo.color}60">${window.escHtml(mo.label)}</span>
-              <span class="bm badge-type">${window.escHtml(c.type)}</span>
-            </div>
-          </div>
-          <div class="ctitle">${window.escHtml(c.title)}</div>
-          <div class="clocs">
-            <span class="cloc cloc-a">${window.renderClasseurIcon(co.icon, 14, co.color)} ${window.escHtml(co.name)}</span>
-            <span class="cloc cloc-b">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}</span>
-          </div>
-          ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
-          ${c.note || c.rang ? `<div class="cnote">${[
-            c.note ? `Note : ${window.escHtml(c.note)}/20` : '',
-            c.rang ? `Rang : ${window.escHtml(String(c.rang))}${c.effectif ? '/' + window.escHtml(String(c.effectif)) : ''}` : ''
-          ].filter(Boolean).join(' · ')}</div>` : ''}
-          <div class="cacts" onclick="event.stopPropagation();">
-              ${window.iconBtn('refresh-cw', 'Déplacer', `onclick="window.openMove('${window.escHtml(c.uid)}')"`)}
-              ${window.iconBtn('qr-code', 'Voir Code-Barres', `onclick="window.showQR('${window.escHtml(c.uid)}')"`)}
-              ${window.iconEditDeletePair(
-                `window.editCours('${window.escHtml(c.uid)}')`,
-                `window.delCours('${window.escHtml(c.uid)}')`
-              )}
-          </div>
-          ${warnHtml}
-        </div>`;
-      });
-      grid.innerHTML = html;
+      // Recherche texte : liste plate (résultats Fuse déjà triés par pertinence)
+      if (qText) {
+        grid.className = 'cgrid';
+        grid.innerHTML = list.map(c => window.renderCoursCardHtml(c)).join('');
+      } else {
+        grid.className = 'cours-tree-root';
+        grid.innerHTML = window.renderCoursBrowseHtml(list, browseMode);
+      }
     }
     window.renderStats();
   } catch(e) {
@@ -619,6 +809,7 @@ window.toggleManualUid = function() {
 };
 
 window.updateIntercalairesDropdown = function() {
+  if (!window.D || !Array.isArray(window.D.classeurs)) return;
   const clId = window.$('fCl') ? window.$('fCl').value : '';
   const cl = window.D.classeurs.find(c => c.id === clId);
   const maxI = cl ? (cl.maxInter || 12) : 12;
@@ -639,6 +830,10 @@ window.updateIntercalairesDropdown = function() {
 
 window.openModalCours = function(opts) {
   const o = (opts && typeof opts === 'object') ? opts : {};
+  if (!window.D) return;
+  if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
+  if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
+  if (!Array.isArray(window.D.cours)) window.D.cours = [];
   window.editUid = null;
   if(window.$('mTitle')) {
     const batch = window._coursWizardMode === 'batch';
@@ -677,7 +872,7 @@ window.openModalCours = function(opts) {
   
   if(window.$('fManualUidToggle')) {
     window.$('fManualUidToggle').checked = false;
-    window.$('lblManualUid').style.display = 'flex'; 
+    if (window.$('lblManualUid')) window.$('lblManualUid').style.display = 'flex';
   }
   if(window.$('fUidInput')) {
     window.$('fUidInput').value = '';
@@ -713,9 +908,18 @@ window.openModalCours = function(opts) {
 
 window.editCours = function(uid, opts) {
   const o = (opts && typeof opts === 'object') ? opts : {};
+  if (!window.D || !Array.isArray(window.D.cours)) {
+    if (o.keepWizard) window._coursWizardResumeAfterEdit = false;
+    return;
+  }
   if (!o.keepWizard && typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
   const c = window.D.cours.find(x => x.uid===uid);
-  if (!c) return;
+  if (!c) {
+    if (o.keepWizard) window._coursWizardResumeAfterEdit = false;
+    return;
+  }
+  if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
+  if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
   window.editUid = uid;
   
   if(window.$('mTitle')) window.$('mTitle').innerHTML = window.iconLabel('pencil', 'Modifier le document');

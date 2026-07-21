@@ -1,0 +1,152 @@
+/**
+ * Tests Base Doc : arbre matière → classeur → intercalaire + collapse.
+ * Usage: node scripts/test-cours-browse-tree.mjs
+ */
+import fs from 'fs';
+import path from 'path';
+import vm from 'vm';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(__dirname, '..');
+
+let passed = 0;
+let failed = 0;
+const failures = [];
+
+function assert(cond, msg) {
+  if (cond) { passed++; console.log('  ✓', msg); }
+  else { failed++; failures.push(msg); console.error('  ✗', msg); }
+}
+
+function loadDataJs() {
+  const code = fs.readFileSync(path.join(root, 'data.js'), 'utf8');
+  const document = {
+    getElementById() { return null; },
+    querySelector() { return null; },
+    querySelectorAll() { return []; },
+    createElement() {
+      return {
+        style: {},
+        classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+        setAttribute() {},
+        appendChild() {},
+        addEventListener() {},
+        querySelectorAll() { return []; },
+        querySelector() { return null; }
+      };
+    }
+  };
+  const window = {
+    document,
+    D: null,
+    escHtml: (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;'),
+    iconHtml: () => '',
+    iconBtn: () => '',
+    iconEditDeletePair: () => '',
+    renderClasseurIcon: () => '',
+    statusLabel: (_c, t) => t,
+    colorWithAlpha: (c) => c,
+    intensifyColor: (c) => c,
+    recordAppError: () => {},
+    $: (id) => document.getElementById(id)
+  };
+  window.window = window;
+  const ctx = { window, document, console };
+  vm.createContext(ctx);
+  vm.runInContext(code, ctx);
+  return window;
+}
+
+console.log('\n=== Base Doc browse tree ===\n');
+
+const w = loadDataJs();
+w.D = {
+  settings: { showInitWarn: true },
+  matieres: [
+    { id: 'PHYS', label: 'PHYS', name: 'Physique', color: '#5b8df7' },
+    { id: 'MATH', label: 'MATH', name: 'Mathématiques', color: '#f0c060' }
+  ],
+  classeurs: [
+    { id: 'A', name: 'Classeur A', icon: 'book-blue', color: '#5b8df7', interNames: { '01': 'Meca' } },
+    { id: 'B', name: 'Classeur B', icon: 'book-orange', color: '#f0c060', interNames: {} },
+    { id: 'SHARED', name: 'Classeur Partagé', icon: 'folder', color: '#888', interNames: {} }
+  ],
+  cours: [
+    { uid: 'P1', title: 'Cinématique', mat: 'PHYS', cl: 'A', inter: '01', type: 'COURS', stat: 'active' },
+    { uid: 'P2', title: 'Dynamique', mat: 'PHYS', cl: 'A', inter: '02', type: 'TD', stat: 'active' },
+    { uid: 'P3', title: 'Optique', mat: 'PHYS', cl: 'SHARED', inter: '01', type: 'COURS', stat: 'pending' },
+    { uid: 'M1', title: 'Algèbre', mat: 'MATH', cl: 'B', inter: '01', type: 'COURS', stat: 'active' },
+    { uid: 'M2', title: 'Analyse', mat: 'MATH', cl: 'SHARED', inter: '02', type: 'FICHE', stat: 'printed' }
+  ]
+};
+
+assert(typeof w.buildCoursBrowseTree === 'function', 'buildCoursBrowseTree exposé');
+assert(typeof w.setCoursBrowseMode === 'function', 'setCoursBrowseMode exposé');
+assert(typeof w.toggleCoursTreeNode === 'function', 'toggleCoursTreeNode exposé');
+assert(w.coursBrowseMode === 'tree', 'mode par défaut = tree');
+assert(Object.keys(w.coursExpanded || {}).length === 0, 'rien déplié par défaut');
+
+const tree = w.buildCoursBrowseTree(w.D.cours);
+assert(tree.length === 2, '2 matières dans l’arbre');
+assert(tree[0].id === 'MATH' && tree[1].id === 'PHYS', 'matières triées par nom (Math puis Phys)');
+assert(tree.find(m => m.id === 'PHYS').count === 3, 'Physique : 3 docs');
+assert(tree.find(m => m.id === 'MATH').count === 2, 'Maths : 2 docs');
+
+const phys = tree.find(m => m.id === 'PHYS');
+assert(phys.classeurs.length === 2, 'Physique : 2 classeurs (A + SHARED)');
+assert(phys.classeurs.every(c => ['A', 'SHARED'].includes(c.id)), 'Physique n’a que A et SHARED');
+assert(!phys.classeurs.some(c => c.id === 'B'), 'Physique n’affiche pas le classeur Maths B');
+
+const math = tree.find(m => m.id === 'MATH');
+assert(math.classeurs.some(c => c.id === 'SHARED'), 'Maths a aussi le classeur SHARED');
+assert(math.classeurs.some(c => c.id === 'B'), 'Maths a le classeur B');
+
+const sharedPhys = phys.classeurs.find(c => c.id === 'SHARED');
+const sharedMath = math.classeurs.find(c => c.id === 'SHARED');
+assert(sharedPhys.count === 1 && sharedPhys.inters[0].cours[0].uid === 'P3', 'SHARED sous Phys : uniquement P3');
+assert(sharedMath.count === 1 && sharedMath.inters[0].cours[0].uid === 'M2', 'SHARED sous Math : uniquement M2');
+
+const allUids = [];
+tree.forEach(m => m.classeurs.forEach(c => c.inters.forEach(i => i.cours.forEach(x => allUids.push(x.uid)))));
+assert(allUids.length === 5, 'chaque cours apparaît une seule fois au total');
+assert(new Set(allUids).size === 5, 'uids uniques dans l’arbre');
+
+const aNode = phys.classeurs.find(c => c.id === 'A');
+assert(aNode.inters.length === 2, 'Classeur A : 2 intercalaires');
+assert(aNode.inters[0].id === '01' && aNode.inters[1].id === '02', 'intercalaires triés');
+
+w.toggleCoursTreeNode('m:PHYS');
+assert(w.isCoursTreeExpanded('m:PHYS') === true, 'déplier matière PHYS');
+w.toggleCoursTreeNode('m:PHYS');
+assert(w.isCoursTreeExpanded('m:PHYS') === false, 'replier matière PHYS');
+
+w.setCoursBrowseMode('mat');
+assert(w.coursBrowseMode === 'mat', 'bascule mode matières');
+w.setCoursBrowseMode('tree');
+assert(w.coursBrowseMode === 'tree', 'retour mode arbre');
+
+const htmlTree = w.renderCoursBrowseHtml(w.D.cours, 'tree');
+assert(htmlTree.includes('cours-tree') && htmlTree.includes('Physique'), 'HTML arbre contient Physique');
+assert(!htmlTree.includes('Cinématique'), 'HTML arbre replié : pas de cartes visibles');
+w.coursExpanded['m:PHYS'] = true;
+w.coursExpanded['c:PHYS|A'] = true;
+w.coursExpanded['i:PHYS|A|01'] = true;
+const htmlOpen = w.renderCoursBrowseHtml(w.D.cours, 'tree');
+assert(htmlOpen.includes('Cinématique'), 'après expand mat→cl→inter : carte visible');
+assert(htmlOpen.includes('Classeur A'), 'en-tête classeur visible');
+
+w.coursExpanded = Object.create(null);
+w.coursExpanded['m:PHYS'] = true;
+const htmlMatOnly = w.renderCoursBrowseHtml(w.D.cours, 'mat');
+assert(htmlMatOnly.includes('Cinématique') && htmlMatOnly.includes('Optique'), 'mode matières : cartes sous matière ouverte');
+assert(!htmlMatOnly.includes('cours-tree-hdr--cl'), 'mode matières : pas d’en-têtes classeur');
+
+console.log('\n=== Résultat ===');
+console.log(`passed=${passed} failed=${failed}`);
+if (failed) {
+  console.error(failures.join('\n'));
+  process.exit(1);
+}

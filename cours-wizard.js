@@ -25,6 +25,17 @@
     return window.escHtml ? window.escHtml(s) : String(s == null ? '' : s);
   }
 
+  /** Escape pour chaînes JS dans des attributs onclick="...('...')". */
+  function jsStr(s) {
+    return String(s == null ? '' : s)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/\r/g, '\\r')
+      .replace(/\n/g, '\\n')
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
+  }
+
   function iconLabel(name, text) {
     return window.iconLabel ? window.iconLabel(name, text) : esc(text);
   }
@@ -143,6 +154,34 @@ body.theme-light .cours-wiz-modal.card-type-surface {
 }
 .cours-wiz-grid.cours-wiz-grid-inter {
   grid-template-columns: 1fr;
+  gap: 6px;
+  max-height: min(58vh, 480px);
+}
+.cours-wiz-opt.cours-wiz-opt-compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+.cours-wiz-opt.cours-wiz-opt-compact .cours-wiz-ico {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 6px;
+}
+.cours-wiz-opt.cours-wiz-opt-compact strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cours-wiz-opt.cours-wiz-opt-compact .cours-wiz-hint {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
 }
 @media (max-width: 560px) {
   .cours-wiz-grid { grid-template-columns: 1fr; max-height: min(48vh, 360px); }
@@ -209,8 +248,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   margin: 12px 0 0;
   padding: 10px;
   border-radius: 10px;
-  border: 0.5px solid var(--bd);
-  background: color-mix(in srgb, var(--s2) 70%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--acc) 28%, var(--bd));
+  background: color-mix(in srgb, var(--s2) 85%, transparent);
   max-height: 160px;
   overflow-y: auto;
 }
@@ -255,12 +294,29 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.cours-wiz-inv-type {
+  display: inline-block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 12%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--acc) 28%, transparent);
+  border-radius: 4px;
+  padding: 1px 6px;
+  line-height: 1.4;
+}
 .cours-wiz-inv-meta {
   font-size: 10px;
   color: var(--mut);
-  white-space: nowrap;
+  line-height: 1.35;
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .cours-wiz-inv-acts {
   display: flex;
@@ -289,17 +345,67 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   color: var(--red);
 }
 .cours-wiz-modal.cours-wiz-wide {
-  max-width: 600px;
+  max-width: min(920px, 96vw);
+  width: min(920px, 96vw);
+}
+.cours-wiz-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+.cours-wiz-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cours-wiz-session {
+  flex: 0 0 auto;
+  border-top: 1px dashed color-mix(in srgb, var(--bd) 80%, transparent);
+  padding-top: 12px;
+  margin-top: 2px;
+}
+.cours-wiz-session .cours-wiz-inventory {
+  margin: 0;
+  max-height: min(32vh, 220px);
+}
+@media (min-width: 780px) {
+  .cours-wiz-layout {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .cours-wiz-main {
+    flex: 1 1 0;
+  }
+  .cours-wiz-session {
+    flex: 0 0 250px;
+    width: 250px;
+    max-width: 280px;
+    border-top: none;
+    border-left: 1px solid var(--bd);
+    padding-top: 0;
+    padding-left: 14px;
+    margin-top: 0;
+  }
+  .cours-wiz-session .cours-wiz-inventory {
+    max-height: min(58vh, 460px);
+    height: 100%;
+    box-sizing: border-box;
+  }
 }
 
 .cours-pane-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
   position: relative;
   z-index: 5;
+  flex-wrap: wrap;
+}
+.cours-browse-toggle {
+  flex: 0 0 auto;
 }
 .cours-create-menu {
   position: relative;
@@ -390,7 +496,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
 }
 
 `;
-    document.head.appendChild(tag);
+    var host = document.head || document.body || document.documentElement;
+    if (host && host.appendChild) host.appendChild(tag);
   }
 
   function ensureOverlay() {
@@ -538,16 +645,22 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       var mo = matById(c.mat);
       var co = clById(c.cl);
       var interLabel = window.getInterName ? window.getInterName(co, c.inter) : (c.inter || '');
-      var meta = [mo ? mo.label : c.mat, co ? co.name : c.cl, interLabel].filter(Boolean).join(' · ');
+      var typeLabel = c.type || '';
+      var meta = [
+        mo ? (mo.name || mo.label) : c.mat,
+        co ? co.name : c.cl,
+        interLabel
+      ].filter(Boolean).join(' · ');
       return '<div class="cours-wiz-inv-row">' +
         '<div class="cours-wiz-inv-main">' +
           '<div class="cours-wiz-inv-uid">' + esc(c.uid) + '</div>' +
           '<div class="cours-wiz-inv-title">' + esc(c.title || 'Sans titre') + '</div>' +
-          '<div class="cours-wiz-inv-meta">' + esc(meta) + '</div>' +
+          (typeLabel ? '<div class="cours-wiz-inv-type">' + esc(typeLabel) + '</div>' : '') +
+          (meta ? '<div class="cours-wiz-inv-meta">' + esc(meta) + '</div>' : '') +
         '</div>' +
         '<div class="cours-wiz-inv-acts">' +
-          '<button type="button" title="Modifier" onclick="window.coursWizardEditCreated(\'' + esc(c.uid) + '\')">' + iconHtml('pencil', 14) + '</button>' +
-          '<button type="button" class="is-danger" title="Supprimer" onclick="window.coursWizardDeleteCreated(\'' + esc(c.uid) + '\')">' + iconHtml('trash-2', 14) + '</button>' +
+          '<button type="button" title="Modifier" onclick="window.coursWizardEditCreated(\'' + jsStr(c.uid) + '\')">' + iconHtml('pencil', 14) + '</button>' +
+          '<button type="button" class="is-danger" title="Supprimer" onclick="window.coursWizardDeleteCreated(\'' + jsStr(c.uid) + '\')">' + iconHtml('trash-2', 14) + '</button>' +
         '</div>' +
       '</div>';
     }).join('');
@@ -555,6 +668,16 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       '<div class="cours-wiz-inventory-title"><span>Créés dans cette session</span><span>' + docs.length + '</span></div>' +
       rows +
       '</div>';
+  }
+
+  /** Contenu principal + inventaire session (bas mobile / droite desktop). */
+  function withSessionLayout(mainHtml, actionsHtml) {
+    var inv = inventoryHtml();
+    if (!inv) return mainHtml + (actionsHtml || '');
+    return '<div class="cours-wiz-layout">' +
+      '<div class="cours-wiz-main">' + mainHtml + '</div>' +
+      '<aside class="cours-wiz-session" aria-label="Créés dans cette session">' + inv + '</aside>' +
+      '</div>' + (actionsHtml || '');
   }
 
   function exitActionsHtml(backStep) {
@@ -567,7 +690,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         : '';
       return '<div class="macts" style="margin-top:16px;">' + back +
         '<button type="button" class="bs" onclick="window.coursWizardQuit()">' +
-        (STATE.createdUids.length ? 'Quitter' : 'Quitter') + '</button>' +
+        (STATE.createdUids.length ? 'Quitter' : 'Annuler') + '</button>' +
         finish + '</div>';
     }
     return '<div class="macts" style="margin-top:16px;">' + back +
@@ -575,13 +698,12 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   }
 
   function renderEntry() {
-    return `
+    var main = `
       <h2>${iconLabel('folders', 'Nouveau document')}${modePill()}</h2>
       <p class="cours-wiz-sub">${STATE.mode === 'batch'
         ? 'Création rapide : après chaque enregistrement, tu restes sur l’intercalaire pour enchaîner. Termine pour revoir la liste.'
         : 'Choisis comment placer le document — comme dans un explorateur de fichiers.'}</p>
       ${bannerHtml()}
-      ${inventoryHtml()}
       <div class="cours-wiz-entry">
         <button type="button" class="cours-wiz-opt" style="--wiz-color:var(--acc);" onclick="window.coursWizardPickDirect()">
           <span class="cours-wiz-ico">${iconHtml('zap', 18)}</span>
@@ -593,8 +715,8 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           <strong>Parcourir (Finder)</strong>
           <span class="cours-wiz-hint">Matière → classeur → intercalaire, puis titre et détails.</span>
         </button>
-      </div>
-      ${exitActionsHtml(null)}`;
+      </div>`;
+    return withSessionLayout(main, exitActionsHtml(null));
   }
 
   function renderMat() {
@@ -609,14 +731,13 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           </button>`;
         }).join('')
       : '<div class="cours-wiz-empty">Aucune matière. Crée-en une dans Réglages.</div>';
-    return `
+    var main = `
       <h2>${iconLabel('book-open', 'Choisir une matière')}${modePill()}</h2>
       <p class="cours-wiz-sub">Sélectionne la matière du document.</p>
       ${crumbHtml()}
       ${bannerHtml()}
-      ${inventoryHtml()}
-      <div class="cours-wiz-grid">${grid}</div>
-      ${exitActionsHtml('entry')}`;
+      <div class="cours-wiz-grid">${grid}</div>`;
+    return withSessionLayout(main, exitActionsHtml('entry'));
   }
 
   function renderCl() {
@@ -634,14 +755,13 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           </button>`;
         }).join('')
       : '<div class="cours-wiz-empty">Aucun classeur. Crée-en un dans Réglages.</div>';
-    return `
+    var main = `
       <h2>${iconLabel('folder', 'Choisir un classeur')}${modePill()}</h2>
       <p class="cours-wiz-sub">Où ranger ce document dans ta base.</p>
       ${crumbHtml()}
       ${bannerHtml()}
-      ${inventoryHtml()}
-      <div class="cours-wiz-grid">${grid}</div>
-      ${exitActionsHtml('mat')}`;
+      <div class="cours-wiz-grid">${grid}</div>`;
+    return withSessionLayout(main, exitActionsHtml('mat'));
   }
 
   function renderInter() {
@@ -652,22 +772,21 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       var val = String(i).padStart(2, '0');
       var label = window.getInterName ? window.getInterName(cl, val) : val;
       var n = countDocs(STATE.mat, STATE.cl, val);
-      cells.push(`<button type="button" class="cours-wiz-opt" style="--wiz-color:var(--gold);" onclick="window.coursWizardPickInter('${val}')">
-        <span class="cours-wiz-ico">${iconHtml('bookmark', 18)}</span>
+      cells.push(`<button type="button" class="cours-wiz-opt cours-wiz-opt-compact" style="--wiz-color:var(--gold);" onclick="window.coursWizardPickInter('${val}')">
+        <span class="cours-wiz-ico">${iconHtml('bookmark', 14)}</span>
         <strong>${esc(label)}</strong>
         <span class="cours-wiz-hint">n° ${val} · ${n} doc${n > 1 ? 's' : ''}</span>
       </button>`);
     }
-    return `
+    var main = `
       <h2>${iconLabel('bookmark', 'Choisir un intercalaire')}${modePill()}</h2>
       <p class="cours-wiz-sub">${STATE.mode === 'batch'
         ? 'Après enregistrement, tu reviendras ici pour enchaîner.'
         : 'Dernière étape avant le titre et les détails.'}</p>
       ${crumbHtml()}
       ${bannerHtml()}
-      ${inventoryHtml()}
-      <div class="cours-wiz-grid cours-wiz-grid-inter">${cells.join('')}</div>
-      ${exitActionsHtml('cl')}`;
+      <div class="cours-wiz-grid cours-wiz-grid-inter">${cells.join('')}</div>`;
+    return withSessionLayout(main, exitActionsHtml('cl'));
   }
 
   function renderSummary() {
@@ -714,6 +833,11 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     };
     var ov = document.getElementById('ovCoursWizard');
     if (ov) ov.classList.add('hidden');
+    if (!window.D) {
+      if (ov) ov.classList.remove('hidden');
+      paint();
+      return;
+    }
     if (typeof window.openModalCours === 'function') {
       window.openModalCours({
         fromWizard: true,
@@ -721,6 +845,15 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         cl: window._coursWizardCtx.cl,
         inter: window._coursWizardCtx.inter
       });
+      /* Si le formulaire n’a pas pu s’ouvrir, réafficher le wizard */
+      var formOv = document.getElementById('ovCours');
+      if (formOv && formOv.classList.contains('hidden') && ov) {
+        ov.classList.remove('hidden');
+        paint();
+      }
+    } else if (ov) {
+      ov.classList.remove('hidden');
+      paint();
     }
   }
 
@@ -827,6 +960,9 @@ body.theme-light .cours-wiz-modal.card-type-surface {
 
   window.coursWizardEditCreated = function (uid) {
     if (!uid) return;
+    if (!window.D || !window.D.cours || !window.D.cours.some(function (c) { return c && c.uid === uid; })) {
+      return;
+    }
     window._coursWizardResumeAfterEdit = true;
     window._coursWizardActive = true;
     window._coursWizardMode = 'batch';
@@ -834,6 +970,12 @@ body.theme-light .cours-wiz-modal.card-type-surface {
     if (ov) ov.classList.add('hidden');
     if (typeof window.editCours === 'function') {
       window.editCours(uid, { keepWizard: true });
+      /* Si editCours a échoué sans ouvrir le form, ne pas laisser le flag coincé */
+      if (!window.editUid) {
+        window._coursWizardResumeAfterEdit = false;
+        if (ov) ov.classList.remove('hidden');
+        paint();
+      }
     }
   };
 
@@ -976,6 +1118,10 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       existing.id = 'coursPaneToolbar';
       existing.className = 'cours-pane-toolbar';
       existing.innerHTML =
+        '<div class="notes-metric-toggle cours-browse-toggle" role="group" aria-label="Affichage Base Doc">' +
+          '<button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>' +
+          '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>' +
+        '</div>' +
         '<div class="cours-create-menu" id="coursCreateMenu">' +
           '<button type="button" class="cours-create-trigger" id="btnCoursCreateMenu" aria-expanded="false" aria-haspopup="true" title="Créer un document">' +
             (window.iconLabel ? window.iconLabel('plus', 'Créer') : 'Créer') +
@@ -992,6 +1138,30 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       var filters = pane.querySelector('.filters');
       if (filters) pane.insertBefore(existing, filters);
       else pane.insertBefore(existing, pane.firstChild);
+    } else if (!document.getElementById('btnCoursBrowseTree')) {
+      var toggleWrap = document.createElement('div');
+      toggleWrap.className = 'notes-metric-toggle cours-browse-toggle';
+      toggleWrap.setAttribute('role', 'group');
+      toggleWrap.setAttribute('aria-label', 'Affichage Base Doc');
+      toggleWrap.innerHTML =
+        '<button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>' +
+        '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>';
+      existing.insertBefore(toggleWrap, existing.firstChild);
+    }
+
+    var btnTree = document.getElementById('btnCoursBrowseTree');
+    var btnMat = document.getElementById('btnCoursBrowseMat');
+    if (btnTree && !btnTree._coursBrowseBound) {
+      btnTree._coursBrowseBound = true;
+      btnTree.addEventListener('click', function () {
+        if (typeof window.setCoursBrowseMode === 'function') window.setCoursBrowseMode('tree');
+      });
+    }
+    if (btnMat && !btnMat._coursBrowseBound) {
+      btnMat._coursBrowseBound = true;
+      btnMat.addEventListener('click', function () {
+        if (typeof window.setCoursBrowseMode === 'function') window.setCoursBrowseMode('mat');
+      });
     }
 
     var trigger = document.getElementById('btnCoursCreateMenu');
