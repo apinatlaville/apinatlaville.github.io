@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260721o';
+  window.__BOOT_CACHE_V = '20260721p';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -252,6 +252,10 @@
 
 <div class="pane ui-pane" id="paneCours">
   <div class="cours-pane-toolbar" id="coursPaneToolbar">
+    <div class="notes-metric-toggle cours-browse-toggle" role="group" aria-label="Affichage Base Doc">
+      <button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>
+      <button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>
+    </div>
     <div class="cours-create-menu" id="coursCreateMenu">
       <button type="button" class="cours-create-trigger" id="btnCoursCreateMenu" aria-expanded="false" aria-haspopup="true" title="Créer un document">
         <span data-icon="plus" data-icon-size="14"></span>

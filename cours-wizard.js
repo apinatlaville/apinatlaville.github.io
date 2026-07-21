@@ -294,12 +294,16 @@ body.theme-light .cours-wiz-modal.card-type-surface {
 
 .cours-pane-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
   position: relative;
   z-index: 5;
+  flex-wrap: wrap;
+}
+.cours-browse-toggle {
+  flex: 0 0 auto;
 }
 .cours-create-menu {
   position: relative;
@@ -976,6 +980,10 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       existing.id = 'coursPaneToolbar';
       existing.className = 'cours-pane-toolbar';
       existing.innerHTML =
+        '<div class="notes-metric-toggle cours-browse-toggle" role="group" aria-label="Affichage Base Doc">' +
+          '<button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>' +
+          '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>' +
+        '</div>' +
         '<div class="cours-create-menu" id="coursCreateMenu">' +
           '<button type="button" class="cours-create-trigger" id="btnCoursCreateMenu" aria-expanded="false" aria-haspopup="true" title="Créer un document">' +
             (window.iconLabel ? window.iconLabel('plus', 'Créer') : 'Créer') +
@@ -992,6 +1000,30 @@ body.theme-light .cours-wiz-modal.card-type-surface {
       var filters = pane.querySelector('.filters');
       if (filters) pane.insertBefore(existing, filters);
       else pane.insertBefore(existing, pane.firstChild);
+    } else if (!document.getElementById('btnCoursBrowseTree')) {
+      var toggleWrap = document.createElement('div');
+      toggleWrap.className = 'notes-metric-toggle cours-browse-toggle';
+      toggleWrap.setAttribute('role', 'group');
+      toggleWrap.setAttribute('aria-label', 'Affichage Base Doc');
+      toggleWrap.innerHTML =
+        '<button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>' +
+        '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>';
+      existing.insertBefore(toggleWrap, existing.firstChild);
+    }
+
+    var btnTree = document.getElementById('btnCoursBrowseTree');
+    var btnMat = document.getElementById('btnCoursBrowseMat');
+    if (btnTree && !btnTree._coursBrowseBound) {
+      btnTree._coursBrowseBound = true;
+      btnTree.addEventListener('click', function () {
+        if (typeof window.setCoursBrowseMode === 'function') window.setCoursBrowseMode('tree');
+      });
+    }
+    if (btnMat && !btnMat._coursBrowseBound) {
+      btnMat._coursBrowseBound = true;
+      btnMat.addEventListener('click', function () {
+        if (typeof window.setCoursBrowseMode === 'function') window.setCoursBrowseMode('mat');
+      });
     }
 
     var trigger = document.getElementById('btnCoursCreateMenu');
