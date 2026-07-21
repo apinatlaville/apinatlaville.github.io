@@ -45,9 +45,16 @@
   }
 
   function injectStyles() {
-    if (document.getElementById('cours-wizard-styles')) return;
-    var tag = document.createElement('style');
-    tag.id = 'cours-wizard-styles';
+    var STYLE_V = '20260721w';
+    var tag = document.getElementById('cours-wizard-styles');
+    if (!tag) {
+      tag = document.createElement('style');
+      tag.id = 'cours-wizard-styles';
+      var host = document.head || document.body || document.documentElement;
+      if (host && host.appendChild) host.appendChild(tag);
+    }
+    if (tag.getAttribute('data-v') === STYLE_V) return;
+    tag.setAttribute('data-v', STYLE_V);
     tag.textContent = `
 .cours-wiz-modal {
   max-width: 560px;
@@ -401,7 +408,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   gap: 8px;
   margin-bottom: 10px;
   position: relative;
-  z-index: 5;
+  z-index: 20;
   flex-wrap: wrap;
 }
 .cours-browse-toggle {
@@ -412,6 +419,10 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-end;
+  z-index: 30;
+}
+.cours-create-menu.open {
+  z-index: 80;
 }
 .cours-create-trigger {
   display: inline-flex;
@@ -450,16 +461,24 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  min-width: 220px;
+  min-width: 240px;
+  max-width: min(320px, 92vw);
   padding: 6px;
   border-radius: 10px;
   border: 0.5px solid var(--bd);
-  background: var(--s1);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  /* --s1/--s2 sont translucides (glass) : fond opaque obligatoire */
+  background: #141822;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
   display: none;
   flex-direction: column;
   gap: 4px;
-  z-index: 40;
+  z-index: 90;
+  overflow: hidden;
+  isolation: isolate;
+}
+body.theme-light .cours-create-dropdown {
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(20, 30, 50, 0.18);
 }
 .cours-create-menu.open .cours-create-dropdown {
   display: flex;
@@ -470,6 +489,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   align-items: flex-start;
   gap: 2px;
   width: 100%;
+  box-sizing: border-box;
   text-align: left;
   padding: 10px 12px;
   border: none;
@@ -478,9 +498,17 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   color: var(--txt);
   cursor: pointer;
   font: inherit;
+  position: relative;
+  z-index: 1;
 }
-.cours-create-item:hover {
-  background: color-mix(in srgb, var(--acc) 12%, transparent);
+.cours-create-item:hover,
+.cours-create-item:focus-visible {
+  background: rgba(91, 154, 255, 0.16);
+  outline: none;
+}
+body.theme-light .cours-create-item:hover,
+body.theme-light .cours-create-item:focus-visible {
+  background: rgba(91, 154, 255, 0.12);
 }
 .cours-create-item strong {
   font-size: 13px;
@@ -493,11 +521,10 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   font-size: 11px;
   color: var(--mut);
   line-height: 1.3;
+  max-width: 100%;
 }
 
 `;
-    var host = document.head || document.body || document.documentElement;
-    if (host && host.appendChild) host.appendChild(tag);
   }
 
   function ensureOverlay() {
