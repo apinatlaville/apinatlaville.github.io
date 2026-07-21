@@ -140,6 +140,9 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   overflow-y: auto;
   padding-right: 2px;
 }
+.cours-wiz-grid.cours-wiz-grid-inter {
+  grid-template-columns: 1fr;
+}
 @media (max-width: 560px) {
   .cours-wiz-grid { grid-template-columns: 1fr; max-height: min(48vh, 360px); }
 }
