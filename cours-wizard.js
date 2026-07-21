@@ -663,13 +663,12 @@ body.theme-light .cours-wiz-modal.card-type-surface {
   }
 
   function renderEntry() {
-    var head = `
+    var main = `
       <h2>${iconLabel('folders', 'Nouveau document')}${modePill()}</h2>
       <p class="cours-wiz-sub">${STATE.mode === 'batch'
         ? 'Création rapide : après chaque enregistrement, tu restes sur l’intercalaire pour enchaîner. Termine pour revoir la liste.'
         : 'Choisis comment placer le document — comme dans un explorateur de fichiers.'}</p>
-      ${bannerHtml()}`;
-    var main = `
+      ${bannerHtml()}
       <div class="cours-wiz-entry">
         <button type="button" class="cours-wiz-opt" style="--wiz-color:var(--acc);" onclick="window.coursWizardPickDirect()">
           <span class="cours-wiz-ico">${iconHtml('zap', 18)}</span>
@@ -682,7 +681,7 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           <span class="cours-wiz-hint">Matière → classeur → intercalaire, puis titre et détails.</span>
         </button>
       </div>`;
-    return head + withSessionLayout(main, exitActionsHtml(null));
+    return withSessionLayout(main, exitActionsHtml(null));
   }
 
   function renderMat() {
@@ -697,12 +696,13 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           </button>`;
         }).join('')
       : '<div class="cours-wiz-empty">Aucune matière. Crée-en une dans Réglages.</div>';
-    var head = `
+    var main = `
       <h2>${iconLabel('book-open', 'Choisir une matière')}${modePill()}</h2>
       <p class="cours-wiz-sub">Sélectionne la matière du document.</p>
       ${crumbHtml()}
-      ${bannerHtml()}`;
-    return head + withSessionLayout('<div class="cours-wiz-grid">' + grid + '</div>', exitActionsHtml('entry'));
+      ${bannerHtml()}
+      <div class="cours-wiz-grid">${grid}</div>`;
+    return withSessionLayout(main, exitActionsHtml('entry'));
   }
 
   function renderCl() {
@@ -720,12 +720,13 @@ body.theme-light .cours-wiz-modal.card-type-surface {
           </button>`;
         }).join('')
       : '<div class="cours-wiz-empty">Aucun classeur. Crée-en un dans Réglages.</div>';
-    var head = `
+    var main = `
       <h2>${iconLabel('folder', 'Choisir un classeur')}${modePill()}</h2>
       <p class="cours-wiz-sub">Où ranger ce document dans ta base.</p>
       ${crumbHtml()}
-      ${bannerHtml()}`;
-    return head + withSessionLayout('<div class="cours-wiz-grid">' + grid + '</div>', exitActionsHtml('mat'));
+      ${bannerHtml()}
+      <div class="cours-wiz-grid">${grid}</div>`;
+    return withSessionLayout(main, exitActionsHtml('mat'));
   }
 
   function renderInter() {
@@ -742,17 +743,15 @@ body.theme-light .cours-wiz-modal.card-type-surface {
         <span class="cours-wiz-hint">n° ${val} · ${n} doc${n > 1 ? 's' : ''}</span>
       </button>`);
     }
-    var head = `
+    var main = `
       <h2>${iconLabel('bookmark', 'Choisir un intercalaire')}${modePill()}</h2>
       <p class="cours-wiz-sub">${STATE.mode === 'batch'
         ? 'Après enregistrement, tu reviendras ici pour enchaîner.'
         : 'Dernière étape avant le titre et les détails.'}</p>
       ${crumbHtml()}
-      ${bannerHtml()}`;
-    return head + withSessionLayout(
-      '<div class="cours-wiz-grid cours-wiz-grid-inter">' + cells.join('') + '</div>',
-      exitActionsHtml('cl')
-    );
+      ${bannerHtml()}
+      <div class="cours-wiz-grid cours-wiz-grid-inter">${cells.join('')}</div>`;
+    return withSessionLayout(main, exitActionsHtml('cl'));
   }
 
   function renderSummary() {
