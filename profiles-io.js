@@ -98,8 +98,9 @@
       _account: true,
       schemaVersion: SCHEMA,
       activeProfile: DEFAULT_ID,
+      activeProfileUpdatedAt: nowIso(),
       profiles: [
-        { id: DEFAULT_ID, name: 'Principal', createdAt: nowIso(), updatedAt: nowIso() }
+        { id: DEFAULT_ID, name: 'Principal', createdAt: nowIso(), updatedAt: nowIso(), bytes: 0 }
       ],
       deletedProfiles: {}
     };
@@ -212,7 +213,26 @@
     if (!p) throw new Error('Profil inconnu : ' + id);
     if (p.archived) throw new Error('Ce profil est archivé. Désarchive-le avant de l’activer.');
     meta.activeProfile = id;
+    meta.activeProfileUpdatedAt = nowIso();
     writeMetaLocal(meta);
+  }
+
+  /** Met à jour la taille annoncée d’un profil dans le registre (local + cloud via index). */
+  function setProfileBytesMeta(profileId, bytes) {
+    var meta = ensureLocalRegistry();
+    var n = Math.max(0, Number(bytes) || 0);
+    var changed = false;
+    meta.profiles.forEach(function (p) {
+      if (p && p.id === profileId) {
+        if (p.bytes !== n) {
+          p.bytes = n;
+          p.updatedAt = nowIso();
+          changed = true;
+        }
+      }
+    });
+    if (changed) writeMetaLocal(meta);
+    return changed;
   }
 
   function readLocalProfileData(profileId) {
@@ -259,8 +279,12 @@
     }
     try {
       var meta = ensureLocalRegistry();
+      var bytes = byteSizeOfString(payload);
       meta.profiles.forEach(function (p) {
-        if (p.id === profileId) p.updatedAt = nowIso();
+        if (p.id === profileId) {
+          p.updatedAt = nowIso();
+          p.bytes = bytes;
+        }
       });
       writeMetaLocal(meta);
     } catch (e) {
@@ -285,6 +309,14 @@
         var mem = byteSizeOfString(JSON.stringify(window.D));
         if (mem > bytes) bytes = mem;
       } catch (e) { /* ignore */ }
+    }
+    // Autre appareil : pas de blob local → taille annoncée via l’index (cloud/meta)
+    if (bytes === 0) {
+      var metaP = getProfileMeta(profileId);
+      if (metaP && metaP.bytes != null) {
+        var announced = Math.max(0, Number(metaP.bytes) || 0);
+        if (announced > 0) bytes = announced;
+      }
     }
     return bytes;
   }
@@ -444,6 +476,9 @@
       var index = emptyAccountIndex();
       index.profiles[0].updatedAt = nowIso();
       try {
+        index.profiles[0].bytes = byteSizeOfString(JSON.stringify(legacyD));
+      } catch (eBytes) { /* ignore */ }
+      try {
         await window.setDoc(profileDocRef(uid, DEFAULT_ID), legacyD);
         await window.setDoc(accountRef, index);
         accountData = index;
@@ -466,14 +501,28 @@
     if (!accountSnap.exists() || accountData == null) {
       // Vrai nouveau compte uniquement
       var fresh = emptyAccountIndex();
-      ensureLocalRegistry();
-      var localActive = getActiveProfileId();
+      var localMeta = ensureLocalRegistry();
+      var localActive = localMeta.activeProfile || getActiveProfileId();
       fresh.activeProfile = localActive;
+      fresh.activeProfileUpdatedAt = localMeta.activeProfileUpdatedAt || nowIso();
       if (!fresh.profiles.some(function (p) { return p.id === localActive; })) {
         fresh.profiles = listProfiles().map(function (p) {
-          return { id: p.id, name: p.name, createdAt: p.createdAt || nowIso(), updatedAt: p.updatedAt || nowIso() };
+          return {
+            id: p.id,
+            name: p.name,
+            createdAt: p.createdAt || nowIso(),
+            updatedAt: p.updatedAt || nowIso(),
+            bytes: Math.max(0, Number(p.bytes) || 0)
+          };
         });
         fresh.activeProfile = localActive;
+        fresh.activeProfileUpdatedAt = localMeta.activeProfileUpdatedAt || nowIso();
+      } else if (localMeta.profiles && localMeta.profiles[0]) {
+        var lp0 = localMeta.profiles.find(function (p) { return p.id === DEFAULT_ID; }) || localMeta.profiles[0];
+        if (lp0 && fresh.profiles[0]) {
+          fresh.profiles[0].bytes = Math.max(0, Number(lp0.bytes) || 0);
+          fresh.profiles[0].name = lp0.name || fresh.profiles[0].name;
+        }
       }
       try {
         if (window.setDoc) await window.setDoc(accountRef, fresh);
@@ -491,7 +540,8 @@
     // Sync local registry names from cloud when possible
     syncRegistryFromAccount(accountData);
 
-    var profileId = getActiveProfileId();
+    // Multi-appareils : adopter le profil actif cloud si plus récent / valide
+    var profileId = adoptActiveProfileFromCloud(accountData);
     var deletedMap = accountData.deletedProfiles || {};
     if (deletedMap[profileId]) {
       profileId = accountData.activeProfile || DEFAULT_ID;
@@ -508,6 +558,22 @@
       setActiveProfileId(profileId);
     }
     pinSessionProfileId(profileId);
+
+    // Si ce dispositif a un choix plus récent, le republier pour les autres appareils
+    try {
+      var metaPush = ensureLocalRegistry();
+      var localTsPush = String(metaPush.activeProfileUpdatedAt || '');
+      var cloudTsPush = String(accountData.activeProfileUpdatedAt || '');
+      var shouldPushActive = metaPush.activeProfile
+        && metaPush.activeProfile !== accountData.activeProfile
+        && localTsPush
+        && (!cloudTsPush || localTsPush > cloudTsPush);
+      if (shouldPushActive && window.cloudConnected !== false) {
+        await persistAccountIndexCloud(user, metaPush);
+      }
+    } catch (ePush) {
+      console.warn('[ProfilesIO] Republish activeProfile:', ePush);
+    }
 
     var pref = profileDocRef(uid, profileId);
     var snap = await window.getDoc(pref);
@@ -567,6 +633,49 @@
     };
   }
 
+  /**
+   * Adopte le profil actif cloud si valide et plus récent que le choix local.
+   * Permet à tous les appareils de partager le même profil actif.
+   */
+  function adoptActiveProfileFromCloud(accountData) {
+    if (!isAccountIndex(accountData)) return getActiveProfileId();
+    var cloudActive = accountData.activeProfile;
+    var deleted = accountData.deletedProfiles || {};
+    if (!cloudActive || deleted[cloudActive]) return getActiveProfileId();
+    var cloudEntry = (accountData.profiles || []).find(function (p) {
+      return p && p.id === cloudActive && !p.archived;
+    });
+    if (!cloudEntry) return getActiveProfileId();
+
+    var meta = ensureLocalRegistry();
+    var localActive = meta.activeProfile || DEFAULT_ID;
+    var cloudTs = String(accountData.activeProfileUpdatedAt || '');
+    var localTs = String(meta.activeProfileUpdatedAt || '');
+
+    var takeCloud = false;
+    if (cloudActive === localActive) {
+      // Aligner le timestamp local si manquant
+      if (cloudTs && !localTs) {
+        meta.activeProfileUpdatedAt = cloudTs;
+        writeMetaLocal(meta);
+      }
+      return cloudActive;
+    }
+    if (cloudTs && localTs) takeCloud = cloudTs >= localTs;
+    else if (cloudTs && !localTs) takeCloud = true;
+    else if (!cloudTs && localTs) takeCloud = false;
+    else takeCloud = true; // sans horodatage : le cloud gagne (sync multi-appareils)
+
+    if (takeCloud) {
+      meta.activeProfile = cloudActive;
+      meta.activeProfileUpdatedAt = cloudTs || nowIso();
+      writeMetaLocal(meta);
+      pinSessionProfileId(cloudActive);
+      return cloudActive;
+    }
+    return localActive;
+  }
+
   function syncRegistryFromAccount(accountData) {
     if (!isAccountIndex(accountData)) return;
     var meta = ensureLocalRegistry();
@@ -579,17 +688,31 @@
         byId[cp.id].name = cp.name || byId[cp.id].name;
         byId[cp.id].updatedAt = cp.updatedAt || byId[cp.id].updatedAt;
         byId[cp.id].archived = !!cp.archived;
+        // Taille annoncée cloud → autres appareils (évite « 0 o »)
+        if (cp.bytes != null) {
+          var cloudBytes = Math.max(0, Number(cp.bytes) || 0);
+          var localBytes = Math.max(0, Number(byId[cp.id].bytes) || 0);
+          var hasLocalBlob = !!getLocalProfileRaw(cp.id);
+          if (!hasLocalBlob || cloudBytes > localBytes) {
+            byId[cp.id].bytes = cloudBytes;
+          }
+        }
       } else {
         meta.profiles.push({
           id: cp.id,
           name: cp.name || cp.id,
           createdAt: cp.createdAt || nowIso(),
           updatedAt: cp.updatedAt || nowIso(),
-          archived: !!cp.archived
+          archived: !!cp.archived,
+          bytes: Math.max(0, Number(cp.bytes) || 0)
         });
         byId[cp.id] = meta.profiles[meta.profiles.length - 1];
       }
     });
+
+    if (accountData.activeProfileUpdatedAt && !meta.activeProfileUpdatedAt) {
+      meta.activeProfileUpdatedAt = accountData.activeProfileUpdatedAt;
+    }
 
     function pickNonArchived(preferred) {
       if (preferred && !deleted[preferred]) {
@@ -621,6 +744,7 @@
         || (sessionMeta && sessionMeta.archived) || (activeMeta && activeMeta.archived)) {
       var nextId = pickNonArchived(accountData.activeProfile);
       meta.activeProfile = nextId;
+      meta.activeProfileUpdatedAt = accountData.activeProfileUpdatedAt || nowIso();
       lsSet(ACTIVE_KEY, nextId);
       pinSessionProfileId(nextId);
       sessionId = nextId;
@@ -683,30 +807,61 @@
         name: p.name || p.id,
         createdAt: p.createdAt || nowIso(),
         updatedAt: p.updatedAt || nowIso(),
-        archived: !!p.archived
+        archived: !!p.archived,
+        bytes: Math.max(0, Number(p.bytes) || 0)
       };
     });
     (meta.profiles || []).forEach(function (p) {
       if (!p || !p.id || removedSet[p.id] || deletedProfiles[p.id]) return;
+      var localBytes = Math.max(0, Number(p.bytes) || 0);
       if (byId[p.id]) {
         byId[p.id].name = p.name || byId[p.id].name;
         byId[p.id].updatedAt = p.updatedAt || nowIso();
         byId[p.id].archived = !!p.archived;
+        // Garder la taille max connue (évite qu’un appareil sans blob écrase avec 0)
+        byId[p.id].bytes = Math.max(localBytes, Math.max(0, Number(byId[p.id].bytes) || 0));
       } else {
         byId[p.id] = {
           id: p.id,
           name: p.name || p.id,
           createdAt: p.createdAt || nowIso(),
           updatedAt: p.updatedAt || nowIso(),
-          archived: !!p.archived
+          archived: !!p.archived,
+          bytes: localBytes
         };
       }
     });
 
+    // Profil actif multi-appareils : le plus récent (activeProfileUpdatedAt) gagne
+    var localActive = meta.activeProfile || DEFAULT_ID;
+    var localTs = String(meta.activeProfileUpdatedAt || '');
+    var remoteTs = String((remote && remote.activeProfileUpdatedAt) || '');
+    var chosenActive = localActive;
+    var chosenTs = localTs;
+    if (remoteActive && remoteActive !== localActive) {
+      if (localTs && remoteTs) {
+        if (remoteTs > localTs) {
+          chosenActive = remoteActive;
+          chosenTs = remoteTs;
+        }
+      } else if (!localTs && remoteTs) {
+        chosenActive = remoteActive;
+        chosenTs = remoteTs;
+      } else if (!localTs && !remoteTs) {
+        // Sans horodatage des deux côtés : conserver le cloud (évite écrasement croisé)
+        chosenActive = remoteActive;
+      }
+    } else if (remoteActive && remoteActive === localActive) {
+      chosenTs = localTs && remoteTs
+        ? (remoteTs > localTs ? remoteTs : localTs)
+        : (localTs || remoteTs);
+    }
+
     var payload = {
       _account: true,
       schemaVersion: SCHEMA,
-      activeProfile: meta.activeProfile || remoteActive || DEFAULT_ID,
+      activeProfile: chosenActive || remoteActive || DEFAULT_ID,
+      activeProfileUpdatedAt: chosenTs || nowIso(),
       profiles: Object.keys(byId).map(function (k) { return byId[k]; }),
       deletedProfiles: deletedProfiles
     };
@@ -719,11 +874,13 @@
         fallback = payload.profiles[0];
       }
       payload.activeProfile = fallback ? fallback.id : DEFAULT_ID;
+      payload.activeProfileUpdatedAt = nowIso();
     }
     // Sécurité : au moins un profil non archivé dans l’index cloud
     if (payload.profiles.length && !payload.profiles.some(function (p) { return p && !p.archived; })) {
       payload.profiles[0].archived = false;
       payload.activeProfile = payload.profiles[0].id;
+      payload.activeProfileUpdatedAt = nowIso();
     }
     return { ok: true, payload: payload };
   }
@@ -1228,7 +1385,8 @@
       id: id,
       name: String(name || 'Profil').trim() || id,
       createdAt: nowIso(),
-      updatedAt: nowIso()
+      updatedAt: nowIso(),
+      bytes: 0
     };
     meta.profiles.push(entry);
     writeMetaLocal(meta);
@@ -1407,6 +1565,12 @@
     if (target.archived) throw new Error('Profil archivé — désarchive-le avant de basculer.');
     var wasLocal = lsGet('active_mode') === 'local' || !!window.isLocalMode;
     var fromId = getSessionProfileId();
+    var user = window.currentUser;
+    var needsCloud = !window.isLocalMode && user && user.sub;
+
+    if (needsCloud && window.cloudConnected === false) {
+      throw new Error('Connexion cloud requise pour changer de profil sur tous les appareils.');
+    }
 
     // Secondaire : forcer une sauvegarde locale du profil courant avant bascule
     if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
@@ -1429,14 +1593,45 @@
     // Ne PAS re-pincher vers le nouveau profil tant que D = ancien blob
     // (évite qu’un save concurrent écrive l’ancien D dans le nouveau profil)
     window._persistDisabled = true;
+    var prevActive = fromId;
+    var prevTs = (ensureLocalRegistry().activeProfileUpdatedAt) || '';
     setActiveProfileId(id);
     if (wasLocal) lsSet('active_mode', 'local');
     meta = ensureLocalRegistry();
-    await persistAccountIndexCloud(window.currentUser, meta);
+    var okIdx = await persistAccountIndexCloud(user, meta);
+    if (needsCloud && window.cloudConnected && !okIdx) {
+      // Rollback local — ne pas recharger sur un état cloud désynchronisé
+      try {
+        var roll = ensureLocalRegistry();
+        roll.activeProfile = prevActive;
+        roll.activeProfileUpdatedAt = prevTs || nowIso();
+        writeMetaLocal(roll);
+      } catch (e2) { /* ignore */ }
+      window._persistDisabled = false;
+      throw new Error('Bascule cloud échouée (index non synchronisé). Réessaie — rien n’a été changé sur les autres appareils.');
+    }
     if (window.location && typeof window.location.reload === 'function') {
       window.location.reload();
     } else if (typeof location !== 'undefined' && location.reload) {
       location.reload();
+    }
+  }
+
+  /** Après une save : publie la taille du profil actif dans l’index cloud (anti « 0 ko »). */
+  async function syncActiveProfileIndexMeta() {
+    try {
+      var pid = getSessionProfileId();
+      var bytes = getProfileLiveBytes(pid);
+      setProfileBytesMeta(pid, bytes);
+      var meta = ensureLocalRegistry();
+      var user = window.currentUser;
+      if (!window.isLocalMode && user && user.sub && window.cloudConnected !== false) {
+        await persistAccountIndexCloud(user, meta);
+      }
+      return true;
+    } catch (e) {
+      console.warn('[ProfilesIO] syncActiveProfileIndexMeta:', e);
+      return false;
     }
   }
 
@@ -1583,8 +1778,8 @@
       '</div>' +
 
       '<div class="pio-card">' +
-        '<div class="pio-card-title">Espace local</div>' +
-        '<p class="pio-card-sub">Taille des données et sauvegardes stockées dans ce navigateur (pas le cloud).</p>' +
+        '<div class="pio-card-title">Espace données</div>' +
+        '<p class="pio-card-sub">Taille des données par profil (locale si disponible, sinon taille sync cloud).</p>' +
         '<div class="pio-storage-list">' + (storageRows || '<p class="pio-card-sub">Aucun profil.</p>') + '</div>' +
       '</div>' +
 
@@ -1952,6 +2147,8 @@
     archiveProfile: archiveProfile,
     unarchiveProfile: unarchiveProfile,
     switchProfile: switchProfile,
+    syncActiveProfileIndexMeta: syncActiveProfileIndexMeta,
+    adoptActiveProfileFromCloud: adoptActiveProfileFromCloud,
     createSnapshot: createSnapshot,
     restoreSnapshot: restoreSnapshot,
     deleteSnapshot: deleteSnapshot,

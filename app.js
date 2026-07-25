@@ -2169,6 +2169,11 @@ window._saveImpl = async function() {
       }
       await window.setDoc(window.docRef, window.D);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+      if (window.ProfilesIO && typeof window.ProfilesIO.syncActiveProfileIndexMeta === 'function') {
+        try { await window.ProfilesIO.syncActiveProfileIndexMeta(); } catch (metaErr) {
+          console.warn('Index profils (tailles) non sync:', metaErr);
+        }
+      }
     } catch (e) {
       const errMsg = e && e.message ? e.message : String(e);
       if (typeof window.recordAppError === 'function') {

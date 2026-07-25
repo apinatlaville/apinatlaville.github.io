@@ -403,6 +403,132 @@ async function testArchiveAndSnapshots() {
   assert(live.some((p) => !p.archived), 'live list has non-archived');
 }
 
+async function testCrossDeviceActiveProfile() {
+  console.log('\n· cross-device active profile adoption');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-01-01T10:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 100 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 50000 }
+    ]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: []
+  }));
+
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-25T12:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 1200 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 50000 }
+    ],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/labo', {
+    settings: { userName: 'Lab' },
+    matieres: [], classeurs: [], cours: [{ uid: 'x1' }], exercices: [], devoirs: []
+  });
+
+  const env = baseEnv(store, fsMock);
+  env._activeProfileId = 'default';
+  const PIO = loadProfilesIO(env);
+
+  assert(PIO.getProfileStorageInfo('labo').liveBytes === 50000, 'announced bytes without local blob');
+
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.profileId === 'labo', 'device B adopts cloud active profile labo');
+  assert(PIO.getActiveProfileId() === 'labo', 'local active becomes labo');
+  assert(env._activeProfileId === 'labo', 'session pinned to labo');
+}
+
+async function testStaleDeviceDoesNotClobberActive() {
+  console.log('\n· stale device rename must not clobber newer active');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-01-01T10:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 20 }
+    ]
+  }));
+  store.setItem('active_profile', 'default');
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-25T18:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 20 }
+    ],
+    deletedProfiles: {}
+  });
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  await PIO.renameProfile('default', 'Maison');
+  const idx = fsMock.docs.get('utilisateurs/uid1');
+  assert(idx.activeProfile === 'labo', 'cloud active stays labo after stale rename');
+  assert(idx.profiles.some((p) => p.id === 'default' && p.name === 'Maison'), 'rename still applied');
+}
+
+async function testSwitchRequiresCloudIndex() {
+  console.log('\n· switchProfile rolls back if cloud index write fails');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-01T00:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't' }
+    ]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: []
+  }));
+  store.setItem('backup_local_cours__labo', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: []
+  }));
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-01T00:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't' }
+    ],
+    deletedProfiles: {}
+  });
+
+  const env = baseEnv(store, fsMock);
+  env._activeProfileId = 'default';
+  env.save = async () => {};
+  env.runTransaction = async () => { throw Object.assign(new Error('boom'), { code: 'INDEX_MERGE_REFUSED' }); };
+  env.setDoc = async () => { throw new Error('setDoc blocked'); };
+  const PIO = loadProfilesIO(env);
+
+  let failedSwitch = false;
+  try {
+    await PIO.switchProfile('labo');
+  } catch (e) {
+    failedSwitch = /cloud|index|synchron/i.test(String(e.message || e));
+  }
+  assert(failedSwitch, 'switch throws when index cloud fails');
+  assert(PIO.getActiveProfileId() === 'default', 'active rolled back to default');
+  assert(!env._reloaded, 'no reload after failed switch');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -412,6 +538,9 @@ async function main() {
   await testCreateRollbackOnIndexFail();
   await testImportMergeNotes();
   await testArchiveAndSnapshots();
+  await testCrossDeviceActiveProfile();
+  await testStaleDeviceDoesNotClobberActive();
+  await testSwitchRequiresCloudIndex();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }
