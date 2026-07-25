@@ -1602,7 +1602,8 @@ async function resolveCloudUserDoc(user) {
         profileId: resolved.profileId,
         accountRef: resolved.accountRef,
         legacyRoot: !!resolved.legacyRoot,
-        localOnly: !!resolved.localOnly
+        localOnly: !!resolved.localOnly,
+        cloudPending: !!resolved.cloudPending
       };
     } catch (e) {
       // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
@@ -1776,28 +1777,41 @@ async function initApp(user) {
           : resolveCloudUserDoc(user));
         window.docRef = cloud.docRef;
         window._accountDocRef = cloud.accountRef || null;
+        window._profileCloudPending = !!cloud.cloudPending;
         window._activeProfileId = cloud.profileId || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId());
         if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
           window.ProfilesIO.pinSessionProfileId(window._activeProfileId);
         }
-        if (cloud.localOnly) {
+        if (cloud.cloudPending) {
+          // Blob cloud pas encore dispo (création en cours sur un autre appareil) :
+          // pas de docRef writable → interdit de publier emptyData.
+          window.docRef = null;
+          window.cloudConnected = false;
+          console.warn('☁️ Profil en attente de synchronisation cloud (pas d’écriture vide).');
+        } else if (cloud.localOnly) {
           window.cloudConnected = false;
           console.warn('☁️ Repli local profil (cloud indisponible / structure).');
         }
         if (cloud.data && cloud.data._deleted) {
           window.D = null;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
         } else if (cloud.data && cloud.data._account === true) {
           console.error('☁️ Index compte refusé comme données app');
           window.D = null;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
         } else if (cloud.data) {
           window.D = cloud.data;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          // Miroir local pour conservation offline / bascule appareil
+          if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
+            try { window.ProfilesIO.writeLocalProfileData(window._activeProfileId, window.D); } catch (mirrorErr) {
+              console.warn('Miroir local profil impossible:', mirrorErr);
+            }
+          }
           console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ', profil ' + (window._activeProfileId || '?') + ')');
         } else {
           window.D = null;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
           console.log('☁️ Nouveau compte / profil (UID ' + user.sub + ')');
         }
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
@@ -2152,7 +2166,15 @@ window._saveImpl = async function() {
 
   if (window.cloudConnected && window.docRef && window.setDoc) {
     try {
-      // Garde-fou : ne jamais écraser un index compte avec un blob profil
+      // Garde-fou : docRef doit correspondre au profil de cette session
+      const refPath = window.docRef && (window.docRef._path || window.docRef.path || '');
+      if (refPath && /\/profiles\//.test(String(refPath))) {
+        const refPid = String(refPath).split('/profiles/').pop().split('/')[0];
+        if (refPid && sessionPid && refPid !== sessionPid) {
+          throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
+        }
+      }
+      // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide
       if (window.getDoc) {
         try {
           const snap = await window.getDoc(window.docRef);
@@ -2161,9 +2183,18 @@ window._saveImpl = async function() {
             if (cur && cur._account === true) {
               throw new Error('Refus d’écrire le profil sur l’index compte cloud');
             }
+            const emptyLocal = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+              ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
+              : false;
+            const emptyCloud = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+              ? window.ProfilesIO.isEffectivelyEmptyProfile(cur)
+              : false;
+            if (emptyLocal && !emptyCloud) {
+              throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
+            }
           }
         } catch (guardErr) {
-          if (/index compte/i.test(String(guardErr && guardErr.message))) throw guardErr;
+          if (/index compte|écraser|docRef profil/i.test(String(guardErr && guardErr.message))) throw guardErr;
           // getDoc échoue → on tente setDoc quand même
         }
       }

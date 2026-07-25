@@ -529,6 +529,127 @@ async function testSwitchRequiresCloudIndex() {
   assert(!env._reloaded, 'no reload after failed switch');
 }
 
+
+async function testNoEmptyPublishWhileBlobPending() {
+  console.log('\n· no empty cloud publish while blob pending');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  // Index cloud : profil labo annoncé avec contenu, blob encore absent
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-25T20:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 42000, cloudBlobPending: true }
+    ],
+    deletedProfiles: {}
+  });
+  // Appareil B : pas de blob local labo
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-01-01T00:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 42000, cloudBlobPending: true }
+    ]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('backup_local_cours__default', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: []
+  }));
+
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.profileId === 'labo', 'active cloud labo adopted');
+  assert(resolved.cloudPending === true, 'cloudPending flagged');
+  assert(resolved.docRef == null, 'no writable docRef while pending');
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'empty blob not published');
+}
+
+async function testAccountSwitchPurgesLocalRegistry() {
+  console.log('\n· account switch purges local profile store');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  store.setItem('mc_profiles_bound_uid', 'uid-old');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'secret',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' },
+      { id: 'secret', name: 'Secret', createdAt: 't', updatedAt: 't', bytes: 999 }
+    ]
+  }));
+  store.setItem('active_profile', 'secret');
+  store.setItem('backup_local_cours__secret', JSON.stringify({
+    settings: {}, matieres: [{ id: 'X' }], classeurs: [], cours: [{ uid: 'LEAK' }], exercices: [], devoirs: []
+  }));
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-25T21:00:00.000Z',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 0 }],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', {
+    settings: { userName: 'New' }, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: []
+  });
+
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(store.getItem('mc_profiles_bound_uid') === 'uid1', 'bound to new uid');
+  assert(!store.getItem('backup_local_cours__secret'), 'old account blob purged');
+  assert(!PIO.listProfiles().some((p) => p.id === 'secret'), 'secret profile not merged into new account');
+  const idx = fsMock.docs.get('utilisateurs/uid1');
+  assert(!idx.profiles.some((p) => p.id === 'secret'), 'secret not uploaded to new account index');
+}
+
+async function testCreateBlobFailMarksPending() {
+  console.log('\n· create blob fail keeps cloudBlobPending');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' }],
+    deletedProfiles: {}
+  });
+  const env = baseEnv(store, fsMock);
+  env.D = {
+    settings: { userName: 'A' },
+    matieres: [{ id: 'm1', name: 'Math' }],
+    classeurs: [],
+    cours: [{ uid: 'KEEP', titre: 'Important' }],
+    exercices: [], devoirs: [], meta: {}
+  };
+  const PIO = loadProfilesIO(env);
+  const origSet = fsMock.setDoc.bind(fsMock);
+  fsMock.setDoc = async function (ref, data) {
+    if (String(ref._path || '').includes('/profiles/')) throw new Error('blob fail');
+    return origSet(ref, data);
+  };
+  env.setDoc = fsMock.setDoc;
+
+  let threw = false;
+  try {
+    await PIO.createProfile('Labo', { copyFromActive: true });
+  } catch (e) {
+    threw = /cloud|synchron/i.test(String(e.message || e));
+  }
+  assert(threw, 'create reports blob failure');
+  const idx = fsMock.docs.get('utilisateurs/uid1');
+  const labo = idx.profiles.find((p) => p.id === 'labo');
+  assert(!!labo, 'labo remains in index');
+  assert(labo.cloudBlobPending === true, 'cloudBlobPending true after blob fail');
+  assert(labo.bytes > 0, 'bytes announced from local seed');
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'no empty/partial blob on cloud');
+  assert(!!store.getItem('backup_local_cours__labo'), 'local seed preserved');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -541,6 +662,9 @@ async function main() {
   await testCrossDeviceActiveProfile();
   await testStaleDeviceDoesNotClobberActive();
   await testSwitchRequiresCloudIndex();
+  await testNoEmptyPublishWhileBlobPending();
+  await testAccountSwitchPurgesLocalRegistry();
+  await testCreateBlobFailMarksPending();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }
