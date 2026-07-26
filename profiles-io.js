@@ -366,14 +366,26 @@
       return false;
     }
     // Anti-wipe : coquille emptyData ne remplace pas un blob local non vide
-    // (sauf reset explicite / miroir cloud secondaire via opts.allowEmpty)
+    // allowEmpty (miroir secondary / reset) : seulement si le payload est plus
+    // récent (updatedAt) ou d’une génération supérieure (delete+recreate).
     var allowEmpty = !!(opts.allowEmpty || window._allowEmptyProfileWrite);
-    if (!allowEmpty && isEffectivelyEmptyProfile(obj)) {
+    if (isEffectivelyEmptyProfile(obj)) {
       try {
         var existing = readLocalProfileData(profileId);
         if (existing && !isEffectivelyEmptyProfile(existing)) {
-          console.error('[ProfilesIO] Refus writeLocal : écrasement vide d’un profil local non vide');
-          return false;
+          if (!allowEmpty) {
+            console.error('[ProfilesIO] Refus writeLocal : écrasement vide d’un profil local non vide');
+            return false;
+          }
+          var localTs = Number((existing.meta && existing.meta.updatedAt) || 0) || 0;
+          var remoteTs = Number((obj && obj.meta && obj.meta.updatedAt) || 0) || 0;
+          var localGen = Number((existing.meta && existing.meta.profileGeneration) || 0) || 0;
+          var remoteGen = Number((obj && obj.meta && obj.meta.profileGeneration) || 0) || 0;
+          var genBump = remoteGen > 0 && localGen > 0 && remoteGen > localGen;
+          if (!genBump && !(remoteTs > localTs)) {
+            console.error('[ProfilesIO] Refus writeLocal allowEmpty : coquille pas plus récente que le local riche');
+            return false;
+          }
         }
       } catch (e) {
         console.error('[ProfilesIO] Refus writeLocal : contrôle anti-wipe impossible');

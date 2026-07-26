@@ -196,10 +196,12 @@
   function readHubOnce() {
     var ref = presenceRef();
     if (!ref || !window.getDoc) return Promise.resolve(emptyHub());
+    // Ne pas avaler les erreurs : sinon resolveJoin croit le hub vide et
+    // s’auto-proclame PRIMARY (LWW) alors que la présence est illisible.
     return window.getDoc(ref).then(function (snap) {
       if (snap && snap.exists && snap.exists()) return snap.data() || emptyHub();
       return emptyHub();
-    }).catch(function () { return emptyHub(); });
+    });
   }
 
   function safeWritePresence(mutator, preservePrimary) {

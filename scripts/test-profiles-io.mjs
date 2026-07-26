@@ -857,7 +857,10 @@ async function testWriteLocalRefusesEmptyOverNonEmpty() {
   assert(PIO.writeLocalProfileData('default', shell) === false, 'empty over rich refused');
   assert(PIO.readLocalProfileData('default').cours[0].uid === 'X1', 'rich preserved');
   env._allowEmptyProfileWrite = true;
-  assert(PIO.writeLocalProfileData('default', shell) === true, 'allowed with flag');
+  // Sans updatedAt plus récent : toujours refusé (anti-wipe durci)
+  assert(PIO.writeLocalProfileData('default', shell) === false, 'flag alone not enough if not newer');
+  const newerShell = Object.assign({}, shell, { meta: { updatedAt: Date.now() + 1000 } });
+  assert(PIO.writeLocalProfileData('default', newerShell) === true, 'allowed with flag + newer ts');
 }
 
 async function testAssertTombstonedNotWritable() {

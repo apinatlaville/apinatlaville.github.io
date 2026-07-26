@@ -379,6 +379,8 @@ window.resetData = function() {
       window._allowEmptyProfileWrite = true;
       try {
         window.D = JSON.parse(JSON.stringify(window.emptyData));
+        if (!window.D.meta) window.D.meta = {};
+        window.D.meta.updatedAt = Date.now();
         await window.save();
       } finally {
         window._allowEmptyProfileWrite = false;

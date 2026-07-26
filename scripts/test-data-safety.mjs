@@ -364,10 +364,12 @@ async function testSnapshotRestoreSafetyNet() {
   const snap = PIO.createSnapshot('default', 'Avant accident');
   assert(snap && snap.bytes > 0, 'snapshot créé');
 
-  // Accident : empty
+  // Accident : empty (comme resetData : updatedAt plus récent)
   env._allowEmptyProfileWrite = true;
   try {
     env.D = sampleD({ cours: [], exercices: [], devoirs: [] });
+    if (!env.D.meta) env.D.meta = {};
+    env.D.meta.updatedAt = Date.now() + 1000;
     await env.save();
   } finally {
     env._allowEmptyProfileWrite = false;
