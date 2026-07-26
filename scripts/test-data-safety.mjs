@@ -365,8 +365,13 @@ async function testSnapshotRestoreSafetyNet() {
   assert(snap && snap.bytes > 0, 'snapshot créé');
 
   // Accident : empty
-  env.D = sampleD({ cours: [], exercices: [], devoirs: [] });
-  await env.save();
+  env._allowEmptyProfileWrite = true;
+  try {
+    env.D = sampleD({ cours: [], exercices: [], devoirs: [] });
+    await env.save();
+  } finally {
+    env._allowEmptyProfileWrite = false;
+  }
   assert(PIO.readLocalProfileData('default').cours.length === 0, 'données effacées');
 
   await PIO.restoreSnapshot('default', snap.id);
