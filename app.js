@@ -2253,7 +2253,12 @@ window._saveImpl = async function() {
       } else if (emptyOutgoing && !window._allowEmptyProfileWrite) {
         throw new Error('Refus d’écrire un profil vide : getDoc indisponible');
       }
-      await window.setDoc(window.docRef, window.D);
+      var toWrite = window.D;
+      if (window.ProfilesIO && typeof window.ProfilesIO.stripUndefinedDeep === 'function') {
+        toWrite = window.ProfilesIO.stripUndefinedDeep(window.D);
+        if (!toWrite || typeof toWrite !== 'object') toWrite = window.D;
+      }
+      await window.setDoc(window.docRef, toWrite);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
       if (window.ProfilesIO && typeof window.ProfilesIO.syncActiveProfileIndexMeta === 'function') {
         try { await window.ProfilesIO.syncActiveProfileIndexMeta(); } catch (metaErr) {

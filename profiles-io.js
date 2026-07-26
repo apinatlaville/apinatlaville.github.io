@@ -126,6 +126,13 @@
     return !!(data && data._account === true);
   }
 
+  /** Boot / merge : réparer si profiles manquant OU tableau vide. */
+  function needsAccountIndexRepair(data) {
+    if (!isRepairableAccountDoc(data)) return false;
+    if (!Array.isArray(data.profiles)) return true;
+    return data.profiles.length === 0;
+  }
+
   /**
    * Firestore rejette les champs `undefined` → setDoc/transaction échoue
    * → « Bascule cloud échouée (index non synchronisé) » + tailles figées à 0.
@@ -677,8 +684,8 @@
         index.profiles[0].bytes = byteSizeOfString(JSON.stringify(legacyD));
       } catch (eBytes) { /* ignore */ }
       try {
-        await window.setDoc(profileDocRef(uid, DEFAULT_ID), legacyD);
-        await window.setDoc(accountRef, index);
+        await window.setDoc(profileDocRef(uid, DEFAULT_ID), stripUndefinedDeep(legacyD));
+        await window.setDoc(accountRef, stripUndefinedDeep(index));
         accountData = index;
         console.log('☁️ Migration compte → profils/default effectuée.');
       } catch (e) {
@@ -723,9 +730,41 @@
         }
       }
       try {
-        if (window.setDoc) await window.setDoc(accountRef, fresh);
+        if (window.setDoc) await window.setDoc(accountRef, stripUndefinedDeep(fresh));
       } catch (e) { console.warn('Index compte non écrit:', e); }
       accountData = fresh;
+    } else if (needsAccountIndexRepair(accountData)) {
+      // _account sans profiles[] ou profiles:[] : réparer au boot (pas de throw)
+      console.warn('[ProfilesIO] Index compte partiel/vide — réparation au boot.');
+      var repaired = emptyAccountIndex();
+      repaired.activeProfile = accountData.activeProfile || repaired.activeProfile;
+      repaired.activeProfileUpdatedAt = accountData.activeProfileUpdatedAt || nowIso();
+      repaired.deletedProfiles = (accountData.deletedProfiles && typeof accountData.deletedProfiles === 'object')
+        ? Object.assign({}, accountData.deletedProfiles)
+        : {};
+      var localMetaFix = ensureLocalRegistry();
+      // Partir du remote partiel (pas d’un index « Principal » inventé) pour
+      // laisser remoteEmpty réhydrater depuis le local réel.
+      var seedRemote = {
+        _account: true,
+        schemaVersion: 1,
+        activeProfile: repaired.activeProfile,
+        activeProfileUpdatedAt: repaired.activeProfileUpdatedAt,
+        profiles: Array.isArray(accountData.profiles) ? accountData.profiles : [],
+        deletedProfiles: repaired.deletedProfiles
+      };
+      var mergedFix = mergeAccountIndexPayload(seedRemote, localMetaFix, { allowLocalCreate: true });
+      if (mergedFix.ok) {
+        try {
+          if (window.setDoc) await window.setDoc(accountRef, stripUndefinedDeep(mergedFix.payload));
+          accountData = mergedFix.payload;
+        } catch (eFix) {
+          console.warn('[ProfilesIO] Réparation index partiel échouée:', eFix);
+          accountData = mergedFix.payload; // au moins sync local depuis le merge
+        }
+      } else {
+        accountData = repaired;
+      }
     } else if (!isAccountIndex(accountData)) {
       // Document racine inconnu : NE PAS écraser
       console.error('[ProfilesIO] Document compte non reconnu — pas d’écrasement.', accountData && Object.keys(accountData));
@@ -1222,7 +1261,9 @@
         }
       } else {
         var revived = (opts.revivedIds || []).indexOf(p.id) !== -1;
-        var allowOrphan = !!opts.allowLocalCreate || remote == null || revived;
+        // Index cloud vide / partiel (0 profil) : réhydrater depuis le local (anti wipe)
+        var remoteEmpty = !remoteProfiles || remoteProfiles.length === 0;
+        var allowOrphan = !!opts.allowLocalCreate || remote == null || revived || remoteEmpty;
         if (!allowOrphan) return;
         byId[p.id] = profileIndexEntry(p);
       }
@@ -1261,6 +1302,18 @@
       profiles: Object.keys(byId).map(function (k) { return byId[k]; }),
       deletedProfiles: deletedProfiles
     };
+    // Filet : ne jamais publier un index vide si on a encore des profils locaux/cloud connus
+    if (!payload.profiles.length) {
+      var seedList = (remoteProfiles && remoteProfiles.length) ? remoteProfiles : (meta.profiles || []);
+      seedList.forEach(function (p) {
+        if (!p || !p.id || removedSet[p.id] || deletedProfiles[p.id]) return;
+        byId[p.id] = profileIndexEntry(p);
+      });
+      payload.profiles = Object.keys(byId).map(function (k) { return byId[k]; });
+      if (!payload.profiles.length) {
+        return { ok: false, reason: 'empty-profiles' };
+      }
+    }
     var activeEntry = payload.profiles.find(function (p) { return p.id === payload.activeProfile; });
     if (removedSet[payload.activeProfile] || deletedProfiles[payload.activeProfile]
       || !activeEntry || activeEntry.archived) {
@@ -1315,9 +1368,9 @@
           var remote = snap.exists() ? snap.data() : null;
           var merged = mergeAccountIndexPayload(remote, meta, opts);
           if (!merged.ok) {
-            var err = new Error(merged.reason === 'legacy' ? 'legacy' : 'unrecognized');
+            var err = new Error(merged.reason || 'unrecognized');
             err.code = 'INDEX_MERGE_REFUSED';
-            err.reason = merged.reason;
+            err.reason = merged.reason || 'unrecognized';
             throw err;
           }
           tx.set(ref, writePayload(merged.payload));
@@ -2116,7 +2169,16 @@
         writeMetaLocal(roll);
       } catch (e2) { /* ignore */ }
       window._persistDisabled = false;
-      var detail = _lastIndexWriteError ? (' (' + _lastIndexWriteError + ')') : '';
+      var reason = _lastIndexWriteError || '';
+      // Refus structurel (legacy / unrecognized / empty) ≠ panne Firestore :
+      // message distinct pour ne pas confondre avec l’ancien bug undefined/0 o.
+      if (reason === 'empty-profiles' || reason === 'legacy' || reason === 'unrecognized') {
+        throw new Error(
+          'Bascule impossible : index cloud non fusionnable (' + reason + '). ' +
+          'Recharge la page puis réessaie — aucune bascule n’a été publiée.'
+        );
+      }
+      var detail = reason ? (' (' + reason + ')') : '';
       throw new Error(
         'Bascule cloud échouée (index non synchronisé' + detail + '). ' +
         'Réessaie — rien n’a été changé sur les autres appareils.'
@@ -2645,6 +2707,8 @@
     ensureLocalRegistry: ensureLocalRegistry,
     isProfilePayload: isProfilePayload,
     isAccountIndex: isAccountIndex,
+    isRepairableAccountDoc: isRepairableAccountDoc,
+    needsAccountIndexRepair: needsAccountIndexRepair,
     isEffectivelyEmptyProfile: isEffectivelyEmptyProfile,
     mergeAccountIndexPayload: mergeAccountIndexPayload,
     stripUndefinedDeep: stripUndefinedDeep,

@@ -1123,6 +1123,143 @@ async function testRepairableAccountDocWithoutProfilesArray() {
   assert(merged.payload.profiles.some((p) => p.id === 'default'), 'default present after repair');
 }
 
+async function testBootRepairsPartialAndEmptyAccountIndex() {
+  console.log('\n· resolveProfileCloudDoc repairs partial/empty account index');
+  // Case A: _account without profiles[]
+  {
+    const store = makeStore();
+    const fsMock = makeFirestore();
+    store.setItem('mc_profiles_bound_uid', 'uid1');
+    store.setItem('mc_profiles_meta', JSON.stringify({
+      _account: true, schemaVersion: 1, activeProfile: 'labo',
+      activeProfileUpdatedAt: '2026-07-26T20:00:00.000Z',
+      profiles: [
+        { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 100 },
+        { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 200 }
+      ]
+    }));
+    store.setItem('active_profile', 'labo');
+    store.setItem('backup_local_cours__labo', JSON.stringify({
+      settings: {}, matieres: [], classeurs: [],
+      cours: [{ uid: 'C1', titre: 'x' }], exercices: [], devoirs: []
+    }));
+    fsMock.docs.set('utilisateurs/uid1', {
+      _account: true, schemaVersion: 1, activeProfile: 'labo'
+    });
+    fsMock.docs.set('utilisateurs/uid1/profiles/labo', {
+      settings: {}, matieres: [], classeurs: [],
+      cours: [{ uid: 'C1', titre: 'x' }], exercices: [], devoirs: []
+    });
+    const env = baseEnv(store, fsMock);
+    const PIO = loadProfilesIO(env);
+    assert(PIO.needsAccountIndexRepair({ _account: true }) === true, 'needs repair without profiles');
+    const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+    assert(resolved.profileId === 'labo', 'active labo after repair');
+    const written = fsMock.docs.get('utilisateurs/uid1');
+    assert(Array.isArray(written.profiles) && written.profiles.length >= 1, 'boot wrote non-empty profiles');
+    assert(written.profiles.some((p) => p.id === 'labo'), 'labo restored in cloud index');
+  }
+  // Case B: profiles: [] empty array
+  {
+    const store = makeStore();
+    const fsMock = makeFirestore();
+    store.setItem('mc_profiles_bound_uid', 'uid1');
+    store.setItem('mc_profiles_meta', JSON.stringify({
+      _account: true, schemaVersion: 1, activeProfile: 'default',
+      activeProfileUpdatedAt: '2026-07-26T20:00:00.000Z',
+      profiles: [
+        { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 88000 }
+      ]
+    }));
+    store.setItem('active_profile', 'default');
+    store.setItem('backup_local_cours__default', JSON.stringify({
+      settings: {}, matieres: [{ id: 'm1' }], classeurs: [], cours: [{ uid: 'C2' }],
+      exercices: [], devoirs: []
+    }));
+    fsMock.docs.set('utilisateurs/uid1', {
+      _account: true, schemaVersion: 1, activeProfile: 'default',
+      profiles: [], deletedProfiles: {}
+    });
+    const env = baseEnv(store, fsMock);
+    const PIO = loadProfilesIO(env);
+    assert(PIO.needsAccountIndexRepair({ _account: true, profiles: [] }) === true, 'empty [] needs repair');
+    assert(PIO.isAccountIndex({ _account: true, profiles: [] }) === true, '[] still typed as account index');
+    await PIO.resolveProfileCloudDoc(env.currentUser);
+    const written = fsMock.docs.get('utilisateurs/uid1');
+    assert(written.profiles.length >= 1, 'empty [] repaired to ≥1 profile');
+    assert(written.profiles.some((p) => p.id === 'default'), 'default rehydrated from local');
+  }
+}
+
+async function testRemoteEmptyIndexRehydratesLocalOrphans() {
+  console.log('\n· remoteEmpty index rehydrates local orphans (anti wipe)');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'maison',
+    activeProfileUpdatedAt: '2026-07-26T21:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'maison', name: 'Maison', createdAt: 't', updatedAt: 't', bytes: 50000 }
+    ]
+  }));
+  store.setItem('backup_local_cours__maison', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [{ uid: 'M1' }], exercices: [], devoirs: []
+  }));
+  const remote = {
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T10:00:00.000Z',
+    profiles: [],
+    deletedProfiles: {}
+  };
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const meta = PIO.ensureLocalRegistry();
+  // Sans allowLocalCreate : remoteEmpty doit quand même accepter les orphelins locaux
+  const merged = PIO.mergeAccountIndexPayload(remote, meta, {});
+  assert(merged.ok === true, 'merge ok with empty remote profiles');
+  assert(merged.payload.profiles.some((p) => p.id === 'maison'), 'maison orphan kept');
+  assert(merged.payload.profiles.some((p) => p.id === 'default'), 'default kept');
+}
+
+async function testSwitchSucceedsAgainstPartialAccountIndex() {
+  console.log('\n· switchProfile succeeds against partial _account remote');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 100 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 200 }
+    ]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [{ uid: 'D1' }], exercices: [], devoirs: []
+  }));
+  store.setItem('backup_local_cours__labo', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [{ uid: 'L1' }], exercices: [], devoirs: []
+  }));
+  // Index partiel cloud (le bug réel)
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1, activeProfile: 'default'
+  });
+  const env = baseEnv(store, fsMock);
+  env._activeProfileId = 'default';
+  env.save = async () => {};
+  const PIO = loadProfilesIO(env);
+  await PIO.switchProfile('labo');
+  assert(env._reloaded === true, 'switch reloaded after success');
+  const written = fsMock.docs.get('utilisateurs/uid1');
+  assert(Array.isArray(written.profiles) && written.profiles.length >= 2, 'index has profiles after switch');
+  assert(written.activeProfile === 'labo', 'activeProfile published as labo');
+  assert(!JSON.stringify(written).includes('"generation":null'), 'no null generation noise');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -1150,6 +1287,9 @@ async function main() {
   await testGenerationMismatchPurgesZombieLocal();
   await testIndexWriteStripsUndefinedAndPreservesBytes();
   await testRepairableAccountDocWithoutProfilesArray();
+  await testBootRepairsPartialAndEmptyAccountIndex();
+  await testRemoteEmptyIndexRehydratesLocalOrphans();
+  await testSwitchSucceedsAgainstPartialAccountIndex();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }
