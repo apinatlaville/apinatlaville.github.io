@@ -750,6 +750,53 @@ async function testSeedOwnerCanPublishAfterBlobFail() {
   assert(!store.getItem('mc_profile_seed_owner__labo'), 'seed owner cleared after publish');
 }
 
+
+async function testNonEmptyLocalPreservedWhilePending() {
+  console.log('\n· non-empty local preserved (not wiped) while cloud pending');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const rich = {
+    settings: { userName: 'A' },
+    matieres: [{ id: 'm1', name: 'Math' }],
+    classeurs: [],
+    cours: [{ uid: 'KEEP-ME', titre: 'Cours important' }],
+    exercices: [], devoirs: []
+  };
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-26T10:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 90000, cloudBlobPending: true }
+    ],
+    deletedProfiles: {}
+  });
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-26T10:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 90000, cloudBlobPending: true }
+    ]
+  }));
+  store.setItem('active_profile', 'labo');
+  store.setItem('backup_local_cours__labo', JSON.stringify(rich));
+  // Pas de seed owner → ancien bug : data null → emptyData → wipe
+
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.cloudPending === true, 'pending for non-owner');
+  assert(resolved.docRef == null, 'no writable docRef');
+  assert(resolved.data && resolved.data.cours && resolved.data.cours[0].uid === 'KEEP-ME', 'local rich data returned');
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'did not publish stale/pending clash');
+  const still = JSON.parse(store.getItem('backup_local_cours__labo'));
+  assert(still.cours[0].uid === 'KEEP-ME', 'local blob untouched');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -767,6 +814,7 @@ async function main() {
   await testCreateBlobFailMarksPending();
   await testShellLocalDoesNotPublishWhilePending();
   await testSeedOwnerCanPublishAfterBlobFail();
+  await testNonEmptyLocalPreservedWhilePending();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }

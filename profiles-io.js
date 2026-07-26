@@ -726,7 +726,7 @@
     }
 
     if (inIndex && !deletedMap[profileId] && (seedPending || announcedBytes > 0)) {
-      // Seed en cours / contenu annoncé ailleurs : seul le créateur (owner local) republie
+      // Créateur : republie le seed (même coquille template)
       if (localD && isSeedOwner(profileId)) {
         await publishLocalSeedAndClearPending();
         return {
@@ -739,7 +739,34 @@
           cloudPending: false
         };
       }
-      // Autre appareil (même avec coquille locale) : pas de docRef writable
+      // Vrai contenu local sans être owner :
+      // - pending ailleurs → on CONSERVE le local pour l’UI, sans publier (anti wipe emptyData)
+      // - pas pending mais bytes annoncés → reprise (blob cloud manquant)
+      if (localD && !isEffectivelyEmptyProfile(localD)) {
+        if (!seedPending) {
+          await publishLocalSeedAndClearPending();
+          return {
+            docRef: pref,
+            accountRef: accountRef,
+            data: localD,
+            profileId: profileId,
+            legacyRoot: false,
+            migrated: false,
+            cloudPending: false
+          };
+        }
+        return {
+          docRef: null,
+          accountRef: accountRef,
+          data: localD,
+          profileId: profileId,
+          legacyRoot: false,
+          migrated: false,
+          cloudPending: true,
+          localOnly: true
+        };
+      }
+      // Coquille emptyData / pas de local : pas de docRef writable
       return {
         docRef: null,
         accountRef: accountRef,
@@ -995,7 +1022,7 @@
     var chosenTs = localTs;
     if (remoteActive && remoteActive !== localActive) {
       if (localTs && remoteTs) {
-        if (remoteTs > localTs) {
+        if (remoteTs >= localTs) {
           chosenActive = remoteActive;
           chosenTs = remoteTs;
         }
@@ -1008,7 +1035,7 @@
       }
     } else if (remoteActive && remoteActive === localActive) {
       chosenTs = localTs && remoteTs
-        ? (remoteTs > localTs ? remoteTs : localTs)
+        ? (remoteTs >= localTs ? remoteTs : localTs)
         : (localTs || remoteTs);
     }
 
@@ -1669,8 +1696,7 @@
     meta = ensureLocalRegistry();
     meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
     writeMetaLocal(meta);
-    lsRemove(localDataKey(id));
-    wipeSnapshots(id);
+    purgeLocalBlobAndSnaps(id);
 
     if (needsCloud && window.cloudConnected && window.setDoc) {
       try {

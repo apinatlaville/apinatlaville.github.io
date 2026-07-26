@@ -376,8 +376,13 @@ window.resetData = function() {
     (typeof window.escHtml === 'function' ? window.escHtml(pname) : pname) +
     ' »).<br>Les autres profils et tes exports JSON ne sont pas touchés.<br><br>Es-tu sûr ?',
     async () => {
-      window.D = JSON.parse(JSON.stringify(window.emptyData));
-      await window.save();
+      window._allowEmptyProfileWrite = true;
+      try {
+        window.D = JSON.parse(JSON.stringify(window.emptyData));
+        await window.save();
+      } finally {
+        window._allowEmptyProfileWrite = false;
+      }
       location.reload();
     },
     'Réinitialisation du profil'
@@ -1803,7 +1808,8 @@ async function initApp(user) {
           window.D = cloud.data;
           if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
           // Miroir local pour conservation offline / bascule appareil
-          if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
+          // (sauf pendant cloudPending : cloud.data est déjà le local conservé)
+          if (!cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
             try { window.ProfilesIO.writeLocalProfileData(window._activeProfileId, window.D); } catch (mirrorErr) {
               console.warn('Miroir local profil impossible:', mirrorErr);
             }
@@ -1812,6 +1818,17 @@ async function initApp(user) {
         } else {
           window.D = null;
           if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          // Pendant pending sans payload : tenter le local non vide avant emptyData
+          if (cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+            try {
+              const localPending = window.ProfilesIO.readLocalProfileData(window._activeProfileId || 'default');
+              if (localPending && !localPending._account
+                && !(window.ProfilesIO.isEffectivelyEmptyProfile && window.ProfilesIO.isEffectivelyEmptyProfile(localPending))) {
+                window.D = localPending;
+                console.warn('☁️ Pending cloud — conservation des données locales non vides.');
+              }
+            } catch (_) { /* ignore */ }
+          }
           console.log('☁️ Nouveau compte / profil (UID ' + user.sub + ')');
         }
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
@@ -2143,6 +2160,23 @@ window._saveImpl = async function() {
     || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
     || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
     || 'default';
+
+  const emptyOutgoing = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+    ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
+    : false;
+  // Anti-wipe local : ne pas écraser un blob local non vide avec une coquille (sauf reset explicite)
+  if (emptyOutgoing && !window._allowEmptyProfileWrite && window.ProfilesIO
+      && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+    try {
+      const existingLocal = window.ProfilesIO.readLocalProfileData(sessionPid);
+      if (existingLocal && !window.ProfilesIO.isEffectivelyEmptyProfile(existingLocal)) {
+        throw new Error('Refus d’écraser des données locales non vides avec un profil vide');
+      }
+    } catch (localGuardErr) {
+      if (/écraser des données locales/i.test(String(localGuardErr && localGuardErr.message))) throw localGuardErr;
+    }
+  }
+
   if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
     okLocal = !!window.ProfilesIO.writeLocalProfileData(sessionPid, payload);
   } else {
@@ -2176,27 +2210,35 @@ window._saveImpl = async function() {
       }
       // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide
       if (window.getDoc) {
+        let cloudGuardOk = false;
         try {
           const snap = await window.getDoc(window.docRef);
+          cloudGuardOk = true;
           if (snap.exists()) {
             const cur = snap.data();
             if (cur && cur._account === true) {
               throw new Error('Refus d’écrire le profil sur l’index compte cloud');
             }
-            const emptyLocal = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
-              ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
-              : false;
             const emptyCloud = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
               ? window.ProfilesIO.isEffectivelyEmptyProfile(cur)
               : false;
-            if (emptyLocal && !emptyCloud) {
+            if (emptyOutgoing && !emptyCloud && !window._allowEmptyProfileWrite) {
               throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
             }
           }
         } catch (guardErr) {
           if (/index compte|écraser|docRef profil/i.test(String(guardErr && guardErr.message))) throw guardErr;
-          // getDoc échoue → on tente setDoc quand même
+          // getDoc échoue : fail-closed si on tente d’écrire du vide
+          if (emptyOutgoing && !window._allowEmptyProfileWrite) {
+            throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
+          }
+          console.warn('Garde cloud getDoc échouée — écriture non vide autorisée:', guardErr);
         }
+        if (!cloudGuardOk && emptyOutgoing && !window._allowEmptyProfileWrite) {
+          throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
+        }
+      } else if (emptyOutgoing && !window._allowEmptyProfileWrite) {
+        throw new Error('Refus d’écrire un profil vide : getDoc indisponible');
       }
       await window.setDoc(window.docRef, window.D);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
