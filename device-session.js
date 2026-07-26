@@ -593,8 +593,10 @@
 
   function canFullSave() {
     if (window.isLocalMode) return true;
+    // Avant DeviceSession.start (initApp) : autoriser la 1ʳᵉ save
     if (!state.started || !state.userId) return true;
-    if (!state.joinResolved) return true;
+    // Après start : attendre la résolution du rôle — sinon faux « primary » LWW
+    if (!state.joinResolved) return false;
     return state.effectiveRole === CONFIG.ROLES.PRIMARY && !state.needsRoleChoice;
   }
 

@@ -175,6 +175,28 @@
     return true;
   }
 
+  /** Score de contenu utilisateur (anti écrasement d’un profil riche par une coquille). */
+  function profileContentScore(data) {
+    if (!data || typeof data !== 'object' || data._account === true) return 0;
+    var cours = Array.isArray(data.cours) ? data.cours.length : 0;
+    var ex = Array.isArray(data.exercices) ? data.exercices.length : 0;
+    var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
+    var score = cours * 100 + ex * 10 + dv * 10;
+    if (data.sessionEnCoursV2) score += 5;
+    return score;
+  }
+
+  function profileMetaUpdatedAt(data) {
+    if (!data || !data.meta) return 0;
+    var n = Number(data.meta.updatedAt) || 0;
+    if (n > 0) return n;
+    // fallback ISO
+    try {
+      var t = Date.parse(String(data.meta.updatedAt || ''));
+      return isNaN(t) ? 0 : t;
+    } catch (e) { return 0; }
+  }
+
   function seedOwnerKey(profileId) {
     return 'mc_profile_seed_owner__' + (profileId || DEFAULT_ID);
   }
@@ -410,8 +432,18 @@
       }
       return { ok: true };
     } catch (e) {
-      // Lecture index impossible : ne pas bloquer une save non vide (autres gardes restent).
-      return { ok: true, degraded: true, reason: 'index-read-failed' };
+      // Index illisible : autoriser seulement si le blob profil existe déjà (pas de création aveugle)
+      try {
+        var pref = await window.getDoc(profileDocRef(user.sub, profileId));
+        if (!pref.exists()) return { ok: false, reason: 'index-read-failed' };
+        var pdata = pref.data();
+        if (pdata && (pdata._deleted || pdata._account === true)) {
+          return { ok: false, reason: 'tombstoned' };
+        }
+        return { ok: true, degraded: true, reason: 'index-read-failed' };
+      } catch (e2) {
+        return { ok: false, reason: 'index-read-failed' };
+      }
     }
   }
 
@@ -724,6 +756,37 @@
           migrated: false
         };
       }
+
+      // Cloud coquille / plus pauvre que le local riche → ne pas écraser le travail local
+      var localForCompare = readLocalProfileData(profileId);
+      if (localForCompare && !isProfilePayload(localForCompare)) localForCompare = null;
+      if (localForCompare && !isEffectivelyEmptyProfile(localForCompare)) {
+        var cloudEmpty = isEffectivelyEmptyProfile(cloudPayload);
+        var localScore = profileContentScore(localForCompare);
+        var cloudScore = profileContentScore(cloudPayload);
+        var localTs = profileMetaUpdatedAt(localForCompare);
+        var cloudTs = profileMetaUpdatedAt(cloudPayload);
+        var localRicher = cloudEmpty || localScore > cloudScore;
+        var localNewerOrEqual = !cloudTs || localTs >= cloudTs;
+        if (localRicher && (cloudEmpty || localNewerOrEqual || localScore >= cloudScore * 2)) {
+          // Republier le local riche (sauve le travail après poison empty / create collision)
+          if (window.setDoc) {
+            try { await window.setDoc(pref, localForCompare); } catch (eRep) {
+              console.warn('[ProfilesIO] Republish local riche échoué:', eRep);
+            }
+          }
+          return {
+            docRef: pref,
+            accountRef: accountRef,
+            data: localForCompare,
+            profileId: profileId,
+            legacyRoot: false,
+            migrated: false,
+            recoveredFromLocal: true
+          };
+        }
+      }
+
       return {
         docRef: pref,
         accountRef: accountRef,
@@ -810,13 +873,47 @@
       };
     }
 
-    // Cloud absent, rien annoncé : nouveau profil — seed local OK (owner ou création locale)
+    // Cloud absent, rien annoncé : seul le seed owner (ou un local riche en 1ʳᵉ sync) publie.
+    // Jamais une coquille anonyme qui créerait un blob vide empoisonnant les autres appareils.
     if (inIndex && !deletedMap[profileId] && localD && window.setDoc) {
-      if (!isEffectivelyEmptyProfile(localD) || isSeedOwner(profileId)) {
+      if (isSeedOwner(profileId)) {
         try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
-      } else if (!seedPending && announcedBytes === 0) {
+      } else if (!isEffectivelyEmptyProfile(localD)) {
+        // Première sync d’un local riche sans index bytes : publier pour ne pas perdre le travail
         try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
       }
+      // else : coquille non-owner → ne pas créer de blob vide
+    }
+
+    var stillMissing = true;
+    try {
+      var check = await window.getDoc(pref);
+      stillMissing = !check.exists();
+    } catch (eChk) { /* ignore */ }
+
+    if (stillMissing && inIndex && !deletedMap[profileId] && (!localD || isEffectivelyEmptyProfile(localD))) {
+      // Nouveau profil vraiment vide sur ce device : docRef OK pour première écriture utilisateur
+      return {
+        docRef: pref,
+        accountRef: accountRef,
+        data: localD,
+        profileId: profileId,
+        legacyRoot: false,
+        migrated: false,
+        cloudPending: false
+      };
+    }
+    if (stillMissing && localD && !isEffectivelyEmptyProfile(localD) && !isSeedOwner(profileId)) {
+      return {
+        docRef: null,
+        accountRef: accountRef,
+        data: localD,
+        profileId: profileId,
+        legacyRoot: false,
+        migrated: false,
+        cloudPending: true,
+        localOnly: true
+      };
     }
 
     return {
@@ -1597,14 +1694,60 @@
     var meta = ensureLocalRegistry();
     var existing = {};
     meta.profiles.forEach(function (p) { existing[p.id] = true; });
+
+    var user = window.currentUser;
+    var needsCloud = !window.isLocalMode && user && user.sub;
+    if (needsCloud && window.cloudConnected === false) {
+      throw new Error('Connexion cloud requise pour créer un profil (évite un profil fantôme au prochain sync).');
+    }
+
+    // Réserver un id libre aussi côté cloud (évite d’écraser un profil existant sur un autre appareil)
+    if (needsCloud && window.getDoc) {
+      try {
+        var idxSnap = await window.getDoc(accountDocRef(user.sub));
+        if (idxSnap.exists()) {
+          var idxData = idxSnap.data();
+          if (isAccountIndex(idxData)) {
+            var delMap = idxData.deletedProfiles || {};
+            (idxData.profiles || []).forEach(function (p) {
+              if (p && p.id && !delMap[p.id]) existing[p.id] = true;
+            });
+          }
+        }
+      } catch (eIdx) {
+        console.warn('[ProfilesIO] Lecture index avant create:', eIdx);
+      }
+    }
+
     var id = uniqueId(slugify(name), existing);
+
+    // Refus si un blob cloud non vide existe déjà pour cet id
+    if (needsCloud && window.getDoc) {
+      try {
+        var blobSnap = await window.getDoc(profileDocRef(user.sub, id));
+        if (blobSnap.exists()) {
+          var blob = blobSnap.data();
+          if (blob && !blob._deleted && !isEffectivelyEmptyProfile(blob)) {
+            throw new Error(
+              'Un profil cloud « ' + id + ' » existe déjà avec des données. ' +
+              'Choisis un autre nom (évite d’écraser le travail d’un autre appareil).'
+            );
+          }
+        }
+      } catch (eBlob) {
+        if (/existe déjà/i.test(String(eBlob && eBlob.message))) throw eBlob;
+        console.warn('[ProfilesIO] Lecture blob avant create:', eBlob);
+      }
+    }
+
     var entry = {
       id: id,
       name: String(name || 'Profil').trim() || id,
       createdAt: nowIso(),
       updatedAt: nowIso(),
       bytes: 0,
-      cloudBlobPending: false
+      cloudBlobPending: false,
+      generation: Date.now()
     };
     meta.profiles.push(entry);
     writeMetaLocal(meta);
@@ -1621,16 +1764,13 @@
         seed.settings.userName = window.D.settings.userName;
       }
     }
+    if (!seed.meta) seed.meta = {};
+    seed.meta.updatedAt = Date.now();
+    seed.meta.profileGeneration = entry.generation;
+
     if (!writeLocalProfileData(id, seed)) {
       rollbackCreatedProfile(id);
       throw new Error('Impossible de créer le profil (stockage navigateur plein ou refusé).');
-    }
-
-    var user = window.currentUser;
-    var needsCloud = !window.isLocalMode && user && user.sub;
-    if (needsCloud && window.cloudConnected === false) {
-      rollbackCreatedProfile(id);
-      throw new Error('Connexion cloud requise pour créer un profil (évite un profil fantôme au prochain sync).');
     }
 
     // Meta fraîche (bytes après writeLocal) + flag anti-écrasement tant que le blob cloud n’existe pas
@@ -1640,6 +1780,7 @@
         p.cloudBlobPending = !!needsCloud;
         p.bytes = getProfileLiveBytes(id);
         p.updatedAt = nowIso();
+        p.generation = entry.generation;
       }
     });
     writeMetaLocal(meta);
@@ -1654,6 +1795,20 @@
     }
     if (needsCloud && window.cloudConnected && window.setDoc) {
       try {
+        // Re-vérifier juste avant l’écriture (course avec un autre appareil)
+        if (window.getDoc) {
+          var raceSnap = await window.getDoc(profileDocRef(user.sub, id));
+          if (raceSnap.exists()) {
+            var raceBlob = raceSnap.data();
+            if (raceBlob && !raceBlob._deleted && !isEffectivelyEmptyProfile(raceBlob)) {
+              clearSeedOwner(id);
+              rollbackCreatedProfile(id);
+              throw new Error(
+                'Collision : le profil « ' + id + ' » a été créé ailleurs avec des données. Création annulée.'
+              );
+            }
+          }
+        }
         await window.setDoc(profileDocRef(user.sub, id), seed);
         clearSeedOwner(id);
         meta = ensureLocalRegistry();
@@ -1667,6 +1822,7 @@
         writeMetaLocal(meta);
         try { await persistAccountIndexCloud(user, meta, { clearBlobPendingIds: [id] }); } catch (eMeta) { /* ignore */ }
       } catch (e) {
+        if (/Collision|existe déjà/i.test(String(e && e.message))) throw e;
         console.warn('Création profil cloud (blob):', e);
         // Index + local OK, cloudBlobPending + seed owner → seul ce device republie
         throw new Error(

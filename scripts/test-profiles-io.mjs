@@ -877,6 +877,89 @@ async function testAssertTombstonedNotWritable() {
   assert(w.ok === false && w.reason === 'tombstoned', 'tombstoned refused');
 }
 
+
+async function testCreateDoesNotClobberExistingCloudBlob() {
+  console.log('\n· create must not clobber existing rich cloud blob');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 90000 }
+    ],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/labo', {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [{ uid: 'RICH1' }, { uid: 'RICH2' }], exercices: [], devoirs: [],
+    meta: { updatedAt: Date.now() }
+  });
+  // Appareil B : registre local sans labo (périmé)
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' }]
+  }));
+  store.setItem('active_profile', 'default');
+  const env = baseEnv(store, fsMock);
+  env.D = { settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [] };
+  const PIO = loadProfilesIO(env);
+  let threw = false;
+  try {
+    await PIO.createProfile('Labo', { copyFromActive: false });
+  } catch (e) {
+    threw = /existe déjà|Collision|autre nom/i.test(String(e.message || e));
+  }
+  // Soit refuse, soit crée labo-2 — jamais écraser RICH*
+  const blob = fsMock.docs.get('utilisateurs/uid1/profiles/labo');
+  assert(blob && blob.cours && blob.cours.length === 2, 'rich labo blob intact');
+  assert(blob.cours.some((c) => c.uid === 'RICH1'), 'RICH1 preserved');
+  const createdLabo2 = PIO.listProfiles().some((p) => p.id === 'labo-2');
+  assert(threw || createdLabo2, 'create refused or used labo-2');
+}
+
+async function testEmptyCloudDoesNotClobberRichLocal() {
+  console.log('\n· empty cloud must not clobber rich local');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const rich = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [{ uid: 'L1' }, { uid: 'L2' }, { uid: 'L3' }],
+    exercices: [], devoirs: [],
+    meta: { updatedAt: Date.now() }
+  };
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 }],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', {
+    settings: { userName: 'Étudiant' },
+    matieres: [{ id: 'PHYS', name: 'Physique' }],
+    classeurs: [], cours: [], exercices: [], devoirs: [],
+    meta: { updatedAt: 1 }
+  });
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 }]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify(rich));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.data && resolved.data.cours && resolved.data.cours.length === 3, 'rich local preferred');
+  const cloud = fsMock.docs.get('utilisateurs/uid1/profiles/default');
+  assert(cloud.cours && cloud.cours.length === 3, 'cloud repaired from rich local');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -898,6 +981,8 @@ async function main() {
   await testNoStaleRepublishWithoutPending();
   await testWriteLocalRefusesEmptyOverNonEmpty();
   await testAssertTombstonedNotWritable();
+  await testCreateDoesNotClobberExistingCloudBlob();
+  await testEmptyCloudDoesNotClobberRichLocal();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }
