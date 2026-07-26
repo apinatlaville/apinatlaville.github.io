@@ -346,9 +346,10 @@
       });
     }).catch(function (err) {
       console.warn('DeviceSession resolveJoin:', err);
+      // Fail-closed : pas de faux PRIMARY qui LWW-écrase un vrai principal
       state.joinResolved = true;
-      state.effectiveRole = CONFIG.ROLES.PRIMARY;
-      state.needsRoleChoice = false;
+      state.effectiveRole = CONFIG.ROLES.SECONDARY;
+      state.needsRoleChoice = true;
       emit();
     });
   }

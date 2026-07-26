@@ -960,6 +960,97 @@ async function testEmptyCloudDoesNotClobberRichLocal() {
   assert(cloud.cours && cloud.cours.length === 3, 'cloud repaired from rich local');
 }
 
+
+async function testNewerThinnerCloudWinsOverOlderRichLocal() {
+  console.log('\n· newer thinner cloud (intentional deletes) beats older rich local');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const now = Date.now();
+  const olderRich = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [{ uid: 'A' }, { uid: 'B' }, { uid: 'C' }],
+    exercices: [], devoirs: [],
+    meta: { updatedAt: now - 100000 }
+  };
+  const newerThin = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [{ uid: 'A' }],
+    exercices: [], devoirs: [],
+    meta: { updatedAt: now }
+  };
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T14:00:00.000Z',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 1000, generation: 1 }],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', newerThin);
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 1000, generation: 1 }]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify(olderRich));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.data && resolved.data.cours.length === 1, 'keeps intentional thin cloud');
+  assert(resolved.data.cours[0].uid === 'A', 'cloud cours A');
+  assert(!resolved.recoveredFromLocal, 'did not recover old rich local');
+}
+
+async function testGenerationMismatchPurgesZombieLocal() {
+  console.log('\n· generation mismatch purges zombie local after recreate');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const zombie = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [{ uid: 'OLD1' }, { uid: 'OLD2' }],
+    exercices: [], devoirs: [],
+    meta: { updatedAt: Date.now(), profileGeneration: 100 }
+  };
+  const fresh = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [], exercices: [], devoirs: [],
+    meta: { updatedAt: Date.now(), profileGeneration: 200 }
+  };
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-26T14:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 50, generation: 200 }
+    ],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/labo', fresh);
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', generation: 200 }
+    ]
+  }));
+  store.setItem('active_profile', 'labo');
+  store.setItem('backup_local_cours__labo', JSON.stringify(zombie));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.data && resolved.data.cours.length === 0, 'fresh empty recreate kept');
+  assert(!store.getItem('backup_local_cours__labo') || PIO.readLocalProfileData('labo') == null
+    || (PIO.readLocalProfileData('labo').cours || []).length === 0
+    || !PIO.readLocalProfileData('labo').cours.some(c => c.uid === 'OLD1'),
+    'zombie local purged or not resurrected');
+  const cloud = fsMock.docs.get('utilisateurs/uid1/profiles/labo');
+  assert(!(cloud.cours || []).some(c => c.uid === 'OLD1'), 'zombie not republished to cloud');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -983,6 +1074,8 @@ async function main() {
   await testAssertTombstonedNotWritable();
   await testCreateDoesNotClobberExistingCloudBlob();
   await testEmptyCloudDoesNotClobberRichLocal();
+  await testNewerThinnerCloudWinsOverOlderRichLocal();
+  await testGenerationMismatchPurgesZombieLocal();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }

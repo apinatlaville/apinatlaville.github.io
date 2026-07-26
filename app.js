@@ -1980,11 +1980,6 @@ async function initApp(user) {
   delete window.D.settings.pomoWork;
   delete window.D.settings.pomoBreak;
 
-  if (typeof window.reconcileOrphanCours === 'function') {
-    const reconciled = window.reconcileOrphanCours();
-    if (reconciled && !window._persistDisabled) window.save();
-  }
-
   if (window.isLocalMode) {
     window.D.settings.userName = "Mode Local";
     window.D.settings.appColor = '#5b9aff';
@@ -2004,12 +1999,6 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.start');
   window.applySettings();
   if (window.bootMark) window.bootMark('initApp.render.applySettings');
-  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
-    delete window.D.settings._needsAppearanceSave;
-    window.save();
-  } else if (window.D.settings._needsAppearanceSave) {
-    delete window.D.settings._needsAppearanceSave;
-  }
   window.renderMatieres();
   if (window.bootMark) window.bootMark('initApp.render.matieres');
   window.renderClasseurs();
@@ -2024,17 +2013,14 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.hydrateIcons');
   if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
   if (typeof window.ensureCardCreateFab === 'function') window.ensureCardCreateFab();
-  window.appReady = true;
-  if (window.bootMark) window.bootMark('initApp.done');
-  if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
-  if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
+  // Démarrer DeviceSession AVANT les saves post-migrate (anti faux-primary LWW)
   if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
-    // Multi-appareils uniquement si le cloud est OK — ne jamais bloquer le chargement des données
-    var deviceUserId = (!window.isLocalMode && window.cloudConnected && user && user.sub)
+    var deviceUserIdEarly = (!window.isLocalMode && window.cloudConnected && user && user.sub)
       ? user.sub
       : null;
-    Promise.resolve(window.DeviceSession.start(deviceUserId)).then(function () {
+    try {
+      await Promise.resolve(window.DeviceSession.start(deviceUserIdEarly));
       if (typeof window.applyDeviceRoleUi === 'function') {
         window.applyDeviceRoleUi(window.DeviceSession.getStatus());
       }
@@ -2042,10 +2028,33 @@ async function initApp(user) {
           && window.DeviceSession.isSecondary && window.DeviceSession.isSecondary()) {
         window.DeviceSession.watchUserData(window.docRef);
       }
-    }).catch(function (err) {
+    } catch (err) {
       console.warn('DeviceSession start:', err);
-    });
+    }
   }
+
+  if (typeof window.reconcileOrphanCours === 'function') {
+    const reconciled = window.reconcileOrphanCours();
+    if (reconciled && !window._persistDisabled) {
+      try { await window.save(); } catch (eSave) {
+        if (!/SECONDARY_READ_ONLY/i.test(String(eSave && eSave.message))) console.warn(eSave);
+      }
+    }
+  }
+
+  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
+    delete window.D.settings._needsAppearanceSave;
+    try { await window.save(); } catch (eSave2) {
+      if (!/SECONDARY_READ_ONLY/i.test(String(eSave2 && eSave2.message))) console.warn(eSave2);
+    }
+  } else if (window.D.settings._needsAppearanceSave) {
+    delete window.D.settings._needsAppearanceSave;
+  }
+
+  window.appReady = true;
+  if (window.bootMark) window.bootMark('initApp.done');
+  if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
+  if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
   if (window._pendingTab) {
     const pending = window._pendingTab;
@@ -2204,9 +2213,6 @@ window._saveImpl = async function() {
         const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
         if (!writability.ok) {
           throw new Error('Refus d’écrire cloud : profil non inscriptible (' + (writability.reason || '?') + ')');
-        }
-        if (writability.degraded && emptyOutgoing && !window._allowEmptyProfileWrite) {
-          throw new Error('Refus d’écrire un profil vide : index cloud illisible');
         }
       }
       // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide

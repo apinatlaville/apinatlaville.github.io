@@ -432,18 +432,8 @@
       }
       return { ok: true };
     } catch (e) {
-      // Index illisible : autoriser seulement si le blob profil existe déjà (pas de création aveugle)
-      try {
-        var pref = await window.getDoc(profileDocRef(user.sub, profileId));
-        if (!pref.exists()) return { ok: false, reason: 'index-read-failed' };
-        var pdata = pref.data();
-        if (pdata && (pdata._deleted || pdata._account === true)) {
-          return { ok: false, reason: 'tombstoned' };
-        }
-        return { ok: true, degraded: true, reason: 'index-read-failed' };
-      } catch (e2) {
-        return { ok: false, reason: 'index-read-failed' };
-      }
+      // Index illisible : fail-closed (évite réécriture d’un profil tombstoné non lu)
+      return { ok: false, reason: 'index-read-failed' };
     }
   }
 
@@ -733,6 +723,7 @@
 
     var pref = profileDocRef(uid, profileId);
     var snap = await window.getDoc(pref);
+    var indexEntry = (accountData.profiles || []).find(function (p) { return p && p.id === profileId; }) || null;
     if (snap.exists()) {
       var cloudPayload = snap.data();
       if (cloudPayload && cloudPayload._deleted) {
@@ -768,7 +759,17 @@
         var cloudTs = profileMetaUpdatedAt(cloudPayload);
         var localRicher = cloudEmpty || localScore > cloudScore;
         var localNewerOrEqual = !cloudTs || localTs >= cloudTs;
-        if (localRicher && (cloudEmpty || localNewerOrEqual || localScore >= cloudScore * 2)) {
+        // Jamais « score × 2 » : un cloud plus récent avec moins de cours (suppressions
+        // intentionnelles) doit gagner. Republier seulement coquille cloud ou local plus récent.
+        var indexGen = indexEntry && indexEntry.generation != null ? Number(indexEntry.generation) : 0;
+        var localGen = localForCompare.meta && localForCompare.meta.profileGeneration != null
+          ? Number(localForCompare.meta.profileGeneration) : 0;
+        if (indexGen && localGen && localGen !== indexGen) {
+          // Génération différente (delete+recreate) : jeter le local zombie
+          console.warn('[ProfilesIO] Local génération obsolète — purge', profileId, localGen, '≠', indexGen);
+          purgeLocalBlobAndSnaps(profileId);
+          localForCompare = null;
+        } else if (localForCompare && localRicher && (cloudEmpty || localNewerOrEqual)) {
           // Republier le local riche (sauve le travail après poison empty / create collision)
           if (window.setDoc) {
             try { await window.setDoc(pref, localForCompare); } catch (eRep) {
@@ -800,7 +801,6 @@
     // Profil cloud absent : republier UNIQUEMENT le seed du créateur (seed owner),
     // jamais une coquille emptyData d’un autre appareil.
     var inIndex = accountData.profiles.some(function (p) { return p && p.id === profileId; });
-    var indexEntry = (accountData.profiles || []).find(function (p) { return p && p.id === profileId; }) || null;
     var announcedBytes = Math.max(0, Number(indexEntry && indexEntry.bytes) || 0);
     var seedPending = !!(indexEntry && indexEntry.cloudBlobPending);
     var localD = null;
@@ -992,6 +992,21 @@
           }
         }
         if (cp.cloudBlobPending != null) byId[cp.id].cloudBlobPending = !!cp.cloudBlobPending;
+        if (cp.generation != null) {
+          var prevGen = Number(byId[cp.id].generation) || 0;
+          var nextGen = Number(cp.generation) || 0;
+          if (nextGen && nextGen !== prevGen) {
+            // Nouvelle génération cloud → purger blob local zombie (delete+recreate)
+            if (prevGen && nextGen !== prevGen) purgeLocalBlobAndSnaps(cp.id);
+            else if (!prevGen && getLocalProfileRaw(cp.id)) {
+              var loc = readLocalProfileData(cp.id);
+              var locGen = loc && loc.meta && loc.meta.profileGeneration != null
+                ? Number(loc.meta.profileGeneration) : 0;
+              if (locGen && locGen !== nextGen) purgeLocalBlobAndSnaps(cp.id);
+            }
+          }
+          byId[cp.id].generation = nextGen || cp.generation;
+        }
       } else {
         meta.profiles.push({
           id: cp.id,
@@ -1000,9 +1015,17 @@
           updatedAt: cp.updatedAt || nowIso(),
           archived: !!cp.archived,
           bytes: Math.max(0, Number(cp.bytes) || 0),
-          cloudBlobPending: !!cp.cloudBlobPending
+          cloudBlobPending: !!cp.cloudBlobPending,
+          generation: cp.generation != null ? Number(cp.generation) : undefined
         });
         byId[cp.id] = meta.profiles[meta.profiles.length - 1];
+        // Nouveau profil cloud : si un blob local d’ancienne génération traîne, purger
+        if (cp.generation != null && getLocalProfileRaw(cp.id)) {
+          var locNew = readLocalProfileData(cp.id);
+          var locGenNew = locNew && locNew.meta && locNew.meta.profileGeneration != null
+            ? Number(locNew.meta.profileGeneration) : 0;
+          if (locGenNew && locGenNew !== Number(cp.generation)) purgeLocalBlobAndSnaps(cp.id);
+        }
       }
     });
 
@@ -1108,7 +1131,8 @@
         updatedAt: p.updatedAt || nowIso(),
         archived: !!p.archived,
         bytes: Math.max(0, Number(p.bytes) || 0),
-        cloudBlobPending: !!p.cloudBlobPending
+        cloudBlobPending: !!p.cloudBlobPending,
+        generation: p.generation != null ? Number(p.generation) : undefined
       };
     });
     (meta.profiles || []).forEach(function (p) {
@@ -1122,6 +1146,12 @@
         // Taille : si ce device a le blob, sa mesure prime ; sinon garder le max annoncé
         if (hasLocalBlob) byId[p.id].bytes = localBytes;
         else byId[p.id].bytes = Math.max(localBytes, Math.max(0, Number(byId[p.id].bytes) || 0));
+        // Génération : garder le max (recreate gagne)
+        if (p.generation != null) {
+          var gLocal = Number(p.generation) || 0;
+          var gRemote = Number(byId[p.id].generation) || 0;
+          byId[p.id].generation = Math.max(gLocal, gRemote) || p.generation;
+        }
         // Pending : seul un clear explicite (après setDoc blob réussi) peut baisser le flag
         if (p.cloudBlobPending === true) byId[p.id].cloudBlobPending = true;
         else if (p.cloudBlobPending === false) {
@@ -1141,7 +1171,8 @@
           updatedAt: p.updatedAt || nowIso(),
           archived: !!p.archived,
           bytes: localBytes,
-          cloudBlobPending: !!p.cloudBlobPending
+          cloudBlobPending: !!p.cloudBlobPending,
+          generation: p.generation != null ? Number(p.generation) : undefined
         };
       }
     });
