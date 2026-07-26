@@ -30,7 +30,10 @@ assert(!/id="qkTemps"/.test(quickSrc), 'form Rapide : pas de champ durée');
 assert(!/id="quickTempsMin"/.test(appSrc), 'modal : pas de champ durée');
 assert(/qkCours|quickCoursSelected/.test(quickSrc + appSrc), 'lien chapitre présent');
 assert(/quickOpenLatex|ankiV2QuickOpenLatex|openQuickLatexCard/.test(quickSrc + appSrc + latexSrc), 'entrée LaTeX');
-assert(/paneQuickLatex/.test(indexSrc) && /quickLatex/.test(navSrc), 'page quickLatex enregistrée');
+assert(/ovQuickLatex|restoreOverlay|mountLatexEasyEditor/.test(latexSrc), 'popup LaTeX Easy (pas navigation onglet)');
+assert(/restoreOverlay:\s*'ovQuickCreate'/.test(appSrc), 'FAB Rapide restaure ovQuickCreate');
+assert(/mountLatexEasyEditor/.test(fs.readFileSync(path.join(root, 'latex-test.js'), 'utf8')), 'API mountLatexEasyEditor lab');
+assert(/paneQuickLatex/.test(indexSrc) && /quickLatex/.test(navSrc), 'bundle quickLatex toujours enregistré');
 assert(/QUICK_DEFAULT_SEC\s*=\s*30/.test(algoSrc), 'durée packing Y- = 30s');
 assert(/cardKind\(c\) === 'quick'/.test(algoSrc), 'cardDuration branche quick');
 

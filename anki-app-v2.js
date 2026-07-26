@@ -4113,13 +4113,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const q = fieldVal('quickQ');
     const r = fieldVal('quickR');
     const coursIds = Array.from(S.coursLinkSelection || []);
-    const ov = $("ovQuickCreate");
-    if (ov) ov.classList.add('hidden');
     const go = function () {
       if (typeof window.openQuickLatexCard !== 'function') {
         window.sysAlert('Éditeur LaTeX non chargé.', 'Erreur');
         return;
       }
+      // Popup LaTeX Easy remplace temporairement ovQuickCreate (même modèle que le labo)
       window.openQuickLatexCard({
         latexRecto: side === 'recto' || side === 'both',
         latexVerso: side === 'verso' || side === 'both',
@@ -4128,7 +4127,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         coursIds,
         question: q,
         reponse: r,
-        returnTab: 'flashcards'
+        restoreOverlay: 'ovQuickCreate',
+        fieldQ: 'quickQ',
+        fieldR: 'quickR'
       });
     };
     if (typeof window.ensureScriptsForTab === 'function') {
