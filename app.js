@@ -2164,18 +2164,9 @@ window._saveImpl = async function() {
   const emptyOutgoing = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
     ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
     : false;
-  // Anti-wipe local : ne pas écraser un blob local non vide avec une coquille (sauf reset explicite)
-  if (emptyOutgoing && !window._allowEmptyProfileWrite && window.ProfilesIO
-      && typeof window.ProfilesIO.readLocalProfileData === 'function') {
-    try {
-      const existingLocal = window.ProfilesIO.readLocalProfileData(sessionPid);
-      if (existingLocal && !window.ProfilesIO.isEffectivelyEmptyProfile(existingLocal)) {
-        throw new Error('Refus d’écraser des données locales non vides avec un profil vide');
-      }
-    } catch (localGuardErr) {
-      if (/écraser des données locales/i.test(String(localGuardErr && localGuardErr.message))) throw localGuardErr;
-    }
-  }
+
+  // Anti-wipe local : délégué à writeLocalProfileData (garde centralisée)
+  // _allowEmptyProfileWrite autorise resetData
 
   if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
     okLocal = !!window.ProfilesIO.writeLocalProfileData(sessionPid, payload);
@@ -2186,7 +2177,7 @@ window._saveImpl = async function() {
   }
   if (!okLocal) {
     if (typeof window.recordAppError === 'function') {
-      window.recordAppError('Erreur sauvegarde: localStorage indisponible', 'app.js');
+      window.recordAppError('Erreur sauvegarde: localStorage indisponible ou refus anti-wipe', 'app.js');
     }
     console.error("Échec sauvegarde locale");
     window.sysAlert(M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
@@ -2208,6 +2199,16 @@ window._saveImpl = async function() {
           throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
         }
       }
+      // Garde-fou : profil tombstoné / pending ailleurs
+      if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
+        const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
+        if (!writability.ok) {
+          throw new Error('Refus d’écrire cloud : profil non inscriptible (' + (writability.reason || '?') + ')');
+        }
+        if (writability.degraded && emptyOutgoing && !window._allowEmptyProfileWrite) {
+          throw new Error('Refus d’écrire un profil vide : index cloud illisible');
+        }
+      }
       // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide
       if (window.getDoc) {
         let cloudGuardOk = false;
@@ -2219,6 +2220,9 @@ window._saveImpl = async function() {
             if (cur && cur._account === true) {
               throw new Error('Refus d’écrire le profil sur l’index compte cloud');
             }
+            if (cur && cur._deleted) {
+              throw new Error('Refus d’écrire : profil cloud marqué supprimé');
+            }
             const emptyCloud = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
               ? window.ProfilesIO.isEffectivelyEmptyProfile(cur)
               : false;
@@ -2227,7 +2231,7 @@ window._saveImpl = async function() {
             }
           }
         } catch (guardErr) {
-          if (/index compte|écraser|docRef profil/i.test(String(guardErr && guardErr.message))) throw guardErr;
+          if (/index compte|écraser|docRef profil|non inscriptible|marqué supprimé/i.test(String(guardErr && guardErr.message))) throw guardErr;
           // getDoc échoue : fail-closed si on tente d’écrire du vide
           if (emptyOutgoing && !window._allowEmptyProfileWrite) {
             throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');

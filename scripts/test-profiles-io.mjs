@@ -797,6 +797,86 @@ async function testNonEmptyLocalPreservedWhilePending() {
   assert(still.cours[0].uid === 'KEEP-ME', 'local blob untouched');
 }
 
+
+async function testNoStaleRepublishWithoutPending() {
+  console.log('\n· no stale republish when bytes announced but pending false');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const stale = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [{ uid: 'STALE', titre: 'Old' }], exercices: [], devoirs: []
+  };
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 50000, cloudBlobPending: false }
+    ],
+    deletedProfiles: {}
+  });
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 50000, cloudBlobPending: false }
+    ]
+  }));
+  store.setItem('active_profile', 'labo');
+  store.setItem('backup_local_cours__labo', JSON.stringify(stale));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.cloudPending === true, 'treated as pending/wait');
+  assert(resolved.docRef == null, 'no writable docRef for stale republish');
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'stale local not published');
+  assert(resolved.data && resolved.data.cours[0].uid === 'STALE', 'stale local kept for UI');
+}
+
+async function testWriteLocalRefusesEmptyOverNonEmpty() {
+  console.log('\n· writeLocal refuses empty over non-empty');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const env = baseEnv(store, fsMock, { isLocalMode: true });
+  const PIO = loadProfilesIO(env);
+  const rich = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [{ uid: 'X1' }], exercices: [], devoirs: []
+  };
+  assert(PIO.writeLocalProfileData('default', rich) === true, 'rich write ok');
+  const shell = {
+    settings: { userName: 'Étudiant' },
+    matieres: [{ id: 'PHYS', name: 'Physique' }],
+    classeurs: [], cours: [], exercices: [], devoirs: []
+  };
+  assert(PIO.isEffectivelyEmptyProfile(shell) === true, 'shell empty');
+  assert(PIO.writeLocalProfileData('default', shell) === false, 'empty over rich refused');
+  assert(PIO.readLocalProfileData('default').cours[0].uid === 'X1', 'rich preserved');
+  env._allowEmptyProfileWrite = true;
+  assert(PIO.writeLocalProfileData('default', shell) === true, 'allowed with flag');
+}
+
+async function testAssertTombstonedNotWritable() {
+  console.log('\n· tombstoned profile not cloud-writable');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' }],
+    deletedProfiles: { labo: Date.now() }
+  });
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const w = await PIO.assertProfileCloudWritable(env.currentUser, 'labo');
+  assert(w.ok === false && w.reason === 'tombstoned', 'tombstoned refused');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -815,6 +895,9 @@ async function main() {
   await testShellLocalDoesNotPublishWhilePending();
   await testSeedOwnerCanPublishAfterBlobFail();
   await testNonEmptyLocalPreservedWhilePending();
+  await testNoStaleRepublishWithoutPending();
+  await testWriteLocalRefusesEmptyOverNonEmpty();
+  await testAssertTombstonedNotWritable();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }
