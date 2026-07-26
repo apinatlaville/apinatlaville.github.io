@@ -546,23 +546,31 @@ mature + qScore &gt; 3 → date = début de fenêtre ★ (formule nœud 4)</div>
     return `
       <div class="av-node accent-core" id="av-prio">
         <div class="av-num">6</div>
-        <div class="av-node-title">${window.iconLabel("layout-list", "Priorité — le seul score de tri")}</div>
-        <p class="av-node-sub">Un nombre <code>prio</code> · plus de score d’urgence composite V1 (I_R + coefs W_*)</p>
+        <div class="av-node-title">${window.iconLabel("layout-list", "Priorité — 2 files (X- et Y-)")}</div>
+        <p class="av-node-sub">Deux scores <b>non comparables</b> · W- reste sur <code>urgenceDevoir</code></p>
         <div class="av-node-body">
-          <div class="av-formula"><b>prio</b> = somme simple (priorityScore)
+          <div class="av-formula"><b>prioX</b> (cours / exos) — <code>priorityScore</code>
 
 ① Retard (overdue)     → +10 000 + 100 × jours de retard
 ② Fenêtre active       → +5 000
    + si mature et fin de fenêtre dans ≤ 5 j → +(5 − joursRestants) × 80
 ③ Bientôt (soon)       → +2 000  (éligible session seulement si pullForward)
 ④ Importance ★         → +200 × étoiles (1→5)
-⑤ Ease bas             → +(2,8 − ease) × 60
+⑤ Ease bas             → +(2,8 − ease) × 60</div>
+          <div class="av-formula" style="margin-top:10px;"><b>prioY</b> (rapides) — <code>priorityScoreQuick</code>
 
-Pas de terme _blocageActif dans prio V2.</div>
-          <p><b>Lecture :</b> une carte en retard domine toujours. Dans la fenêtre active, ★5 passe avant ★2. L’ease bas départage à priorité égale. Fin de fenêtre mature = petit bonus pour ne pas la rater.</p>
-          <div class="av-h4">Simulation — 6 situations</div>
+① Retard               → +1 000 + 40 × jours
+② Fenêtre active       → +400
+   + apprentissage     → +120 · consolidation → +40
+③ Soon                 → +120
+④ Importance ★         → +50 × étoiles
+⑤ Ease bas             → +(2,8 − ease) × 25
+
+Échelles séparées : une Y- overdue ne « bat » jamais une X- dans le même tri.</div>
+          <p><b>Lecture :</b> chaque file trie <i>ses</i> cartes. Le Cockpit affiche X- puis Y-. La session tisse les Y- au milieu après sélection par <code>prioY</code>.</p>
+          <div class="av-h4">Simulation prioX — 6 situations</div>
           <div data-testid="viz-v2-sim">${rows}</div>
-          <p style="font-size:11px;color:var(--mut);margin-top:8px;">Barres normalisées sur la carte la plus prioritaire du lot.</p>
+          <p style="font-size:11px;color:var(--mut);margin-top:8px;">Barres normalisées sur la carte X- la plus prioritaire du lot.</p>
         </div>
       </div>
     `;
@@ -603,9 +611,9 @@ Pas de terme _blocageActif dans prio V2.</div>
           <div class="av-h4">Ordre de remplissage (buildSession — code réel)</div>
           <ol style="padding-left:20px;font-size:13px;line-height:1.75;margin:0;">
             <li><b>W- forcés</b> — <code>urgenceDevoir</code> ≥ ${seuil} (deadline + morceaux restants) · 1er bout même si ça surcharge un peu</li>
-            <li><b>X- éligibles</b> — overdue / active (+ soon si pullForward) · tri <code>prio</code></li>
+            <li><b>X- éligibles</b> — overdue / active (+ soon si pullForward) · tri <code>prioX</code></li>
             <li><b>W- extra forcés</b> puis <b>W- latents</b> — d’autres bouts si le budget le permet</li>
-            <li><b>Y- éligibles</b> — même règle overdue/active/soon · tissées dans le long pool (plafond ${maxQuick})</li>
+            <li><b>Y- éligibles</b> — tri <code>prioY</code> (file séparée) · tissées dans le long pool (plafond ${maxQuick})</li>
             <li><b>Y- extras</b> — s’il reste du budget après le tissage, encore des Y- en fin de file</li>
           </ol>
           <p style="font-size:12px;color:var(--mut);margin:10px 0 0;">

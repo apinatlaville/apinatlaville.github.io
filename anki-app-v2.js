@@ -264,15 +264,18 @@
     const today = window.AnkiAlgoV2.todayISO();
     if (window.AnkiAlgoV2.cardKind(c) === 'devoir' || isDevoirCard(c)) {
       const urg = window.AnkiAlgoV2.urgenceDevoir(c, today);
-      const bits = [`urg ${urg.total.toFixed(0)}`];
+      const bits = [`urgW ${urg.total.toFixed(0)}`];
       if (c.dateLimite) bits.push(`limite ${c.dateLimite}`);
       if (c._morceauxTotal) bits.push(`sess ${(c._morceauxFaits || 0) + 1}/${c._morceauxTotal}`);
       return bits.join(' · ');
     }
-    const sc = window.AnkiAlgoV2.priorityScore(c, today);
-    const phase = sc.raw.phase || window.AnkiAlgoV2.getPhase(c);
+    const isQuick = window.AnkiAlgoV2.cardKind(c) === 'quick' || isQuickCard(c);
+    const sc = isQuick
+      ? window.AnkiAlgoV2.priorityScoreQuick(c, today)
+      : window.AnkiAlgoV2.priorityScore(c, today);
+    const phase = (sc.raw && sc.raw.phase) || window.AnkiAlgoV2.getPhase(c);
     const bits = [
-      `prio ${sc.priority.toFixed(0)}`,
+      (isQuick ? 'prioY ' : 'prioX ') + sc.priority.toFixed(0),
       phase,
       `★${window.AnkiAlgoV2.getImportance(c)}`,
       `ease ${(c.ease || 2.5).toFixed(1)}`,
@@ -412,7 +415,7 @@
     root.innerHTML = `
       <div class="anki-head">
         <h2>${window.iconLabel('dna', 'Synchrotron')} <span class="anki-sub">— Répétition espacée PC*</span></h2>
-        <p>Fenêtres ★ · Phases (apprentissage → mature) · Score de priorité.</p>
+        <p>Fenêtres ★ · Phases · 2 files d’urgence (prioX / prioY) · Devoirs (urgW).</p>
       </div>
 
       <div class="anki-nav">
@@ -729,7 +732,9 @@
     const exos = window.D.exercices || [];
     const actifs = exos.filter(c => c.statut === 'actif' && !isQuickCard(c) && !isDevoirCard(c)).length;
     const reservoir = countReservoirMain();
-    const cands = window.AnkiAlgoV2.getCandidates(exos);
+    const candsX = window.AnkiAlgoV2.getCandidates(exos);
+    const candsY = window.AnkiAlgoV2.getQuickCandidates
+      ? window.AnkiAlgoV2.getQuickCandidates(exos) : [];
     const sessionMin = getSessionMinutesV2();
     const tile = typeof window.uiTile === 'function' ? window.uiTile : function (v, l, o) {
       const c = o && o.color ? ' style="color:' + o.color + ';"' : '';
@@ -738,9 +743,10 @@
     };
     return `
       <div class="anki-kpis">
-        ${tile(cands.length, 'Candidates', { color: 'var(--red)' })}
+        ${tile(candsX.length, 'Candidates X-', { color: 'var(--red)' })}
+        ${tile(candsY.length, 'Candidates Y-', { color: 'var(--cyan, #5bc0de)' })}
         ${tile(reservoir, 'Réservoir', { color: 'var(--gold)' })}
-        ${tile(actifs, 'Actives', { color: 'var(--grn)' })}
+        ${tile(actifs, 'Actives X-', { color: 'var(--grn)' })}
         ${tile(formatSessionKpi(sessionMin), 'Session', { id: 'ankiKpiSessionDur' })}
       </div>
       ${renderSessionTimeBar(sessionMin)}
@@ -758,14 +764,18 @@
 
   function getCockpitDisplayList() {
     const allCards = (window.D.exercices || []).filter(c => (c.statut === 'actif' || c.statut === 'attente' || c.statut === 'reservoir') && !isDevoirCard(c));
-    const candidats = window.AnkiAlgoV2.getCandidates(window.D.exercices)
-      .map(x => ({ ...x.card, _prio: x.score.total }));
+    const candidatsX = window.AnkiAlgoV2.getCandidates(window.D.exercices)
+      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'main' }));
+    const candidatsY = (window.AnkiAlgoV2.getQuickCandidates
+      ? window.AnkiAlgoV2.getQuickCandidates(window.D.exercices)
+      : [])
+      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'quick' }));
     const cockpitSearch = (S.cockpitSearch || '').trim().toLowerCase();
     const isManualTab = S.cockpitMode === 'manual';
-    let list = isManualTab ? allCards.map(c => ({
-      ...c,
-      _prio: window.AnkiAlgoV2.scoreSession(c).total
-    })) : candidats.slice();
+    let list = isManualTab ? allCards.map(c => {
+      const sc = window.AnkiAlgoV2.scoreSession(c);
+      return { ...c, _prio: sc.total, _prioFile: sc.file || (isQuickCard(c) ? 'quick' : 'main') };
+    }) : candidatsX.concat(candidatsY);
 
     if (S.cockpitFilterMat) list = list.filter(c => c.mat === S.cockpitFilterMat);
     if (S.cockpitFilterCours) {
@@ -785,13 +795,23 @@
         return blob.includes(cockpitSearch);
       });
       if (!isManualTab) {
-        list = list.map(c => ({
-          ...c,
-          _prio: c._prio != null ? c._prio : window.AnkiAlgoV2.scoreSession(c).total
-        }));
+        list = list.map(c => {
+          const sc = window.AnkiAlgoV2.scoreSession(c);
+          return {
+            ...c,
+            _prio: c._prio != null ? c._prio : sc.total,
+            _prioFile: c._prioFile || sc.file
+          };
+        });
       }
     }
-    list.sort((a, b) => (b._prio || 0) - (a._prio || 0));
+    // Files séparées : d’abord X- (tri prioX), puis Y- (tri prioY) — scores non comparables
+    list.sort((a, b) => {
+      const fa = a._prioFile === 'quick' || isQuickCard(a) ? 1 : 0;
+      const fb = b._prioFile === 'quick' || isQuickCard(b) ? 1 : 0;
+      if (fa !== fb) return fa - fb;
+      return (b._prio || 0) - (a._prio || 0);
+    });
     return list;
   }
 
@@ -1061,7 +1081,7 @@
         <div class="pc-uid">${c.id}</div>
         <div class="pc-title">${esc(c.titre || (c.question || '').substring(0, 48))}</div>
         <div class="anki-pcard-stats anki-mut">${cardAlgoStatsLine(c)}</div>
-        <div class="anki-pcard-urg" title="Priorité V2">${(c._prio || 0).toFixed(0)}</div>
+        <div class="anki-pcard-urg" title="${c._prioFile === 'quick' || isQuickCard(c) ? 'prioY (file rapides)' : 'prioX (file cours)'}">${(c._prio || 0).toFixed(0)}</div>
       </div>`;
   }
 
