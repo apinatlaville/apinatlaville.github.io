@@ -20,6 +20,7 @@
   var SNAP_INDEX_PREFIX = 'mc_profile_snaps__';
   var SNAP_DATA_PREFIX = 'backup_snap__';
   var MAX_SNAPSHOTS = 8;
+  var _lastIndexWriteError = null;
 
   /** Sections importables (cases à cocher) */
   var SECTIONS = [
@@ -118,6 +119,45 @@
 
   function isAccountIndex(data) {
     return !!(data && data._account === true && Array.isArray(data.profiles));
+  }
+
+  /** Index compte partiel (ex. _account sans profiles[]) — réparable, pas un refus dur. */
+  function isRepairableAccountDoc(data) {
+    return !!(data && data._account === true);
+  }
+
+  /**
+   * Firestore rejette les champs `undefined` → setDoc/transaction échoue
+   * → « Bascule cloud échouée (index non synchronisé) » + tailles figées à 0.
+   */
+  function stripUndefinedDeep(value) {
+    if (value === undefined) return undefined;
+    if (value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) {
+      return value.map(stripUndefinedDeep).filter(function (x) { return x !== undefined; });
+    }
+    var out = {};
+    Object.keys(value).forEach(function (k) {
+      var v = stripUndefinedDeep(value[k]);
+      if (v !== undefined) out[k] = v;
+    });
+    return out;
+  }
+
+  function profileIndexEntry(p) {
+    var entry = {
+      id: p.id,
+      name: p.name || p.id,
+      createdAt: p.createdAt || nowIso(),
+      updatedAt: p.updatedAt || nowIso(),
+      archived: !!p.archived,
+      bytes: Math.max(0, Number(p.bytes) || 0),
+      cloudBlobPending: !!p.cloudBlobPending
+    };
+    if (p.generation != null && p.generation !== '' && !isNaN(Number(p.generation))) {
+      entry.generation = Number(p.generation);
+    }
+    return entry;
   }
 
   /** true si l'objet ressemble à des données app (pas un index compte) */
@@ -1119,6 +1159,13 @@
         deletedProfiles = remote.deletedProfiles && typeof remote.deletedProfiles === 'object'
           ? Object.assign({}, remote.deletedProfiles)
           : {};
+      } else if (isRepairableAccountDoc(remote)) {
+        // _account sans profiles[] (doc partiel) → réparer au lieu de bloquer toutes les écritures
+        remoteProfiles = Array.isArray(remote.profiles) ? remote.profiles : [];
+        remoteActive = remote.activeProfile || null;
+        deletedProfiles = remote.deletedProfiles && typeof remote.deletedProfiles === 'object'
+          ? Object.assign({}, remote.deletedProfiles)
+          : {};
       } else if (isLegacyDataDoc(remote)) {
         return { ok: false, reason: 'legacy' };
       } else {
@@ -1136,16 +1183,7 @@
     var byId = Object.create(null);
     remoteProfiles.forEach(function (p) {
       if (!p || !p.id || removedSet[p.id] || deletedProfiles[p.id]) return;
-      byId[p.id] = {
-        id: p.id,
-        name: p.name || p.id,
-        createdAt: p.createdAt || nowIso(),
-        updatedAt: p.updatedAt || nowIso(),
-        archived: !!p.archived,
-        bytes: Math.max(0, Number(p.bytes) || 0),
-        cloudBlobPending: !!p.cloudBlobPending,
-        generation: p.generation != null ? Number(p.generation) : undefined
-      };
+      byId[p.id] = profileIndexEntry(p);
     });
     (meta.profiles || []).forEach(function (p) {
       if (!p || !p.id || removedSet[p.id] || deletedProfiles[p.id]) return;
@@ -1155,37 +1193,38 @@
         byId[p.id].name = p.name || byId[p.id].name;
         byId[p.id].updatedAt = p.updatedAt || nowIso();
         byId[p.id].archived = !!p.archived;
-        // Taille : si ce device a le blob, sa mesure prime ; sinon garder le max annoncé
-        if (hasLocalBlob) byId[p.id].bytes = localBytes;
-        else byId[p.id].bytes = Math.max(localBytes, Math.max(0, Number(byId[p.id].bytes) || 0));
-        // Génération : garder le max (recreate gagne)
-        if (p.generation != null) {
+        var cloudBytes = Math.max(0, Number(byId[p.id].bytes) || 0);
+        // Anti « 0 o » / coquille locale : ne pas écraser une taille cloud riche
+        // avec un blob local vide/shell (autre appareil sans les données).
+        if (hasLocalBlob) {
+          var localData = null;
+          try { localData = readLocalProfileData(p.id); } catch (eRead) { localData = null; }
+          var localEmpty = !localData || isEffectivelyEmptyProfile(localData);
+          if (localEmpty && cloudBytes > localBytes) {
+            byId[p.id].bytes = cloudBytes;
+          } else if (localBytes > 0) {
+            byId[p.id].bytes = localBytes;
+          } else {
+            byId[p.id].bytes = cloudBytes;
+          }
+        } else {
+          byId[p.id].bytes = Math.max(localBytes, cloudBytes);
+        }
+        if (p.generation != null && p.generation !== '' && !isNaN(Number(p.generation))) {
           var gLocal = Number(p.generation) || 0;
           var gRemote = Number(byId[p.id].generation) || 0;
-          byId[p.id].generation = Math.max(gLocal, gRemote) || p.generation;
+          byId[p.id].generation = Math.max(gLocal, gRemote) || gLocal;
         }
-        // Pending : seul un clear explicite (après setDoc blob réussi) peut baisser le flag
         if (p.cloudBlobPending === true) byId[p.id].cloudBlobPending = true;
         else if (p.cloudBlobPending === false) {
           var clearList = opts.clearBlobPendingIds || [];
           if (clearList.indexOf(p.id) !== -1) byId[p.id].cloudBlobPending = false;
         }
       } else {
-        // Profil local-only : ne pas contaminer un index cloud existant
-        // (création explicite via revivedIds, ou premier index remote absent)
         var revived = (opts.revivedIds || []).indexOf(p.id) !== -1;
         var allowOrphan = !!opts.allowLocalCreate || remote == null || revived;
         if (!allowOrphan) return;
-        byId[p.id] = {
-          id: p.id,
-          name: p.name || p.id,
-          createdAt: p.createdAt || nowIso(),
-          updatedAt: p.updatedAt || nowIso(),
-          archived: !!p.archived,
-          bytes: localBytes,
-          cloudBlobPending: !!p.cloudBlobPending,
-          generation: p.generation != null ? Number(p.generation) : undefined
-        };
+        byId[p.id] = profileIndexEntry(p);
       }
     });
 
@@ -1249,15 +1288,24 @@
    */
   async function persistAccountIndexCloud(user, meta, opts) {
     if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return true;
-    if (window.cloudConnected === false) return false;
+    if (window.cloudConnected === false) {
+      _lastIndexWriteError = 'cloud-disconnected';
+      return false;
+    }
     opts = opts || {};
+    _lastIndexWriteError = null;
 
     if (!window.getDoc && !window.runTransaction) {
       console.warn('[ProfilesIO] Index non écrit : getDoc indisponible');
+      _lastIndexWriteError = 'no-firestore-api';
       return false;
     }
 
     var ref = accountDocRef(user.sub);
+
+    function writePayload(payload) {
+      return stripUndefinedDeep(payload);
+    }
 
     // Chemin transactionnel (Firestore) — sérialise les merges concurrent
     if (typeof window.runTransaction === 'function') {
@@ -1269,14 +1317,16 @@
           if (!merged.ok) {
             var err = new Error(merged.reason === 'legacy' ? 'legacy' : 'unrecognized');
             err.code = 'INDEX_MERGE_REFUSED';
+            err.reason = merged.reason;
             throw err;
           }
-          tx.set(ref, merged.payload);
+          tx.set(ref, writePayload(merged.payload));
         });
         return true;
       } catch (e) {
         if (e && e.code === 'INDEX_MERGE_REFUSED') {
-          console.warn('[ProfilesIO] Index non écrit :', e.message);
+          console.warn('[ProfilesIO] Index non écrit :', e.message || e.reason);
+          _lastIndexWriteError = e.reason || e.message || 'merge-refused';
           return false;
         }
         console.warn('[ProfilesIO] Transaction index échouée — repli getDoc/setDoc:', e);
@@ -1290,19 +1340,22 @@
       if (snap.exists()) remote = snap.data();
     } catch (e) {
       console.warn('[ProfilesIO] Lecture index échouée — pas d’écriture:', e);
+      _lastIndexWriteError = 'index-read-failed';
       return false;
     }
 
     var merged = mergeAccountIndexPayload(remote, meta, opts);
     if (!merged.ok) {
       console.warn('[ProfilesIO] Index non écrit :', merged.reason);
+      _lastIndexWriteError = merged.reason || 'merge-refused';
       return false;
     }
     try {
-      await window.setDoc(ref, merged.payload);
+      await window.setDoc(ref, writePayload(merged.payload));
       return true;
     } catch (e) {
       console.warn('Écriture index profils cloud:', e);
+      _lastIndexWriteError = (e && e.message) ? String(e.message) : 'setDoc-failed';
       return false;
     }
   }
@@ -2011,9 +2064,10 @@
       throw new Error('Connexion cloud requise pour changer de profil sur tous les appareils.');
     }
 
-    // Secondaire : forcer une sauvegarde locale du profil courant avant bascule
-    if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
-        && !window.DeviceSession.canFullSave()) {
+    // Sauvegarde avant bascule : full-save si primary, sinon miroir local (secondaire / join)
+    var canFull = !(window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function')
+      || window.DeviceSession.canFullSave();
+    if (!canFull) {
       if (window.D && !writeLocalProfileData(fromId, window.D)) {
         throw new Error('Sauvegarde locale impossible avant bascule (appareil secondaire).');
       }
@@ -2021,16 +2075,32 @@
       try {
         await window.save();
       } catch (e) {
-        console.error('Save avant bascule profil:', e);
-        throw new Error(
-          'Sauvegarde du profil actuel impossible. Bascule annulée pour ne rien perdre. ' +
-          'Réessaie ou exporte tes données d’abord. Détail : ' + (e && e.message ? e.message : e)
-        );
+        var msg = String(e && e.message ? e.message : e);
+        // Join non résolu / secondaire : ne pas bloquer la bascule — miroir local suffit
+        if (/SECONDARY_READ_ONLY/i.test(msg)) {
+          if (window.D && !writeLocalProfileData(fromId, window.D)) {
+            throw new Error('Sauvegarde locale impossible avant bascule.');
+          }
+        } else {
+          console.error('Save avant bascule profil:', e);
+          throw new Error(
+            'Sauvegarde du profil actuel impossible. Bascule annulée pour ne rien perdre. ' +
+            'Réessaie ou exporte tes données d’abord. Détail : ' + msg
+          );
+        }
       }
     }
 
+    // Rafraîchir les tailles locales (évite de republier 0 o)
+    try {
+      (ensureLocalRegistry().profiles || []).forEach(function (p) {
+        if (p && p.id && getLocalProfileRaw(p.id)) {
+          setProfileBytesMeta(p.id, getProfileLiveBytes(p.id));
+        }
+      });
+    } catch (eBytes) { /* ignore */ }
+
     // Ne PAS re-pincher vers le nouveau profil tant que D = ancien blob
-    // (évite qu’un save concurrent écrive l’ancien D dans le nouveau profil)
     window._persistDisabled = true;
     var prevActive = fromId;
     var prevTs = (ensureLocalRegistry().activeProfileUpdatedAt) || '';
@@ -2039,7 +2109,6 @@
     meta = ensureLocalRegistry();
     var okIdx = await persistAccountIndexCloud(user, meta);
     if (needsCloud && window.cloudConnected && !okIdx) {
-      // Rollback local — ne pas recharger sur un état cloud désynchronisé
       try {
         var roll = ensureLocalRegistry();
         roll.activeProfile = prevActive;
@@ -2047,7 +2116,11 @@
         writeMetaLocal(roll);
       } catch (e2) { /* ignore */ }
       window._persistDisabled = false;
-      throw new Error('Bascule cloud échouée (index non synchronisé). Réessaie — rien n’a été changé sur les autres appareils.');
+      var detail = _lastIndexWriteError ? (' (' + _lastIndexWriteError + ')') : '';
+      throw new Error(
+        'Bascule cloud échouée (index non synchronisé' + detail + '). ' +
+        'Réessaie — rien n’a été changé sur les autres appareils.'
+      );
     }
     if (window.location && typeof window.location.reload === 'function') {
       window.location.reload();
@@ -2573,6 +2646,9 @@
     isProfilePayload: isProfilePayload,
     isAccountIndex: isAccountIndex,
     isEffectivelyEmptyProfile: isEffectivelyEmptyProfile,
+    mergeAccountIndexPayload: mergeAccountIndexPayload,
+    stripUndefinedDeep: stripUndefinedDeep,
+    getLastIndexWriteError: function () { return _lastIndexWriteError; },
     bindRegistryToUid: bindRegistryToUid,
     assertProfileCloudWritable: assertProfileCloudWritable,
     readLocalProfileData: readLocalProfileData,
