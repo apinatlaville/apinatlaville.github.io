@@ -53,17 +53,22 @@
   V2.cardDuration = function (c) { return needA1().cardDuration(c); };
 
   V2.getCandidates = function (exercices, ref) {
-    return V2.sortByPriority(exercices, ref).map(x => ({ card: x.card, score: { total: x.priority, breakdown: x.breakdown, raw: x.raw } }));
+    return V2.sortByPriority(exercices, ref).map(x => ({ card: x.card, score: { total: x.priority, breakdown: x.breakdown, raw: x.raw, file: x.file || "main" } }));
   };
 
-  /** Alias compat UI v1 : score unique = priorité V2. */
+  /** File Y- seule (jamais mélangée au tri X-). */
+  V2.getQuickCandidates = function (exercices, ref) {
+    return V2.sortByQuickPriority(exercices, ref).map(x => ({ card: x.card, score: { total: x.priority, breakdown: x.breakdown, raw: x.raw, file: "quick" } }));
+  };
+
+  /** Alias compat UI : route vers la bonne file (X- / Y- / W-). */
   V2.scoreSession = function (card, ref) {
-    const sc = V2.priorityScore(card, ref);
-    return { total: sc.priority, breakdown: sc.breakdown, raw: sc.raw };
+    const sc = V2.scoreForKind(card, ref);
+    return { total: sc.priority, breakdown: sc.breakdown, raw: sc.raw, file: sc.file };
   };
 
   V2.urgenceScore = function (card, ref) {
-    return V2.priorityScore(card, ref);
+    return V2.scoreForKind(card, ref);
   };
 
   V2.DEFAULT_SETTINGS = {
@@ -325,12 +330,15 @@
   };
 
   /**
-   * Score de priorité unique (affichage + tri session).
+   * Score file X- (cours / exos principaux) — tri session + cockpit.
    * Retard >> fenêtre active >> ★ >> ease bas >> fin de fenêtre proche.
+   * Ne jamais comparer ce nombre à priorityScoreQuick (échelles séparées).
    */
   V2.priorityScore = function (card, ref) {
     ref = ref || V2.todayISO();
-    if (!card || !V2.isActive(card)) return { priority: 0, breakdown: {}, raw: {} };
+    if (!card || !V2.isActive(card)) {
+      return { priority: 0, breakdown: {}, raw: {}, file: "main" };
+    }
 
     const imp = V2.getImportance(card);
     const ease = card.ease || 2.5;
@@ -368,17 +376,100 @@
     return {
       priority: Math.round(p * 100) / 100,
       breakdown: bd,
-      raw: { phase, windowState: ws, importance: imp, ease, IR: ir.IR }
+      raw: { phase, windowState: ws, importance: imp, ease, IR: ir.IR },
+      file: "main"
     };
+  };
+
+  /**
+   * Score file Y- (cartes rapides) — échelle indépendante de priorityScore (X-).
+   * Objectif : chauffer / ne pas laisser pourrir, sans rivaliser avec un exo X- en retard.
+   * overdue >> active (apprentissage boost) >> ★ >> ease >> soon.
+   */
+  V2.priorityScoreQuick = function (card, ref) {
+    ref = ref || V2.todayISO();
+    if (!card || !V2.isActive(card)) {
+      return { priority: 0, breakdown: {}, raw: {}, file: "quick" };
+    }
+
+    const imp = V2.getImportance(card);
+    const ease = card.ease || 2.5;
+    const ws = V2.windowState(card, ref);
+    const phase = V2.getPhase(card);
+    let p = 0;
+    const bd = { retard: 0, fenetre: 0, apprentissage: 0, importance: 0, difficulte: 0 };
+
+    if (ws === "overdue") {
+      const due = card.dateProchaineRevision || card._v2WindowOpen || ref;
+      const late = Math.max(1, V2.daysBetween(due, ref));
+      bd.retard = 1000 + late * 40;
+      p += bd.retard;
+    } else if (ws === "active") {
+      bd.fenetre = 400;
+      p += bd.fenetre;
+      // Phase acquisition : remonter les Y- encore fragiles dans *leur* file
+      if (phase === "learning") {
+        bd.apprentissage = 120;
+        p += bd.apprentissage;
+      } else if (phase === "consolidation") {
+        bd.apprentissage = 40;
+        p += bd.apprentissage;
+      }
+    } else if (ws === "soon") {
+      bd.fenetre = 120;
+      p += bd.fenetre;
+    }
+
+    bd.importance = imp * 50;
+    p += bd.importance;
+    bd.difficulte = Math.max(0, (2.8 - ease) * 25);
+    p += bd.difficulte;
+
+    const ir = V2.computeIR(card, ref);
+    return {
+      priority: Math.round(p * 100) / 100,
+      breakdown: bd,
+      raw: { phase, windowState: ws, importance: imp, ease, IR: ir.IR },
+      file: "quick"
+    };
+  };
+
+  /** Routeur : W- → urgenceDevoir (total), Y- → prioY, sinon prioX. */
+  V2.scoreForKind = function (card, ref) {
+    ref = ref || V2.todayISO();
+    if (!card) return { priority: 0, breakdown: {}, raw: {}, file: "main" };
+    const kind = V2.cardKind(card);
+    if (kind === "devoir") {
+      const d = V2.urgenceDevoir(card, ref);
+      return {
+        priority: d.total,
+        breakdown: d,
+        raw: { kind: "devoir" },
+        file: "devoir"
+      };
+    }
+    if (kind === "quick") return V2.priorityScoreQuick(card, ref);
+    return V2.priorityScore(card, ref);
   };
 
   V2.sortByPriority = function (cards, ref) {
     ref = ref || V2.todayISO();
     return (cards || [])
-      .filter(c => V2.isActive(c) && V2.cardKind(c) !== "devoir")
+      .filter(c => V2.isActive(c) && V2.cardKind(c) === "main")
       .map(c => {
         const sc = V2.priorityScore(c, ref);
-        return { card: c, priority: sc.priority, breakdown: sc.breakdown, raw: sc.raw };
+        return { card: c, priority: sc.priority, breakdown: sc.breakdown, raw: sc.raw, file: "main" };
+      })
+      .sort((a, b) => b.priority - a.priority);
+  };
+
+  V2.sortByQuickPriority = function (cards, ref) {
+    ref = ref || V2.todayISO();
+    return (cards || [])
+      .filter(c => V2.isActive(c) && V2.cardKind(c) === "quick")
+      .map(c => {
+        const sc = V2.priorityScoreQuick(c, ref);
+        return { card: c, priority: sc.priority, breakdown: sc.breakdown, raw: sc.raw, file: "quick" };
       })
       .sort((a, b) => b.priority - a.priority);
   };
@@ -557,7 +648,7 @@
 
     const quickSorted = pileQuick
       .filter(c => V2.isEligibleTonight(c, ref, o.pullForward))
-      .map(c => ({ card: c, sc: V2.priorityScore(c, ref) }))
+      .map(c => ({ card: c, sc: V2.priorityScoreQuick(c, ref) }))
       .sort((a, b) => b.sc.priority - a.sc.priority);
 
     // Y- tissées : respectent le budget + plafond ankiMaxAnglaisFill
@@ -758,12 +849,18 @@
       const ids = c.coursIds || (c.coursId ? [c.coursId] : []);
       return ids.includes(coursId);
     });
-    list.sort((a, b) => V2.priorityScore(b, ref).priority - V2.priorityScore(a, ref).priority);
-    // manualOrder : remplit le budget dans l'ordre donné, sans isEligibleTonight
-    return V2.buildSession(list, {
+    // Files séparées : X- puis Y- (scores non comparables entre files)
+    const mains = list.filter(c => V2.cardKind(c) === "main")
+      .sort((a, b) => V2.priorityScore(b, ref).priority - V2.priorityScore(a, ref).priority);
+    const quicks = list.filter(c => V2.cardKind(c) === "quick")
+      .sort((a, b) => V2.priorityScoreQuick(b, ref).priority - V2.priorityScoreQuick(a, ref).priority);
+    const devoirs = list.filter(c => V2.cardKind(c) === "devoir")
+      .sort((a, b) => V2.urgenceDevoir(b, ref).total - V2.urgenceDevoir(a, ref).total);
+    const ordered = devoirs.concat(mains).concat(quicks);
+    return V2.buildSession(ordered, {
       sessionMinutes: sessionMinutes || 120,
       pullForward: true,
-      manualOrder: list.map(c => c.id)
+      manualOrder: ordered.map(c => c.id)
     });
   };
 
