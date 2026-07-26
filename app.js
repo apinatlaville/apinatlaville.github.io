@@ -376,8 +376,15 @@ window.resetData = function() {
     (typeof window.escHtml === 'function' ? window.escHtml(pname) : pname) +
     ' »).<br>Les autres profils et tes exports JSON ne sont pas touchés.<br><br>Es-tu sûr ?',
     async () => {
-      window.D = JSON.parse(JSON.stringify(window.emptyData));
-      await window.save();
+      window._allowEmptyProfileWrite = true;
+      try {
+        window.D = JSON.parse(JSON.stringify(window.emptyData));
+        if (!window.D.meta) window.D.meta = {};
+        window.D.meta.updatedAt = Date.now();
+        await window.save();
+      } finally {
+        window._allowEmptyProfileWrite = false;
+      }
       location.reload();
     },
     'Réinitialisation du profil'
@@ -1602,7 +1609,8 @@ async function resolveCloudUserDoc(user) {
         profileId: resolved.profileId,
         accountRef: resolved.accountRef,
         legacyRoot: !!resolved.legacyRoot,
-        localOnly: !!resolved.localOnly
+        localOnly: !!resolved.localOnly,
+        cloudPending: !!resolved.cloudPending
       };
     } catch (e) {
       // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
@@ -1776,28 +1784,53 @@ async function initApp(user) {
           : resolveCloudUserDoc(user));
         window.docRef = cloud.docRef;
         window._accountDocRef = cloud.accountRef || null;
+        window._profileCloudPending = !!cloud.cloudPending;
         window._activeProfileId = cloud.profileId || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId());
         if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
           window.ProfilesIO.pinSessionProfileId(window._activeProfileId);
         }
-        if (cloud.localOnly) {
+        if (cloud.cloudPending) {
+          // Blob cloud pas encore dispo (création en cours sur un autre appareil) :
+          // pas de docRef writable → interdit de publier emptyData.
+          window.docRef = null;
+          window.cloudConnected = false;
+          console.warn('☁️ Profil en attente de synchronisation cloud (pas d’écriture vide).');
+        } else if (cloud.localOnly) {
           window.cloudConnected = false;
           console.warn('☁️ Repli local profil (cloud indisponible / structure).');
         }
         if (cloud.data && cloud.data._deleted) {
           window.D = null;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
         } else if (cloud.data && cloud.data._account === true) {
           console.error('☁️ Index compte refusé comme données app');
           window.D = null;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
         } else if (cloud.data) {
           window.D = cloud.data;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          // Miroir local pour conservation offline / bascule appareil
+          // (sauf pendant cloudPending : cloud.data est déjà le local conservé)
+          if (!cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
+            try { window.ProfilesIO.writeLocalProfileData(window._activeProfileId, window.D); } catch (mirrorErr) {
+              console.warn('Miroir local profil impossible:', mirrorErr);
+            }
+          }
           console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ', profil ' + (window._activeProfileId || '?') + ')');
         } else {
           window.D = null;
-          window.cloudConnected = !cloud.localOnly;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          // Pendant pending sans payload : tenter le local non vide avant emptyData
+          if (cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+            try {
+              const localPending = window.ProfilesIO.readLocalProfileData(window._activeProfileId || 'default');
+              if (localPending && !localPending._account
+                && !(window.ProfilesIO.isEffectivelyEmptyProfile && window.ProfilesIO.isEffectivelyEmptyProfile(localPending))) {
+                window.D = localPending;
+                console.warn('☁️ Pending cloud — conservation des données locales non vides.');
+              }
+            } catch (_) { /* ignore */ }
+          }
           console.log('☁️ Nouveau compte / profil (UID ' + user.sub + ')');
         }
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
@@ -1949,11 +1982,6 @@ async function initApp(user) {
   delete window.D.settings.pomoWork;
   delete window.D.settings.pomoBreak;
 
-  if (typeof window.reconcileOrphanCours === 'function') {
-    const reconciled = window.reconcileOrphanCours();
-    if (reconciled && !window._persistDisabled) window.save();
-  }
-
   if (window.isLocalMode) {
     window.D.settings.userName = "Mode Local";
     window.D.settings.appColor = '#5b9aff';
@@ -1973,12 +2001,6 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.start');
   window.applySettings();
   if (window.bootMark) window.bootMark('initApp.render.applySettings');
-  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
-    delete window.D.settings._needsAppearanceSave;
-    window.save();
-  } else if (window.D.settings._needsAppearanceSave) {
-    delete window.D.settings._needsAppearanceSave;
-  }
   window.renderMatieres();
   if (window.bootMark) window.bootMark('initApp.render.matieres');
   window.renderClasseurs();
@@ -1993,17 +2015,14 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.hydrateIcons');
   if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
   if (typeof window.ensureCardCreateFab === 'function') window.ensureCardCreateFab();
-  window.appReady = true;
-  if (window.bootMark) window.bootMark('initApp.done');
-  if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
-  if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
+  // Démarrer DeviceSession AVANT les saves post-migrate (anti faux-primary LWW)
   if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
-    // Multi-appareils uniquement si le cloud est OK — ne jamais bloquer le chargement des données
-    var deviceUserId = (!window.isLocalMode && window.cloudConnected && user && user.sub)
+    var deviceUserIdEarly = (!window.isLocalMode && window.cloudConnected && user && user.sub)
       ? user.sub
       : null;
-    Promise.resolve(window.DeviceSession.start(deviceUserId)).then(function () {
+    try {
+      await Promise.resolve(window.DeviceSession.start(deviceUserIdEarly));
       if (typeof window.applyDeviceRoleUi === 'function') {
         window.applyDeviceRoleUi(window.DeviceSession.getStatus());
       }
@@ -2011,10 +2030,33 @@ async function initApp(user) {
           && window.DeviceSession.isSecondary && window.DeviceSession.isSecondary()) {
         window.DeviceSession.watchUserData(window.docRef);
       }
-    }).catch(function (err) {
+    } catch (err) {
       console.warn('DeviceSession start:', err);
-    });
+    }
   }
+
+  if (typeof window.reconcileOrphanCours === 'function') {
+    const reconciled = window.reconcileOrphanCours();
+    if (reconciled && !window._persistDisabled) {
+      try { await window.save(); } catch (eSave) {
+        if (!/SECONDARY_READ_ONLY/i.test(String(eSave && eSave.message))) console.warn(eSave);
+      }
+    }
+  }
+
+  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
+    delete window.D.settings._needsAppearanceSave;
+    try { await window.save(); } catch (eSave2) {
+      if (!/SECONDARY_READ_ONLY/i.test(String(eSave2 && eSave2.message))) console.warn(eSave2);
+    }
+  } else if (window.D.settings._needsAppearanceSave) {
+    delete window.D.settings._needsAppearanceSave;
+  }
+
+  window.appReady = true;
+  if (window.bootMark) window.bootMark('initApp.done');
+  if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
+  if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
   if (window._pendingTab) {
     const pending = window._pendingTab;
@@ -2129,6 +2171,14 @@ window._saveImpl = async function() {
     || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
     || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
     || 'default';
+
+  const emptyOutgoing = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+    ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
+    : false;
+
+  // Anti-wipe local : délégué à writeLocalProfileData (garde centralisée)
+  // _allowEmptyProfileWrite autorise resetData
+
   if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
     okLocal = !!window.ProfilesIO.writeLocalProfileData(sessionPid, payload);
   } else {
@@ -2138,7 +2188,7 @@ window._saveImpl = async function() {
   }
   if (!okLocal) {
     if (typeof window.recordAppError === 'function') {
-      window.recordAppError('Erreur sauvegarde: localStorage indisponible', 'app.js');
+      window.recordAppError('Erreur sauvegarde: localStorage indisponible ou refus anti-wipe', 'app.js');
     }
     console.error("Échec sauvegarde locale");
     window.sysAlert(M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
@@ -2152,23 +2202,63 @@ window._saveImpl = async function() {
 
   if (window.cloudConnected && window.docRef && window.setDoc) {
     try {
-      // Garde-fou : ne jamais écraser un index compte avec un blob profil
+      // Garde-fou : docRef doit correspondre au profil de cette session
+      const refPath = window.docRef && (window.docRef._path || window.docRef.path || '');
+      if (refPath && /\/profiles\//.test(String(refPath))) {
+        const refPid = String(refPath).split('/profiles/').pop().split('/')[0];
+        if (refPid && sessionPid && refPid !== sessionPid) {
+          throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
+        }
+      }
+      // Garde-fou : profil tombstoné / pending ailleurs
+      if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
+        const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
+        if (!writability.ok) {
+          throw new Error('Refus d’écrire cloud : profil non inscriptible (' + (writability.reason || '?') + ')');
+        }
+      }
+      // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide
       if (window.getDoc) {
+        let cloudGuardOk = false;
         try {
           const snap = await window.getDoc(window.docRef);
+          cloudGuardOk = true;
           if (snap.exists()) {
             const cur = snap.data();
             if (cur && cur._account === true) {
               throw new Error('Refus d’écrire le profil sur l’index compte cloud');
             }
+            if (cur && cur._deleted) {
+              throw new Error('Refus d’écrire : profil cloud marqué supprimé');
+            }
+            const emptyCloud = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+              ? window.ProfilesIO.isEffectivelyEmptyProfile(cur)
+              : false;
+            if (emptyOutgoing && !emptyCloud && !window._allowEmptyProfileWrite) {
+              throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
+            }
           }
         } catch (guardErr) {
-          if (/index compte/i.test(String(guardErr && guardErr.message))) throw guardErr;
-          // getDoc échoue → on tente setDoc quand même
+          if (/index compte|écraser|docRef profil|non inscriptible|marqué supprimé/i.test(String(guardErr && guardErr.message))) throw guardErr;
+          // getDoc échoue : fail-closed si on tente d’écrire du vide
+          if (emptyOutgoing && !window._allowEmptyProfileWrite) {
+            throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
+          }
+          console.warn('Garde cloud getDoc échouée — écriture non vide autorisée:', guardErr);
         }
+        if (!cloudGuardOk && emptyOutgoing && !window._allowEmptyProfileWrite) {
+          throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
+        }
+      } else if (emptyOutgoing && !window._allowEmptyProfileWrite) {
+        throw new Error('Refus d’écrire un profil vide : getDoc indisponible');
       }
       await window.setDoc(window.docRef, window.D);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+      if (window.ProfilesIO && typeof window.ProfilesIO.syncActiveProfileIndexMeta === 'function') {
+        try { await window.ProfilesIO.syncActiveProfileIndexMeta(); } catch (metaErr) {
+          console.warn('Index profils (tailles) non sync:', metaErr);
+        }
+      }
     } catch (e) {
       const errMsg = e && e.message ? e.message : String(e);
       if (typeof window.recordAppError === 'function') {
