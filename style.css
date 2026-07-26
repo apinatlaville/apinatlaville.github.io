@@ -2584,6 +2584,60 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  margin-bottom: 8px;
  flex-wrap: wrap;
 }
+.quick-face-field {
+ display: flex;
+ gap: 6px;
+ flex: 1;
+ min-width: 180px;
+ align-items: stretch;
+}
+.quick-face-field input {
+ flex: 1;
+ min-width: 0;
+}
+.quick-face-field .bs,
+.quick-latex-btn {
+ flex: 0 0 auto;
+ white-space: nowrap;
+}
+.ql-card-lab .ql-meta {
+ display: grid;
+ grid-template-columns: 1fr 1fr auto;
+ gap: 12px;
+ align-items: end;
+ margin: 12px 0 16px;
+}
+.ql-card-lab .ql-toggles {
+ display: flex;
+ flex-direction: column;
+ gap: 6px;
+ padding-bottom: 4px;
+}
+.ql-card-lab .ql-toggle {
+ font-size: 13px;
+ display: flex;
+ align-items: center;
+ gap: 6px;
+}
+.ql-card-lab .ql-editors {
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: 12px;
+}
+.ql-card-lab .ql-side-preview {
+ min-height: 48px;
+ margin-bottom: 8px;
+}
+.qk-cours-chip {
+ font-size: 10px;
+ margin-left: 4px;
+}
+@media (max-width: 800px) {
+ .ql-card-lab .ql-meta,
+ .ql-card-lab .ql-editors {
+   grid-template-columns: 1fr;
+ }
+}
 .quick-create-row input, .quick-create-row select {
  flex: 1;
  min-width: 120px;

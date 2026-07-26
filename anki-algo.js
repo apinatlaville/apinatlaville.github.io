@@ -303,6 +303,7 @@
   //   X- → MAIN    : répétition espacée I_R + ease élastique (Phase 1a)
   //   Y- → QUICK   : comblage fin de session (Phase 2), tri I_R + entrelacement
   ALGO.QUICK_PROFILES = ['ANGLAIS', 'FORMULE']; // legacy fallback uniquement
+  ALGO.QUICK_DEFAULT_SEC = 30;
   ALGO.exoPrefixFromId = function (id) {
     if (!id || typeof id !== 'string') return null;
     const m = id.match(/^([WXY])-/i);
@@ -927,6 +928,10 @@
         restantMin = ((c.tempsCible || 60) / 60) * restants;
       }
       return Math.max(60, Math.round((restantMin / restants) * 60));
+    }
+    // Y- : durée fixe de packing (plus de saisie utilisateur)
+    if (ALGO.cardKind(c) === 'quick') {
+      return Math.max(15, c.tempsCible || ALGO.QUICK_DEFAULT_SEC || 30);
     }
     return (c.tempsCible || 60);
   };

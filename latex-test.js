@@ -1432,4 +1432,16 @@
       });
     });
   };
+
+  /** API partagée (cartes rapides LaTeX, etc.) */
+  window.ensureMathLive = ensureMathLive;
+  window.latexToMarkup = latexToMarkup;
+  window.latexBuildInline = function (before, latex, after) {
+    var math = (latex || '').trim() ? '\\(' + String(latex).trim() + '\\)' : '';
+    var parts = [];
+    if (before) parts.push(String(before));
+    if (math) parts.push(math);
+    if (after) parts.push(String(after));
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  };
 })();
