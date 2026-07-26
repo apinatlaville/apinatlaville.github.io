@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260726e';
+  window.__BOOT_CACHE_V = '20260726f';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -796,7 +796,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   const firebaseConfig = {
@@ -816,7 +816,9 @@
     if (window.bootMark) window.bootMark('firebase.init.start');
     window.firebaseReady = (async () => {
       const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+      // ignoreUndefinedProperties : évite qu’un champ undefined fasse échouer TOUTE
+      // écriture (index profils / blobs) → « bascule cloud échouée » + tailles 0 o
+      const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
       const auth = getAuth(app);
 
       window.db = db;
