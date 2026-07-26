@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260726f';
+  window.__BOOT_CACHE_V = '20260726g';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -511,12 +511,19 @@
   </div><!-- .app-workspace -->
 </div><!-- #appShell -->
 
+<div id="deviceSecondaryBrowseBar" class="device-secondary-browse-bar" hidden>
+  <button type="button" class="bs" id="btnDeviceLiteBack" onclick="window.deviceLiteCloseBaseDoc && window.deviceLiteCloseBaseDoc()">
+    <span data-icon="arrow-left"></span> Mode simplifié
+  </button>
+  <span class="device-secondary-browse-hint">Base Doc · lecture seule</span>
+</div>
+
 <div id="deviceSecondaryShell" class="device-secondary-shell" hidden aria-hidden="true">
   <div class="device-lite-inner">
     <div class="device-lite-header">
       <div>
         <h1 class="device-lite-title">Mode simplifié</h1>
-        <p class="device-lite-sub">Secondaire — scan, recherche, consultation</p>
+        <p class="device-lite-sub">Secondaire — scan, recherche, Base Doc</p>
       </div>
       <span id="deviceRoleChipLite" class="device-role-chip device-role-chip--secondary">Secondaire</span>
     </div>
@@ -533,6 +540,7 @@
       <h3>Actions</h3>
       <div class="device-lite-actions">
         <button type="button" class="bp" id="btnDeviceLiteCam" onclick="window.openCam && window.openCam()"><span data-icon="camera"></span> Scanner</button>
+        <button type="button" class="bs" id="btnDeviceLiteBaseDoc" onclick="window.deviceLiteOpenBaseDoc && window.deviceLiteOpenBaseDoc()"><span data-icon="clipboard-list"></span> Base Doc</button>
       </div>
     </div>
 

@@ -71,6 +71,7 @@
     'circle-minus': '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>',
     minus: '<path d="M5 12h14"/>',
     'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    'arrow-left': '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
     'skip-forward': '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>',
     layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 7.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="m2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>',
     'move-vertical': '<path d="M12 3v18"/><path d="m8 8 4-4 4 4"/><path d="m8 16 4 4 4-4"/>',
