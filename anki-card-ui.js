@@ -243,9 +243,87 @@ body.theme-light .modal.card-type-surface.card-type-quick {
     inset 0 1px 0 rgba(255, 255, 255, 0.26),
     0 3px 8px rgba(0, 0, 0, 0.32);
 }
+.anki-fab-create[aria-expanded="true"] {
+  transform: scale(1.04);
+}
 .anki-fab-create [data-icon] svg,
 .anki-fab-create svg {
   filter: none;
+}
+
+/* Menu Créer (même modèle Base Doc : une / à la suite) — cartes rapides */
+.anki-create-menu {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  z-index: 30;
+}
+.anki-create-menu.open {
+  z-index: 80;
+}
+.anki-create-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  min-width: 240px;
+  max-width: min(320px, 92vw);
+  padding: 6px;
+  border-radius: 10px;
+  border: 0.5px solid var(--bd);
+  background: #141822;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 90;
+  overflow: hidden;
+  isolation: isolate;
+}
+body.theme-light .anki-create-dropdown {
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(20, 30, 50, 0.18);
+}
+.anki-create-menu.open .anki-create-dropdown {
+  display: flex;
+}
+.anki-create-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--txt);
+  cursor: pointer;
+  font: inherit;
+}
+.anki-create-item:hover,
+.anki-create-item:focus-visible {
+  background: rgba(61, 148, 96, 0.18);
+  outline: none;
+}
+body.theme-light .anki-create-item:hover,
+body.theme-light .anki-create-item:focus-visible {
+  background: rgba(61, 148, 96, 0.12);
+}
+.anki-create-item strong {
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.anki-create-item .hint {
+  font-size: 11px;
+  color: var(--mut);
+  line-height: 1.35;
 }
 
 .anki-q-row .card-type-badge,
@@ -319,6 +397,7 @@ body.theme-light .modal.card-type-surface.card-type-quick {
     } else if (kind === 'main' && typeof window.ankiV2OpenExoModal === 'function') {
       window.ankiV2OpenExoModal(opts);
     } else if (kind === 'quick' && typeof window.ankiV2OpenQuickModal === 'function') {
+      if (!opts.mode) window._quickCreateMode = 'single';
       window.ankiV2OpenQuickModal(opts);
     }
   };
@@ -330,25 +409,103 @@ body.theme-light .modal.card-type-surface.card-type-quick {
     window.openCardTypePicker({ coursId: coursUid, mat: co.mat });
   };
 
+  window.closeAnkiCreateMenu = function () {
+    const menu = document.getElementById('ankiCreateMenu');
+    const trigger = document.getElementById('ankiFabCreate');
+    if (menu) menu.classList.remove('open');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  };
+
+  window.toggleAnkiCreateMenu = function () {
+    const menu = document.getElementById('ankiCreateMenu');
+    const trigger = document.getElementById('ankiFabCreate');
+    if (!menu || !trigger) return;
+    const open = !menu.classList.contains('open');
+    menu.classList.toggle('open', open);
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  /** Carte rapide — même modèle que Base Doc Créer (une / à la suite). */
+  window.openQuickCardCreate = function (mode) {
+    window.closeAnkiCreateMenu();
+    window._quickCreateMode = mode === 'batch' ? 'batch' : 'single';
+    window._quickCreateCount = 0;
+    const go = function () {
+      if (typeof window.ankiV2OpenQuickModal === 'function') {
+        window.ankiV2OpenQuickModal({ mode: window._quickCreateMode });
+      } else if (typeof window.openCardTypePicker === 'function') {
+        window.openCardTypePicker();
+      }
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('ankiV2').then(go).catch(go);
+    } else go();
+  };
+
   window.ensureCardCreateFab = function () {
     injectStyles();
     const bar = document.getElementById('syncDockBar');
     if (!bar) return;
-    let btn = document.getElementById('ankiFabCreate');
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.type = 'button';
-      btn.id = 'ankiFabCreate';
-      btn.className = 'anki-fab-create';
-      btn.setAttribute('aria-label', 'Créer une carte');
-      btn.title = 'Créer une carte';
-      btn.addEventListener('click', function () {
-        window.openCardTypePicker();
-      });
-      bar.appendChild(btn);
+
+    let menu = document.getElementById('ankiCreateMenu');
+    if (!menu) {
+      menu = document.createElement('div');
+      menu.id = 'ankiCreateMenu';
+      menu.className = 'anki-create-menu';
+      menu.innerHTML =
+        '<button type="button" class="anki-fab-create" id="ankiFabCreate" ' +
+          'aria-label="Créer une carte rapide" title="Créer une carte rapide" ' +
+          'aria-expanded="false" aria-haspopup="true"></button>' +
+        '<div class="anki-create-dropdown" role="menu">' +
+          '<button type="button" class="anki-create-item" id="btnAnkiQuickSingle" role="menuitem">' +
+            '<strong><span data-icon="zap" data-icon-size="14"></span> Créer une</strong>' +
+            '<span class="hint">1 carte rapide — ferme après création</span>' +
+          '</button>' +
+          '<button type="button" class="anki-create-item" id="btnAnkiQuickBatch" role="menuitem">' +
+            '<strong><span data-icon="layers" data-icon-size="14"></span> Créer à la suite</strong>' +
+            '<span class="hint">Enchaîne plusieurs cartes (même matière / chapitre)</span>' +
+          '</button>' +
+        '</div>';
+      bar.appendChild(menu);
+
+      const trigger = document.getElementById('ankiFabCreate');
+      if (trigger) {
+        trigger.addEventListener('click', function (e) {
+          e.stopPropagation();
+          window.toggleAnkiCreateMenu();
+        });
+      }
+      const single = document.getElementById('btnAnkiQuickSingle');
+      if (single) {
+        single.addEventListener('click', function (e) {
+          e.stopPropagation();
+          window.openQuickCardCreate('single');
+        });
+      }
+      const batch = document.getElementById('btnAnkiQuickBatch');
+      if (batch) {
+        batch.addEventListener('click', function (e) {
+          e.stopPropagation();
+          window.openQuickCardCreate('batch');
+        });
+      }
     }
-    btn.innerHTML = window.iconHtml ? window.iconHtml('plus', 22) : '+';
-    if (window.hydrateIcons) window.hydrateIcons(btn);
+
+    if (!window._ankiCreateMenuDocBound) {
+      window._ankiCreateMenuDocBound = true;
+      document.addEventListener('click', function (e) {
+        const m = document.getElementById('ankiCreateMenu');
+        if (!m || !m.classList.contains('open')) return;
+        if (m.contains(e.target)) return;
+        window.closeAnkiCreateMenu();
+      });
+    }
+
+    const btn = document.getElementById('ankiFabCreate');
+    if (btn) {
+      btn.innerHTML = window.iconHtml ? window.iconHtml('plus', 22) : '+';
+      if (window.hydrateIcons) window.hydrateIcons(menu);
+    }
   };
 
   window.renderCardCreateFab = function () {

@@ -2601,6 +2601,25 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  flex: 0 0 auto;
  white-space: nowrap;
 }
+.anki-quick-mode-pill {
+ display: inline-flex;
+ align-items: center;
+ gap: 4px;
+ margin-left: 8px;
+ padding: 2px 8px;
+ border-radius: 999px;
+ font-size: 11px;
+ font-weight: 600;
+ vertical-align: middle;
+ background: rgba(61, 148, 96, 0.16);
+ color: var(--grn, #3d9460);
+ border: 0.5px solid rgba(61, 148, 96, 0.35);
+}
+.anki-quick-mode-pill.is-batch {
+ background: rgba(91, 141, 247, 0.14);
+ color: var(--acc, #5b8df7);
+ border-color: rgba(91, 141, 247, 0.32);
+}
 
 /* Popup LaTeX Easy (remplace temporairement ovQuickCreate) */
 #ovQuickLatex .ql-easy-modal {

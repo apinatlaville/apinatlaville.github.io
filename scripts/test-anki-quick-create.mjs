@@ -34,6 +34,12 @@ assert(/ovQuickLatex|restoreOverlay|mountLatexEasyEditor/.test(latexSrc), 'popup
 assert(/restoreOverlay:\s*'ovQuickCreate'/.test(appSrc), 'FAB Rapide restaure ovQuickCreate');
 assert(/mountLatexEasyEditor/.test(fs.readFileSync(path.join(root, 'latex-test.js'), 'utf8')), 'API mountLatexEasyEditor lab');
 assert(/paneQuickLatex/.test(indexSrc) && /quickLatex/.test(navSrc), 'bundle quickLatex toujours enregistré');
+
+const cardUiSrc = fs.readFileSync(path.join(root, 'anki-card-ui.js'), 'utf8');
+assert(/ankiCreateMenu|openQuickCardCreate|btnAnkiQuickBatch/.test(cardUiSrc), 'menu FAB Créer une / à la suite');
+assert(/_quickCreateMode\s*===\s*'batch'|mode === 'batch'/.test(appSrc), 'mode batch carte rapide');
+assert(!/intercalaire/.test(cardUiSrc), 'pas d’intercalaire dans le menu cartes');
+assert(/ankiV2CloseQuickModal|Créer la suivante|Terminer/.test(appSrc), 'batch : Terminer / suivante');
 assert(/QUICK_DEFAULT_SEC\s*=\s*30/.test(algoSrc), 'durée packing Y- = 30s');
 assert(/cardKind\(c\) === 'quick'/.test(algoSrc), 'cardDuration branche quick');
 
