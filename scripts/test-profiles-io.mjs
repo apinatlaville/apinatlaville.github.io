@@ -1054,6 +1054,75 @@ async function testGenerationMismatchPurgesZombieLocal() {
   assert(!(cloud.cours || []).some(c => c.uid === 'OLD1'), 'zombie not republished to cloud');
 }
 
+async function testIndexWriteStripsUndefinedAndPreservesBytes() {
+  console.log('\n· index merge: no undefined + bytes cloud not wiped by local 0');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T18:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 0 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 0 }
+    ]
+  }));
+  store.setItem('backup_local_cours__default', JSON.stringify({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: []
+  }));
+  const remote = {
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 88000 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 42000 }
+    ],
+    deletedProfiles: {}
+  };
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const meta = PIO.ensureLocalRegistry();
+  const merged = PIO.mergeAccountIndexPayload(remote, meta, {});
+  assert(merged.ok === true, 'merge ok');
+  const def = merged.payload.profiles.find((p) => p.id === 'default');
+  const lab = merged.payload.profiles.find((p) => p.id === 'labo');
+  // Local blob empty shell has small size — must not wipe 88000 with 0 announced
+  assert(def.bytes === 88000 || def.bytes > 100, 'default does not publish bare 0 over cloud');
+  assert(lab.bytes === 42000, 'labo cloud bytes preserved without local blob');
+  assert(!('generation' in def), 'no undefined generation key');
+  const clean = PIO.stripUndefinedDeep({
+    a: 1,
+    b: undefined,
+    profiles: [{ id: 'x', generation: undefined, bytes: 3 }]
+  });
+  assert(!('b' in clean), 'strip removes undefined keys');
+  assert(clean.profiles[0].bytes === 3 && !('generation' in clean.profiles[0]), 'strip nested undefined');
+
+  fsMock.docs.set('utilisateurs/uid1', remote);
+  env.cloudConnected = true;
+  const ok = await PIO.syncActiveProfileIndexMeta();
+  assert(ok === true, 'syncActiveProfileIndexMeta ok');
+  const written = fsMock.docs.get('utilisateurs/uid1');
+  assert(!JSON.stringify(written).includes('undefined'), 'payload JSON has no undefined');
+}
+
+async function testRepairableAccountDocWithoutProfilesArray() {
+  console.log('\n· repairable _account without profiles[]');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const env = baseEnv(store, fsMock);
+  const PIO = loadProfilesIO(env);
+  const meta = {
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T19:00:00.000Z',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', bytes: 12 }]
+  };
+  const remote = { _account: true, schemaVersion: 1, activeProfile: 'default' };
+  const merged = PIO.mergeAccountIndexPayload(remote, meta, { allowLocalCreate: true });
+  assert(merged.ok === true, 'partial account doc merge ok');
+  assert(merged.payload.profiles.some((p) => p.id === 'default'), 'default present after repair');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -1079,6 +1148,8 @@ async function main() {
   await testEmptyCloudDoesNotClobberRichLocal();
   await testNewerThinnerCloudWinsOverOlderRichLocal();
   await testGenerationMismatchPurgesZombieLocal();
+  await testIndexWriteStripsUndefinedAndPreservesBytes();
+  await testRepairableAccountDocWithoutProfilesArray();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }
