@@ -650,6 +650,106 @@ async function testCreateBlobFailMarksPending() {
   assert(!!store.getItem('backup_local_cours__labo'), 'local seed preserved');
 }
 
+
+async function testShellLocalDoesNotPublishWhilePending() {
+  console.log('\n· emptyData shell on device B must not publish while pending');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const emptyShell = {
+    settings: { userName: 'Étudiant' },
+    matieres: [
+      { id: 'PHYS', name: 'Physique' },
+      { id: 'MATH', name: 'Mathématiques' }
+    ],
+    classeurs: [{ id: 'A', name: 'Classeur Phys A' }],
+    cours: [], exercices: [], devoirs: []
+  };
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-25T22:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 80000, cloudBlobPending: true }
+    ],
+    deletedProfiles: {}
+  });
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-25T22:00:00.000Z',
+    profiles: [
+      { id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't', bytes: 10 },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 80000, cloudBlobPending: true }
+    ]
+  }));
+  store.setItem('active_profile', 'labo');
+  // Coquille locale (comme après initApp emptyData + save local)
+  store.setItem('backup_local_cours__labo', JSON.stringify(emptyShell));
+
+  const env = baseEnv(store, fsMock);
+  env.emptyData = emptyShell;
+  const PIO = loadProfilesIO(env);
+  assert(PIO.isEffectivelyEmptyProfile(emptyShell) === true, 'template shell is effectively empty');
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.cloudPending === true, 'still cloudPending with shell local');
+  assert(resolved.docRef == null, 'no writable docRef with shell local');
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'shell not published to cloud');
+}
+
+async function testSeedOwnerCanPublishAfterBlobFail() {
+  console.log('\n· seed owner republishes after blob fail');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'Principal', createdAt: 't', updatedAt: 't' }],
+    deletedProfiles: {}
+  });
+  const env = baseEnv(store, fsMock);
+  env.D = {
+    settings: { userName: 'A' },
+    matieres: [{ id: 'm1', name: 'Math' }],
+    classeurs: [],
+    cours: [{ uid: 'KEEP', titre: 'Important' }],
+    exercices: [], devoirs: [], meta: {}
+  };
+  const PIO = loadProfilesIO(env);
+  const origSet = fsMock.setDoc.bind(fsMock);
+  let failBlob = true;
+  fsMock.setDoc = async function (ref, data) {
+    if (failBlob && String(ref._path || '').includes('/profiles/')) throw new Error('blob fail');
+    return origSet(ref, data);
+  };
+  env.setDoc = fsMock.setDoc;
+  try { await PIO.createProfile('Labo', { copyFromActive: true }); } catch (e) { /* expected */ }
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'blob still missing after create fail');
+  assert(store.getItem('mc_profile_seed_owner__labo') === '1', 'seed owner marked');
+
+  // Créateur recharge — doit publier
+  failBlob = false;
+  store.setItem('active_profile', 'labo');
+  const meta = JSON.parse(store.getItem('mc_profiles_meta'));
+  meta.activeProfile = 'labo';
+  meta.activeProfileUpdatedAt = '2026-07-25T23:00:00.000Z';
+  store.setItem('mc_profiles_meta', JSON.stringify(meta));
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1,
+    activeProfile: 'labo',
+    activeProfileUpdatedAt: '2026-07-25T23:00:00.000Z',
+    profiles: meta.profiles,
+    deletedProfiles: {}
+  });
+  const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(resolved.cloudPending !== true, 'owner resolve not pending');
+  assert(!!fsMock.docs.get('utilisateurs/uid1/profiles/labo'), 'owner published blob');
+  const blob = fsMock.docs.get('utilisateurs/uid1/profiles/labo');
+  assert(blob.cours && blob.cours.some((c) => c.uid === 'KEEP'), 'seed content preserved on cloud');
+  assert(!store.getItem('mc_profile_seed_owner__labo'), 'seed owner cleared after publish');
+}
+
 async function main() {
   console.log('ProfilesIO unit tests');
   await testReviveSameName();
@@ -665,6 +765,8 @@ async function main() {
   await testNoEmptyPublishWhileBlobPending();
   await testAccountSwitchPurgesLocalRegistry();
   await testCreateBlobFailMarksPending();
+  await testShellLocalDoesNotPublishWhilePending();
+  await testSeedOwnerCanPublishAfterBlobFail();
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);
 }

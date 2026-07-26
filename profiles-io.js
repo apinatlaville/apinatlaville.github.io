@@ -161,15 +161,44 @@
     if (meta.activeProfile) lsSet(ACTIVE_KEY, meta.activeProfile);
   }
 
-  /** Profil « vide » (nouveau / emptyData) — ne doit pas écraser un blob cloud existant. */
+  /**
+   * Profil « coquille » (emptyData / template) — sans cours ni synchrotron.
+   * Les matières/classeurs du template ne comptent PAS comme contenu utilisateur.
+   */
   function isEffectivelyEmptyProfile(data) {
     if (!data || typeof data !== 'object' || data._account === true) return true;
     var cours = Array.isArray(data.cours) ? data.cours.length : 0;
     var ex = Array.isArray(data.exercices) ? data.exercices.length : 0;
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
-    var mats = Array.isArray(data.matieres) ? data.matieres.length : 0;
-    var cls = Array.isArray(data.classeurs) ? data.classeurs.length : 0;
-    return (cours + ex + dv + mats + cls) === 0;
+    if (cours + ex + dv > 0) return false;
+    if (data.sessionEnCoursV2) return false;
+    return true;
+  }
+
+  function seedOwnerKey(profileId) {
+    return 'mc_profile_seed_owner__' + (profileId || DEFAULT_ID);
+  }
+  function markSeedOwner(profileId) {
+    lsSet(seedOwnerKey(profileId), '1');
+  }
+  function clearSeedOwner(profileId) {
+    lsRemove(seedOwnerKey(profileId));
+  }
+  function isSeedOwner(profileId) {
+    return !!lsGet(seedOwnerKey(profileId));
+  }
+
+  function purgeLocalBlobAndSnaps(profileId) {
+    if (!profileId) return;
+    lsRemove(localDataKey(profileId));
+    try {
+      var snaps = readSnapIndex(profileId);
+      (snaps || []).forEach(function (s) {
+        if (s && s.id) lsRemove(snapDataKey(profileId, s.id));
+      });
+    } catch (e) { /* ignore */ }
+    lsRemove(snapIndexKey(profileId));
+    clearSeedOwner(profileId);
   }
 
   /**
@@ -183,9 +212,13 @@
     if (bound && bound !== uid) {
       console.warn('[ProfilesIO] Changement de compte Google — purge registre local profils (évite contamination).');
       purgeLocalProfileStore();
+      lsSet(BOUND_UID_KEY, uid);
+      return { switched: true };
     }
+    // Première liaison (pas encore de bound) : on lie sans tout effacer (migration mode local → cloud),
+    // mais merge n’ajoutera pas de profils locaux orphelins à un index cloud déjà existant.
     lsSet(BOUND_UID_KEY, uid);
-    return { switched: !!(bound && bound !== uid) };
+    return { switched: false, firstBind: true };
   }
 
   function purgeLocalProfileStore() {
@@ -196,14 +229,7 @@
     }
     ids[DEFAULT_ID] = true;
     Object.keys(ids).forEach(function (id) {
-      lsRemove(localDataKey(id));
-      try {
-        var snaps = readSnapIndex(id);
-        (snaps || []).forEach(function (s) {
-          if (s && s.id) lsRemove(snapDataKey(id, s.id));
-        });
-      } catch (e) { /* ignore */ }
-      lsRemove(snapIndexKey(id));
+      purgeLocalBlobAndSnaps(id);
     });
     lsRemove(META_KEY);
     lsRemove(ACTIVE_KEY);
@@ -664,45 +690,56 @@
       };
     }
 
-    // Profil cloud absent : données locales UNIQUEMENT si le profil est dans l’index
-    // (évite de ressusciter un profil tombstoné)
+    // Profil cloud absent : republier UNIQUEMENT le seed du créateur (seed owner),
+    // jamais une coquille emptyData d’un autre appareil.
     var inIndex = accountData.profiles.some(function (p) { return p && p.id === profileId; });
     var indexEntry = (accountData.profiles || []).find(function (p) { return p && p.id === profileId; }) || null;
+    var announcedBytes = Math.max(0, Number(indexEntry && indexEntry.bytes) || 0);
+    var seedPending = !!(indexEntry && indexEntry.cloudBlobPending);
     var localD = null;
     if (inIndex && !deletedMap[profileId]) {
       localD = readLocalProfileData(profileId);
       if (localD && !isProfilePayload(localD)) localD = null;
-      if (localD && isProfilePayload(localD) && window.setDoc) {
-        // Ne publier un seed local vide que si l’index n’annonce pas déjà du contenu ailleurs
-        var announced = Math.max(0, Number(indexEntry && indexEntry.bytes) || 0);
-        var blobPending = !!(indexEntry && indexEntry.cloudBlobPending);
-        if (!isEffectivelyEmptyProfile(localD) || (!announced && !blobPending)) {
-          try {
-            await window.setDoc(pref, localD);
-            if (indexEntry && indexEntry.cloudBlobPending) {
-              try {
-                var metaClear = ensureLocalRegistry();
-                metaClear.profiles.forEach(function (p) {
-                  if (p && p.id === profileId) {
-                    p.cloudBlobPending = false;
-                    p.bytes = getProfileLiveBytes(profileId);
-                    p.updatedAt = nowIso();
-                  }
-                });
-                writeMetaLocal(metaClear);
-                await persistAccountIndexCloud(user, metaClear);
-              } catch (eClear) { /* ignore */ }
-            }
-          } catch (e) { /* ignore */ }
-        }
-      }
     }
 
-    // Cloud absent + pas de blob local utile : ne PAS lier un docRef writable avec emptyData
-    // (sinon un autre appareil publie du vide et masque le seed encore non uploadé).
-    var announcedBytes = Math.max(0, Number(indexEntry && indexEntry.bytes) || 0);
-    var seedPending = !!(indexEntry && indexEntry.cloudBlobPending);
-    if (!localD && inIndex && (announcedBytes > 0 || seedPending)) {
+    async function publishLocalSeedAndClearPending() {
+      if (!localD || !window.setDoc) return false;
+      try {
+        await window.setDoc(pref, localD);
+      } catch (e) { return false; }
+      clearSeedOwner(profileId);
+      if (indexEntry && indexEntry.cloudBlobPending) {
+        try {
+          var metaClear = ensureLocalRegistry();
+          metaClear.profiles.forEach(function (p) {
+            if (p && p.id === profileId) {
+              p.cloudBlobPending = false;
+              p.bytes = getProfileLiveBytes(profileId);
+              p.updatedAt = nowIso();
+            }
+          });
+          writeMetaLocal(metaClear);
+          await persistAccountIndexCloud(user, metaClear);
+        } catch (eClear) { /* ignore */ }
+      }
+      return true;
+    }
+
+    if (inIndex && !deletedMap[profileId] && (seedPending || announcedBytes > 0)) {
+      // Seed en cours / contenu annoncé ailleurs : seul le créateur (owner local) republie
+      if (localD && isSeedOwner(profileId)) {
+        await publishLocalSeedAndClearPending();
+        return {
+          docRef: pref,
+          accountRef: accountRef,
+          data: localD,
+          profileId: profileId,
+          legacyRoot: false,
+          migrated: false,
+          cloudPending: false
+        };
+      }
+      // Autre appareil (même avec coquille locale) : pas de docRef writable
       return {
         docRef: null,
         accountRef: accountRef,
@@ -713,6 +750,14 @@
         cloudPending: true,
         localOnly: true
       };
+    }
+
+    // Pas de pending : republier un vrai contenu local si cloud absent (reprise)
+    if (inIndex && !deletedMap[profileId] && localD && !isEffectivelyEmptyProfile(localD) && window.setDoc) {
+      try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
+    } else if (inIndex && !deletedMap[profileId] && localD && !seedPending && announcedBytes === 0 && window.setDoc) {
+      // Nouveau profil vraiment vide — OK
+      try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
     }
 
     return {
@@ -845,7 +890,10 @@
       sessionId = nextId;
     }
 
-    // Purger tous les tombstones (plus d’exception session)
+    // Purger tous les tombstones (meta + blobs locaux orphelins — anti republish après delete/recreate)
+    Object.keys(deleted).forEach(function (delId) {
+      if (delId) purgeLocalBlobAndSnaps(delId);
+    });
     meta.profiles = meta.profiles.filter(function (p) {
       if (!p || !p.id) return false;
       if (deleted[p.id]) return false;
@@ -922,6 +970,11 @@
         if (p.cloudBlobPending === false) byId[p.id].cloudBlobPending = false;
         else if (p.cloudBlobPending === true) byId[p.id].cloudBlobPending = true;
       } else {
+        // Profil local-only : ne pas contaminer un index cloud existant
+        // (création explicite via revivedIds, ou premier index remote absent)
+        var revived = (opts.revivedIds || []).indexOf(p.id) !== -1;
+        var allowOrphan = !!opts.allowLocalCreate || remote == null || revived;
+        if (!allowOrphan) return;
         byId[p.id] = {
           id: p.id,
           name: p.name || p.id,
@@ -1474,7 +1527,7 @@
     var meta = ensureLocalRegistry();
     meta.profiles = meta.profiles.filter(function (p) { return p.id !== id; });
     writeMetaLocal(meta);
-    lsRemove(localDataKey(id));
+    purgeLocalBlobAndSnaps(id);
   }
 
   async function createProfile(name, opts) {
@@ -1528,16 +1581,19 @@
       }
     });
     writeMetaLocal(meta);
+    if (needsCloud) markSeedOwner(id);
 
     // revivedIds : si on recrée un nom déjà tombstoné, on lève le tombstone
     var okIdx = await persistAccountIndexCloud(user, meta, { revivedIds: [id] });
     if (needsCloud && window.cloudConnected && !okIdx) {
+      clearSeedOwner(id);
       rollbackCreatedProfile(id);
       throw new Error('Index cloud non synchronisé — création annulée. Réessaie.');
     }
     if (needsCloud && window.cloudConnected && window.setDoc) {
       try {
         await window.setDoc(profileDocRef(user.sub, id), seed);
+        clearSeedOwner(id);
         meta = ensureLocalRegistry();
         meta.profiles.forEach(function (p) {
           if (p && p.id === id) {
@@ -1550,7 +1606,7 @@
         try { await persistAccountIndexCloud(user, meta); } catch (eMeta) { /* ignore */ }
       } catch (e) {
         console.warn('Création profil cloud (blob):', e);
-        // Index + local OK, cloudBlobPending reste true → les autres appareils n’écrivent pas de vide
+        // Index + local OK, cloudBlobPending + seed owner → seul ce device republie
         throw new Error(
           'Profil créé, mais la copie cloud des données a échoué. ' +
           'Ouvre ce profil (ou réessaie) pour synchroniser. Détail : ' + (e && e.message ? e.message : e)
