@@ -130,7 +130,9 @@
         coursIds: coursId ? [coursId] : [],
         question: q,
         reponse: r,
-        returnTab: 'flashcards'
+        restoreOverlay: null,
+        fieldQ: 'qkQ',
+        fieldR: 'qkR'
       });
     };
     if (typeof window.ensureScriptsForTab === 'function') {

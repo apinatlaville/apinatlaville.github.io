@@ -1126,7 +1126,8 @@ body.mode-compact .cdesc { display: none; }
 .ov.ov-scroll,
 #ovExo.ov,
 #ovDevoir.ov,
-#ovQuickCreate.ov {
+#ovQuickCreate.ov,
+#ovQuickLatex.ov {
  align-items: flex-start;
  justify-content: center;
  overflow-y: auto;
@@ -2599,6 +2600,26 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .quick-latex-btn {
  flex: 0 0 auto;
  white-space: nowrap;
+}
+
+/* Popup LaTeX Easy (remplace temporairement ovQuickCreate) */
+#ovQuickLatex .ql-easy-modal {
+ width: min(1100px, 96vw);
+ max-width: 1100px;
+ max-height: none;
+}
+.ql-easy-modal-head {
+ margin-bottom: 10px;
+}
+.ql-easy-face-tabs {
+ display: inline-flex;
+ margin-bottom: 10px;
+}
+.ql-easy-pane .latex-lab-easy-embed {
+ margin: 0;
+}
+.ql-easy-pane .latex-lab-work {
+ max-height: none;
 }
 .ql-card-lab .ql-meta {
  display: grid;

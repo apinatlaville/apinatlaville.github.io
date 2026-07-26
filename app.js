@@ -188,7 +188,10 @@ document.addEventListener('click', function(e) {
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
       else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
       else if (ov.id === 'ovMove') ov.classList.add('hidden');
-      else if (ov.id === 'ovExo' || ov.id === 'ovDevoir') ov.classList.add('hidden');
+      else if (ov.id === 'ovExo' || ov.id === 'ovDevoir' || ov.id === 'ovQuickCreate') ov.classList.add('hidden');
+      else if (ov.id === 'ovQuickLatex' && typeof window.closeQuickLatexPopup === 'function') {
+        window.closeQuickLatexPopup(false);
+      }
     }
   });
   const w = window.$('fabWrapper');

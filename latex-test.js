@@ -1444,4 +1444,361 @@
     if (after) parts.push(String(after));
     return parts.join(' ').replace(/\s+/g, ' ').trim();
   };
+
+  /**
+   * Monte une instance « LaTeX Easy » (même modèle que le labo) dans host.
+   * @returns {{ getInline:Function, setFromInline:Function, focus:Function, destroy:Function }}
+   */
+  window.mountLatexEasyEditor = function (host, opts) {
+    opts = opts || {};
+    if (!host) return null;
+    var prefix = opts.prefix || ('lex' + Math.random().toString(36).slice(2, 8));
+    var title = opts.title || 'LaTeX Easy';
+    var spaceMode = true;
+    var activeSection = 'maths';
+    var activeSub = 'base';
+    var mf = null;
+    var destroyed = false;
+
+    function pid(suf) { return prefix + suf; }
+    function gel(suf) { return document.getElementById(pid(suf)); }
+
+    function getLatex() {
+      if (!mf) return '';
+      try { return mf.getValue ? mf.getValue('latex') : (mf.value || ''); }
+      catch (e) { return mf.value || ''; }
+    }
+    function getBefore() { var el = gel('Before'); return el ? el.value : ''; }
+    function getAfter() { var el = gel('After'); return el ? el.value : ''; }
+
+    function syncPreview() {
+      var wrap = gel('PreviewWrap');
+      if (!wrap) return;
+      var latex = getLatex();
+      var before = getBefore();
+      var after = getAfter();
+      var html = '';
+      if (before) html += '<span class="latex-lab-preview-text">' + escHtml(before) + '</span>';
+      if (latex) html += '<span class="latex-lab-preview-math">' + latexToMarkup(latex) + '</span>';
+      if (after) html += '<span class="latex-lab-preview-text">' + escHtml(after) + '</span>';
+      if (!html) html = '<span class="anki-mut">Aperçu vide — tape une formule ou du texte</span>';
+      wrap.innerHTML = html;
+    }
+
+    function syncFromEditor() {
+      if (!mf) return;
+      var latex = getLatex();
+      var codeEl = gel('Code');
+      if (codeEl && document.activeElement !== codeEl) codeEl.value = latex;
+      syncPreview();
+    }
+
+    function applyLatex(latex, focus) {
+      if (!mf) return;
+      try { mf.value = latex || ''; } catch (e) { /* ignore */ }
+      syncFromEditor();
+      if (focus) { try { mf.focus(); } catch (e2) { /* ignore */ } }
+    }
+
+    function insertSnipLocal(latex) {
+      if (!mf) return;
+      try {
+        if (typeof mf.executeCommand === 'function') mf.executeCommand(['insert', latex]);
+        else mf.value = (mf.value || '') + latex;
+        mf.focus();
+      } catch (e) { /* ignore */ }
+      syncFromEditor();
+    }
+
+    function insertSpaceLocal(kind) {
+      var map = { thin: '\\,', med: '\\:', thick: '\\;', quad: '\\quad', qquad: '\\qquad', textsp: '\\ ' };
+      insertSnipLocal(map[kind] || '\\,');
+    }
+
+    function parseInline(str) {
+      var s = String(str || '');
+      var m = s.match(/^(.*?)\s*\\\(([\s\S]*?)\\\)\s*(.*)$/);
+      if (m) return { before: m[1].trim(), latex: m[2].trim(), after: m[3].trim() };
+      // pure latex-looking without delimiters → put in field
+      if (/\\[a-zA-Z{]/.test(s) && s.indexOf('\\(') < 0) {
+        return { before: '', latex: s.trim(), after: '' };
+      }
+      return { before: s, latex: '', after: '' };
+    }
+
+    function renderSnips(items) {
+      return items.map(function (s) {
+        var tip = s.title || s.label;
+        if (s.groupLabel && tip.indexOf(s.groupLabel) === -1) tip += ' · ' + s.groupLabel;
+        return (
+          '<button type="button" class="latex-lab-snip" data-snip="' + escHtml(s.id) + '" ' +
+            'title="' + escHtml(tip) + '">' + escHtml(s.label) + '</button>'
+        );
+      }).join('');
+    }
+
+    function wireSnips(container) {
+      if (!container) return;
+      container.querySelectorAll('[data-snip]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var snip = findSnipById(btn.getAttribute('data-snip'));
+          if (snip) insertSnipLocal(snip.latex);
+        });
+      });
+    }
+
+    function refreshPalette(query) {
+      if (destroyed) return;
+      var tabs = gel('Cats');
+      var subs = gel('Subs');
+      var grid = gel('Snips');
+      var titleEl = gel('CatTitle');
+      var hint = gel('PaletteHint');
+      var panel = gel('FamilyPanel');
+      var searchEl = gel('Search');
+      var q = query != null ? query : ((searchEl && searchEl.value) || '');
+      q = (q || '').trim();
+
+      if (q) {
+        if (tabs) tabs.querySelectorAll('.latex-lab-family').forEach(function (btn) {
+          btn.classList.remove('is-active');
+          btn.setAttribute('aria-selected', 'false');
+        });
+        if (subs) { subs.innerHTML = ''; subs.hidden = true; }
+        if (panel) panel.classList.add('is-searching');
+        var hits = searchSnips(q);
+        if (titleEl) titleEl.textContent = hits.length ? ('Résultats (' + hits.length + ')') : 'Aucun résultat';
+        if (hint) hint.textContent = 'Sans accents · fautes tolérées';
+        if (grid) {
+          grid.innerHTML = hits.length
+            ? renderSnips(hits)
+            : '<p class="anki-mut latex-lab-empty">Aucun symbole pour « ' + escHtml(q) + ' »</p>';
+          wireSnips(grid);
+        }
+        return;
+      }
+
+      if (panel) panel.classList.remove('is-searching');
+      var section = getSectionById(activeSection);
+      if (section.groups.indexOf(activeSub) === -1) activeSub = section.groups[0];
+
+      if (tabs) {
+        tabs.innerHTML = SNIP_SECTIONS.map(function (sec) {
+          var active = sec.id === activeSection ? ' is-active' : '';
+          return (
+            '<button type="button" class="latex-lab-family' + active + '" role="tab" ' +
+              'aria-selected="' + (sec.id === activeSection ? 'true' : 'false') + '" ' +
+              'data-section="' + escHtml(sec.id) + '">' +
+              '<span class="latex-lab-family-label">' + escHtml(sec.label) + '</span>' +
+              '<span class="latex-lab-family-count">' + sectionGroupCount(sec) + '</span>' +
+            '</button>'
+          );
+        }).join('');
+        tabs.querySelectorAll('[data-section]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            activeSection = btn.getAttribute('data-section');
+            activeSub = getSectionById(activeSection).groups[0];
+            refreshPalette('');
+          });
+        });
+      }
+
+      if (subs) {
+        var subHtml = section.groups.map(function (gid) {
+          var group = getGroupById(gid);
+          var active = gid === activeSub ? ' is-active' : '';
+          return (
+            '<button type="button" class="latex-lab-sub' + active + '" role="tab" ' +
+              'aria-selected="' + (gid === activeSub ? 'true' : 'false') + '" ' +
+              'data-sub="' + escHtml(gid) + '">' +
+              escHtml(group.label) +
+              '<span class="latex-lab-sub-count">' + group.items.length + '</span>' +
+            '</button>'
+          );
+        }).join('');
+        subs.innerHTML = subHtml;
+        subs.hidden = !subHtml;
+        subs.querySelectorAll('[data-sub]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            activeSub = btn.getAttribute('data-sub');
+            refreshPalette('');
+          });
+        });
+      }
+
+      var group = getGroupById(activeSub);
+      if (titleEl) titleEl.textContent = section.label + ' · ' + group.label;
+      if (hint) hint.textContent = 'Sous-onglet · ' + group.items.length + ' symboles';
+      if (grid) {
+        grid.innerHTML = renderSnips(group.items);
+        wireSnips(grid);
+      }
+    }
+
+    var freqGroup = getGroupById(QUICK_GROUP_ID);
+    var quickHtml = freqGroup
+      ? ('<div class="latex-lab-quick-row" role="toolbar" aria-label="Raccourcis fréquents">' +
+          '<span class="latex-lab-quick-label">Raccourcis</span>' +
+          '<div class="latex-lab-quick-snips">' + renderSnips(freqGroup.items) + '</div></div>')
+      : '';
+
+    host.innerHTML =
+      '<div class="latex-lab latex-lab-easy-embed">' +
+        '<header class="latex-lab-toolbar">' +
+          '<div class="latex-lab-toolbar-head">' +
+            '<h2 class="latex-lab-title"><span data-icon="flask-conical"></span> ' + escHtml(title) + '</h2>' +
+            '<div class="latex-lab-head-actions">' +
+              '<input type="search" id="' + pid('Search') + '" class="latex-lab-search" ' +
+                'placeholder="Sans accents : integrale, algebre…" autocomplete="off" spellcheck="true" lang="fr">' +
+              '<button type="button" class="bs" id="' + pid('Clear') + '" title="Effacer">' +
+                '<span data-icon="trash-2"></span></button>' +
+            '</div>' +
+          '</div>' +
+        '</header>' +
+        '<div class="latex-lab-work">' +
+          '<div class="latex-lab-compose">' +
+            '<section class="latex-lab-panel latex-lab-panel-preview">' +
+              '<div class="latex-lab-panel-label">Aperçu <span class="anki-mut">· texte + formule</span></div>' +
+              '<div class="latex-lab-preview-wrap" id="' + pid('PreviewWrap') + '"></div>' +
+            '</section>' +
+            '<section class="latex-lab-panel latex-lab-panel-editor">' +
+              '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">· Tab = case suivante · Espace = espacement</span></div>' +
+              '<input type="text" id="' + pid('Before') + '" class="latex-lab-text-field" ' +
+                'placeholder="Texte avant" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-field-wrap">' +
+                '<math-field id="' + pid('Field') + '" class="latex-lab-field"></math-field>' +
+              '</div>' +
+              '<input type="text" id="' + pid('After') + '" class="latex-lab-text-field" ' +
+                'placeholder="Texte après" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-quickbar" role="toolbar" aria-label="Insertions rapides">' +
+                '<button type="button" class="latex-lab-quick" data-space="thin" title="Espace fin">␣</button>' +
+                '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
+                '<button type="button" class="latex-lab-quick" data-space="quad" title="Grand espace">□</button>' +
+                '<button type="button" class="latex-lab-quick" id="' + pid('InsertText') + '" title="Texte dans la formule">\\text{}</button>' +
+                '<label class="latex-lab-space-toggle" title="Espace clavier → espacement LaTeX">' +
+                  '<input type="checkbox" id="' + pid('SpaceMode') + '" checked> Espace auto' +
+                '</label>' +
+              '</div>' +
+            '</section>' +
+          '</div>' +
+          '<section class="latex-lab-palette">' +
+            '<div id="' + pid('Quick') + '" class="latex-lab-quick-wrap">' + quickHtml + '</div>' +
+            '<div class="latex-lab-families" id="' + pid('Cats') + '" role="tablist"></div>' +
+            '<div class="latex-lab-family-panel" id="' + pid('FamilyPanel') + '">' +
+              '<div class="latex-lab-palette-head">' +
+                '<span class="latex-lab-panel-label" id="' + pid('CatTitle') + '">Maths · Bases</span>' +
+                '<span class="anki-mut latex-lab-palette-hint" id="' + pid('PaletteHint') + '">Sous-onglet</span>' +
+              '</div>' +
+              '<div class="latex-lab-subs" id="' + pid('Subs') + '" role="tablist"></div>' +
+              '<div class="latex-lab-snip-grid" id="' + pid('Snips') + '" role="tabpanel"></div>' +
+            '</div>' +
+          '</section>' +
+        '</div>' +
+        '<details class="latex-lab-code-panel">' +
+          '<summary class="latex-lab-code-summary">Code LaTeX <span class="anki-mut">— Espace = \\,</span></summary>' +
+          '<textarea id="' + pid('Code') + '" class="latex-lab-code" rows="3" spellcheck="false" ' +
+            'placeholder="\\frac{a}{b}"></textarea>' +
+        '</details>' +
+      '</div>';
+
+    if (typeof window.hydrateIcons === 'function') window.hydrateIcons(host);
+    refreshPalette('');
+    wireSnips(gel('Quick'));
+
+    var searchEl = gel('Search');
+    if (searchEl) searchEl.addEventListener('input', function () { refreshPalette(searchEl.value); });
+    host.querySelectorAll('[data-space]').forEach(function (btn) {
+      btn.addEventListener('click', function () { insertSpaceLocal(btn.getAttribute('data-space')); });
+    });
+    var textBtn = gel('InsertText');
+    if (textBtn) textBtn.addEventListener('click', function () { insertSnipLocal('\\text{#0}'); });
+    var spaceToggle = gel('SpaceMode');
+    if (spaceToggle) spaceToggle.addEventListener('change', function () { spaceMode = !!spaceToggle.checked; });
+    var clearBtn = gel('Clear');
+    if (clearBtn) clearBtn.addEventListener('click', function () {
+      applyLatex('', true);
+      var b = gel('Before'); var a = gel('After'); var c = gel('Code');
+      if (b) b.value = '';
+      if (a) a.value = '';
+      if (c) c.value = '';
+      syncPreview();
+    });
+
+    function wireMath() {
+      mf = gel('Field');
+      if (!mf) return;
+      configureMathField(mf);
+      mf.setAttribute('smart-mode', 'true');
+      mf.addEventListener('input', syncFromEditor);
+      mf.addEventListener('change', syncFromEditor);
+      mf.addEventListener('keydown', function (e) {
+        if (!spaceMode || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        insertSpaceLocal(e.shiftKey ? 'quad' : 'thin');
+      }, true);
+
+      var codeEl = gel('Code');
+      if (codeEl) {
+        codeEl.addEventListener('input', function () { applyLatex(codeEl.value, false); });
+        codeEl.addEventListener('keydown', function (e) {
+          if (!spaceMode || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+          var start = codeEl.selectionStart;
+          var end = codeEl.selectionEnd;
+          var val = codeEl.value || '';
+          if (isInsideTextCommand(val, start)) return;
+          e.preventDefault();
+          var token = e.shiftKey ? '\\quad' : '\\,';
+          codeEl.value = val.slice(0, start) + token + val.slice(end);
+          var pos = start + token.length;
+          codeEl.setSelectionRange(pos, pos);
+          applyLatex(codeEl.value, false);
+        });
+      }
+      ['Before', 'After'].forEach(function (suf) {
+        var el = gel(suf);
+        if (el) el.addEventListener('input', syncPreview);
+      });
+
+      if (opts.seedInline != null) {
+        var parts = parseInline(opts.seedInline);
+        var b = gel('Before'); var a = gel('After');
+        if (b) b.value = parts.before || '';
+        if (a) a.value = parts.after || '';
+        applyLatex(parts.latex || '', false);
+      } else {
+        syncFromEditor();
+      }
+      if (opts.autofocus !== false) {
+        try { mf.focus(); } catch (e) { /* ignore */ }
+      }
+    }
+
+    var ready = ensureMathLive().then(function () {
+      return customElements.whenDefined('math-field');
+    }).then(wireMath).catch(function (err) {
+      host.insertAdjacentHTML('afterbegin',
+        '<p class="latex-lab-error">' + escHtml((err && err.message) || 'MathLive indisponible') + '</p>');
+    });
+
+    return {
+      ready: ready,
+      getInline: function () {
+        return window.latexBuildInline(getBefore(), getLatex(), getAfter());
+      },
+      setFromInline: function (str) {
+        var parts = parseInline(str);
+        var b = gel('Before'); var a = gel('After');
+        if (b) b.value = parts.before || '';
+        if (a) a.value = parts.after || '';
+        applyLatex(parts.latex || '', false);
+      },
+      focus: function () { try { if (mf) mf.focus(); } catch (e) { /* ignore */ } },
+      destroy: function () {
+        destroyed = true;
+        mf = null;
+        host.innerHTML = '';
+      }
+    };
+  };
 })();
