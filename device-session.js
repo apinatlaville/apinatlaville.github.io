@@ -820,18 +820,74 @@
     bindPanelButtons(ov);
   };
 
+  function setSecondaryBrowseBar(visible) {
+    var bar = document.getElementById('deviceSecondaryBrowseBar');
+    if (!bar) return;
+    bar.hidden = !visible;
+    bar.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  }
+
+  window.deviceLiteCloseBaseDoc = function () {
+    document.body.classList.remove('device-role-secondary-browse');
+    setSecondaryBrowseBar(false);
+    var status = window.DeviceSession && window.DeviceSession.getStatus
+      ? window.DeviceSession.getStatus()
+      : null;
+    var stillSecondary = !!(status && status.enabled && status.joinResolved
+      && status.isSecondary && !status.needsRoleChoice);
+    if (stillSecondary) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      var shell = document.getElementById('deviceSecondaryShell');
+      if (shell) {
+        shell.hidden = false;
+        shell.setAttribute('aria-hidden', 'false');
+      }
+    }
+  };
+
+  window.deviceLiteOpenBaseDoc = function () {
+    var status = window.DeviceSession && window.DeviceSession.getStatus
+      ? window.DeviceSession.getStatus()
+      : null;
+    var secondary = !!(status && status.enabled && status.joinResolved
+      && status.isSecondary && !status.needsRoleChoice);
+    if (!secondary) {
+      if (typeof window.switchTab === 'function') window.switchTab('cours');
+      return;
+    }
+    document.body.classList.add('device-role-secondary-browse');
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    var shell = document.getElementById('deviceSecondaryShell');
+    if (shell) {
+      shell.hidden = true;
+      shell.setAttribute('aria-hidden', 'true');
+    }
+    setSecondaryBrowseBar(true);
+    if (typeof window.switchTab === 'function') window.switchTab('cours');
+    else if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.hydrateIcons === 'function') window.hydrateIcons();
+  };
+
   window.applyDeviceRoleUi = function (status) {
     status = status || (window.DeviceSession && window.DeviceSession.getStatus());
     if (!status) return;
 
     var secondary = !!(status.enabled && status.joinResolved && status.isSecondary && !status.needsRoleChoice);
     var choosing = !!(status.enabled && status.needsRoleChoice);
+    var browsing = secondary && document.body.classList.contains('device-role-secondary-browse');
 
     document.body.classList.toggle('device-role-secondary', secondary);
     document.body.classList.toggle('device-role-primary', !secondary && !choosing);
     document.body.classList.toggle('device-role-choosing', choosing);
+    if (!secondary) {
+      document.body.classList.remove('device-role-secondary-browse');
+      browsing = false;
+      setSecondaryBrowseBar(false);
+    }
 
-    if (secondary || choosing) {
+    if ((secondary && !browsing) || choosing) {
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
     } else {
@@ -841,9 +897,11 @@
 
     var shell = document.getElementById('deviceSecondaryShell');
     if (shell) {
-      shell.hidden = !secondary;
-      shell.setAttribute('aria-hidden', secondary ? 'false' : 'true');
+      var showShell = secondary && !browsing;
+      shell.hidden = !showShell;
+      shell.setAttribute('aria-hidden', showShell ? 'false' : 'true');
     }
+    if (browsing) setSecondaryBrowseBar(true);
 
     if (secondary) {
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
