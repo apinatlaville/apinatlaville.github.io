@@ -742,6 +742,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'logs': window.renderErrorLogs(); break;
     case 'test': break;
     case 'latexTest': if (typeof window.renderLatexTest === 'function') window.renderLatexTest(); break;
+    case 'quickLatex': if (typeof window.renderQuickLatexCard === 'function') window.renderQuickLatexCard(); break;
     default: break;
   }
 };

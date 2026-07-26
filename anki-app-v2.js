@@ -3801,7 +3801,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   }
 
   function coursLinkPrefix(kind) {
-    return kind === 'devoir' ? 'devoir' : 'exo';
+    if (kind === 'devoir') return 'devoir';
+    if (kind === 'quick') return 'quick';
+    return 'exo';
   }
   function renderCoursLinkUI(kind) {
     const prefix = coursLinkPrefix(kind || S._coursLinkKind || 'exo');
@@ -4064,25 +4066,36 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!ov) { ov = document.createElement("div"); ov.id = "ovQuickCreate"; ov.className = "ov"; document.body.appendChild(ov); }
     ov.classList.remove("hidden");
     const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
-    const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 0.5;
     ov.innerHTML = `
       <div class="modal card-type-surface card-type-quick">
         <h2>${window.iconLabel('zap', 'Nouvelle carte')} ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('quick') : ''} <span class="anki-mut" style="font-size:13px;font-weight:normal;">Rapide</span></h2>
-        <p class="anki-mut" style="font-size:12px;margin-top:-4px;">Active directement · comblage de session</p>
+        <p class="anki-mut" style="font-size:12px;margin-top:-4px;">Active directement · matière + chapitre · LaTeX optionnel</p>
         <div id="quickFormError" class="anki-form-error" role="alert"></div>
         <div class="fg">
           <label>Question / recto *</label>
-          <input type="text" id="quickQ" placeholder="Ex: « to elicit »" value="${esc(c.question || '')}">
+          <div class="quick-face-field">
+            <input type="text" id="quickQ" placeholder="Ex: « to elicit »" value="${esc(c.question || '')}">
+            <button type="button" class="bs" onclick="window.ankiV2QuickOpenLatex('recto')">${window.iconLabel('sigma', 'LaTeX')}</button>
+          </div>
         </div>
         <div class="fg">
           <label>Réponse / verso <span class="anki-mut" style="font-weight:normal;">(facultatif)</span></label>
-          <input type="text" id="quickR" placeholder="Traduction ou rappel court" value="${esc(c.reponse || '')}">
+          <div class="quick-face-field">
+            <input type="text" id="quickR" placeholder="Traduction ou rappel court" value="${esc(c.reponse || '')}">
+            <button type="button" class="bs" onclick="window.ankiV2QuickOpenLatex('verso')">${window.iconLabel('sigma', 'LaTeX')}</button>
+          </div>
         </div>
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="quickMat">${matOpts}</select></div>
-          <div class="fg"><label>Durée (min)</label><input type="number" id="quickTempsMin" min="0.25" max="5" step="0.25" value="${tempsMin}"></div>
+        </div>
+        <div class="fg">
+          <label>Chapitre / cours <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label>
+          ${searchField('Titre, matière, classeur, code...', `id="quickCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value,'quick')"`)}
+          <div id="quickCoursSelected" class="anki-link-selected"></div>
+          <div id="quickCoursResults" class="anki-link-results"></div>
         </div>
         <div class="macts">
+          <button type="button" class="bs" onclick="window.ankiV2QuickOpenLatex('both')">${window.iconLabel('sigma', 'Carte LaTeX')}</button>
           ${typeof window.uiModalActions === 'function'
             ? window.uiModalActions({ overlayId: 'ovQuickCreate', saveClick: 'window.ankiV2SaveQuick()', saveLabel: (window.APP_MSG && window.APP_MSG.CREATE) || 'Créer' })
             : '<button type="button" class="bs" onclick="window.hideOverlay(\'ovQuickCreate\')">Annuler</button><button type="button" class="bp" onclick="window.ankiV2SaveQuick()">Créer</button>'}
@@ -4090,16 +4103,44 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       </div>`;
     window.hydrateIcons(ov);
     bindAutoGrowTextareas(ov);
+    renderCoursLinkUI('quick');
     const qEl = $("quickQ");
     if (qEl) qEl.focus();
   }
+
+  window.ankiV2QuickOpenLatex = function (side) {
+    const mat = fieldVal('quickMat');
+    const q = fieldVal('quickQ');
+    const r = fieldVal('quickR');
+    const coursIds = Array.from(S.coursLinkSelection || []);
+    const ov = $("ovQuickCreate");
+    if (ov) ov.classList.add('hidden');
+    const go = function () {
+      if (typeof window.openQuickLatexCard !== 'function') {
+        window.sysAlert('Éditeur LaTeX non chargé.', 'Erreur');
+        return;
+      }
+      window.openQuickLatexCard({
+        latexRecto: side === 'recto' || side === 'both',
+        latexVerso: side === 'verso' || side === 'both',
+        focusSide: side === 'verso' ? 'verso' : 'recto',
+        mat,
+        coursIds,
+        question: q,
+        reponse: r,
+        returnTab: 'flashcards'
+      });
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('quickLatex').then(go).catch(go);
+    } else go();
+  };
 
   window.ankiV2SaveQuick = function () {
     showFormError('quickFormError', '');
     const q = fieldVal('quickQ');
     const r = fieldVal('quickR');
     const mat = fieldVal('quickMat');
-    const tempsMin = parseFloat(fieldVal('quickTempsMin')) || 0.5;
     if (!q) return showFormError('quickFormError', 'La question est obligatoire.');
     if (!mat) return showFormError('quickFormError', 'Choisis une matière.');
     const coursIds = Array.from(S.coursLinkSelection || []);
@@ -4108,7 +4149,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       reponse: r,
       mat,
       profil: 'ANGLAIS',
-      tempsCible: Math.max(15, Math.round(tempsMin * 60)),
+      tempsCible: 30,
       statut: 'actif',
       importance: 3,
       coursIds
@@ -4135,7 +4176,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       reponse: data.reponse || '',
       mat: matV,
       profil,
-      tempsCible: data.tempsCible || 60,
+      tempsCible: data.tempsCible != null ? data.tempsCible : 30,
       importance,
       statut,
       coursIds: data.coursIds || [],
