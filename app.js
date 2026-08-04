@@ -2222,6 +2222,7 @@ window._saveImpl = async function() {
         }
       }
       // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide
+      // + anti lost-update : si le cloud (ex. patch secondaire) a avancé la révision, merger avant écriture
       if (window.getDoc) {
         let cloudGuardOk = false;
         try {
@@ -2240,6 +2241,39 @@ window._saveImpl = async function() {
               : false;
             if (emptyOutgoing && !emptyCloud && !window._allowEmptyProfileWrite) {
               throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
+            }
+            const remoteRev = Number(cur && cur.meta && cur.meta.revision) || 0;
+            const localBase = (Number(window.D.meta && window.D.meta.revision) || 1) - 1;
+            if (remoteRev > localBase) {
+              // Le secondaire (ou un autre onglet) a écrit entre-temps — récupérer ses patches classement/stat
+              if (Array.isArray(cur.cours) && Array.isArray(window.D.cours)) {
+                const remoteByUid = Object.create(null);
+                cur.cours.forEach(function (rc) {
+                  if (rc && rc.uid) remoteByUid[rc.uid] = rc;
+                });
+                const statOrder = { pending: 0, printed: 1, active: 2 };
+                window.D.cours.forEach(function (lc) {
+                  const rc = remoteByUid[lc.uid];
+                  if (!rc) return;
+                  if (rc.stat && rc.stat !== lc.stat) {
+                    if ((statOrder[rc.stat] || 0) >= (statOrder[lc.stat] || 0)) lc.stat = rc.stat;
+                  }
+                  if (rc.cl && rc.inter && (rc.cl !== lc.cl || String(rc.inter) !== String(lc.inter))) {
+                    lc.cl = rc.cl;
+                    lc.inter = rc.inter;
+                  }
+                });
+              }
+              window.D.meta.revision = remoteRev + 1;
+              window.D.meta.updatedAt = Date.now();
+              console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
+              // Re-persister le local déjà écrit avec le merge
+              const mergedPayload = JSON.stringify(window.D);
+              if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+                window.ProfilesIO.writeLocalProfileData(sessionPid, mergedPayload);
+              } else if (typeof window.safeLocalSet === 'function') {
+                window.safeLocalSet('backup_local_cours', mergedPayload);
+              }
             }
           }
         } catch (guardErr) {

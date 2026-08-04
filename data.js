@@ -679,15 +679,35 @@ window.doLocate = function(uid) {
 
 // 🚨 CONFIRME INITIALISATION
 window.confirmInit = function(uid) {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
   const c = window.D.cours.find(x => x.uid === uid);
-  if(c) {
-      c.stat = 'active';
-      window.save();
-      window.renderCours();
-      window.renderDashboard();
-      window.closeLocPopup();
-      window.sysAlert(window.iconLabel('check', 'Document initialisé et classé avec succès !'), "Succès");
+  if (!c) return;
+
+  const onOk = function () {
+    if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    if (typeof window.closeLocPopup === 'function') window.closeLocPopup();
+    window.sysAlert(window.iconLabel('check', 'Document initialisé et classé avec succès !'), "Succès");
+  };
+  const onFail = function (err) {
+    console.warn('confirmInit:', err);
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible d’enregistrer l’initialisation (mode lecture ou sync).', 'Enregistrement');
+    }
+  };
+
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()) {
+    window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) return;
+      const row = data.cours.find(x => x.uid === uid);
+      if (row) row.stat = 'active';
+    }).then(onOk).catch(onFail);
+    return;
   }
+
+  c.stat = 'active';
+  Promise.resolve(window.save()).then(onOk).catch(onFail);
 };
 
 // 🚨 OUVRE POPUP DEPLACEMENT
@@ -736,25 +756,48 @@ window.saveMove = function() {
   const inter = window.$('fMoveInter') ? window.$('fMoveInter').value : '';
   
   if(!cl || !inter) return;
-  
-  const c = window.D.cours.find(x => x.uid === window.moveUid);
-  if(c) {
-      c.cl = cl;
-      c.inter = inter;
-      if (c.stat === 'printed') {
-          c.stat = 'active';
-      }
-      window.pruneUnsortedMatiere();
-      window.pruneUnsortedClasseur();
-      window.save();
-      window.renderCours();
-      window.renderClasseurs();
-      window.renderMatieres();
-      window.renderDashboard();
-      if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
-      if(window.$('ovMove')) window.$('ovMove').classList.add('hidden');
-      window.sysAlert(window.iconLabel('check', 'Document déplacé avec succès !'), "Déplacement réussi");
+  if (!window.D || !Array.isArray(window.D.cours)) return;
+
+  const moveUid = window.moveUid;
+  const c = window.D.cours.find(x => x.uid === moveUid);
+  if (!c) return;
+
+  const applyLocal = function (row) {
+    row.cl = cl;
+    row.inter = inter;
+    if (row.stat === 'printed') row.stat = 'active';
+  };
+
+  const onOk = function () {
+    if (typeof window.pruneUnsortedMatiere === 'function') window.pruneUnsortedMatiere();
+    if (typeof window.pruneUnsortedClasseur === 'function') window.pruneUnsortedClasseur();
+    if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
+    if (typeof window.renderMatieres === 'function') window.renderMatieres();
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
+    if (window.$('ovMove')) window.$('ovMove').classList.add('hidden');
+    window.sysAlert(window.iconLabel('check', 'Document déplacé avec succès !'), "Déplacement réussi");
+  };
+  const onFail = function (err) {
+    console.warn('saveMove:', err);
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible d’enregistrer le déplacement (mode lecture ou sync).', 'Enregistrement');
+    }
+  };
+
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()) {
+    window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) return;
+      const row = data.cours.find(x => x.uid === moveUid);
+      if (row) applyLocal(row);
+    }).then(onOk).catch(onFail);
+    return;
   }
+
+  applyLocal(c);
+  Promise.resolve(window.save()).then(onOk).catch(onFail);
 };
 
 window.delCours = function(uid) {
@@ -1198,6 +1241,7 @@ window.renderClasseurs = function() {
   try {
     const g = window.$('clGrid');
     if(!g) return;
+    if (!window.D || !Array.isArray(window.D.classeurs) || !Array.isArray(window.D.cours)) return;
 
     let html = `
       <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
@@ -1213,7 +1257,7 @@ window.renderClasseurs = function() {
       html += window.D.classeurs.map(cl => {
         const isSystem = window.isSystemClasseur(cl.id);
         const cc = window.D.cours.filter(c => c.cl===cl.id);
-        cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
+        cc.sort((a,b) => String(a.inter || '').localeCompare(String(b.inter || ''))); 
 
         let editBtns = window.isEditingCl ? `
           ${!isSystem ? `<button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">${window.iconLabel('pencil', 'Éditer')}</button>` : ''}
@@ -1377,6 +1421,7 @@ window.saveClEdit = function() {
 window.renderMatieres = function() {
   const el = window.$('mgMat');
   if(!el) return;
+  if (!window.D || !Array.isArray(window.D.matieres)) return;
 
   let html = `
     <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">

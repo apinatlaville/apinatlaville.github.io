@@ -2666,6 +2666,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   }
 
   function applyNextCardState() {
+    S._evalBusy = false;
     S.showAnswer = false;
     S.sliderValue = 7;
     S.sessionTempsManuel = null;
@@ -3130,6 +3131,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   window.evalCardV2 = function (qScore) {
     if (!S.current) return;
+    if (S._evalBusy) return;
+    S._evalBusy = true;
     qScore = Math.max(0, Math.min(10, qScore));
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     syncChronoElapsed();
@@ -3317,7 +3320,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     nextCard(true);
   };
   window.ankiV2SkipCard = function () {
-    if (!S.current) return;
+    if (!S.current || S._evalBusy) return;
+    S._evalBusy = true;
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     S.chronoRunning = false;
     nextCard(true, { skipCurrent: S.current });
@@ -3363,6 +3367,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
 
   window.abortAnkiV2Session = function () {
+    S._evalBusy = false;
     if (S.chronoInt) clearInterval(S.chronoInt);
     S.chronoInt = null;
     setSessionOverlayLock(false);
