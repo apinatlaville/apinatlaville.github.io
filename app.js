@@ -2245,7 +2245,9 @@ window._saveImpl = async function() {
             const remoteRev = Number(cur && cur.meta && cur.meta.revision) || 0;
             const localBase = (Number(window.D.meta && window.D.meta.revision) || 1) - 1;
             if (remoteRev > localBase) {
-              // Le secondaire (ou un autre onglet) a écrit entre-temps — récupérer ses patches classement/stat
+              // Remote en avance (souvent patch secondaire). Merge UNIQUEMENT le pipeline
+              // stat (pending→printed→active) — ne pas toucher cl/inter : un déplacement
+              // local du Principal serait sinon écrasé par un cloud périmé sur ce doc.
               if (Array.isArray(cur.cours) && Array.isArray(window.D.cours)) {
                 const remoteByUid = Object.create(null);
                 cur.cours.forEach(function (rc) {
@@ -2254,19 +2256,13 @@ window._saveImpl = async function() {
                 const statOrder = { pending: 0, printed: 1, active: 2 };
                 window.D.cours.forEach(function (lc) {
                   const rc = remoteByUid[lc.uid];
-                  if (!rc) return;
-                  if (rc.stat && rc.stat !== lc.stat) {
-                    if ((statOrder[rc.stat] || 0) >= (statOrder[lc.stat] || 0)) lc.stat = rc.stat;
-                  }
-                  if (rc.cl && rc.inter && (rc.cl !== lc.cl || String(rc.inter) !== String(lc.inter))) {
-                    lc.cl = rc.cl;
-                    lc.inter = rc.inter;
-                  }
+                  if (!rc || !rc.stat || rc.stat === lc.stat) return;
+                  if ((statOrder[rc.stat] || 0) > (statOrder[lc.stat] || 0)) lc.stat = rc.stat;
                 });
               }
               window.D.meta.revision = remoteRev + 1;
               window.D.meta.updatedAt = Date.now();
-              console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
+              console.warn('☁️ Merge révision cloud (remote en avance, stat only):', localBase, '→', remoteRev);
               // Re-persister le local déjà écrit avec le merge
               const mergedPayload = JSON.stringify(window.D);
               if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {

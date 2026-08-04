@@ -73,9 +73,10 @@ window.markOnePrinted = function() {
   if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
       && window.DeviceSession.canSecondaryPatch()) {
     window.DeviceSession.saveSecondaryPatch(function (data) {
-      if (!Array.isArray(data.cours)) return;
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
       const row = data.cours.find(x => x.uid === uid);
-      if (row) row.stat = nextStat;
+      if (!row) throw new Error('Document introuvable dans le cloud');
+      row.stat = nextStat;
     }).then(function () {
       window.renderCours && window.renderCours();
       window.showQR(uid);
@@ -86,6 +87,14 @@ window.markOnePrinted = function() {
         window.sysAlert('Impossible de synchroniser le statut depuis cet appareil.', 'Mode Secondaire');
       }
     });
+    return;
+  }
+
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible de synchroniser le statut depuis cet appareil.', 'Mode Secondaire');
+    }
     return;
   }
 
@@ -189,11 +198,13 @@ window.confirmPrintSuccess = function(success) {
 
   const uids = Array.from(window.printSel || []);
   const markPrinted = function (cours) {
-    if (!Array.isArray(cours)) return;
+    if (!Array.isArray(cours)) return 0;
+    let n = 0;
     uids.forEach(function (uid) {
       const x = cours.find(function (d) { return d.uid === uid; });
-      if (x && x.stat === 'pending') x.stat = 'printed';
+      if (x && x.stat === 'pending') { x.stat = 'printed'; n++; }
     });
+    return n;
   };
   const onOk = function () {
     window.printSel.clear();
@@ -211,13 +222,36 @@ window.confirmPrintSuccess = function(success) {
   if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
       && window.DeviceSession.canSecondaryPatch()) {
     window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
       markPrinted(data.cours);
     }).then(onOk).catch(onFail);
     return;
   }
 
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    onFail(new Error('SECONDARY_READ_ONLY'));
+    return;
+  }
+
+  const prevByUid = Object.create(null);
+  uids.forEach(function (uid) {
+    const x = window.D.cours.find(function (d) { return d.uid === uid; });
+    if (x) prevByUid[uid] = x.stat;
+  });
   markPrinted(window.D.cours);
-  Promise.resolve(window.save()).then(onOk).catch(onFail);
+  Promise.resolve(window.save()).then(onOk).catch(function (err) {
+    const msg = String(err && err.message || err || '');
+    if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+      uids.forEach(function (uid) {
+        const x = window.D.cours.find(function (d) { return d.uid === uid; });
+        if (x && Object.prototype.hasOwnProperty.call(prevByUid, uid)) x.stat = prevByUid[uid];
+      });
+      onFail(err);
+      return;
+    }
+    onOk();
+  });
 };
 
 window._camLifecycle = Promise.resolve();

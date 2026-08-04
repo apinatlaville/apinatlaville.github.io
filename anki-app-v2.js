@@ -3133,6 +3133,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!S.current) return;
     if (S._evalBusy) return;
     S._evalBusy = true;
+    try {
     qScore = Math.max(0, Math.min(10, qScore));
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     syncChronoElapsed();
@@ -3318,13 +3319,24 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     window.save();
     persistSession();
     nextCard(true);
+    } catch (err) {
+      S._evalBusy = false;
+      console.error('evalCardV2:', err);
+      throw err;
+    }
   };
   window.ankiV2SkipCard = function () {
     if (!S.current || S._evalBusy) return;
     S._evalBusy = true;
+    try {
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     S.chronoRunning = false;
     nextCard(true, { skipCurrent: S.current });
+    } catch (err) {
+      S._evalBusy = false;
+      console.error('ankiV2SkipCard:', err);
+      throw err;
+    }
   };
 
   window.ankiV2PauseSession = function () {
@@ -3345,6 +3357,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     window.sysConfirm(
       M.ABANDON_ACTIVE || "Abandonner cette session ? La file en cours sera effacée (les cartes déjà notées restent enregistrées).",
       function () {
+        S._evalBusy = false;
         if (S.chronoInt) clearInterval(S.chronoInt);
         S.chronoInt = null;
         const ov = $("ovAnkiSession");

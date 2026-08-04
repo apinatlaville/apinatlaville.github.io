@@ -699,15 +699,34 @@ window.confirmInit = function(uid) {
   if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
       && window.DeviceSession.canSecondaryPatch()) {
     window.DeviceSession.saveSecondaryPatch(function (data) {
-      if (!Array.isArray(data.cours)) return;
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
       const row = data.cours.find(x => x.uid === uid);
-      if (row) row.stat = 'active';
+      if (!row) throw new Error('Document introuvable dans le cloud');
+      row.stat = 'active';
     }).then(onOk).catch(onFail);
     return;
   }
 
+  // Secondaire sans patch : ne pas muter la mémoire (évite fantôme non persisté)
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    onFail(new Error('SECONDARY_READ_ONLY'));
+    return;
+  }
+
+  const prevStat = c.stat;
   c.stat = 'active';
-  Promise.resolve(window.save()).then(onOk).catch(onFail);
+  Promise.resolve(window.save()).then(onOk).catch(function (err) {
+    const msg = String(err && err.message || err || '');
+    // Rollback seulement si rien n’a été persisté (secondaire / localStorage)
+    if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+      c.stat = prevStat;
+      onFail(err);
+      return;
+    }
+    // Échec cloud : local OK — garder la mutation
+    onOk();
+  });
 };
 
 // 🚨 OUVRE POPUP DEPLACEMENT
@@ -789,15 +808,33 @@ window.saveMove = function() {
   if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
       && window.DeviceSession.canSecondaryPatch()) {
     window.DeviceSession.saveSecondaryPatch(function (data) {
-      if (!Array.isArray(data.cours)) return;
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
       const row = data.cours.find(x => x.uid === moveUid);
-      if (row) applyLocal(row);
+      if (!row) throw new Error('Document introuvable dans le cloud');
+      applyLocal(row);
     }).then(onOk).catch(onFail);
     return;
   }
 
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    onFail(new Error('SECONDARY_READ_ONLY'));
+    return;
+  }
+
+  const prev = { cl: c.cl, inter: c.inter, stat: c.stat };
   applyLocal(c);
-  Promise.resolve(window.save()).then(onOk).catch(onFail);
+  Promise.resolve(window.save()).then(onOk).catch(function (err) {
+    const msg = String(err && err.message || err || '');
+    if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+      c.cl = prev.cl;
+      c.inter = prev.inter;
+      c.stat = prev.stat;
+      onFail(err);
+      return;
+    }
+    onOk();
+  });
 };
 
 window.delCours = function(uid) {
