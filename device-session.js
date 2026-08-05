@@ -655,6 +655,9 @@
           }
           return window.setDoc(window.docRef, data).then(function () {
             window.D = data;
+            if (typeof window.captureCoursPlacementBase === 'function') {
+              window.captureCoursPlacementBase(data.cours);
+            }
             if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
               window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
             } else if (typeof window.safeLocalSet === 'function') {

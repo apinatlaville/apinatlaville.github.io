@@ -1813,6 +1813,9 @@ async function initApp(user) {
         } else if (cloud.data) {
           window.D = cloud.data;
           if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          if (typeof window.captureCoursPlacementBase === 'function') {
+            window.captureCoursPlacementBase(window.D.cours);
+          }
           // Miroir local pour conservation offline / bascule appareil
           // (sauf pendant cloudPending : cloud.data est déjà le local conservé)
           if (!cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
@@ -2105,6 +2108,62 @@ async function initApp(user) {
 }
 
 /**
+ * Baseline placement/stat des cours (pour merge 3-voies Principal ↔ patch Secondaire).
+ * Capturée après chargement cloud / setDoc réussi.
+ */
+window.captureCoursPlacementBase = function (cours) {
+  const base = Object.create(null);
+  const src = Array.isArray(cours) ? cours : (window.D && Array.isArray(window.D.cours) ? window.D.cours : []);
+  src.forEach(function (c) {
+    if (!c || !c.uid) return;
+    base[c.uid] = {
+      cl: c.cl || '',
+      inter: String(c.inter || ''),
+      stat: c.stat || ''
+    };
+  });
+  window._coursPlacementBase = base;
+  return base;
+};
+
+/**
+ * Merge patches cloud en avance : stat (pipeline max) + cl/inter en 3-voies
+ * (remote gagne seulement si le Principal n’a pas déplacé ce doc depuis la baseline).
+ */
+window.mergeRemoteCoursPatches = function (localCours, remoteCours) {
+  if (!Array.isArray(localCours) || !Array.isArray(remoteCours)) return;
+  const base = window._coursPlacementBase || Object.create(null);
+  const remoteByUid = Object.create(null);
+  remoteCours.forEach(function (rc) {
+    if (rc && rc.uid) remoteByUid[rc.uid] = rc;
+  });
+  const statOrder = { pending: 0, printed: 1, active: 2 };
+  localCours.forEach(function (lc) {
+    const rc = remoteByUid[lc.uid];
+    if (!rc) return;
+    if (rc.stat && rc.stat !== lc.stat) {
+      if ((statOrder[rc.stat] || 0) > (statOrder[lc.stat] || 0)) lc.stat = rc.stat;
+    }
+    if (!rc.cl || rc.inter == null || rc.inter === '') return;
+    const localCl = lc.cl || '';
+    const localInter = String(lc.inter || '');
+    const remoteCl = rc.cl || '';
+    const remoteInter = String(rc.inter || '');
+    if (localCl === remoteCl && localInter === remoteInter) return;
+    const b = base[lc.uid];
+    if (!b) return; // sans baseline : ne pas écraser un déplacement Principal potentiel
+    const baseCl = b.cl || '';
+    const baseInter = String(b.inter || '');
+    const localChanged = localCl !== baseCl || localInter !== baseInter;
+    const remoteChanged = remoteCl !== baseCl || remoteInter !== baseInter;
+    if (remoteChanged && !localChanged) {
+      lc.cl = rc.cl;
+      lc.inter = rc.inter;
+    }
+  });
+};
+
+/**
  * Sauvegarde locale + cloud Firestore (file d'attente : pas d'écritures concurrentes).
  * Retourne une Promise qui REJECTE en cas d'échec inattendu (les callers await le voient).
  * La file continue quand même pour les sauvegardes suivantes.
@@ -2245,24 +2304,13 @@ window._saveImpl = async function() {
             const remoteRev = Number(cur && cur.meta && cur.meta.revision) || 0;
             const localBase = (Number(window.D.meta && window.D.meta.revision) || 1) - 1;
             if (remoteRev > localBase) {
-              // Remote en avance (souvent patch secondaire). Merge UNIQUEMENT le pipeline
-              // stat (pending→printed→active) — ne pas toucher cl/inter : un déplacement
-              // local du Principal serait sinon écrasé par un cloud périmé sur ce doc.
-              if (Array.isArray(cur.cours) && Array.isArray(window.D.cours)) {
-                const remoteByUid = Object.create(null);
-                cur.cours.forEach(function (rc) {
-                  if (rc && rc.uid) remoteByUid[rc.uid] = rc;
-                });
-                const statOrder = { pending: 0, printed: 1, active: 2 };
-                window.D.cours.forEach(function (lc) {
-                  const rc = remoteByUid[lc.uid];
-                  if (!rc || !rc.stat || rc.stat === lc.stat) return;
-                  if ((statOrder[rc.stat] || 0) > (statOrder[lc.stat] || 0)) lc.stat = rc.stat;
-                });
+              // Remote en avance (souvent patch secondaire) — merge 3-voies via baseline
+              if (typeof window.mergeRemoteCoursPatches === 'function') {
+                window.mergeRemoteCoursPatches(window.D.cours, cur.cours);
               }
               window.D.meta.revision = remoteRev + 1;
               window.D.meta.updatedAt = Date.now();
-              console.warn('☁️ Merge révision cloud (remote en avance, stat only):', localBase, '→', remoteRev);
+              console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
               // Re-persister le local déjà écrit avec le merge
               const mergedPayload = JSON.stringify(window.D);
               if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
@@ -2293,6 +2341,9 @@ window._saveImpl = async function() {
       }
       await window.setDoc(window.docRef, toWrite);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+      if (typeof window.captureCoursPlacementBase === 'function') {
+        window.captureCoursPlacementBase(window.D && window.D.cours);
+      }
       if (window.ProfilesIO && typeof window.ProfilesIO.syncActiveProfileIndexMeta === 'function') {
         try { await window.ProfilesIO.syncActiveProfileIndexMeta(); } catch (metaErr) {
           console.warn('Index profils (tailles) non sync:', metaErr);

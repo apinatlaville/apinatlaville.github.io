@@ -683,10 +683,13 @@ window.confirmInit = function(uid) {
   const c = window.D.cours.find(x => x.uid === uid);
   if (!c) return;
 
-  const onOk = function () {
+  const onOkUi = function () {
     if (typeof window.renderCours === 'function') window.renderCours();
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
     if (typeof window.closeLocPopup === 'function') window.closeLocPopup();
+  };
+  const onOk = function () {
+    onOkUi();
     window.sysAlert(window.iconLabel('check', 'Document initialisé et classé avec succès !'), "Succès");
   };
   const onFail = function (err) {
@@ -724,8 +727,9 @@ window.confirmInit = function(uid) {
       onFail(err);
       return;
     }
-    // Échec cloud : local OK — garder la mutation
-    onOk();
+    // Échec cloud : local OK — garder la mutation, UI à jour, sans faux « Succès »
+    // (_saveImpl a déjà alerté l’échec de sync)
+    onOkUi();
   });
 };
 
@@ -787,7 +791,7 @@ window.saveMove = function() {
     if (row.stat === 'printed') row.stat = 'active';
   };
 
-  const onOk = function () {
+  const onOkUi = function () {
     if (typeof window.pruneUnsortedMatiere === 'function') window.pruneUnsortedMatiere();
     if (typeof window.pruneUnsortedClasseur === 'function') window.pruneUnsortedClasseur();
     if (typeof window.renderCours === 'function') window.renderCours();
@@ -796,6 +800,9 @@ window.saveMove = function() {
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
     if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
     if (window.$('ovMove')) window.$('ovMove').classList.add('hidden');
+  };
+  const onOk = function () {
+    onOkUi();
     window.sysAlert(window.iconLabel('check', 'Document déplacé avec succès !'), "Déplacement réussi");
   };
   const onFail = function (err) {
@@ -833,7 +840,7 @@ window.saveMove = function() {
       onFail(err);
       return;
     }
-    onOk();
+    onOkUi();
   });
 };
 
