@@ -1813,6 +1813,7 @@ async function initApp(user) {
         } else if (cloud.data) {
           window.D = cloud.data;
           if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
           if (typeof window.captureCoursPlacementBase === 'function') {
             window.captureCoursPlacementBase(window.D.cours);
           }
@@ -2220,7 +2221,8 @@ window._saveImpl = async function() {
   }
 
   if (!window.D.meta) window.D.meta = {};
-  window.D.meta.revision = (Number(window.D.meta.revision) || 0) + 1;
+  const prevRevision = Number(window.D.meta.revision) || 0;
+  window.D.meta.revision = prevRevision + 1;
   window.D.meta.updatedAt = Date.now();
   if (window.DeviceSession && typeof window.DeviceSession.getDeviceId === 'function') {
     window.D.meta.updatedBy = window.DeviceSession.getDeviceId();
@@ -2250,6 +2252,7 @@ window._saveImpl = async function() {
       : (function () { try { localStorage.setItem('backup_local_cours', payload); return true; } catch (e) { return false; } })();
   }
   if (!okLocal) {
+    window.D.meta.revision = prevRevision;
     if (typeof window.recordAppError === 'function') {
       window.recordAppError('Erreur sauvegarde: localStorage indisponible ou refus anti-wipe', 'app.js');
     }
@@ -2302,7 +2305,11 @@ window._saveImpl = async function() {
               throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
             }
             const remoteRev = Number(cur && cur.meta && cur.meta.revision) || 0;
-            const localBase = (Number(window.D.meta && window.D.meta.revision) || 1) - 1;
+            // Base = dernière révision cloud confirmée (pas revision-1 après un setDoc échoué)
+            const confirmed = window._lastCloudConfirmedRevision;
+            const localBase = (confirmed != null && confirmed !== '')
+              ? (Number(confirmed) || 0)
+              : prevRevision;
             if (remoteRev > localBase) {
               // Remote en avance (souvent patch secondaire) — merge 3-voies via baseline
               if (typeof window.mergeRemoteCoursPatches === 'function') {
@@ -2341,6 +2348,7 @@ window._saveImpl = async function() {
       }
       await window.setDoc(window.docRef, toWrite);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+      window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
       if (typeof window.captureCoursPlacementBase === 'function') {
         window.captureCoursPlacementBase(window.D && window.D.cours);
       }
@@ -2350,6 +2358,19 @@ window._saveImpl = async function() {
         }
       }
     } catch (e) {
+      // Remettre la révision d’avant cette tentative pour que le prochain merge
+      // détecte encore un cloud en avance (patch secondaire). Les données restent.
+      window.D.meta.revision = prevRevision;
+      try {
+        const rolled = JSON.stringify(window.D);
+        if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+          window.ProfilesIO.writeLocalProfileData(sessionPid, rolled);
+        } else if (typeof window.safeLocalSet === 'function') {
+          window.safeLocalSet('backup_local_cours', rolled);
+        }
+      } catch (rollErr) {
+        console.warn('Rollback révision locale impossible:', rollErr);
+      }
       const errMsg = e && e.message ? e.message : String(e);
       if (typeof window.recordAppError === 'function') {
         window.recordAppError('Erreur écriture cloud: ' + errMsg, 'app.js');

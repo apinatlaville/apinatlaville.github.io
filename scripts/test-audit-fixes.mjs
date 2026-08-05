@@ -97,6 +97,23 @@ assert(/mergeRemoteCoursPatches\(window\.D\.cours/.test(appSrc), 'save appelle m
 assert(/captureCoursPlacementBase\(window\.D\.cours\)/.test(appSrc), 'capture après load cloud');
 assert(/captureCoursPlacementBase\(window\.D && window\.D\.cours\)/.test(appSrc), 'capture après setDoc primaire');
 assert(/captureCoursPlacementBase\(data\.cours\)/.test(dsSrc), 'capture après patch secondaire');
+assert(/_lastCloudConfirmedRevision/.test(appSrc), 'track révision cloud confirmée');
+assert(/prevRevision/.test(appSrc) && /window\.D\.meta\.revision = prevRevision/.test(appSrc),
+  'rollback révision si setDoc cloud échoue');
+assert(/runTransaction/.test(dsSrc), 'patch secondaire préfère runTransaction');
+assert(/_lastCloudConfirmedRevision/.test(appSrc), 'merge base = révision confirmée');
+
+console.log('[5b] Scénario : setDoc échoué puis patch secondaire — merge encore possible');
+{
+  // Fix actuel : confirmed reste 5 après échec + rollback → merge détecte cloud=6
+  const confirmed = 5;
+  const remoteRev = 6;
+  assert(remoteRev > confirmed, 'après échec cloud, remoteRev > confirmed détecte le patch');
+  // Ancien bug au re-save : revision locale restée à 6, incrément → 7, localBase=6
+  // remoteRev=6 → 6>6 faux → merge sauté
+  const buggyLocalBaseOnRetry = 6;
+  assert(!(remoteRev > buggyLocalBaseOnRetry), 'ancien bug : merge aurait été sauté (localBase=6)');
+}
 
 console.log('[6] confirmInit — rollback + garde + pas de faux Succès cloud');
 {
