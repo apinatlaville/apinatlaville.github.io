@@ -429,6 +429,7 @@ body.theme-light .anki-create-item:focus-visible {
   /** Carte rapide — Créer une / à la suite (après choix du type Rapide). */
   window.openQuickCardCreate = function (mode) {
     window.closeAnkiCreateMenu();
+    if (typeof window.closeCardTypePicker === 'function') window.closeCardTypePicker();
     window._quickCreateMode = mode === 'batch' ? 'batch' : 'single';
     window._quickCreateCount = 0;
     const go = function () {
