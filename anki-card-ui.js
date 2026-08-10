@@ -355,7 +355,7 @@ body.theme-light .anki-create-item:focus-visible {
     window._cardCreateOpts = Object.assign({}, opts || {});
     const ov = ensurePickerOverlay();
     const linked = window._cardCreateOpts.coursId
-      ? (window.D.cours || []).find(c => c.uid === window._cardCreateOpts.coursId)
+      ? ((window.D && window.D.cours) || []).find(c => c.uid === window._cardCreateOpts.coursId)
       : null;
     const linkedHint = linked
       ? `<p class="anki-mut" style="font-size:12px;margin:6px 0 0;">Lié au cours <b>${esc(linked.uid)}</b> · ${esc(linked.title)}</p>`
@@ -434,9 +434,13 @@ body.theme-light .anki-create-item:focus-visible {
     window._quickCreateCount = 0;
     const go = function () {
       if (typeof window.ankiV2OpenQuickModal === 'function') {
-        window.ankiV2OpenQuickModal({ mode: window._quickCreateMode });
+        // Conserver coursId / mat issus du type picker (ex. « carte liée à ce cours »)
+        const opts = Object.assign({}, window._cardCreateOpts || {}, {
+          mode: window._quickCreateMode
+        });
+        window.ankiV2OpenQuickModal(opts);
       } else if (typeof window.openCardTypePicker === 'function') {
-        window.openCardTypePicker();
+        window.openCardTypePicker(window._cardCreateOpts || {});
       }
     };
     if (typeof window.ensureScriptsForTab === 'function') {
@@ -492,15 +496,10 @@ body.theme-light .anki-create-item:focus-visible {
       oldMenu.remove();
     }
 
-    let btn = document.getElementById('ankiFabCreate');
-    if (!btn) {
-      btn = document.createElement('button');
-      btn.type = 'button';
-      btn.id = 'ankiFabCreate';
-      btn.className = 'anki-fab-create';
-      btn.setAttribute('aria-label', 'Créer une carte');
-      btn.title = 'Créer une carte (devoir, principale ou rapide)';
-      btn.addEventListener('click', function (e) {
+    function bindOpenPicker(el) {
+      if (!el || el.dataset.cardTypePickerBound === '1') return;
+      el.dataset.cardTypePickerBound = '1';
+      el.addEventListener('click', function (e) {
         e.stopPropagation();
         const go = function () {
           if (typeof window.openCardTypePicker === 'function') window.openCardTypePicker();
@@ -509,13 +508,21 @@ body.theme-light .anki-create-item:focus-visible {
           window.ensureScriptsForTab('ankiV2').then(go).catch(go);
         } else go();
       });
-      bar.appendChild(btn);
-    } else {
-      btn.setAttribute('aria-label', 'Créer une carte');
-      btn.title = 'Créer une carte (devoir, principale ou rapide)';
-      btn.removeAttribute('aria-expanded');
-      btn.removeAttribute('aria-haspopup');
     }
+
+    let btn = document.getElementById('ankiFabCreate');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'ankiFabCreate';
+      btn.className = 'anki-fab-create';
+      bar.appendChild(btn);
+    }
+    btn.setAttribute('aria-label', 'Créer une carte');
+    btn.title = 'Créer une carte (devoir, principale ou rapide)';
+    btn.removeAttribute('aria-expanded');
+    btn.removeAttribute('aria-haspopup');
+    bindOpenPicker(btn);
     btn.innerHTML = window.iconHtml ? window.iconHtml('plus', 22) : '+';
     if (window.hydrateIcons) window.hydrateIcons(btn);
   };
