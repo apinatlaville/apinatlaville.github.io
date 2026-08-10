@@ -36,7 +36,12 @@ assert(/mountLatexEasyEditor/.test(fs.readFileSync(path.join(root, 'latex-test.j
 assert(/paneQuickLatex/.test(indexSrc) && /quickLatex/.test(navSrc), 'bundle quickLatex toujours enregistré');
 
 const cardUiSrc = fs.readFileSync(path.join(root, 'anki-card-ui.js'), 'utf8');
-assert(/ankiCreateMenu|openQuickCardCreate|btnAnkiQuickBatch/.test(cardUiSrc), 'menu FAB Créer une / à la suite');
+assert(/openCardTypePicker\(\)/.test(cardUiSrc), 'FAB ouvre le type picker');
+assert(/pickCardType|devoir.*main.*quick|card-type-picker/.test(cardUiSrc), 'choix Devoir / Principale / Rapide');
+assert(/openQuickCardCreate[\s\S]*_cardCreateOpts[\s\S]*ankiV2OpenQuickModal/.test(cardUiSrc),
+  'Rapide conserve coursId/mat via _cardCreateOpts');
+assert(/window\.D && window\.D\.cours/.test(cardUiSrc), 'type picker garde D null-safe');
+assert(/dataset\.cardTypePickerBound/.test(cardUiSrc), 'FAB listener lié une seule fois');
 assert(/_quickCreateMode\s*===\s*'batch'|mode === 'batch'/.test(appSrc), 'mode batch carte rapide');
 assert(!/intercalaire/.test(cardUiSrc), 'pas d’intercalaire dans le menu cartes');
 assert(/ankiV2CloseQuickModal|Créer la suivante|Terminer/.test(appSrc), 'batch : Terminer / suivante');
