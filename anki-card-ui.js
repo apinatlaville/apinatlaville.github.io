@@ -491,7 +491,12 @@ body.theme-light .anki-create-item:focus-visible {
     if (oldMenu) {
       const keepBtn = document.getElementById('ankiFabCreate');
       if (keepBtn && oldMenu.contains(keepBtn)) {
-        bar.appendChild(keepBtn);
+        // cloneNode retire les anciens listeners (toggle menu rapide)
+        const clean = keepBtn.cloneNode(false);
+        clean.id = 'ankiFabCreate';
+        clean.className = 'anki-fab-create';
+        delete clean.dataset.cardTypePickerBound;
+        bar.appendChild(clean);
       }
       oldMenu.remove();
     }
