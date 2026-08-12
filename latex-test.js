@@ -931,19 +931,20 @@
     return el ? el.value : '';
   }
 
+  function latexBuildInline(before, latex, after) {
+    var math = (latex || '').trim() ? '\\(' + String(latex).trim() + '\\)' : '';
+    var parts = [];
+    if (before) parts.push(String(before));
+    if (math) parts.push(math);
+    if (after) parts.push(String(after));
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
   /** Phrase complète : texte + \( latex \) + texte */
   function buildFullExport() {
     var latex = getEditorLatex().trim();
-    var before = getTextBefore();
-    var after = getTextAfter();
-    var math = latex ? '\\(' + latex + '\\)' : '';
-    var parts = [];
-    if (before) parts.push(before);
-    if (math) parts.push(math);
-    if (after) parts.push(after);
-    if (!parts.length) return latex;
-    // Espaces naturels entre texte et formule
-    return parts.join(' ').replace(/\s+/g, ' ').trim();
+    var built = latexBuildInline(getTextBefore(), latex, getTextAfter());
+    return built || latex;
   }
 
   function latexToMarkup(latex) {
@@ -961,16 +962,68 @@
     return '<span class="latex-lab-fallback-math">' + escHtml(latex) + '</span>';
   }
 
-  function syncPreview() {
-    var wrap = document.getElementById('latexTestPreviewWrap');
-    if (!wrap) return;
-    var latex = getEditorLatex();
-    var before = getTextBefore();
-    var after = getTextAfter();
+  /** Aperçu lab / Easy : texte échappé + formule markup (une seule voie). */
+  function formatLatexPreviewHtml(before, latex, after) {
     var html = '';
     if (before) html += '<span class="latex-lab-preview-text">' + escHtml(before) + '</span>';
     if (latex) html += '<span class="latex-lab-preview-math">' + latexToMarkup(latex) + '</span>';
     if (after) html += '<span class="latex-lab-preview-text">' + escHtml(after) + '</span>';
+    return html;
+  }
+
+  /** Segments texte / math pour faces carte (plusieurs \\( … \\) OK). */
+  function parseLatexInlineSegments(str) {
+    var s = String(str == null ? '' : str);
+    var segments = [];
+    var re = /\\\(([\s\S]*?)\\\)/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) segments.push({ type: 'text', value: s.slice(last, m.index) });
+      segments.push({ type: 'math', value: m[1] });
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) segments.push({ type: 'text', value: s.slice(last) });
+    if (!segments.length && s) segments.push({ type: 'text', value: s });
+    return segments;
+  }
+
+  /**
+   * Éditeur Easy (1 champ formule) : avant / latex / après.
+   * Les formules suivantes restent dans « after » pour un round-trip via latexBuildInline.
+   */
+  function parseLatexInlineForEditor(str) {
+    var s = String(str == null ? '' : str);
+    var m = s.match(/^(.*?)\s*\\\(([\s\S]*?)\\\)\s*(.*)$/);
+    if (m) return { before: m[1].trim(), latex: m[2].trim(), after: m[3].trim() };
+    if (/\\[a-zA-Z{]/.test(s) && s.indexOf('\\(') < 0) {
+      return { before: '', latex: s.trim(), after: '' };
+    }
+    return { before: s, latex: '', after: '' };
+  }
+
+  /** HTML sûr pour afficher une face (Rapide / session / dock). */
+  function formatCardFaceHtml(str) {
+    var s = String(str == null ? '' : str);
+    if (!s) return '';
+    if (s.indexOf('\\(') < 0) {
+      if (/\\[a-zA-Z{]/.test(s)) {
+        return '<span class="latex-lab-preview-math">' + latexToMarkup(s) + '</span>';
+      }
+      return escHtml(s);
+    }
+    return parseLatexInlineSegments(s).map(function (seg) {
+      if (seg.type === 'math') {
+        return '<span class="latex-lab-preview-math">' + latexToMarkup(seg.value) + '</span>';
+      }
+      return escHtml(seg.value);
+    }).join('');
+  }
+
+  function syncPreview() {
+    var wrap = document.getElementById('latexTestPreviewWrap');
+    if (!wrap) return;
+    var html = formatLatexPreviewHtml(getTextBefore(), getEditorLatex(), getTextAfter());
     if (!html) html = '<span class="anki-mut">Aperçu vide — tape une formule ou du texte</span>';
     wrap.innerHTML = html;
   }
@@ -1433,17 +1486,14 @@
     });
   };
 
-  /** API partagée (cartes rapides LaTeX, etc.) */
+  /** API partagée (cartes rapides LaTeX, session, dock, etc.) */
   window.ensureMathLive = ensureMathLive;
   window.latexToMarkup = latexToMarkup;
-  window.latexBuildInline = function (before, latex, after) {
-    var math = (latex || '').trim() ? '\\(' + String(latex).trim() + '\\)' : '';
-    var parts = [];
-    if (before) parts.push(String(before));
-    if (math) parts.push(math);
-    if (after) parts.push(String(after));
-    return parts.join(' ').replace(/\s+/g, ' ').trim();
-  };
+  window.latexBuildInline = latexBuildInline;
+  window.formatCardFaceHtml = formatCardFaceHtml;
+  window.formatQuickCardHtml = formatCardFaceHtml; /* alias Rapide */
+  window.parseLatexInlineForEditor = parseLatexInlineForEditor;
+  window.parseLatexInlineSegments = parseLatexInlineSegments;
 
   /**
    * Monte une instance « LaTeX Easy » (même modèle que le labo) dans host.
@@ -1474,13 +1524,7 @@
     function syncPreview() {
       var wrap = gel('PreviewWrap');
       if (!wrap) return;
-      var latex = getLatex();
-      var before = getBefore();
-      var after = getAfter();
-      var html = '';
-      if (before) html += '<span class="latex-lab-preview-text">' + escHtml(before) + '</span>';
-      if (latex) html += '<span class="latex-lab-preview-math">' + latexToMarkup(latex) + '</span>';
-      if (after) html += '<span class="latex-lab-preview-text">' + escHtml(after) + '</span>';
+      var html = formatLatexPreviewHtml(getBefore(), getLatex(), getAfter());
       if (!html) html = '<span class="anki-mut">Aperçu vide — tape une formule ou du texte</span>';
       wrap.innerHTML = html;
     }
@@ -1513,17 +1557,6 @@
     function insertSpaceLocal(kind) {
       var map = { thin: '\\,', med: '\\:', thick: '\\;', quad: '\\quad', qquad: '\\qquad', textsp: '\\ ' };
       insertSnipLocal(map[kind] || '\\,');
-    }
-
-    function parseInline(str) {
-      var s = String(str || '');
-      var m = s.match(/^(.*?)\s*\\\(([\s\S]*?)\\\)\s*(.*)$/);
-      if (m) return { before: m[1].trim(), latex: m[2].trim(), after: m[3].trim() };
-      // pure latex-looking without delimiters → put in field
-      if (/\\[a-zA-Z{]/.test(s) && s.indexOf('\\(') < 0) {
-        return { before: '', latex: s.trim(), after: '' };
-      }
-      return { before: s, latex: '', after: '' };
     }
 
     function renderSnips(items) {
@@ -1761,7 +1794,7 @@
       });
 
       if (opts.seedInline != null) {
-        var parts = parseInline(opts.seedInline);
+        var parts = parseLatexInlineForEditor(opts.seedInline);
         var b = gel('Before'); var a = gel('After');
         if (b) b.value = parts.before || '';
         if (a) a.value = parts.after || '';
@@ -1779,15 +1812,17 @@
     }).then(wireMath).catch(function (err) {
       host.insertAdjacentHTML('afterbegin',
         '<p class="latex-lab-error">' + escHtml((err && err.message) || 'MathLive indisponible') + '</p>');
+      // Propager l’échec : sinon le popup active « Appliquer » et wipe les champs
+      throw err || new Error('MathLive indisponible');
     });
 
     return {
       ready: ready,
       getInline: function () {
-        return window.latexBuildInline(getBefore(), getLatex(), getAfter());
+        return latexBuildInline(getBefore(), getLatex(), getAfter());
       },
       setFromInline: function (str) {
-        var parts = parseInline(str);
+        var parts = parseLatexInlineForEditor(str);
         var b = gel('Before'); var a = gel('After');
         if (b) b.value = parts.before || '';
         if (a) a.value = parts.after || '';

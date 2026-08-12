@@ -16,6 +16,8 @@
   var _editorRecto = null;
   var _editorVerso = null;
   var _activeFace = 'recto';
+  var _editorsReady = false;
+  var _mountGen = 0;
 
   function $(id) { return document.getElementById(id); }
 
@@ -48,6 +50,7 @@
     if (_editorVerso && typeof _editorVerso.destroy === 'function') _editorVerso.destroy();
     _editorRecto = null;
     _editorVerso = null;
+    _editorsReady = false;
   }
 
   function ensureOverlay() {
@@ -61,8 +64,16 @@
     return ov;
   }
 
+  function setApplyEnabled(on) {
+    var apply = $('qlEasyApply');
+    if (!apply) return;
+    apply.disabled = !on;
+    apply.setAttribute('aria-disabled', on ? 'false' : 'true');
+    apply.title = on ? '' : 'Éditeur en cours de chargement…';
+  }
+
   function writeBackFields() {
-    if (!CTX) return;
+    if (!CTX || !_editorsReady) return false;
     var qEl = CTX.fieldQ ? $(CTX.fieldQ) : null;
     var rEl = CTX.fieldR ? $(CTX.fieldR) : null;
     if (CTX.latexRecto && _editorRecto) {
@@ -75,10 +86,18 @@
       if (rEl) rEl.value = r;
       CTX.reponse = r;
     }
+    return true;
   }
 
   function closeLatexPopup(apply) {
-    if (apply) writeBackFields();
+    if (apply) {
+      if (!_editorsReady) {
+        var errEl = $('qlEasyError');
+        if (errEl) errEl.textContent = 'Éditeur LaTeX pas encore prêt — patiente une seconde.';
+        return;
+      }
+      if (!writeBackFields()) return;
+    }
     destroyEditors();
     hideOverlay('ovQuickLatex');
     var restore = CTX && CTX.restoreOverlay;
@@ -149,7 +168,7 @@
         '<div id="qlEasyError" class="anki-form-error" role="alert"></div>' +
         '<div class="macts">' +
           '<button type="button" class="bs" id="qlEasyCancel">Retour</button>' +
-          '<button type="button" class="bp" id="qlEasyApply">' +
+          '<button type="button" class="bp" id="qlEasyApply" disabled aria-disabled="true" title="Éditeur en cours de chargement…">' +
             (typeof window.iconLabel === 'function' ? window.iconLabel('check', 'Appliquer') : 'Appliquer') +
           '</button>' +
         '</div>' +
@@ -158,6 +177,9 @@
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(ov);
 
     destroyEditors();
+    var gen = ++_mountGen;
+    _editorsReady = false;
+    setApplyEnabled(false);
 
     var paneR = $('qlEasyPaneRecto');
     var paneV = $('qlEasyPaneVerso');
@@ -190,8 +212,14 @@
     }
 
     Promise.all(mountJobs).then(function () {
+      if (gen !== _mountGen) return;
+      _editorsReady = true;
+      setApplyEnabled(true);
       syncFaceVisibility();
     }).catch(function (err) {
+      if (gen !== _mountGen) return;
+      _editorsReady = false;
+      setApplyEnabled(false);
       var errEl = $('qlEasyError');
       if (errEl) errEl.textContent = (err && err.message) || 'Éditeur LaTeX indisponible';
     });
@@ -225,21 +253,29 @@
 
     if (CTX.restoreOverlay) hideOverlay(CTX.restoreOverlay);
 
+    var abortOpen = function (msg) {
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert(msg || 'Éditeur LaTeX Easy non chargé.', 'Erreur');
+      }
+      if (CTX && CTX.restoreOverlay) showOverlay(CTX.restoreOverlay);
+    };
+
     var go = function () {
       if (typeof window.mountLatexEasyEditor !== 'function') {
-        if (typeof window.sysAlert === 'function') {
-          window.sysAlert('Éditeur LaTeX Easy non chargé.', 'Erreur');
-        }
-        if (CTX.restoreOverlay) showOverlay(CTX.restoreOverlay);
+        abortOpen('Éditeur LaTeX Easy non chargé.');
         return;
       }
       renderPopup();
     };
 
     if (typeof window.ensureScriptsForTab === 'function') {
-      window.ensureScriptsForTab('quickLatex').then(go).catch(go);
+      window.ensureScriptsForTab('quickLatex').then(go).catch(function () {
+        abortOpen('Impossible de charger l’éditeur LaTeX.');
+      });
     } else if (typeof window.ensureMathLive === 'function') {
-      window.ensureMathLive().then(go).catch(go);
+      window.ensureMathLive().then(go).catch(function () {
+        abortOpen('MathLive indisponible.');
+      });
     } else {
       go();
     }

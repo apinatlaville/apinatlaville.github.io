@@ -175,6 +175,18 @@ body.device-role-secondary.device-role-secondary-browse .sync-dock-bar {
 body.device-role-secondary.device-role-secondary-browse #coursCreateMenu {
   display: none !important;
 }
+/* Pas d’édition / suppression / création de fiches en consultation secondaire */
+body.device-role-secondary.device-role-secondary-browse .cacts .icon-edit-delete,
+body.device-role-secondary.device-role-secondary-browse .cacts button[aria-label="Modifier"],
+body.device-role-secondary.device-role-secondary-browse .cacts button[aria-label="Supprimer"],
+body.device-role-secondary.device-role-secondary-browse .cacts button[title="Modifier"],
+body.device-role-secondary.device-role-secondary-browse .cacts button[title="Supprimer"] {
+  display: none !important;
+}
+body.device-role-secondary.device-role-secondary-browse #locContent .bp[onclick*="openCardCreateForCours"],
+body.device-role-secondary.device-role-secondary-browse button[onclick*="openCardCreateForCours"] {
+  display: none !important;
+}
 body.device-role-secondary.device-role-secondary-browse #deviceSecondaryBrowseBar {
   display: flex;
 }

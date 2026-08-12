@@ -610,6 +610,20 @@
       && !state.needsRoleChoice;
   }
 
+  function applySecondaryPatchResult(data, pid) {
+    window.D = data;
+    window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
+    if (typeof window.captureCoursPlacementBase === 'function') {
+      window.captureCoursPlacementBase(data.cours);
+    }
+    if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+      window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+    } else if (typeof window.safeLocalSet === 'function') {
+      window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+    } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+    return data;
+  }
+
   function saveSecondaryPatch(mutator, _retries) {
     if (!canSecondaryPatch()) return Promise.reject(new Error('Patch secondaire indisponible'));
     if (!window.docRef || !window.getDoc || !window.setDoc) return Promise.reject(new Error('Cloud indisponible'));
@@ -628,6 +642,38 @@
       if (!writability || !writability.ok) {
         return Promise.reject(new Error('Patch secondaire refusé : ' + ((writability && writability.reason) || 'not-writable')));
       }
+
+      // Chemin atomique (évite TOCTOU getDoc→setDoc face au Principal)
+      if (typeof window.runTransaction === 'function' && window.db) {
+        return window.runTransaction(window.db, function (tx) {
+          return tx.get(window.docRef).then(function (snap) {
+            if (!snap.exists()) {
+              throw new Error('Profil cloud absent — patch secondaire refusé (anti-recréation)');
+            }
+            var data = snap.data() || {};
+            if (data._account === true || data._deleted) {
+              throw new Error('Document profil invalide (index/supprimé)');
+            }
+            if (!data.meta) data.meta = {};
+            var baseRev = Number(data.meta.revision) || 0;
+            mutator(data);
+            if (!data.meta) data.meta = {};
+            data.meta.revision = baseRev + 1;
+            data.meta.updatedAt = now();
+            data.meta.updatedBy = getDeviceId();
+            data.meta.updatedByRole = CONFIG.ROLES.SECONDARY;
+            if (window.ProfilesIO && typeof window.ProfilesIO.stripUndefinedDeep === 'function') {
+              data = window.ProfilesIO.stripUndefinedDeep(data) || data;
+            }
+            tx.set(window.docRef, data);
+            return data;
+          });
+        }).then(function (data) {
+          return applySecondaryPatchResult(data, pid);
+        });
+      }
+
+      // Fallback : getDoc + relecture + setDoc + retry
       return window.getDoc(window.docRef).then(function (snap) {
         if (!snap.exists()) {
           return Promise.reject(new Error('Profil cloud absent — patch secondaire refusé (anti-recréation)'));
@@ -644,7 +690,6 @@
         data.meta.updatedAt = now();
         data.meta.updatedBy = getDeviceId();
         data.meta.updatedByRole = CONFIG.ROLES.SECONDARY;
-        // Relecture avant écriture pour limiter les lost updates face au Principal
         return window.getDoc(window.docRef).then(function (snap2) {
           var curRev = snap2.exists() && snap2.data() && snap2.data().meta
             ? (Number(snap2.data().meta.revision) || 0)
@@ -654,13 +699,7 @@
             return Promise.reject(new Error('Conflit de révision (patch secondaire)'));
           }
           return window.setDoc(window.docRef, data).then(function () {
-            window.D = data;
-            if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-              window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
-            } else if (typeof window.safeLocalSet === 'function') {
-              window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-            } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
-            return data;
+            return applySecondaryPatchResult(data, pid);
           });
         });
       });
@@ -689,6 +728,9 @@
         window.safeLocalSet('backup_local_cours', JSON.stringify(data));
       } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
+      if (typeof window.renderCours === 'function') window.renderCours();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+      if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
     }, function (err) { console.warn('DeviceSession data listen:', err); });
   }
 
@@ -706,6 +748,17 @@
     watchUserData: watchUserData,
     isPrimary: function () { return getStatus().isPrimary; },
     isSecondary: function () { return getStatus().isSecondary; }
+  };
+
+  /** Bloque création / édition / suppression hors patch secondaire autorisé. */
+  window.refuseSecondaryFullMutation = function (msg) {
+    if (!(window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function')) return false;
+    if (window.DeviceSession.canFullSave()) return false;
+    var text = msg || (window.APP_MSG && window.APP_MSG.SECONDARY_READ_ONLY)
+      || 'Appareil secondaire : modification indisponible (lecture seule).';
+    if (typeof window.showToast === 'function') window.showToast(text);
+    else if (typeof window.sysAlert === 'function') window.sysAlert(text, 'Lecture seule');
+    return true;
   };
 
   function bindPanelButtons(root) {
