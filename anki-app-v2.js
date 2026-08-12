@@ -407,8 +407,12 @@
   // ===== Vue principale =====
   window.renderAnkiV2 = function () {
     ensure();
-    const shift = window.AnkiAlgoV2.shiftProgramIfMissedDaily(window.D);
-    if (shift.shifted > 0) window.save();
+    const canMutate = !(window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function')
+      || window.DeviceSession.canFullSave();
+    if (canMutate) {
+      const shift = window.AnkiAlgoV2.shiftProgramIfMissedDaily(window.D);
+      if (shift.shifted > 0) window.save();
+    }
     restoreSessionFromStorageIfAny();
 
     const root = $("paneAnkiV2");
@@ -1271,6 +1275,10 @@
     return window.AnkiAlgoV2.activateFromReservoir(c);
   }
   window.ankiV2ReservoirActivateOne = function (id) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : activation de carte indisponible.')) {
+      return;
+    }
     if (activateCardById(id)) {
       S.reservoirSel.delete(id);
       window.AnkiAlgoV2.log("activate-reservoir", { id, mode: "single" });
@@ -1279,6 +1287,10 @@
     }
   };
   window.ankiV2ReservoirActivateSelected = function () {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : activation de carte indisponible.')) {
+      return;
+    }
     const ids = Array.from(S.reservoirSel);
     let n = 0;
     ids.forEach(id => { if (activateCardById(id)) n++; });
@@ -1289,6 +1301,10 @@
     window.renderAnkiV2();
   };
   window.ankiV2ReservoirActivateMat = function (matId) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : activation de carte indisponible.')) {
+      return;
+    }
     const list = (window.D.exercices || []).filter(c => c.mat === matId && window.AnkiAlgoV2.isReservoir(c));
     let n = 0;
     list.forEach(c => { if (window.AnkiAlgoV2.activateFromReservoir(c)) n++; });
@@ -2398,7 +2414,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     window.sysConfirm(
       `Une session est déjà en cours (<b>${n} carte(s)</b> restante(s)).<br><br>` +
       `<b>Confirmer</b> → reprendre cette session<br>` +
-      `<b>Annuler</b> → rester ici (abandonne la session si tu veux en lancer une autre)`,
+      `<b>Annuler</b> → rester ici (la session en cours n’est pas abandonnée)`,
       () => window.ankiV2ResumeSession(),
       'Session déjà en cours'
     );
@@ -2633,7 +2649,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!quickOnly.length) return window.sysAlert("Aucune carte rapide (Y-) dans la sélection.", "Rapide");
     S.queue = window.AnkiAlgoV2.buildQuickSession(quickOnly);
     S.mode = "quick";
-    S.stats = { ok: 0, mid: 0, bad: 0, total: cards.length };
+    S.stats = { ok: 0, mid: 0, bad: 0, total: quickOnly.length };
     S.sessionUI = 'full';
     window.save(); nextCard();
   };
@@ -2687,6 +2703,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!skipCurrent && !S.queue.length) return endSession();
 
     const advance = () => {
+      S._evalBusy = false;
       if (skipCurrent) S.queue.push(skipCurrent);
       if (!S.queue.length) return endSession();
       S.current = S.queue.shift();
@@ -2750,7 +2767,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         ${renderDockSources(c)}
         ${(c.coursIds || []).length ? `<div class="sync-dock-detail-links anki-mut">${(c.coursIds || []).map(uid => {
           const co = (window.D.cours || []).find(x => x.uid === uid);
-          return co ? `<button type="button" class="av-tag sync-dock-cours-link" onclick="window.doLocate('${esc(uid)}')">${esc(co.uid)}</button>` : '';
+          return co ? `<button type="button" class="av-tag sync-dock-cours-link" onclick="window.doLocate('${window.escapeJsStr ? window.escapeJsStr(uid) : esc(uid)}')">${esc(co.uid)}</button>` : '';
         }).join(' ')}</div>` : ''}
       </div>
     `;
@@ -3136,6 +3153,13 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   window.evalCardV2 = function (qScore) {
     if (!S.current) return;
+    if (S._evalBusy) return;
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : les réponses se font sur le Principal.')) {
+      return;
+    }
+    S._evalBusy = true;
+    try {
     qScore = Math.max(0, Math.min(10, qScore));
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     syncChronoElapsed();
@@ -3321,9 +3345,16 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     window.save();
     persistSession();
     nextCard(true);
+    } catch (e) {
+      S._evalBusy = false;
+      console.error('evalCardV2:', e);
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Erreur lors de l’évaluation — réessaie.', 'Synchrotron');
+      }
+    }
   };
   window.ankiV2SkipCard = function () {
-    if (!S.current) return;
+    if (!S.current || S._evalBusy) return;
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     S.chronoRunning = false;
     nextCard(true, { skipCurrent: S.current });
@@ -3369,6 +3400,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
 
   window.abortAnkiV2Session = function () {
+    S._evalBusy = false;
     if (S.chronoInt) clearInterval(S.chronoInt);
     S.chronoInt = null;
     setSessionOverlayLock(false);
@@ -3376,7 +3408,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const s = S.stats;
     const fini = !S.queue.length;
     if (fini && s.total) {
-      window.sysAlert(`Session terminée !<br>${sessStatsHtml(s.ok, s.mid, s.bad)}<br>${s.total}/${s.total} cartes faites.`, "Synchrotron");
+      window.sysAlert(`Session terminée !<br>${sessStatsHtml(s.ok, s.mid, s.bad)}<br>${(s.ok || 0) + (s.mid || 0) + (s.bad || 0)}/${s.total} cartes faites.`, "Synchrotron");
       S.queue = [];
       S.current = null;
       S.selectionIds.clear();
@@ -3398,6 +3430,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   let editingExoId = null;
 
   window.ankiV2OpenExoModal = function (opts) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
     opts = opts && typeof opts === 'object' ? opts : {};
     ensure(); editingExoId = null;
     const preset = {};
@@ -3416,6 +3452,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     showExoModal(preset);
   };
   window.ankiV2OpenDevoirModal = function (opts) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
     opts = opts && typeof opts === 'object' ? opts : {};
     ensure(); editingExoId = null;
     const preset = { type: 'devoir', tempsCible: 30 * 60, profil: 'EXO', statut: 'actif' };
@@ -3455,7 +3495,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         && window.refuseSecondaryFullMutation('Appareil secondaire : suppression de carte indisponible.')) {
       return;
     }
-    window.sysConfirm("Supprimer la carte " + id + " ?", () => {
+    window.sysConfirm("Supprimer la carte " + esc(id) + " ?", () => {
       const baseId = String(id).split('#')[0];
       window.D.exercices = (window.D.exercices || []).filter(c => c.id !== id && c.id !== baseId && c._morceauOf !== id && c._morceauOf !== baseId);
       window.D.devoirs = (window.D.devoirs || []).filter(c => c.id !== id && c.id !== baseId && c._morceauOf !== id && c._morceauOf !== baseId);
@@ -3866,6 +3906,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   }
 
   window.ankiV2SaveExo = function () {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
     showFormError('exoFormError', '');
     const titre = fieldVal('exoTitre');
     const q = fieldVal('exoQ');
@@ -3920,12 +3964,19 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       if (sourceCorrection) card.sourceCorrection = sourceCorrection;
       window.D.exercices.unshift(card);
     }
-    window.save();
-    const ov = $("ovExo"); if (ov) ov.classList.add("hidden");
-    window.renderAnkiV2();
+    Promise.resolve(window.save()).then(function () {
+      const ov = $("ovExo"); if (ov) ov.classList.add("hidden");
+      window.renderAnkiV2();
+    }).catch(function () {
+      showFormError('exoFormError', 'Enregistrement impossible — la carte n’a pas été sauvegardée.');
+    });
   };
 
   window.ankiV2SaveDevoir = function () {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
     try {
       ensure();
       if (!window.D) {
@@ -4023,15 +4074,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         planInfo = applyDevoirDecoupe(card, tempsRestant, sessionMin, tempsPropose, dateLim);
         window.D.devoirs.unshift(card);
       }
-      window.save();
-      editingExoId = null;
-      const ov = $("ovDevoir"); if (ov) ov.classList.add("hidden");
-      S.view = 'agenda';
-      window.renderAnkiV2();
-      const planTxt = planInfo
-        ? `<br>${planInfo.morceauxTotal} bout${planInfo.morceauxTotal > 1 ? 's' : ''} · ~${planInfo.tempsParBoutMin} min · intercalés en session`
-        : '';
-      window.sysAlert(`${window.iconLabel('check', 'Devoir enregistré')}<br><b>${esc(titre || q)}</b> — visible dans l'Agenda.${planTxt}`, "Devoir W-");
+      Promise.resolve(window.save()).then(function () {
+        editingExoId = null;
+        const ov = $("ovDevoir"); if (ov) ov.classList.add("hidden");
+        S.view = 'agenda';
+        window.renderAnkiV2();
+        const planTxt = planInfo
+          ? `<br>${planInfo.morceauxTotal} bout${planInfo.morceauxTotal > 1 ? 's' : ''} · ~${planInfo.tempsParBoutMin} min · intercalés en session`
+          : '';
+        window.sysAlert(`${window.iconLabel('check', 'Devoir enregistré')}<br><b>${esc(titre || q)}</b> — visible dans l'Agenda.${planTxt}`, "Devoir W-");
+      }).catch(function () {
+        showFormError('devoirFormError', 'Enregistrement impossible — le devoir n’a pas été sauvegardé.');
+      });
     } catch (e) {
       console.error('saveDevoir', e);
       showFormError('devoirFormError', 'Erreur à l\'enregistrement : ' + (e.message || e));
@@ -4057,6 +4111,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
 
   window.ankiV2OpenQuickModal = function (opts) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
     opts = opts && typeof opts === 'object' ? opts : {};
     ensure();
     editingExoId = null;

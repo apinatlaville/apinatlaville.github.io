@@ -891,7 +891,7 @@ window.renderDashboard = function() {
       window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">' + window.iconLabel('sparkles', 'Tous les QR sont initialisés.') + '</div>';
     } else {
       window.$('todoList').innerHTML = todos.map(c => `
-        <div class="todo-item" onclick="window.doLocate('${window.escHtml(c.uid)}')" style="border-left-color: ${c.stat === 'pending' ? 'var(--red)' : 'var(--gold)'};">
+        <div class="todo-item" onclick="window.doLocate('${window.escapeJsStr(c.uid)}')" style="border-left-color: ${c.stat === 'pending' ? 'var(--red)' : 'var(--gold)'};">
           <div>
             <div class="todo-tit">${window.escHtml(c.title)}</div>
             <div class="todo-sub">${window.statusDot(c.stat === 'pending' ? 'red' : 'orange')} ${c.stat === 'pending' ? 'À imprimer' : 'À scanner'} · ${window.escHtml(c.mat)} • ${window.escHtml(c.type)}</div>
@@ -1105,7 +1105,7 @@ function _notesBuildEvolutionSvg(docs, metric) {
         const tip = `${p.c.title || p.c.uid} · ${tipVal} · ${p.c.type === 'KHOLLE' ? 'Khôlle' : 'DS'}`;
         const ptLbl = isRang ? String(p.val) : String(p.val);
         return `
-          <g class="notes-pt" style="cursor:pointer" onclick="window.doLocate('${window.escHtml(p.c.uid)}')">
+          <g class="notes-pt" style="cursor:pointer" onclick="window.doLocate('${window.escapeJsStr(p.c.uid)}')">
             <title>${window.escHtml(tip)}</title>
             <circle cx="${p.x}" cy="${p.y}" r="11" fill="transparent"/>
             <circle cx="${p.x}" cy="${p.y}" r="5.5" fill="var(--bg)" stroke="${col}" stroke-width="2.5"/>
@@ -1248,7 +1248,7 @@ window.renderNotes = function() {
             ? `<span class="notes-row-sub">${window.escHtml(_notesFmtRangDisplay(c))}</span>`
             : '');
         return `
-          <div class="notes-row" onclick="window.doLocate('${window.escHtml(c.uid)}')" role="button" tabindex="0">
+          <div class="notes-row" onclick="window.doLocate('${window.escapeJsStr(c.uid)}')" role="button" tabindex="0">
             <span class="notes-row-date">${window.escHtml(_notesFmtDate(c.date))}</span>
             <span class="notes-row-type notes-type-${c.type === 'KHOLLE' ? 'kh' : 'ds'}">${typeLbl}</span>
             <span class="anki-q-mat" style="background:${col};">${window.escHtml(_notesMatLabel(c.mat))}</span>
@@ -1424,7 +1424,14 @@ window.invokeOpenCardTypePicker = function (opts) {
     return run();
   }
   var load = typeof window.ensureAnkiUi === 'function' ? window.ensureAnkiUi() : Promise.resolve();
-  return Promise.resolve(load).then(run).catch(function () { run(); });
+  return Promise.resolve(load).then(run).catch(function () {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert(
+        'Impossible de charger le module cartes Anki.<br>Recharge la page ou vérifie ta connexion.',
+        'Anki indisponible'
+      );
+    }
+  });
 };
 if (typeof window.openCardTypePicker !== 'function') {
   var _pickerStub = function (opts) { return window.invokeOpenCardTypePicker(opts); };
@@ -2022,7 +2029,7 @@ async function initApp(user) {
 
   // Démarrer DeviceSession AVANT les saves post-migrate (anti faux-primary LWW)
   if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
-    var deviceUserIdEarly = (!window.isLocalMode && window.cloudConnected && user && user.sub)
+    var deviceUserIdEarly = (!window.isLocalMode && user && user.sub)
       ? user.sub
       : null;
     try {

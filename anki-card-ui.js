@@ -522,7 +522,11 @@ body.theme-light .anki-create-item:focus-visible {
           if (typeof window.openCardTypePicker === 'function') window.openCardTypePicker();
         };
         if (typeof window.ensureScriptsForTab === 'function') {
-          window.ensureScriptsForTab('ankiV2').then(go).catch(go);
+          window.ensureScriptsForTab('ankiV2').then(go).catch(function () {
+            if (typeof window.sysAlert === 'function') {
+              window.sysAlert('Module Anki non chargé.', 'Erreur');
+            }
+          });
         } else go();
       });
     }

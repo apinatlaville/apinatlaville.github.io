@@ -203,6 +203,10 @@
   };
 
   window.quickActivate = function (id) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : activation de carte indisponible.')) {
+      return;
+    }
     const c = window.AnkiAlgo.findCard(window.D, id);
     if (!c || !window.AnkiAlgo.isReservoir(c)) return;
     window.AnkiAlgo.activateFromReservoir(c);
@@ -211,6 +215,10 @@
   };
 
   window.quickActivateMat = function (matId) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : activation de carte indisponible.')) {
+      return;
+    }
     getFiltered().filter(c => c.mat === matId && window.AnkiAlgo.isReservoir(c)).forEach(c => {
       window.AnkiAlgo.activateFromReservoir(c);
     });

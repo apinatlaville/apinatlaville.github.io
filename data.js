@@ -593,6 +593,12 @@ window.renderCours = function() {
 };
 
 window.doLocate = function(uid) {
+  if (!window.D || !Array.isArray(window.D.cours)) {
+    if (typeof window.showToast === 'function') {
+      window.showToast('Données non chargées — réessaie dans un instant.');
+    }
+    return;
+  }
   const c = window.D.cours.find(x => x.uid === uid);
   if (!c) {
     if(window.$('locContent')) {
@@ -636,8 +642,8 @@ window.doLocate = function(uid) {
           </div>
         </div>
         <div style="display:flex; gap:8px; flex-direction:column;">
-          <button class="bp" onclick="window.confirmInit('${window.escHtml(c.uid)}')" style="background:var(--grn); color:#000; border:none;">${window.iconLabel('check', 'Confirmer le rangement')}</button>
-          <button class="bs" onclick="window.closeLocPopup(); window.openMove('${window.escHtml(c.uid)}')">${window.iconLabel('refresh-cw', "Modifier l'emplacement")}</button>
+          <button class="bp" onclick="window.confirmInit('${window.escapeJsStr(c.uid)}')" style="background:var(--grn); color:#000; border:none;">${window.iconLabel('check', 'Confirmer le rangement')}</button>
+          <button class="bs" onclick="window.closeLocPopup(); window.openMove('${window.escapeJsStr(c.uid)}')">${window.iconLabel('refresh-cw', "Modifier l'emplacement")}</button>
           <button class="bs" onclick="window.closeLocPopup()" style="border-color:var(--red); color:var(--red);">${window.iconLabel('circle-x', 'Annuler')}</button>
         </div>
       </div>
@@ -679,19 +685,58 @@ window.doLocate = function(uid) {
 
 // 🚨 CONFIRME INITIALISATION
 window.confirmInit = function(uid) {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
   const c = window.D.cours.find(x => x.uid === uid);
-  if(c) {
-      c.stat = 'active';
-      window.save();
-      window.renderCours();
-      window.renderDashboard();
-      window.closeLocPopup();
-      window.sysAlert(window.iconLabel('check', 'Document initialisé et classé avec succès !'), "Succès");
+  if (!c) return;
+
+  const onOkUi = function () {
+    if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    if (typeof window.closeLocPopup === 'function') window.closeLocPopup();
+  };
+  const onOk = function () {
+    onOkUi();
+    window.sysAlert(window.iconLabel('check', 'Document initialisé et classé avec succès !'), "Succès");
+  };
+  const onFail = function (err) {
+    console.warn('confirmInit:', err);
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible d’enregistrer l’initialisation (mode lecture ou sync).', 'Enregistrement');
+    }
+  };
+
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()) {
+    window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
+      const row = data.cours.find(x => x.uid === uid);
+      if (!row) throw new Error('Document introuvable dans le cloud');
+      row.stat = 'active';
+    }).then(onOk).catch(onFail);
+    return;
   }
+
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : initialisation indisponible.')) {
+    return;
+  }
+
+  const prevStat = c.stat;
+  c.stat = 'active';
+  Promise.resolve(window.save()).then(onOk).catch(function (err) {
+    const msg = String(err && err.message || err || '');
+    if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+      c.stat = prevStat;
+      onFail(err);
+      return;
+    }
+    onOkUi();
+  });
 };
 
 // 🚨 OUVRE POPUP DEPLACEMENT
 window.openMove = function(uid) {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
   const c = window.D.cours.find(x => x.uid === uid);
   if(!c) return;
   window.moveUid = uid;
@@ -734,27 +779,67 @@ window.updateMoveIntercalairesDropdown = function(clIdOverride, interOverride) {
 window.saveMove = function() {
   const cl = window.$('fMoveCl') ? window.$('fMoveCl').value : '';
   const inter = window.$('fMoveInter') ? window.$('fMoveInter').value : '';
-  
-  if(!cl || !inter) return;
-  
-  const c = window.D.cours.find(x => x.uid === window.moveUid);
-  if(c) {
-      c.cl = cl;
-      c.inter = inter;
-      if (c.stat === 'printed') {
-          c.stat = 'active';
-      }
-      window.pruneUnsortedMatiere();
-      window.pruneUnsortedClasseur();
-      window.save();
-      window.renderCours();
-      window.renderClasseurs();
-      window.renderMatieres();
-      window.renderDashboard();
-      if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
-      if(window.$('ovMove')) window.$('ovMove').classList.add('hidden');
-      window.sysAlert(window.iconLabel('check', 'Document déplacé avec succès !'), "Déplacement réussi");
+  if (!cl || !inter) return;
+  if (!window.D || !Array.isArray(window.D.cours)) return;
+
+  const moveUid = window.moveUid;
+  const c = window.D.cours.find(x => x.uid === moveUid);
+  if (!c) return;
+
+  const onOkUi = function () {
+    if (typeof window.pruneUnsortedMatiere === 'function') window.pruneUnsortedMatiere();
+    if (typeof window.pruneUnsortedClasseur === 'function') window.pruneUnsortedClasseur();
+    if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
+    if (typeof window.renderMatieres === 'function') window.renderMatieres();
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+    if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
+    if (window.$('ovMove')) window.$('ovMove').classList.add('hidden');
+  };
+  const onOk = function () {
+    onOkUi();
+    window.sysAlert(window.iconLabel('check', 'Document déplacé avec succès !'), "Déplacement réussi");
+  };
+  const onFail = function (err) {
+    console.warn('saveMove:', err);
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible d’enregistrer le déplacement (mode lecture ou sync).', 'Enregistrement');
+    }
+  };
+
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()) {
+    window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
+      const row = data.cours.find(x => x.uid === moveUid);
+      if (!row) throw new Error('Document introuvable dans le cloud');
+      row.cl = cl;
+      row.inter = inter;
+      if (row.stat === 'printed') row.stat = 'active';
+    }).then(onOk).catch(onFail);
+    return;
   }
+
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : déplacement indisponible.')) {
+    return;
+  }
+
+  const prev = { cl: c.cl, inter: c.inter, stat: c.stat };
+  c.cl = cl;
+  c.inter = inter;
+  if (c.stat === 'printed') c.stat = 'active';
+  Promise.resolve(window.save()).then(onOk).catch(function (err) {
+    const msg = String(err && err.message || err || '');
+    if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+      c.cl = prev.cl;
+      c.inter = prev.inter;
+      c.stat = prev.stat;
+      onFail(err);
+      return;
+    }
+    onOkUi();
+  });
 };
 
 window.delCours = function(uid) {
@@ -762,7 +847,7 @@ window.delCours = function(uid) {
       && window.refuseSecondaryFullMutation('Appareil secondaire : suppression de document indisponible.')) {
     return;
   }
-  window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
+  window.sysConfirm('Supprimer définitivement le document ' + window.escHtml(uid) + ' ?', () => {
     window.D.cours = window.D.cours.filter(c => c.uid !== uid);
     window.pruneUnsortedMatiere();
     window.pruneUnsortedClasseur();
@@ -994,6 +1079,10 @@ window.editCours = function(uid, opts) {
 };
 
 window.saveCours = function() {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : création / édition de document indisponible.')) {
+    return;
+  }
   const title = window.$('fTitle')?window.$('fTitle').value.trim():'';
   const mat = window.$('fMat')?window.$('fMat').value:'';
   const cl = window.$('fCl')?window.$('fCl').value:'';
@@ -1344,6 +1433,10 @@ window.onEditClMaxChange = function () {
 };
 
 window.saveClEdit = function() {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : modification des classeurs indisponible.')) {
+    return;
+  }
   const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
   if(!cl) return;
 
@@ -1441,6 +1534,10 @@ window.setEditMatColor = function(col) {
 };
 
 window.saveMatEdit = function() {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : modification des matières indisponible.')) {
+    return;
+  }
   const m = window.D.matieres.find(x => x.id === window.currentEditMatId);
   if (!m) return;
   const nameEl = window.$('eMatNm');
@@ -1466,6 +1563,10 @@ window.saveMatEdit = function() {
 // 📁 GESTION DES MATIÈRES (VERSION CORRIGÉE AVEC BORDURE ROUGE)
 // =========================================================
 window.addMat = function() {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : modification des matières indisponible.')) {
+    return;
+  }
   const lblInput = window.$('nMlbl');
   const nameInput = window.$('nMname');
   if (!lblInput || !nameInput) return;
@@ -1506,6 +1607,10 @@ window.addMat = function() {
 // 📁 GESTION DES CLASSEURS (RESTAURÉE ET SÉCURISÉE)
 // =========================================================
 window.addCl = function() {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : modification des classeurs indisponible.')) {
+    return;
+  }
   const nameInput = window.$('nClNm');
   if (!nameInput) return;
 
@@ -1539,6 +1644,10 @@ window.addCl = function() {
 };
 
 window.delMat = function(id) {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : suppression de matière indisponible.')) {
+    return;
+  }
   if (window.isSystemMatiere(id)) return;
 
   const count = window.D.cours.filter(c => c.mat === id).length;
@@ -1571,6 +1680,10 @@ window.delMat = function(id) {
 };
 
 window.delCl = function(id) {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : suppression de classeur indisponible.')) {
+    return;
+  }
   if (window.isSystemClasseur(id)) return;
 
   const count = window.D.cours.filter(c => c.cl === id).length;
@@ -1815,6 +1928,10 @@ window.closeOrphanAssign = function () {
 };
 
 window.saveOrphanAssign = function () {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : réassignation indisponible.')) {
+    return;
+  }
   const needs = window._orphanAssignNeeds();
   const mat = window.$('fOrphanMat') ? window.$('fOrphanMat').value : '';
   const cl = window.$('fOrphanCl') ? window.$('fOrphanCl').value : '';

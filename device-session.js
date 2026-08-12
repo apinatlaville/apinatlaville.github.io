@@ -689,6 +689,9 @@
         window.safeLocalSet('backup_local_cours', JSON.stringify(data));
       } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
+      if (typeof window.renderCours === 'function') window.renderCours();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+      if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
     }, function (err) { console.warn('DeviceSession data listen:', err); });
   }
 

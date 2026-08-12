@@ -106,10 +106,10 @@ window.dlQR = function() {
 window.renderPrintGrid = function() {
   const gridPending = window.$('printGridPending');
   const gridHistory = window.$('printGridHistory');
-  if(!gridPending || !gridHistory) return;
+  if(!gridPending || !gridHistory || !window.D || !Array.isArray(window.D.cours)) return;
   
   const drawCard = (c) => `
-    <div class="pcard ${window.printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${c.uid}')">
+    <div class="pcard ${window.printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${window.escapeJsStr(c.uid)}')">
       <div class="pc-check">${window.printSel.has(c.uid) ? window.iconHtml('check', 14, 'icon-sm') : window.iconHtml('square', 14, 'icon-sm')}</div>
       <div class="pc-qr">
         <img src="${window.getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;">
@@ -173,17 +173,53 @@ window.executePrint = function() {
 
 window.confirmPrintSuccess = function(success) {
   window.closePrintConfirm();
-  if(success) {
-    window.printSel.forEach(uid => {
-      const x = window.D.cours.find(d=>d.uid===uid);
-      if(x && x.stat==='pending') x.stat = 'printed';
+  if (!success) return;
+  if (!window.D || !Array.isArray(window.D.cours)) return;
+
+  const applyStats = function () {
+    window.printSel.forEach(function (uid) {
+      const x = window.D.cours.find(d => d.uid === uid);
+      if (x && x.stat === 'pending') x.stat = 'printed';
     });
-    window.save(); 
-    window.printSel.clear(); 
-    window.renderCours(); 
-    window.renderPrintGrid(); 
-    window.renderDashboard();
+  };
+
+  const onOkUi = function () {
+    window.printSel.clear();
+    if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+  };
+
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()) {
+    const uids = Array.from(window.printSel);
+    window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
+      uids.forEach(function (uid) {
+        const row = data.cours.find(d => d.uid === uid);
+        if (row && row.stat === 'pending') row.stat = 'printed';
+      });
+    }).then(onOkUi).catch(function (err) {
+      console.warn('confirmPrintSuccess:', err);
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Impossible de synchroniser l’impression depuis cet appareil.', 'Mode Secondaire');
+      }
+    });
+    return;
   }
+
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : confirmation d’impression indisponible.')) {
+    return;
+  }
+
+  applyStats();
+  Promise.resolve(window.save()).then(onOkUi).catch(function (err) {
+    console.warn('confirmPrintSuccess:', err);
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Enregistrement de l’impression impossible.', 'Erreur');
+    }
+  });
 };
 
 window._camLifecycle = Promise.resolve();

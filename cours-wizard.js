@@ -1020,6 +1020,10 @@ body.theme-light .cours-create-item:focus-visible {
 
   window.coursWizardDeleteCreated = function (uid) {
     if (!uid) return;
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : suppression de document indisponible.')) {
+      return;
+    }
     var run = function () {
       if (!window.D || !window.D.cours) return;
       window.D.cours = window.D.cours.filter(function (c) { return c.uid !== uid; });
@@ -1037,7 +1041,7 @@ body.theme-light .cours-create-item:focus-visible {
       paint();
     };
     if (typeof window.sysConfirm === 'function') {
-      window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', run, 'Suppression');
+      window.sysConfirm('Supprimer définitivement le document ' + (typeof window.escHtml === 'function' ? window.escHtml(uid) : uid) + ' ?', run, 'Suppression');
     } else {
       run();
     }
