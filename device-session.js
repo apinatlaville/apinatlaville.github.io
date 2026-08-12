@@ -708,6 +708,17 @@
     isSecondary: function () { return getStatus().isSecondary; }
   };
 
+  /** Bloque création / édition / suppression hors patch secondaire autorisé. */
+  window.refuseSecondaryFullMutation = function (msg) {
+    if (!(window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function')) return false;
+    if (window.DeviceSession.canFullSave()) return false;
+    var text = msg || (window.APP_MSG && window.APP_MSG.SECONDARY_READ_ONLY)
+      || 'Appareil secondaire : modification indisponible (lecture seule).';
+    if (typeof window.showToast === 'function') window.showToast(text);
+    else if (typeof window.sysAlert === 'function') window.sysAlert(text, 'Lecture seule');
+    return true;
+  };
+
   function bindPanelButtons(root) {
     var claim = root.querySelector('[data-device-action="claim"]');
     var sec = root.querySelector('[data-device-action="secondary"]');

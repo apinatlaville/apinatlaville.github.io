@@ -35,12 +35,9 @@
   }
 
   function formatFace(str) {
+    if (typeof window.formatCardFaceHtml === 'function') return window.formatCardFaceHtml(str);
     if (typeof window.formatQuickCardHtml === 'function') return window.formatQuickCardHtml(str);
-    if (typeof window.latexToMarkup === 'function' && /\\\(/.test(String(str || ''))) {
-      return String(str).replace(/\\\(([\s\S]*?)\\\)/g, (_, tex) =>
-        '<span class="latex-lab-preview-math">' + window.latexToMarkup(tex) + '</span>'
-      );
-    }
+    // Fallback sûr si latex-test pas encore chargé : texte échappé uniquement
     return esc(str);
   }
 
@@ -83,7 +80,7 @@
           </button>
           <button class="bp" onclick="window.quickAdd()">${window.iconLabel('plus', 'Créer (active)')}</button>
         </div>
-        <div class="quick-mut">${window.iconLabel('lightbulb', 'LaTeX ouvre la page d’édition personnalisée. Entrée = créer (texte simple).')}</div>
+        <div class="quick-mut">${window.iconLabel('lightbulb', 'LaTeX ouvre l’éditeur Easy (popup). Entrée = créer (texte simple).')}</div>
       </div>
 
       <div class="quick-filters">
@@ -136,7 +133,9 @@
       });
     };
     if (typeof window.ensureScriptsForTab === 'function') {
-      window.ensureScriptsForTab('quickLatex').then(go).catch(go);
+      window.ensureScriptsForTab('quickLatex').then(go).catch(function () {
+        window.sysAlert('Impossible de charger l’éditeur LaTeX.', 'Erreur');
+      });
     } else {
       go();
     }
@@ -149,16 +148,24 @@
   }
 
   window.quickAdd = function () {
-    const q = $("qkQ").value.trim();
-    if (!q) { $("qkQ").focus(); return; }
-    const r = $("qkR").value.trim();
-    const mat = $("qkMat").value;
+    const qEl = $("qkQ");
+    const rEl = $("qkR");
+    const matEl = $("qkMat");
+    if (!qEl || !matEl) return;
+    const q = (qEl.value || '').trim();
+    if (!q) { qEl.focus(); return; }
+    const r = rEl ? (rEl.value || '').trim() : '';
+    const mat = matEl.value;
     const coursId = ($("qkCours") && $("qkCours").value) || '';
     Q.mat = mat;
     Q.coursId = coursId;
     if (!window.quickAddAnkiCard) { window.sysAlert("Module Anki non chargé.", "Erreur"); return; }
     const doAdd = function () {
-      window.quickAddAnkiCard({
+      if (typeof window.quickAddAnkiCard !== 'function') {
+        window.sysAlert("Module Anki non chargé.", "Erreur");
+        return;
+      }
+      Promise.resolve(window.quickAddAnkiCard({
         question: q,
         reponse: r,
         mat,
@@ -167,14 +174,20 @@
         statut: "actif",
         importance: 3,
         coursIds: coursId ? [coursId] : []
+      })).then(function (card) {
+        if (!card) return;
+        qEl.value = '';
+        if (rEl) rEl.value = '';
+        qEl.focus();
+        renderSections();
+      }).catch(function () {
+        /* quickAddAnkiCard / save ont déjà alerté */
       });
-      $("qkQ").value = '';
-      $("qkR").value = '';
-      $("qkQ").focus();
-      renderSections();
     };
     if (typeof window.ensureScriptsForTab === 'function') {
-      window.ensureScriptsForTab('ankiV2').then(doAdd).catch(doAdd);
+      window.ensureScriptsForTab('ankiV2').then(doAdd).catch(function () {
+        window.sysAlert("Module Anki non chargé.", "Erreur");
+      });
     } else {
       doAdd();
     }

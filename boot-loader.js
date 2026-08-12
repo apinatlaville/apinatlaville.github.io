@@ -30,7 +30,7 @@
     print: ['scanner.js'],
     test: ['scanner.js'],
     latexTest: ['latex-test.js'],
-    quickLatex: ['latex-test.js', 'anki-quick-latex.js', 'anki-app-v2.js']
+    quickLatex: ['latex-test.js', 'anki-quick-latex.js']
   };
 
   var DEFERRED_AFTER_BOOT = [

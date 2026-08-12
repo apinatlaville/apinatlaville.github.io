@@ -351,6 +351,10 @@ body.theme-light .anki-create-item:focus-visible {
   }
 
   window.openCardTypePicker = function (opts) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
     injectStyles();
     window._cardCreateOpts = Object.assign({}, opts || {});
     const ov = ensurePickerOverlay();
@@ -408,6 +412,10 @@ body.theme-light .anki-create-item:focus-visible {
   };
 
   window.openCardCreateForCours = function (coursUid) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
     const co = (window.D && window.D.cours || []).find(x => x.uid === coursUid);
     if (!co) return;
     if (typeof window.closeLocPopup === 'function') window.closeLocPopup();
@@ -439,12 +447,16 @@ body.theme-light .anki-create-item:focus-visible {
           mode: window._quickCreateMode
         });
         window.ankiV2OpenQuickModal(opts);
-      } else if (typeof window.openCardTypePicker === 'function') {
-        window.openCardTypePicker(window._cardCreateOpts || {});
+      } else if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Module Anki non chargé.', 'Erreur');
       }
     };
     if (typeof window.ensureScriptsForTab === 'function') {
-      window.ensureScriptsForTab('ankiV2').then(go).catch(go);
+      window.ensureScriptsForTab('ankiV2').then(go).catch(function () {
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Module Anki non chargé.', 'Erreur');
+        }
+      });
     } else go();
   };
 

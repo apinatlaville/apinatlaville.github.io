@@ -362,7 +362,7 @@ console.log('\n[7] Cache bump + boot-loader');
 {
   const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   const boot = fs.readFileSync(path.join(root, 'boot-loader.js'), 'utf8');
-  assert(/__BOOT_CACHE_V\s*=\s*'2026072[56][a-z]'/.test(index), 'cache version bumpée');
+  assert(/__BOOT_CACHE_V\s*=\s*'20260[78]\d{2}[a-z]'/.test(index), 'cache version bumpée');
   assert(boot.includes('cours-wizard.js'), 'boot charge cours-wizard.js');
   assert(index.includes('btnCoursBrowseTree') && index.includes('btnCoursBrowseMat'), 'toggle Arbre/Matières dans HTML');
 }

@@ -758,6 +758,10 @@ window.saveMove = function() {
 };
 
 window.delCours = function(uid) {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : suppression de document indisponible.')) {
+    return;
+  }
   window.sysConfirm('Supprimer définitivement le document ' + uid + ' ?', () => {
     window.D.cours = window.D.cours.filter(c => c.uid !== uid);
     window.pruneUnsortedMatiere();
@@ -916,6 +920,10 @@ window.openModalCours = function(opts) {
 };
 
 window.editCours = function(uid, opts) {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : édition de document indisponible.')) {
+    return;
+  }
   const o = (opts && typeof opts === 'object') ? opts : {};
   if (!window.D || !Array.isArray(window.D.cours)) {
     if (o.keepWizard) window._coursWizardResumeAfterEdit = false;
