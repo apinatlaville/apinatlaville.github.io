@@ -716,8 +716,14 @@ window.confirmInit = function(uid) {
     return;
   }
 
+  // Secondaire sans patch : toast + ne pas muter
   if (typeof window.refuseSecondaryFullMutation === 'function'
       && window.refuseSecondaryFullMutation('Appareil secondaire : initialisation indisponible.')) {
+    return;
+  }
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    onFail(new Error('SECONDARY_READ_ONLY'));
     return;
   }
 
@@ -725,11 +731,13 @@ window.confirmInit = function(uid) {
   c.stat = 'active';
   Promise.resolve(window.save()).then(onOk).catch(function (err) {
     const msg = String(err && err.message || err || '');
+    // Rollback seulement si rien n’a été persisté (secondaire / localStorage)
     if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
       c.stat = prevStat;
       onFail(err);
       return;
     }
+    // Échec cloud : local OK — garder la mutation, UI à jour, sans faux « Succès »
     onOkUi();
   });
 };
@@ -786,6 +794,12 @@ window.saveMove = function() {
   const c = window.D.cours.find(x => x.uid === moveUid);
   if (!c) return;
 
+  const applyLocal = function (row) {
+    row.cl = cl;
+    row.inter = inter;
+    if (row.stat === 'printed') row.stat = 'active';
+  };
+
   const onOkUi = function () {
     if (typeof window.pruneUnsortedMatiere === 'function') window.pruneUnsortedMatiere();
     if (typeof window.pruneUnsortedClasseur === 'function') window.pruneUnsortedClasseur();
@@ -813,9 +827,7 @@ window.saveMove = function() {
       if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
       const row = data.cours.find(x => x.uid === moveUid);
       if (!row) throw new Error('Document introuvable dans le cloud');
-      row.cl = cl;
-      row.inter = inter;
-      if (row.stat === 'printed') row.stat = 'active';
+      applyLocal(row);
     }).then(onOk).catch(onFail);
     return;
   }
@@ -824,11 +836,14 @@ window.saveMove = function() {
       && window.refuseSecondaryFullMutation('Appareil secondaire : déplacement indisponible.')) {
     return;
   }
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    onFail(new Error('SECONDARY_READ_ONLY'));
+    return;
+  }
 
   const prev = { cl: c.cl, inter: c.inter, stat: c.stat };
-  c.cl = cl;
-  c.inter = inter;
-  if (c.stat === 'printed') c.stat = 'active';
+  applyLocal(c);
   Promise.resolve(window.save()).then(onOk).catch(function (err) {
     const msg = String(err && err.message || err || '');
     if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
@@ -1295,6 +1310,7 @@ window.renderClasseurs = function() {
   try {
     const g = window.$('clGrid');
     if(!g) return;
+    if (!window.D || !Array.isArray(window.D.classeurs) || !Array.isArray(window.D.cours)) return;
 
     let html = `
       <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
@@ -1310,7 +1326,7 @@ window.renderClasseurs = function() {
       html += window.D.classeurs.map(cl => {
         const isSystem = window.isSystemClasseur(cl.id);
         const cc = window.D.cours.filter(c => c.cl===cl.id);
-        cc.sort((a,b) => a.inter.localeCompare(b.inter)); 
+        cc.sort((a,b) => String(a.inter || '').localeCompare(String(b.inter || ''))); 
 
         let editBtns = window.isEditingCl ? `
           ${!isSystem ? `<button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">${window.iconLabel('pencil', 'Éditer')}</button>` : ''}
@@ -1478,6 +1494,7 @@ window.saveClEdit = function() {
 window.renderMatieres = function() {
   const el = window.$('mgMat');
   if(!el) return;
+  if (!window.D || !Array.isArray(window.D.matieres)) return;
 
   let html = `
     <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">

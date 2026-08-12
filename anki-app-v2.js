@@ -2688,6 +2688,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   }
 
   function applyNextCardState() {
+    S._evalBusy = false;
     S.showAnswer = false;
     S.sliderValue = 7;
     S.sessionTempsManuel = null;
@@ -3355,9 +3356,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
   window.ankiV2SkipCard = function () {
     if (!S.current || S._evalBusy) return;
+    S._evalBusy = true;
+    try {
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     S.chronoRunning = false;
     nextCard(true, { skipCurrent: S.current });
+    } catch (err) {
+      S._evalBusy = false;
+      console.error('ankiV2SkipCard:', err);
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Erreur en passant la carte — réessaie.', 'Synchrotron');
+      }
+    }
   };
 
   window.ankiV2PauseSession = function () {
@@ -3378,6 +3388,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     window.sysConfirm(
       M.ABANDON_ACTIVE || "Abandonner cette session ? La file en cours sera effacée (les cartes déjà notées restent enregistrées).",
       function () {
+        S._evalBusy = false;
         if (S.chronoInt) clearInterval(S.chronoInt);
         S.chronoInt = null;
         const ov = $("ovAnkiSession");
