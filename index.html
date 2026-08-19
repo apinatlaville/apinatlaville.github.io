@@ -4,11 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Mes Cours - PC* Edition</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b9aff'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-size='14' font-family='system-ui' fill='%230e1524' font-weight='700'%3EPC%3C/text%3E%3C/svg%3E">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260820a';
+  window.__BOOT_CACHE_V = '20260820b';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -169,6 +171,7 @@
             <span id="cDot" class="cloud-status-dot"></span>
             <span class="cloud-status-txt"><span class="cloud-status-txt-track"><span id="cTxt">Init...</span><span id="cTxtExtra" class="cloud-status-extra"></span></span></span>
           </div>
+          <span id="activeProfileChip" class="profile-status-chip" hidden title="Profil de données actif"></span>
           <span id="deviceRoleChip" class="device-role-chip" hidden>Principal</span>
           <div class="hdr-actions-btns">
             <button class="btn-settings" id="btnRefresh" title="Actualiser la page" aria-label="Actualiser"><span data-icon="refresh-cw"></span></button>
@@ -233,16 +236,13 @@
     </div>
   </div>
 
-  <div id="dashRevArea">
-    <h3 style="font-family:'Inter'; margin-bottom:12px; margin-top:30px;">Statut des Révisions</h3>
-    <div class="dash-grid" id="dashRevGrid"></div>
-  </div>
-
   <h3 style="font-family:'Inter'; margin-bottom:12px; margin-top:30px; display:flex; align-items:center; gap:10px;">
-    <span data-icon="calendar" data-icon-size="16"></span> À faire cette semaine 
-    <span style="font-size:10px; background:var(--red); padding:2px 6px; border-radius:10px;">Priorités</span>
+    <span data-icon="qr-code" data-icon-size="16"></span> À initialiser
+    <span style="font-size:10px; background:var(--gold); color:#1a2030; padding:2px 6px; border-radius:10px;">QR</span>
   </h3>
   <div id="todoList"></div>
+
+  <div id="dashOrphanBanner" style="display:none;margin:18px 0 0;"></div>
 
   <div id="dashOverviewArea">
     <h3 style="font-family:'Inter'; margin-bottom:12px; margin-top:30px;">Vue d'ensemble</h3>
@@ -251,6 +251,29 @@
 </div>
 
 <div class="pane ui-pane" id="paneCours">
+  <div class="cours-pane-toolbar" id="coursPaneToolbar">
+    <div class="notes-metric-toggle cours-browse-toggle" role="group" aria-label="Affichage Base Doc">
+      <button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>
+      <button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>
+    </div>
+    <div class="cours-create-menu" id="coursCreateMenu">
+      <button type="button" class="cours-create-trigger" id="btnCoursCreateMenu" aria-expanded="false" aria-haspopup="true" title="Créer un document">
+        <span data-icon="plus" data-icon-size="14"></span>
+        Créer
+        <span class="cours-create-chevron" data-icon="chevron-down" data-icon-size="12"></span>
+      </button>
+      <div class="cours-create-dropdown" role="menu">
+        <button type="button" class="cours-create-item" id="btnCoursCreateSingle" role="menuitem">
+          <strong><span data-icon="file-text" data-icon-size="14"></span> Nouveau document</strong>
+          <span class="hint">1 cours — comme le menu éclair</span>
+        </button>
+        <button type="button" class="cours-create-item" id="btnCoursBatchCreate" role="menuitem">
+          <strong><span data-icon="layers" data-icon-size="14"></span> Création rapide</strong>
+          <span class="hint">Enchaîne plusieurs docs (reste sur l’intercalaire)</span>
+        </button>
+      </div>
+    </div>
+  </div>
   <div class="filters">
     <select class="fi" id="fltType">
       <option value="">Tous les types</option>
@@ -259,12 +282,6 @@
       <option value="DS">DS</option>
       <option value="KHOLLE">Khôlle</option>
       <option value="FICHE">Fiche</option>
-    </select>
-    <select class="fi" id="fltRev">
-      <option value="">Toutes maîtrises</option>
-      <option value="red">À revoir d'urgence</option>
-      <option value="orange">En cours d'acquisition</option>
-      <option value="green">Maîtrisé</option>
     </select>
     <select class="fi" id="fltMat"></select>
     <select class="fi" id="fltCl"></select>
@@ -281,12 +298,32 @@
 </div>
 
 <div class="pane ui-pane" id="paneNotes">
-  <div class="home-hero" style="text-align:left;">
-    <h2>Suivi des Notes</h2>
-    <p>Ce graphique affiche les notes attribuées à tes documents de type "DS" ou "Khôlle". Rentre une note lors de la création d'un document pour la voir apparaître ici.</p>
-    <div class="chart-container">
-      <div class="chart-wrapper" id="chartWrapper"></div>
+  <div class="notes-root" data-testid="notes-root">
+    <div class="notes-hdr">
+      <div>
+        <h2>Suivi des Notes</h2>
+        <p class="notes-sub">Évolution des notes et rangs DS / Khôlles. Ajoute une note (et un rang) sur un document DS / Khôlle pour la voir ici.</p>
+      </div>
     </div>
+    <div class="filters notes-filters" id="notesFilters">
+      <div class="notes-metric-toggle" role="group" aria-label="Afficher notes ou rangs">
+        <button type="button" class="notes-metric-btn is-active" id="btnNotesMetricNote" data-metric="note">Notes</button>
+        <button type="button" class="notes-metric-btn" id="btnNotesMetricRang" data-metric="rang">Rangs</button>
+      </div>
+      <select class="fi" id="fltNotesType" aria-label="Type d'épreuve">
+        <option value="">DS + Khôlles</option>
+        <option value="DS">DS uniquement</option>
+        <option value="KHOLLE">Khôlles uniquement</option>
+      </select>
+      <select class="fi" id="fltNotesMat" aria-label="Matière">
+        <option value="">Toutes matières</option>
+      </select>
+    </div>
+    <div class="notes-stats" id="notesStats"></div>
+    <div class="notes-chart-card">
+      <div class="notes-chart" id="chartWrapper"></div>
+    </div>
+    <div class="notes-list" id="notesList"></div>
   </div>
 </div>
 
@@ -324,6 +361,10 @@
     <div class="fg"><label>Nom complet</label><input type="text" id="nClNm" placeholder="Nom du classeur"></div>
     <div class="fg"><label>Couleur du classeur</label>
       <div class="sws" id="swCl"></div>
+      <div class="sw-preview-bar" id="nClColorPreview" aria-hidden="true"></div>
+    </div>
+    <div class="fg"><label>Icône</label>
+      <div class="cl-icon-pick" id="nClIconPick" role="group" aria-label="Icône du classeur"></div>
     </div>
     <button class="bp" id="btnAddCl" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
   </div>
@@ -337,9 +378,28 @@
     <div class="fg"><label>Nom complet</label><input type="text" id="nMname" placeholder="Mathématiques"></div>
     <div class="fg"><label>Couleur</label>
       <div class="sws" id="swMat"></div>
+      <div class="sw-preview-bar" id="nMatColorPreview" aria-hidden="true"></div>
     </div>
     <button class="bp" id="btnAddMat" style="width:100%; margin-top:15px;">+ Ajouter la matière</button>
   </div>
+</div>
+
+<div class="pane ui-pane" id="paneOrphelins">
+  <div class="orphan-head">
+    <div>
+      <h2 class="orphan-title" id="orphanTitle">À ranger</h2>
+      <p class="orphan-sub" id="orphanStats">Documents et cartes sans matière ou classeur valide.</p>
+    </div>
+    <div class="orphan-toolbar">
+      <button type="button" class="cbt" id="btnOrphanSelAllDocs">Sél. docs</button>
+      <button type="button" class="cbt" id="btnOrphanSelAllAnki">Sél. cartes</button>
+      <button type="button" class="cbt" id="btnOrphanSelAll">Tout</button>
+      <button type="button" class="cbt" id="btnOrphanSelNone">Vider</button>
+      <button type="button" class="bp" id="btnOrphanAssign" style="background:var(--grn);color:#000;">Ranger la sélection</button>
+    </div>
+  </div>
+  <p class="orphan-hint"><span data-icon="lightbulb" data-icon-size="14"></span> Clique pour sélectionner. Tu peux tout ranger d’un coup vers une matière / un classeur.</p>
+  <div id="orphanRoot"></div>
 </div>
 
 <div class="pane ui-pane" id="paneSettings">
@@ -394,17 +454,19 @@
 
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Modules de l'Accueil</h3>
   <div class="set-row"><div><div class="set-lbl">Accès Rapide (Code)</div></div><button class="toggle-btn" id="btnDashHeroToggle">Oui</button></div>
-  <div class="set-row"><div><div class="set-lbl">Statut des révisions</div></div><button class="toggle-btn" id="btnDashRevToggle">Oui</button></div>
   <div class="set-row"><div><div class="set-lbl">Vue d'ensemble</div></div><button class="toggle-btn" id="btnDashOverToggle">Oui</button></div>
 
 
+  <h3 style="font-family:'Inter'; margin-top:30px; margin-bottom:15px; color:var(--acc); font-size:15px;">Profils, sauvegarde &amp; import</h3>
+  <div id="pioSettingsRoot" class="pio-settings-root" aria-live="polite"></div>
+
   <h3 style="font-family:'Inter'; margin-top:30px; margin-bottom:15px; color:var(--acc); font-size:15px;">Mode Démonstration</h3>
   <div style="background:rgba(91,141,247,.05); border:1px solid rgba(91,141,247,.3); padding:15px; border-radius:12px; text-align:center;">
-    <p style="font-size:12px; color:var(--mut); margin-bottom:15px;">Teste l'algorithme en conditions réalistes (~130 cartes X- par chapitre PC*, questions usuelles, exos à différents stades, 50 anglais).</p>
+    <p style="font-size:12px; color:var(--mut); margin-bottom:15px;">Jeux de test réalistes : notes DS/khôlles, IDs Anki au format X-ABC, devoirs découpés. La simu PC* place ~4 mois de prépa (mi-année).</p>
     <button class="bs" onclick="window.runAnkiSmokeTests && window.runAnkiSmokeTests()" style="width:100%; margin-top:8px;" id="btnRunSmoke"><span data-icon="flask-conical"></span> Tests smoke Synchrotron (console)</button>
     <button class="bp" onclick="window.loadDemoPCStar()" style="background:var(--gold); color:#1a2030; width:100%; font-weight:700; margin-top:8px;" id="btnLoadDemoPCStar"><span data-icon="star"></span> Simulation mi-année PC* (recommandé)</button>
     <button class="bp" onclick="window.loadDemoXP()" style="background:#b06af7; color:#fff; width:100%; margin-top:8px;" id="btnLoadDemoXP"><span data-icon="bar-chart"></span> Démo courte « 3 semaines »</button>
-    <button class="bs" onclick="window.loadDemo()" style="width:100%; margin-top:6px;" id="btnLoadDemo">Démo minimale (10 cartes)</button>
+    <button class="bs" onclick="window.loadDemo()" style="width:100%; margin-top:6px;" id="btnLoadDemo">Démo minimale (~20 cartes + notes)</button>
   </div>
 
   <h3 style="font-family:'Inter'; margin-top:30px; margin-bottom:15px; color:var(--red); font-size:15px;">Réinitialisation</h3>
@@ -441,6 +503,7 @@
 </div>
 
 <div class="pane ui-pane" id="paneLatexTest"></div>
+<div class="pane ui-pane" id="paneQuickLatex"></div>
 
   </div><!-- .app-content -->
       </div><!-- .ui-pane-frame -->
@@ -448,12 +511,19 @@
   </div><!-- .app-workspace -->
 </div><!-- #appShell -->
 
+<div id="deviceSecondaryBrowseBar" class="device-secondary-browse-bar" hidden>
+  <button type="button" class="bs" id="btnDeviceLiteBack" onclick="window.deviceLiteCloseBaseDoc && window.deviceLiteCloseBaseDoc()">
+    <span data-icon="arrow-left"></span> Mode simplifié
+  </button>
+  <span class="device-secondary-browse-hint">Base Doc · consultation (pas de création / édition de fiches)</span>
+</div>
+
 <div id="deviceSecondaryShell" class="device-secondary-shell" hidden aria-hidden="true">
   <div class="device-lite-inner">
     <div class="device-lite-header">
       <div>
         <h1 class="device-lite-title">Mode simplifié</h1>
-        <p class="device-lite-sub">Secondaire — scan, recherche, consultation</p>
+        <p class="device-lite-sub">Secondaire — scan, recherche, Base Doc</p>
       </div>
       <span id="deviceRoleChipLite" class="device-role-chip device-role-chip--secondary">Secondaire</span>
     </div>
@@ -470,6 +540,7 @@
       <h3>Actions</h3>
       <div class="device-lite-actions">
         <button type="button" class="bp" id="btnDeviceLiteCam" onclick="window.openCam && window.openCam()"><span data-icon="camera"></span> Scanner</button>
+        <button type="button" class="bs" id="btnDeviceLiteBaseDoc" onclick="window.deviceLiteOpenBaseDoc && window.deviceLiteOpenBaseDoc()"><span data-icon="clipboard-list"></span> Base Doc</button>
       </div>
     </div>
 
@@ -494,7 +565,7 @@
     <button class="fab-mini" onclick="window.closeFab(); window.switchTab('print')" title="Impression" aria-label="Impression"><span data-icon="printer"></span></button>
     <button class="fab-mini" onclick="window.closeFab(); window.exportCsv()" title="Export CSV" aria-label="Export CSV"><span data-icon="download"></span></button>
     <button class="fab-mini" onclick="window.closeFab(); window.openCam()" title="Scanner Code" aria-label="Scanner"><span data-icon="camera"></span></button>
-    <button class="fab-mini" style="background:var(--acc);color:#fff;border:none;" onclick="window.closeFab(); window.openModalCours()" title="Ajouter un document" aria-label="Ajouter"><span data-icon="plus"></span></button>
+    <button class="fab-mini" style="background:var(--acc);color:#fff;border:none;" onclick="window.closeFab(); (window.openCoursWizard||window.openModalCours)('single')" title="Ajouter un document" aria-label="Ajouter"><span data-icon="plus"></span></button>
   </div>
   <button class="fab-main" onclick="window.toggleFab()" id="btnFabMain" aria-label="Actions rapides"><span data-icon="zap" data-icon-size="22"></span></button>
 </div>
@@ -533,6 +604,23 @@
   </div>
 </div>
 
+<div class="ov hidden" id="ovOrphanAssign">
+  <div class="modal">
+    <button type="button" onclick="window.closeOrphanAssign()" style="position:absolute; right:15px; top:15px; background:none; border:none; color:var(--mut); cursor:pointer;" aria-label="Fermer"><span data-icon="x" data-icon-size="18"></span></button>
+    <h2 style="margin-bottom:8px;"><span data-icon="inbox"></span> Ranger la sélection</h2>
+    <p id="orphanAssignSummary" class="anki-mut" style="font-size:13px;margin-bottom:16px;"></p>
+    <div class="fg" id="orphanMatField"><label>Matière *</label><select id="fOrphanMat"></select></div>
+    <div id="orphanClFields">
+      <div class="fg"><label>Classeur *</label><select id="fOrphanCl"></select></div>
+      <div class="fg"><label>Intercalaire *</label><select id="fOrphanInter"></select></div>
+    </div>
+    <div class="macts" style="margin-top:20px;">
+      <button type="button" class="bs" onclick="window.closeOrphanAssign()">Annuler</button>
+      <button type="button" class="bp" onclick="window.saveOrphanAssign()">Ranger</button>
+    </div>
+  </div>
+</div>
+
 
 <div class="ov hidden" id="ovCours">
   <div class="modal">
@@ -566,25 +654,30 @@
           <option value="FICHE">Fiche</option>
         </select>
       </div>
-      <div class="fg" style="flex:1;"><label>Maîtrise</label>
-        <select id="fRev">
-          <option value="red">À revoir (Urg.)</option>
-          <option value="orange">En cours</option>
-          <option value="green">Maîtrisé</option>
-        </select>
-      </div>
     </div>
     <div class="fg" id="fgNote" style="display:none; background:rgba(91,141,247,.1); padding:10px; border-radius:8px; border:1px solid var(--acc);">
-      <label style="color:var(--acc);">Note obtenue (Optionnel)</label>
-      <input type="number" id="fNote" placeholder="Ex: 14.5" min="0" max="20" step="0.5" style="border-color:var(--acc);">
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:110px;">
+          <label style="color:var(--acc);">Note /20</label>
+          <input type="number" id="fNote" placeholder="Ex: 14.5" min="0" max="20" step="0.5" style="border-color:var(--acc);">
+        </div>
+        <div style="flex:1; min-width:90px;">
+          <label style="color:var(--acc);">Rang</label>
+          <input type="number" id="fRang" placeholder="Ex: 5" min="1" max="500" step="1" style="border-color:var(--acc);">
+        </div>
+        <div style="flex:1; min-width:90px;">
+          <label style="color:var(--acc);">Sur (effectif)</label>
+          <input type="number" id="fEffectif" placeholder="Ex: 42" min="1" max="500" step="1" style="border-color:var(--acc);">
+        </div>
+      </div>
+      <p class="anki-mut" style="font-size:11px; margin:8px 0 0;">Optionnel — le rang s’affiche dans l’onglet Notes (bascule Notes / Rangs).</p>
     </div>
     
     <div class="fg"><label>Matière *</label><select id="fMat"></select></div>
-    <div style="display:flex; gap:10px;">
-      <div class="fg" style="flex:1.5;"><label>Classeur *</label><select id="fCl"></select></div>
-      <div class="fg" style="flex:1;"><label>Intercalaire *</label>
-        <select id="fInter"></select>
-      </div>
+    <div class="fg"><label>Classeur *</label><select id="fCl"></select></div>
+    <div class="fg cours-inter-linked">
+      <label>Intercalaire *</label>
+      <select id="fInter"></select>
     </div>
     <div class="fg"><label>Notes / Infos</label><textarea id="fDesc" rows="2" placeholder="Astuces de résolution..."></textarea></div>
     <div class="macts">
@@ -598,6 +691,13 @@
   <div class="modal">
     <h2 style="margin-bottom:15px;"><span data-icon="pencil"></span> Éditer le classeur</h2>
     <div class="fg"><label>Nom du classeur</label><input type="text" id="eClNm"></div>
+    <div class="fg"><label>Couleur du classeur</label>
+      <div class="sws" id="eClSw"></div>
+      <div class="sw-preview-bar" id="eClColorPreview" aria-hidden="true"></div>
+    </div>
+    <div class="fg"><label>Icône</label>
+      <div class="cl-icon-pick" id="eClIconPick" role="group" aria-label="Icône du classeur"></div>
+    </div>
     <div class="fg"><label>Nb max d'intercalaires</label><input type="number" id="eClMax" min="1" max="50" onchange="window.onEditClMaxChange()"></div>
     
     <h3 style="font-family:'Inter'; font-size:14px; margin:15px 0 10px; color:var(--acc);">Noms des intercalaires</h3>
@@ -608,6 +708,23 @@
     <div class="macts">
       <button class="bs" onclick="document.getElementById('ovEditCl').classList.add('hidden')">Annuler</button>
       <button class="bp" onclick="window.saveClEdit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovEditMat">
+  <div class="modal">
+    <h2 style="margin-bottom:15px;"><span data-icon="pencil"></span> Éditer la matière</h2>
+    <div class="fg"><label>Code (ID permanent)</label><input type="text" id="eMatId" disabled style="opacity:0.7; cursor:not-allowed;"></div>
+    <p style="font-size:11px; color:var(--mut); margin:-6px 0 12px;">L’ID ne change pas : tes cours restent liés à cette matière.</p>
+    <div class="fg"><label>Nom complet</label><input type="text" id="eMatNm"></div>
+    <div class="fg"><label>Couleur</label>
+      <div class="sws" id="eMatSw"></div>
+      <div class="sw-preview-bar" id="eMatColorPreview" aria-hidden="true"></div>
+    </div>
+    <div class="macts">
+      <button class="bs" onclick="document.getElementById('ovEditMat').classList.add('hidden')">Annuler</button>
+      <button class="bp" onclick="window.saveMatEdit()">Enregistrer</button>
     </div>
   </div>
 </div>
@@ -687,7 +804,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
   import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   const firebaseConfig = {
@@ -707,13 +824,17 @@
     if (window.bootMark) window.bootMark('firebase.init.start');
     window.firebaseReady = (async () => {
       const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+      // ignoreUndefinedProperties : évite qu’un champ undefined fasse échouer TOUTE
+      // écriture (index profils / blobs) → « bascule cloud échouée » + tailles 0 o
+      const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
       const auth = getAuth(app);
 
       window.db = db;
       window.doc = doc;
       window.getDoc = getDoc;
       window.setDoc = setDoc;
+      window.deleteDoc = deleteDoc;
+      window.runTransaction = runTransaction;
       window.onSnapshot = onSnapshot;
       window.auth = auth;
       window.signInWithCredential = signInWithCredential;
@@ -721,7 +842,17 @@
       window.onAuthStateChanged = onAuthStateChanged;
 
       if (window.bootMark) window.bootMark('firebase.authStateReady.start');
-      await auth.authStateReady();
+      // Timeout : authStateReady peut rester pendu sur réseau lent / IndexedDB bloqué
+      await Promise.race([
+        auth.authStateReady(),
+        new Promise(function (resolve) {
+          setTimeout(function () {
+            if (window.bootMark) window.bootMark('firebase.authStateReady.timeout');
+            console.warn('[Auth] authStateReady timeout 8s — poursuite sans attendre');
+            resolve();
+          }, 8000);
+        })
+      ]);
       if (window.bootMark) window.bootMark('firebase.authStateReady.done');
       console.log("Firebase & Firestore & Auth sont initialisés.");
       if (window.bootMark) window.bootMark('firebase.init.done');

@@ -71,13 +71,15 @@
     'circle-minus': '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>',
     minus: '<path d="M5 12h14"/>',
     'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    'arrow-left': '<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
     'skip-forward': '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>',
     layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 7.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="m2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>',
     'move-vertical': '<path d="M12 3v18"/><path d="m8 8 4-4 4 4"/><path d="m8 16 4 4 4-4"/>',
     'circle-dot': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
     'graduation-cap': '<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>',
     'cloud-off': '<path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/>',
-    'cloud-check': '<path d="m17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m9 15 2 2 4-4"/>'
+    'cloud-check': '<path d="m17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="m9 15 2 2 4-4"/>',
+    inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'
   };
 
   function appLogoSvg(size) {
@@ -127,6 +129,45 @@
   const CLASSEUR_COLORS = {
     'book-blue': 'cl-icon-book-blue', 'book-green': 'cl-icon-book-green',
     'book-red': 'cl-icon-book-red', 'book-orange': 'cl-icon-book-orange', folder: 'cl-icon-folder'
+  };
+
+  /** Renforce saturation / contraste d’une couleur hex pour les icônes */
+  window.intensifyColor = function (hex) {
+    if (!hex || typeof hex !== 'string') return hex || '#5b8df7';
+    var raw = hex.trim();
+    var m = raw.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (!m) return raw;
+    var h = m[1];
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var r = parseInt(h.slice(0, 2), 16);
+    var g = parseInt(h.slice(2, 4), 16);
+    var b = parseInt(h.slice(4, 6), 16);
+    var avg = (r + g + b) / 3;
+    var sat = 1.45;
+    r = Math.max(0, Math.min(255, Math.round(avg + (r - avg) * sat)));
+    g = Math.max(0, Math.min(255, Math.round(avg + (g - avg) * sat)));
+    b = Math.max(0, Math.min(255, Math.round(avg + (b - avg) * sat)));
+    // Légère remontée de luminosité si trop sombre
+    var lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if (lum < 90) {
+      var lift = 90 - lum;
+      r = Math.min(255, Math.round(r + lift * 0.55));
+      g = Math.min(255, Math.round(g + lift * 0.55));
+      b = Math.min(255, Math.round(b + lift * 0.55));
+    }
+    function toHex(n) { return ('0' + n.toString(16)).slice(-2); }
+    return '#' + toHex(r) + toHex(g) + toHex(b);
+  };
+
+  window.colorWithAlpha = function (hex, alpha) {
+    var c = window.intensifyColor(hex);
+    var m = String(c).replace('#', '').match(/^([0-9a-f]{6})$/i);
+    if (!m) return c;
+    var a = Math.max(0, Math.min(1, Number(alpha)));
+    var r = parseInt(m[1].slice(0, 2), 16);
+    var g = parseInt(m[1].slice(2, 4), 16);
+    var b = parseInt(m[1].slice(4, 6), 16);
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
   };
 
   function resolveName(name) {
@@ -194,10 +235,35 @@
     return `<span class="status-label">${window.statusDot(color)}${text}</span>`;
   };
 
-  window.renderClasseurIcon = function (key, size) {
+  window.renderClasseurIcon = function (key, size, color) {
     const resolved = EMOJI_MAP[key] ? resolveName(key) : (CLASSEUR_KEYS[key] || 'folder');
-    const colorCls = CLASSEUR_COLORS[key] || '';
-    return window.iconHtml(resolved, size || 18, colorCls ? 'icon-md ' + colorCls : 'icon-md');
+    const vivid = color ? window.intensifyColor(color) : '';
+    const colorCls = (!vivid && CLASSEUR_COLORS[key]) ? CLASSEUR_COLORS[key] : '';
+    const cls = ['icon', 'icon-md', 'cl-icon-vivid'];
+    if (colorCls) cls.push(colorCls);
+    const style = vivid ? ' style="color:' + String(vivid).replace(/"/g, '') + '"' : '';
+    const s = size || 20;
+    const inner = P[resolved] || P['circle-dot'] || P.folder;
+    return '<span class="' + cls.join(' ') + '"' + style + ' aria-hidden="true">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + s + '" height="' + s + '" viewBox="0 0 24 24">' +
+      (inner || '') + '</svg></span>';
+  };
+
+  /** Choix d’icône classeur : dossier ou livre (style classeur) */
+  window.CL_ICON_CHOICES = [
+    { id: 'folder', label: 'Dossier', icon: 'folder' },
+    { id: 'book', label: 'Classeur', icon: 'book' }
+  ];
+
+  window.normalizeClasseurIcon = function (key) {
+    if (!key) return 'folder';
+    if (key === 'book' || key === 'folder' || key === 'library' || key === 'languages') return key;
+    if (CLASSEUR_KEYS[key]) {
+      // book-blue / book-green… → book pour l’édition
+      if (String(key).indexOf('book') === 0) return 'book';
+      return CLASSEUR_KEYS[key];
+    }
+    return 'folder';
   };
 
   window.docTypeLabel = function (type) {
@@ -272,7 +338,8 @@
     document.body.style.removeProperty('overflow');
     document.body.style.removeProperty('height');
     document.body.style.removeProperty('max-height');
-    document.body.classList.remove('not-logged-in');
+    // Retirer auth-pending évite que le timer 12s réaffiche le login pendant initApp
+    document.body.classList.remove('not-logged-in', 'auth-pending', 'boot-active');
     const loginOverlay = document.getElementById('loginOverlay');
     if (loginOverlay) {
       loginOverlay.style.setProperty('display', 'none', 'important');

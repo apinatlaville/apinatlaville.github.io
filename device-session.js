@@ -196,10 +196,12 @@
   function readHubOnce() {
     var ref = presenceRef();
     if (!ref || !window.getDoc) return Promise.resolve(emptyHub());
+    // Ne pas avaler les erreurs : sinon resolveJoin croit le hub vide et
+    // s’auto-proclame PRIMARY (LWW) alors que la présence est illisible.
     return window.getDoc(ref).then(function (snap) {
       if (snap && snap.exists && snap.exists()) return snap.data() || emptyHub();
       return emptyHub();
-    }).catch(function () { return emptyHub(); });
+    });
   }
 
   function safeWritePresence(mutator, preservePrimary) {
@@ -346,9 +348,10 @@
       });
     }).catch(function (err) {
       console.warn('DeviceSession resolveJoin:', err);
+      // Fail-closed : pas de faux PRIMARY qui LWW-écrase un vrai principal
       state.joinResolved = true;
-      state.effectiveRole = CONFIG.ROLES.PRIMARY;
-      state.needsRoleChoice = false;
+      state.effectiveRole = CONFIG.ROLES.SECONDARY;
+      state.needsRoleChoice = true;
       emit();
     });
   }
@@ -593,8 +596,10 @@
 
   function canFullSave() {
     if (window.isLocalMode) return true;
+    // Avant DeviceSession.start (initApp) : autoriser la 1ʳᵉ save
     if (!state.started || !state.userId) return true;
-    if (!state.joinResolved) return true;
+    // Après start : attendre la résolution du rôle — sinon faux « primary » LWW
+    if (!state.joinResolved) return false;
     return state.effectiveRole === CONFIG.ROLES.PRIMARY && !state.needsRoleChoice;
   }
 
@@ -605,22 +610,98 @@
       && !state.needsRoleChoice;
   }
 
-  function saveSecondaryPatch(mutator) {
+  function applySecondaryPatchResult(data, pid) {
+    window.D = data;
+    window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
+    if (typeof window.captureCoursPlacementBase === 'function') {
+      window.captureCoursPlacementBase(data.cours);
+    }
+    if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+      window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+    } else if (typeof window.safeLocalSet === 'function') {
+      window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+    } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+    return data;
+  }
+
+  function saveSecondaryPatch(mutator, _retries) {
     if (!canSecondaryPatch()) return Promise.reject(new Error('Patch secondaire indisponible'));
     if (!window.docRef || !window.getDoc || !window.setDoc) return Promise.reject(new Error('Cloud indisponible'));
-    return window.getDoc(window.docRef).then(function (snap) {
-      var data = snap.exists() ? (snap.data() || {}) : (window.D ? JSON.parse(JSON.stringify(window.D)) : {});
-      if (!data.meta) data.meta = {};
-      mutator(data);
-      data.meta.revision = (Number(data.meta.revision) || 0) + 1;
-      data.meta.updatedAt = now();
-      data.meta.updatedBy = getDeviceId();
-      data.meta.updatedByRole = CONFIG.ROLES.SECONDARY;
-      return window.setDoc(window.docRef, data).then(function () {
-        window.D = data;
-        if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-        else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
-        return data;
+    var retriesLeft = (_retries == null) ? 3 : _retries;
+    var pid = window._activeProfileId
+      || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+      || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
+      || 'default';
+
+    var gate = Promise.resolve({ ok: true });
+    if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
+      gate = window.ProfilesIO.assertProfileCloudWritable(window.currentUser, pid);
+    }
+
+    return gate.then(function (writability) {
+      if (!writability || !writability.ok) {
+        return Promise.reject(new Error('Patch secondaire refusé : ' + ((writability && writability.reason) || 'not-writable')));
+      }
+
+      // Chemin atomique (évite TOCTOU getDoc→setDoc face au Principal)
+      if (typeof window.runTransaction === 'function' && window.db) {
+        return window.runTransaction(window.db, function (tx) {
+          return tx.get(window.docRef).then(function (snap) {
+            if (!snap.exists()) {
+              throw new Error('Profil cloud absent — patch secondaire refusé (anti-recréation)');
+            }
+            var data = snap.data() || {};
+            if (data._account === true || data._deleted) {
+              throw new Error('Document profil invalide (index/supprimé)');
+            }
+            if (!data.meta) data.meta = {};
+            var baseRev = Number(data.meta.revision) || 0;
+            mutator(data);
+            if (!data.meta) data.meta = {};
+            data.meta.revision = baseRev + 1;
+            data.meta.updatedAt = now();
+            data.meta.updatedBy = getDeviceId();
+            data.meta.updatedByRole = CONFIG.ROLES.SECONDARY;
+            if (window.ProfilesIO && typeof window.ProfilesIO.stripUndefinedDeep === 'function') {
+              data = window.ProfilesIO.stripUndefinedDeep(data) || data;
+            }
+            tx.set(window.docRef, data);
+            return data;
+          });
+        }).then(function (data) {
+          return applySecondaryPatchResult(data, pid);
+        });
+      }
+
+      // Fallback : getDoc + relecture + setDoc + retry
+      return window.getDoc(window.docRef).then(function (snap) {
+        if (!snap.exists()) {
+          return Promise.reject(new Error('Profil cloud absent — patch secondaire refusé (anti-recréation)'));
+        }
+        var data = snap.data() || {};
+        if (data._account === true || data._deleted) {
+          return Promise.reject(new Error('Document profil invalide (index/supprimé)'));
+        }
+        if (!data.meta) data.meta = {};
+        var baseRev = Number(data.meta.revision) || 0;
+        mutator(data);
+        if (!data.meta) data.meta = {};
+        data.meta.revision = baseRev + 1;
+        data.meta.updatedAt = now();
+        data.meta.updatedBy = getDeviceId();
+        data.meta.updatedByRole = CONFIG.ROLES.SECONDARY;
+        return window.getDoc(window.docRef).then(function (snap2) {
+          var curRev = snap2.exists() && snap2.data() && snap2.data().meta
+            ? (Number(snap2.data().meta.revision) || 0)
+            : 0;
+          if (curRev !== baseRev) {
+            if (retriesLeft > 0) return saveSecondaryPatch(mutator, retriesLeft - 1);
+            return Promise.reject(new Error('Conflit de révision (patch secondaire)'));
+          }
+          return window.setDoc(window.docRef, data).then(function () {
+            return applySecondaryPatchResult(data, pid);
+          });
+        });
       });
     });
   }
@@ -635,11 +716,21 @@
       if (!snap.exists()) return;
       if (state.effectiveRole !== CONFIG.ROLES.SECONDARY) return;
       var data = snap.data();
-      if (!data) return;
+      if (!data || data._account === true || data._deleted) return;
       window.D = data;
-      if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-      else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+      var pid = window._activeProfileId
+        || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+        || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
+        || 'default';
+      if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+        window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+      } else if (typeof window.safeLocalSet === 'function') {
+        window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+      } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
+      if (typeof window.renderCours === 'function') window.renderCours();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+      if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
     }, function (err) { console.warn('DeviceSession data listen:', err); });
   }
 
@@ -657,6 +748,17 @@
     watchUserData: watchUserData,
     isPrimary: function () { return getStatus().isPrimary; },
     isSecondary: function () { return getStatus().isSecondary; }
+  };
+
+  /** Bloque création / édition / suppression hors patch secondaire autorisé. */
+  window.refuseSecondaryFullMutation = function (msg) {
+    if (!(window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function')) return false;
+    if (window.DeviceSession.canFullSave()) return false;
+    var text = msg || (window.APP_MSG && window.APP_MSG.SECONDARY_READ_ONLY)
+      || 'Appareil secondaire : modification indisponible (lecture seule).';
+    if (typeof window.showToast === 'function') window.showToast(text);
+    else if (typeof window.sysAlert === 'function') window.sysAlert(text, 'Lecture seule');
+    return true;
   };
 
   function bindPanelButtons(root) {
@@ -771,18 +873,74 @@
     bindPanelButtons(ov);
   };
 
+  function setSecondaryBrowseBar(visible) {
+    var bar = document.getElementById('deviceSecondaryBrowseBar');
+    if (!bar) return;
+    bar.hidden = !visible;
+    bar.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  }
+
+  window.deviceLiteCloseBaseDoc = function () {
+    document.body.classList.remove('device-role-secondary-browse');
+    setSecondaryBrowseBar(false);
+    var status = window.DeviceSession && window.DeviceSession.getStatus
+      ? window.DeviceSession.getStatus()
+      : null;
+    var stillSecondary = !!(status && status.enabled && status.joinResolved
+      && status.isSecondary && !status.needsRoleChoice);
+    if (stillSecondary) {
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+      var shell = document.getElementById('deviceSecondaryShell');
+      if (shell) {
+        shell.hidden = false;
+        shell.setAttribute('aria-hidden', 'false');
+      }
+    }
+  };
+
+  window.deviceLiteOpenBaseDoc = function () {
+    var status = window.DeviceSession && window.DeviceSession.getStatus
+      ? window.DeviceSession.getStatus()
+      : null;
+    var secondary = !!(status && status.enabled && status.joinResolved
+      && status.isSecondary && !status.needsRoleChoice);
+    if (!secondary) {
+      if (typeof window.switchTab === 'function') window.switchTab('cours');
+      return;
+    }
+    document.body.classList.add('device-role-secondary-browse');
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    var shell = document.getElementById('deviceSecondaryShell');
+    if (shell) {
+      shell.hidden = true;
+      shell.setAttribute('aria-hidden', 'true');
+    }
+    setSecondaryBrowseBar(true);
+    if (typeof window.switchTab === 'function') window.switchTab('cours');
+    else if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.hydrateIcons === 'function') window.hydrateIcons();
+  };
+
   window.applyDeviceRoleUi = function (status) {
     status = status || (window.DeviceSession && window.DeviceSession.getStatus());
     if (!status) return;
 
     var secondary = !!(status.enabled && status.joinResolved && status.isSecondary && !status.needsRoleChoice);
     var choosing = !!(status.enabled && status.needsRoleChoice);
+    var browsing = secondary && document.body.classList.contains('device-role-secondary-browse');
 
     document.body.classList.toggle('device-role-secondary', secondary);
     document.body.classList.toggle('device-role-primary', !secondary && !choosing);
     document.body.classList.toggle('device-role-choosing', choosing);
+    if (!secondary) {
+      document.body.classList.remove('device-role-secondary-browse');
+      browsing = false;
+      setSecondaryBrowseBar(false);
+    }
 
-    if (secondary || choosing) {
+    if ((secondary && !browsing) || choosing) {
       document.documentElement.style.overflow = 'hidden';
       document.body.style.overflow = 'hidden';
     } else {
@@ -792,9 +950,11 @@
 
     var shell = document.getElementById('deviceSecondaryShell');
     if (shell) {
-      shell.hidden = !secondary;
-      shell.setAttribute('aria-hidden', secondary ? 'false' : 'true');
+      var showShell = secondary && !browsing;
+      shell.hidden = !showShell;
+      shell.setAttribute('aria-hidden', showShell ? 'false' : 'true');
     }
+    if (browsing) setSecondaryBrowseBar(true);
 
     if (secondary) {
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();

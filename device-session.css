@@ -125,6 +125,75 @@ body.device-role-secondary #errorToast {
   z-index: 9500;
 }
 
+/* Consultation Base Doc depuis le mode secondaire (toujours lecture seule) */
+.device-secondary-browse-bar {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9200;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: rgba(20, 24, 36, 0.94);
+  border-bottom: 1px solid var(--bd, #2a3348);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.device-secondary-browse-bar .bs {
+  flex-shrink: 0;
+}
+.device-secondary-browse-hint {
+  font-size: 12px;
+  color: var(--mut, #8b95a8);
+  text-align: right;
+}
+body.device-role-secondary.device-role-secondary-browse {
+  overflow: auto !important;
+  height: auto;
+  width: 100%;
+  position: static;
+  inset: auto;
+}
+body.device-role-secondary.device-role-secondary-browse #deviceSecondaryShell {
+  display: none !important;
+}
+body.device-role-secondary.device-role-secondary-browse #appShell {
+  visibility: visible;
+  pointer-events: auto;
+  overflow: visible !important;
+  padding-top: calc(52px + env(safe-area-inset-top, 0px));
+}
+body.device-role-secondary.device-role-secondary-browse .fab-wrapper,
+body.device-role-secondary.device-role-secondary-browse .sync-dock-bar {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body.device-role-secondary.device-role-secondary-browse #coursCreateMenu {
+  display: none !important;
+}
+/* Pas d’édition / suppression / création de fiches en consultation secondaire */
+body.device-role-secondary.device-role-secondary-browse .cacts .icon-edit-delete,
+body.device-role-secondary.device-role-secondary-browse .cacts button[aria-label="Modifier"],
+body.device-role-secondary.device-role-secondary-browse .cacts button[aria-label="Supprimer"],
+body.device-role-secondary.device-role-secondary-browse .cacts button[title="Modifier"],
+body.device-role-secondary.device-role-secondary-browse .cacts button[title="Supprimer"] {
+  display: none !important;
+}
+body.device-role-secondary.device-role-secondary-browse #locContent .bp[onclick*="openCardCreateForCours"],
+body.device-role-secondary.device-role-secondary-browse button[onclick*="openCardCreateForCours"] {
+  display: none !important;
+}
+body.device-role-secondary.device-role-secondary-browse #deviceSecondaryBrowseBar {
+  display: flex;
+}
+body.device-role-secondary.device-role-secondary-browse #deviceSecondaryBrowseBar[hidden] {
+  display: flex !important;
+}
+
 .device-lite-inner {
   max-width: 440px;
   margin: 0 auto;

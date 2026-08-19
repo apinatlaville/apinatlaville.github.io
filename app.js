@@ -106,6 +106,9 @@ window.updateCloudIndicator = function() {
       box.removeAttribute('title');
     }
   }
+  if (window.ProfilesIO && typeof window.ProfilesIO.updateProfileIndicator === 'function') {
+    window.ProfilesIO.updateProfileIndicator();
+  }
 };
 
 window.triggerHaptic = function() {
@@ -158,7 +161,16 @@ window.closeLocPopup = function() {
   const bd = window.$('locBackdrop');
   if(bd) bd.style.display = 'none';
 };
-window.closeModalCours = function() { const ov = window.$('ovCours'); if(ov) ov.classList.add('hidden'); };
+window.closeModalCours = function(opts) {
+  const o = opts || {};
+  const ov = window.$('ovCours');
+  if (ov) ov.classList.add('hidden');
+  if (o.skipWizard) return;
+  /* Annulation depuis le formulaire wizard → revenir au parcours Finder */
+  if (window._coursWizardActive && window._coursWizardMode && typeof window.coursWizardCancelForm === 'function') {
+    window.coursWizardCancelForm();
+  }
+};
 window.closeQRModal = function() { const ov = window.$('ovQR'); if(ov) ov.classList.add('hidden'); };
 window.closePrintConfirm = function() { const ov = window.$('ovPrintConfirm'); if(ov) ov.classList.add('hidden'); };
 
@@ -168,11 +180,18 @@ document.addEventListener('click', function(e) {
       if (ov.id === 'ovCam') window.stopCam();
       else if (ov.id === 'ovQR') window.closeQRModal();
       else if (ov.id === 'ovCours') window.closeModalCours();
+      else if (ov.id === 'ovCoursWizard') {
+        if (typeof window.coursWizardQuit === 'function') window.coursWizardQuit();
+        else if (typeof window.closeCoursWizard === 'function') window.closeCoursWizard();
+      }
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
       else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
       else if (ov.id === 'ovMove') ov.classList.add('hidden');
-      else if (ov.id === 'ovExo' || ov.id === 'ovDevoir') ov.classList.add('hidden');
+      else if (ov.id === 'ovExo' || ov.id === 'ovDevoir' || ov.id === 'ovQuickCreate') ov.classList.add('hidden');
+      else if (ov.id === 'ovQuickLatex' && typeof window.closeQuickLatexPopup === 'function') {
+        window.closeQuickLatexPopup(false);
+      }
     }
   });
   const w = window.$('fabWrapper');
@@ -225,7 +244,6 @@ window.applySettings = function() {
 
   if(window.$('matChips')) window.$('matChips').classList.toggle('hidden-ui', !window.D.settings.showChips);
   if(window.$('dashHeroArea')) window.$('dashHeroArea').style.display = window.D.settings.showDashHero ? 'block' : 'none';
-  if(window.$('dashRevArea')) window.$('dashRevArea').style.display = window.D.settings.showDashRev ? 'block' : 'none';
   if(window.$('dashOverviewArea')) window.$('dashOverviewArea').style.display = window.D.settings.showDashOver ? 'block' : 'none';
   if(window.$('btnCompactToggle')) window.$('btnCompactToggle').textContent = window.D.settings.compact ? 'Activé' : 'Désactivé';
   if(window.$('btnHeaderClockToggle')) window.$('btnHeaderClockToggle').textContent = window.D.settings.showHeaderClock ? 'Activé' : 'Désactivé';
@@ -241,7 +259,6 @@ window.applySettings = function() {
   if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
   if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
   if(window.$('btnDashHeroToggle')) window.$('btnDashHeroToggle').textContent = window.D.settings.showDashHero ? 'Oui' : 'Non';
-  if(window.$('btnDashRevToggle')) window.$('btnDashRevToggle').textContent = window.D.settings.showDashRev ? 'Oui' : 'Non';
   if(window.$('btnDashOverToggle')) window.$('btnDashOverToggle').textContent = window.D.settings.showDashOver ? 'Oui' : 'Non';
   if(window.$('setUserName')) window.$('setUserName').value = window.D.settings.userName;
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
@@ -277,13 +294,16 @@ window.applySettings = function() {
   if (typeof window.renderAppNav === 'function') window.renderAppNav(window._activeTab || 'home');
   if (typeof window.syncNavSubMenu === 'function') window.syncNavSubMenu();
   if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
+  if (window.ProfilesIO && typeof window.ProfilesIO.renderSettingsBlock === 'function') {
+    window.ProfilesIO.renderSettingsBlock();
+  }
 
 };
 
 window.loadDemoPCStar = function() {
   window.sysConfirm(
     "Charger la simulation mi-année PC* ?\n\n" +
-    "~190 cartes : ~130 X- par chapitre (QU/exos/formules), 50 anglais, devoirs.\n" +
+    "~190 cartes Anki (X-/Y- au format ABC), ~27 notes DS/khôlles, devoirs découpés, programme S1/S2.\n" +
     "Remplace tes données actuelles.",
     async () => {
       await window.ensureDemoData();
@@ -315,7 +335,7 @@ window.loadDemo = function() {
 };
 
 window.loadDemoXP = function() {
-  window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, ease variés, stats peuplées.\n\nCela remplace tes données actuelles.", async () => {
+  window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, notes DS/khôlles, ease variés, un DM en cours.\n\nCela remplace tes données actuelles.", async () => {
     await window.ensureDemoData();
     if (!window.assertDemoDataLoaded('demoDataXP')) return;
     window.D = JSON.parse(JSON.stringify(window.demoDataXP));
@@ -349,11 +369,29 @@ window.ensureDemoData = function() {
 };
 
 window.resetData = function() {
-  window.sysConfirm(window.iconLabel('alert-triangle', 'ATTENTION !') + "<br><br>Cette action va TOUT effacer pour repartir de ZÉRO (app vide).<br><br>Es-tu sûr ?", async () => {
-    window.D = JSON.parse(JSON.stringify(window.emptyData)); 
-    await window.save(); 
-    location.reload();
-  }, "Réinitialisation Totale");
+  const pid = window._activeProfileId
+    || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+    || 'ce profil';
+  const pname = (window.ProfilesIO && window.ProfilesIO.getProfileMeta && (window.ProfilesIO.getProfileMeta(pid) || {}).name) || pid;
+  window.sysConfirm(
+    window.iconLabel('alert-triangle', 'ATTENTION !') +
+    '<br><br>Cette action vide <b>uniquement le profil actif</b> (« ' +
+    (typeof window.escHtml === 'function' ? window.escHtml(pname) : pname) +
+    ' »).<br>Les autres profils et tes exports JSON ne sont pas touchés.<br><br>Es-tu sûr ?',
+    async () => {
+      window._allowEmptyProfileWrite = true;
+      try {
+        window.D = JSON.parse(JSON.stringify(window.emptyData));
+        if (!window.D.meta) window.D.meta = {};
+        window.D.meta.updatedAt = Date.now();
+        await window.save();
+      } finally {
+        window._allowEmptyProfileWrite = false;
+      }
+      location.reload();
+    },
+    'Réinitialisation du profil'
+  );
 };
 
 window.formatTime = function(s) {
@@ -662,6 +700,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
   switch (tab) {
     case 'home': window.renderDashboard(); break;
     case 'cours': {
+      if (typeof window.ensureCoursPaneToolbar === 'function') window.ensureCoursPaneToolbar();
       const pending = window._pendingCoursFilters;
       const setFlt = (id, val) => {
         const el = window.$(id);
@@ -671,12 +710,11 @@ window.runTabShow = function(tab, overrideResetFilters) {
       };
       if (pending && !overrideResetFilters) {
         window._pendingCoursFilters = null;
-        ['fltType', 'fltRev', 'fltMat', 'fltCl', 'fltQr'].forEach(id => setFlt(id, ''));
+        ['fltType', 'fltMat', 'fltCl', 'fltQr'].forEach(id => setFlt(id, ''));
         ['mainSearchText', 'mainSearchCode'].forEach(id => {
           if (window.$(id)) window.$(id).value = '';
         });
         window.chipFilter = null;
-        if (pending.rev) setFlt('fltRev', pending.rev);
         if (pending.type) setFlt('fltType', pending.type);
         window.renderCours();
       } else if (overrideResetFilters) {
@@ -700,10 +738,14 @@ window.runTabShow = function(tab, overrideResetFilters) {
       window.isEditingMat = false;
       window.renderMatieres();
       break;
+    case 'orphelins':
+      if (typeof window.renderOrphelins === 'function') window.renderOrphelins();
+      break;
     case 'settings': window.applySettings(); break;
     case 'logs': window.renderErrorLogs(); break;
     case 'test': break;
     case 'latexTest': if (typeof window.renderLatexTest === 'function') window.renderLatexTest(); break;
+    case 'quickLatex': if (typeof window.renderQuickLatexCard === 'function') window.renderQuickLatexCard(); break;
     default: break;
   }
 };
@@ -804,23 +846,6 @@ window.switchTab = function(tab, overrideResetFilters = false) {
 
 window.renderDashboard = function() {
   if (!window.D || !window.D.cours) return;
-  const redCount = window.D.cours.filter(c => c.rev === 'red').length;
-  const orangeCount = window.D.cours.filter(c => c.rev === 'orange').length;
-  const greenCount = window.D.cours.filter(c => c.rev === 'green').length;
-
-  if(window.$('dashRevGrid')) {
-    window.$('dashRevGrid').innerHTML = `
-      <div class="dash-card dash-red" onclick="window.openCoursFiltered({rev:'red'})">
-        <div class="dash-num">${redCount}</div><div class="dash-lbl">${window.statusLabel('red', 'À revoir urg.')}</div>
-      </div>
-      <div class="dash-card" onclick="window.openCoursFiltered({rev:'orange'})">
-        <div class="dash-num" style="color:var(--gold);">${orangeCount}</div><div class="dash-lbl">${window.statusLabel('orange', 'En cours')}</div>
-      </div>
-      <div class="dash-card" onclick="window.openCoursFiltered({rev:'green'})">
-        <div class="dash-num" style="color:var(--grn);">${greenCount}</div><div class="dash-lbl">${window.statusLabel('green', 'Maîtrisés')}</div>
-      </div>
-    `;
-  }
 
   if(window.$('dashOverviewGrid')) {
     window.$('dashOverviewGrid').innerHTML = `
@@ -836,22 +861,40 @@ window.renderDashboard = function() {
     `;
   }
 
-  const todos = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange')
+  // Rappel « À ranger » (hors zone Vue d'ensemble, pour rester visible même si celle-ci est masquée)
+  const orphanBanner = window.$('dashOrphanBanner');
+  if (orphanBanner && typeof window.countOrphans === 'function') {
+    const oc = window.countOrphans();
+    const total = oc.cours + oc.anki;
+    if (total > 0) {
+      orphanBanner.innerHTML = `
+        <div class="dash-card" onclick="window.switchTab('orphelins')" style="cursor:pointer;border-color:rgba(240,192,96,.45);background:rgba(240,192,96,.08);">
+          <div class="dash-num" style="color:var(--gold);">${total}</div>
+          <div class="dash-lbl">${window.iconLabel('inbox', 'À ranger')} · ${oc.cours} doc(s) · ${oc.anki} carte(s)</div>
+        </div>`;
+      orphanBanner.style.display = '';
+    } else {
+      orphanBanner.innerHTML = '';
+      orphanBanner.style.display = 'none';
+    }
+  }
+
+  const todos = window.D.cours.filter(c => c.stat === 'pending' || c.stat === 'printed')
                        .sort((a,b) => {
-                          if(a.rev === 'red' && b.rev !== 'red') return -1;
-                          if(a.rev !== 'red' && b.rev === 'red') return 1;
+                          if(a.stat === 'pending' && b.stat !== 'pending') return -1;
+                          if(a.stat !== 'pending' && b.stat === 'pending') return 1;
                           return new Date(a.date) - new Date(b.date);
                        }).slice(0, 5);
   
   if(window.$('todoList')) {
     if(!todos.length) {
-      window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">' + window.iconLabel('sparkles', 'Rien d\'urgent ! Tout est maîtrisé.') + '</div>';
+      window.$('todoList').innerHTML = '<div style="color:var(--mut); font-size:13px; text-align:center; padding:10px; background:var(--s2); border-radius:10px;">' + window.iconLabel('sparkles', 'Tous les QR sont initialisés.') + '</div>';
     } else {
       window.$('todoList').innerHTML = todos.map(c => `
-        <div class="todo-item" onclick="window.doLocate('${window.escHtml(c.uid)}')" style="border-left-color: ${c.rev === 'red' ? 'var(--red)' : 'var(--gold)'};">
+        <div class="todo-item" onclick="window.doLocate('${window.escapeJsStr(c.uid)}')" style="border-left-color: ${c.stat === 'pending' ? 'var(--red)' : 'var(--gold)'};">
           <div>
             <div class="todo-tit">${window.escHtml(c.title)}</div>
-            <div class="todo-sub">${window.statusDot(c.rev === 'red' ? 'red' : 'orange')} ${window.escHtml(c.mat)} • ${window.escHtml(c.type)}</div>
+            <div class="todo-sub">${window.statusDot(c.stat === 'pending' ? 'red' : 'orange')} ${c.stat === 'pending' ? 'À imprimer' : 'À scanner'} · ${window.escHtml(c.mat)} • ${window.escHtml(c.type)}</div>
           </div>
           <button class="cbt">${window.iconLabel('arrow-right', 'Go')}</button>
         </div>
@@ -866,42 +909,369 @@ window.renderDashboard = function() {
 
 window.drawKholle = function() {
   if (!window.D || !window.D.cours) return;
-  const toReview = window.D.cours.filter(c => c.rev === 'red' || c.rev === 'orange');
-  if(!toReview.length) return window.sysAlert("Bravo ! Aucun document urgent à réviser.", "Khôlle");
-  const winner = toReview[Math.floor(Math.random() * toReview.length)];
+  const pool = window.D.cours.filter(c => ['COURS', 'TD', 'FICHE', 'KHOLLE'].includes(c.type));
+  if(!pool.length) return window.sysAlert("Aucun cours, TD, fiche ou khôlle à tirer au sort.", "Khôlle");
+  const winner = pool[Math.floor(Math.random() * pool.length)];
   window.doLocate(winner.uid);
 };
 
+window._notesFilter = window._notesFilter || { type: '', mat: '', metric: 'note' };
+
+function _notesParseScore(c) {
+  if (!c || c.note === '' || c.note == null) return null;
+  const raw = String(c.note).trim().replace(',', '.');
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(20, n));
+}
+
+function _notesParseRang(c) {
+  if (!c || c.rang === '' || c.rang == null) return null;
+  const r = parseInt(String(c.rang).trim(), 10);
+  if (!Number.isFinite(r) || r < 1) return null;
+  return r;
+}
+
+function _notesParseEffectif(c) {
+  if (!c || c.effectif === '' || c.effectif == null) return null;
+  const e = parseInt(String(c.effectif).trim(), 10);
+  if (!Number.isFinite(e) || e < 1) return null;
+  return e;
+}
+
+function _notesMetric() {
+  const f = window._notesFilter || {};
+  return f.metric === 'rang' ? 'rang' : 'note';
+}
+
+function _notesValue(c, metric) {
+  return metric === 'rang' ? _notesParseRang(c) : _notesParseScore(c);
+}
+
+function _notesAllScored(metric) {
+  const m = metric || _notesMetric();
+  return (window.D.cours || []).filter(c => {
+    if (c.type !== 'DS' && c.type !== 'KHOLLE') return false;
+    return _notesValue(c, m) != null;
+  });
+}
+
+function _notesFmtAvg(vals) {
+  if (!vals.length) return '—';
+  const m = vals.reduce((s, n) => s + n, 0) / vals.length;
+  return (Math.round(m * 10) / 10).toFixed(1).replace(/\.0$/, '');
+}
+
+function _notesFmtDate(iso) {
+  if (!iso || iso.length < 10) return '—';
+  return iso.substring(8, 10) + '/' + iso.substring(5, 7);
+}
+
+function _notesFmtRangDisplay(c) {
+  const r = _notesParseRang(c);
+  if (r == null) return '—';
+  const e = _notesParseEffectif(c);
+  return e != null ? (r + '/' + e) : (r + 'ᵉ');
+}
+
+function _notesTone(c, metric) {
+  if (metric === 'rang') {
+    const r = _notesParseRang(c);
+    const e = _notesParseEffectif(c);
+    if (r == null) return 'mid';
+    if (e != null && e > 0) {
+      const ratio = r / e;
+      if (ratio <= 0.25) return 'good';
+      if (ratio <= 0.5) return 'mid';
+      return 'bad';
+    }
+    if (r <= 5) return 'good';
+    if (r <= 15) return 'mid';
+    return 'bad';
+  }
+  const score = _notesParseScore(c);
+  if (score == null) return 'mid';
+  if (score >= 15) return 'good';
+  if (score >= 10) return 'mid';
+  return 'bad';
+}
+
+function _notesMatLabel(matId) {
+  const m = (window.D.matieres || []).find(x => x.id === matId);
+  return m ? (m.label || m.name || matId) : (matId || '?');
+}
+
+function _notesMatColor(matId) {
+  const m = (window.D.matieres || []).find(x => x.id === matId);
+  return (m && m.color) || 'var(--acc)';
+}
+
+function _notesSyncMetricButtons() {
+  const metric = _notesMetric();
+  ['btnNotesMetricNote', 'btnNotesMetricRang'].forEach(id => {
+    const btn = window.$(id);
+    if (!btn) return;
+    const isActive = btn.getAttribute('data-metric') === metric;
+    btn.classList.toggle('is-active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function _notesBuildEvolutionSvg(docs, metric) {
+  const W = 720, H = 240, PAD_L = 36, PAD_R = 18, PAD_T = 22, PAD_B = 36;
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+  const isRang = metric === 'rang';
+
+  let yMax = 20;
+  let yMin = 0;
+  if (isRang) {
+    yMin = 1;
+    const ranks = docs.map(_notesParseRang).filter(v => v != null);
+    const effectifs = docs.map(_notesParseEffectif).filter(v => v != null);
+    const maxR = ranks.length ? Math.max.apply(null, ranks) : 10;
+    const maxE = effectifs.length ? Math.max.apply(null, effectifs) : maxR;
+    yMax = Math.max(5, maxE, maxR);
+  }
+
+  const yOf = v => {
+    if (isRang) {
+      /* Rang 1 en haut (meilleur) */
+      const t = (Math.max(yMin, Math.min(yMax, v)) - yMin) / (yMax - yMin || 1);
+      return PAD_T + t * innerH;
+    }
+    return PAD_T + innerH - (Math.max(0, Math.min(20, v)) / 20) * innerH;
+  };
+
+  const n = docs.length;
+  const xOf = i => n === 1 ? PAD_L + innerW / 2 : PAD_L + (i / (n - 1)) * innerW;
+
+  const pts = docs.map((c, i) => {
+    const val = _notesValue(c, metric);
+    return {
+      c,
+      i,
+      x: xOf(i),
+      y: yOf(val),
+      val,
+      isDs: c.type === 'DS'
+    };
+  });
+
+  let gridVals;
+  if (isRang) {
+    const step = yMax <= 10 ? 1 : yMax <= 20 ? 2 : yMax <= 40 ? 5 : 10;
+    gridVals = [];
+    for (let v = yMin; v <= yMax; v += step) gridVals.push(v);
+    if (gridVals[gridVals.length - 1] !== yMax) gridVals.push(yMax);
+  } else {
+    gridVals = [0, 5, 10, 15, 20];
+  }
+  const gridYs = gridVals.map(v => ({ v, y: yOf(v) }));
+
+  const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+  const area = pts.length
+    ? `${path} L ${pts[pts.length - 1].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} L ${pts[0].x.toFixed(1)},${(PAD_T + innerH).toFixed(1)} Z`
+    : '';
+
+  const vals = pts.map(p => p.val);
+  const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+  const avgY = avg != null ? yOf(avg) : null;
+  const avgLbl = isRang
+    ? `moy. ${_notesFmtAvg(vals)}ᵉ`
+    : `moy. ${_notesFmtAvg(vals)}`;
+  const aria = isRang ? 'Évolution des rangs' : 'Évolution des notes';
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" class="notes-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${aria}">
+      <defs>
+        <linearGradient id="notesGrad" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="var(--acc)" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="var(--acc)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      ${gridYs.map(g => `
+        <line x1="${PAD_L}" x2="${W - PAD_R}" y1="${g.y}" y2="${g.y}" class="notes-grid"/>
+        <text x="${PAD_L - 8}" y="${g.y + 3}" text-anchor="end" class="notes-axis">${g.v}</text>
+      `).join('')}
+      ${avgY != null ? `<line x1="${PAD_L}" x2="${W - PAD_R}" y1="${avgY}" y2="${avgY}" class="notes-avg-line"/>
+        <text x="${W - PAD_R}" y="${avgY - 6}" text-anchor="end" class="notes-avg-lbl">${avgLbl}</text>` : ''}
+      ${area ? `<path d="${area}" fill="url(#notesGrad)"/>` : ''}
+      ${pts.length > 1 ? `<path d="${path}" class="notes-line" fill="none"/>` : ''}
+      ${pts.map(p => {
+        const col = p.isDs ? 'var(--acc)' : 'var(--gold)';
+        const lbl = _notesFmtDate(p.c.date);
+        const tipVal = isRang ? _notesFmtRangDisplay(p.c) : (p.val + '/20');
+        const tip = `${p.c.title || p.c.uid} · ${tipVal} · ${p.c.type === 'KHOLLE' ? 'Khôlle' : 'DS'}`;
+        const ptLbl = isRang ? String(p.val) : String(p.val);
+        return `
+          <g class="notes-pt" style="cursor:pointer" onclick="window.doLocate('${window.escapeJsStr(p.c.uid)}')">
+            <title>${window.escHtml(tip)}</title>
+            <circle cx="${p.x}" cy="${p.y}" r="11" fill="transparent"/>
+            <circle cx="${p.x}" cy="${p.y}" r="5.5" fill="var(--bg)" stroke="${col}" stroke-width="2.5"/>
+            <text x="${p.x}" y="${p.y - 12}" text-anchor="middle" class="notes-pt-val" fill="${col}">${window.escHtml(ptLbl)}</text>
+            <text x="${p.x}" y="${H - 10}" text-anchor="middle" class="notes-axis">${window.escHtml(lbl)}</text>
+          </g>`;
+      }).join('')}
+    </svg>
+    <div class="notes-legend">
+      <span><span class="notes-leg-dot" style="background:var(--acc);"></span> DS</span>
+      <span><span class="notes-leg-dot" style="background:var(--gold);"></span> Khôlle</span>
+      <span><span class="notes-leg-line"></span> Moyenne (filtre)${isRang ? ' · 1 = meilleur' : ''}</span>
+    </div>
+  `;
+}
+
 window.renderNotes = function() {
   if (!window.D || !window.D.cours) return;
-  const notesDocs = window.D.cours.filter(c => (c.type === 'DS' || c.type === 'KHOLLE') && c.note !== '' && c.note !== undefined);
-  notesDocs.sort((a,b) => new Date(a.date) - new Date(b.date));
-  
-  const wrapper = window.$('chartWrapper');
-  if(!wrapper) return;
+  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '', metric: 'note' });
+  if (f.metric !== 'rang') f.metric = 'note';
+  const metric = f.metric;
 
-  if(!notesDocs.length) {
-    wrapper.innerHTML = `<div style="color:var(--mut); font-size:13px; width:100%; text-align:center; padding-bottom:20px;">Aucune note enregistrée pour le moment.<br>Ajoute un DS ou une Khôlle avec une note pour voir le graphique.</div>`;
+  const typeSel = window.$('fltNotesType');
+  const matSel = window.$('fltNotesMat');
+  _notesSyncMetricButtons();
+
+  const all = _notesAllScored(metric).slice().sort((a, b) => {
+    const da = a.date || '';
+    const db = b.date || '';
+    if (da !== db) return da < db ? -1 : 1;
+    return (a.uid || '').localeCompare(b.uid || '');
+  });
+
+  const matIds = [...new Set(all.map(c => c.mat).filter(Boolean))].sort();
+  if (f.mat && !matIds.includes(f.mat)) f.mat = '';
+  if (matSel) {
+    const opts = ['<option value="">Toutes matières</option>']
+      .concat(matIds.map(id => {
+        const m = (window.D.matieres || []).find(x => x.id === id);
+        const label = m ? `${m.label || id}${m.name && m.name !== m.label ? ' — ' + m.name : ''}` : id;
+        return `<option value="${window.escHtml(id)}">${window.escHtml(label)}</option>`;
+      }));
+    const optsHtml = opts.join('');
+    if (matSel.dataset.notesOpts !== optsHtml) {
+      matSel.dataset.notesOpts = optsHtml;
+      if (typeof window.fcRefreshSelect === 'function') {
+        window.fcRefreshSelect(matSel, optsHtml);
+      } else {
+        matSel.innerHTML = optsHtml;
+      }
+    }
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(matSel, f.mat || '');
+    else matSel.value = f.mat || '';
+  }
+  if (typeSel) {
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(typeSel, f.type || '');
+    else typeSel.value = f.type || '';
+  }
+
+  const filtered = all.filter(c => {
+    if (f.type && c.type !== f.type) return false;
+    if (f.mat && c.mat !== f.mat) return false;
+    return true;
+  });
+
+  const valsAll = all.map(c => _notesValue(c, metric));
+  const valsFilt = filtered.map(c => _notesValue(c, metric));
+  const valsDs = all.filter(c => c.type === 'DS').map(c => _notesValue(c, metric));
+  const valsKh = all.filter(c => c.type === 'KHOLLE').map(c => _notesValue(c, metric));
+  const avgAll = _notesFmtAvg(valsAll);
+  const avgFilt = _notesFmtAvg(valsFilt);
+  const avgDs = _notesFmtAvg(valsDs);
+  const avgKh = _notesFmtAvg(valsKh);
+  const bestRang = valsAll.length ? Math.min.apply(null, valsAll) : null;
+  const unit = metric === 'rang' ? '<span class="notes-stat-unit">ᵉ</span>' : '<span class="notes-stat-unit">/20</span>';
+  const noun = metric === 'rang' ? 'rang' : 'note';
+
+  const statsEl = window.$('notesStats');
+  if (statsEl) {
+    const filterActive = !!(f.type || f.mat);
+    statsEl.innerHTML = `
+      <div class="notes-stat">
+        <div class="notes-stat-val">${avgAll}${unit}</div>
+        <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moyen' : 'Moyenne générale'}</div>
+        <div class="notes-stat-sub">${all.length} ${noun}${all.length > 1 ? 's' : ''}</div>
+      </div>
+      <div class="notes-stat">
+        <div class="notes-stat-val">${avgDs}${unit}</div>
+        <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moy. DS' : 'Moyenne DS'}</div>
+      </div>
+      <div class="notes-stat">
+        <div class="notes-stat-val">${avgKh}${unit}</div>
+        <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moy. Khôlles' : 'Moyenne Khôlles'}</div>
+      </div>
+      ${metric === 'rang' && bestRang != null ? `
+        <div class="notes-stat">
+          <div class="notes-stat-val">${bestRang}<span class="notes-stat-unit">ᵉ</span></div>
+          <div class="notes-stat-lbl">Meilleur rang</div>
+        </div>` : ''}
+      ${filterActive ? `
+        <div class="notes-stat notes-stat-filter">
+          <div class="notes-stat-val">${avgFilt}${unit}</div>
+          <div class="notes-stat-lbl">${metric === 'rang' ? 'Rang moy. filtré' : 'Moyenne filtrée'}</div>
+          <div class="notes-stat-sub">${filtered.length} ${noun}${filtered.length > 1 ? 's' : ''}</div>
+        </div>` : ''}
+    `;
+  }
+
+  const wrapper = window.$('chartWrapper');
+  const listEl = window.$('notesList');
+  if (!wrapper) return;
+
+  if (!filtered.length) {
+    const emptyMsg = metric === 'rang'
+      ? 'Aucun rang pour ce filtre.<br>Ajoute un rang sur un DS / Khôlle (édition du document), ou élargis le filtre.'
+      : 'Aucune note pour ce filtre.<br>Ajoute un DS ou une Khôlle avec une note, ou élargis le filtre.';
+    wrapper.innerHTML = `<div class="notes-empty">${emptyMsg}</div>`;
+    if (listEl) listEl.innerHTML = '';
     return;
   }
 
-  let html = '';
-  notesDocs.forEach(c => {
-    const noteNum = parseFloat(c.note);
-    const heightPct = (noteNum / 20) * 100;
-    let colorClass = noteNum >= 10 ? 'var(--acc)' : 'var(--red)';
-    if(noteNum >= 15) colorClass = 'var(--grn)';
+  wrapper.innerHTML = _notesBuildEvolutionSvg(filtered, metric);
 
-    html += `
-      <div class="chart-bar-group" onclick="window.doLocate('${window.escHtml(c.uid)}')" title="${window.escHtml(c.title)} : ${window.escHtml(c.note)}/20">
-        <div class="chart-bar" style="height: ${Math.max(5, heightPct)}%; background: linear-gradient(to top, transparent, ${colorClass}); border-top: 2px solid ${colorClass};">
-          <span class="chart-val" style="color:${colorClass}">${window.escHtml(c.note)}</span>
-        </div>
-        <div class="chart-lbl">${window.escHtml(c.mat)}</div>
+  if (listEl) {
+    listEl.innerHTML = `
+      <div class="notes-list-hdr">
+        <strong>Détail</strong>
+        <span class="anki-mut" style="font-size:12px;">${filtered.length} épreuve${filtered.length > 1 ? 's' : ''} · du plus récent au plus ancien</span>
       </div>
+      ${filtered.slice().reverse().map(c => {
+        const tone = _notesTone(c, metric);
+        const typeLbl = c.type === 'KHOLLE' ? 'Khôlle' : 'DS';
+        const col = _notesMatColor(c.mat);
+        const scoreHtml = metric === 'rang'
+          ? `${window.escHtml(_notesFmtRangDisplay(c))}`
+          : `${_notesParseScore(c)}<span class="notes-stat-unit">/20</span>`;
+        const sub = metric === 'rang' && _notesParseScore(c) != null
+          ? `<span class="notes-row-sub">${_notesParseScore(c)}/20</span>`
+          : (metric === 'note' && _notesParseRang(c) != null
+            ? `<span class="notes-row-sub">${window.escHtml(_notesFmtRangDisplay(c))}</span>`
+            : '');
+        return `
+          <div class="notes-row" onclick="window.doLocate('${window.escapeJsStr(c.uid)}')" role="button" tabindex="0">
+            <span class="notes-row-date">${window.escHtml(_notesFmtDate(c.date))}</span>
+            <span class="notes-row-type notes-type-${c.type === 'KHOLLE' ? 'kh' : 'ds'}">${typeLbl}</span>
+            <span class="anki-q-mat" style="background:${col};">${window.escHtml(_notesMatLabel(c.mat))}</span>
+            <span class="notes-row-title">${window.escHtml(c.title || c.uid)}</span>
+            <span class="notes-row-score notes-score-${tone}">${scoreHtml}${sub}</span>
+          </div>`;
+      }).join('')}
     `;
-  });
-  wrapper.innerHTML = html;
+  }
+};
+
+window.setNotesFilter = function(partial) {
+  const f = window._notesFilter || (window._notesFilter = { type: '', mat: '', metric: 'note' });
+  if (partial && Object.prototype.hasOwnProperty.call(partial, 'type')) f.type = partial.type || '';
+  if (partial && Object.prototype.hasOwnProperty.call(partial, 'mat')) f.mat = partial.mat || '';
+  if (partial && Object.prototype.hasOwnProperty.call(partial, 'metric')) {
+    f.metric = partial.metric === 'rang' ? 'rang' : 'note';
+  }
+  window.renderNotes();
+};
+
+window.setNotesMetric = function(metric) {
+  window.setNotesFilter({ metric: metric === 'rang' ? 'rang' : 'note' });
 };
 
 window.renderStats = function() {
@@ -919,13 +1289,13 @@ window.renderStats = function() {
 
 window.exportCsv = function() {
   if (!window.D || !window.D.cours) return;
-  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Maitrise','Note','Date','Statut_QR'];
+  const hdr = ['Code','Titre','Type','Matiere','Classeur','Intercalaire','Note','Rang','Effectif','Date','Statut_QR'];
   const esc = v => '"' + String(v||'').replace(/"/g,'""') + '"';
   
   const rows = window.D.cours.map(c => {
     const mo = window.D.matieres.find(m=>m.id===c.mat)||{name:c.mat};
     const co = window.D.classeurs.find(x=>x.id===c.cl)||{name:c.cl};
-    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.rev, c.note||'', c.date||'', c.stat].map(esc).join(',');
+    return [c.uid, c.title, c.type, mo.name, co.name, c.inter, c.note||'', c.rang||'', c.effectif||'', c.date||'', c.stat].map(esc).join(',');
   });
   
   const csv = [hdr.join(','), ...rows].join('\n');
@@ -985,7 +1355,6 @@ bindClick('btnCompactToggle', withD(() => { window.D.settings.compact = !window.
 bindClick('btnStatsToggle', withD(() => { window.D.settings.showStats = !window.D.settings.showStats; window.save(); window.applySettings(); }));
 bindClick('btnChipsToggle', withD(() => { window.D.settings.showChips = !window.D.settings.showChips; window.save(); window.applySettings(); }));
 bindClick('btnDashHeroToggle', withD(() => { window.D.settings.showDashHero = !window.D.settings.showDashHero; window.save(); window.applySettings(); }));
-bindClick('btnDashRevToggle', withD(() => { window.D.settings.showDashRev = !window.D.settings.showDashRev; window.save(); window.applySettings(); }));
 bindClick('btnDashOverToggle', withD(() => { window.D.settings.showDashOver = !window.D.settings.showDashOver; window.save(); window.applySettings(); }));
 bindClick('btnInitWarnToggle', withD(() => { window.D.settings.showInitWarn = !window.D.settings.showInitWarn; window.save(); window.applySettings(); }));
 
@@ -1055,7 +1424,14 @@ window.invokeOpenCardTypePicker = function (opts) {
     return run();
   }
   var load = typeof window.ensureAnkiUi === 'function' ? window.ensureAnkiUi() : Promise.resolve();
-  return Promise.resolve(load).then(run).catch(function () { run(); });
+  return Promise.resolve(load).then(run).catch(function () {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert(
+        'Impossible de charger le module cartes Anki.<br>Recharge la page ou vérifie ta connexion.',
+        'Anki indisponible'
+      );
+    }
+  });
 };
 if (typeof window.openCardTypePicker !== 'function') {
   var _pickerStub = function (opts) { return window.invokeOpenCardTypePicker(opts); };
@@ -1142,11 +1518,27 @@ bindChange('fType', () => window.toggleNoteField());
 bindChange('fMat', () => { if(typeof window.updateUidPrefix === 'function') window.updateUidPrefix(); });
 
 bindChange('fMoveCl', () => { if(typeof window.updateMoveIntercalairesDropdown === 'function') window.updateMoveIntercalairesDropdown(); });
+bindChange('fOrphanCl', () => { if (typeof window.updateOrphanInterDropdown === 'function') window.updateOrphanInterDropdown(); });
 
 bindClick('btnAddCl', () => window.addCl());
 bindClick('btnAddMat', () => window.addMat());
+bindClick('btnOrphanSelAllDocs', () => window.orphanSelAllDocs && window.orphanSelAllDocs());
+bindClick('btnOrphanSelAllAnki', () => window.orphanSelAllAnki && window.orphanSelAllAnki());
+bindClick('btnOrphanSelAll', () => window.orphanSelAll && window.orphanSelAll());
+bindClick('btnOrphanSelNone', () => window.orphanSelNone && window.orphanSelNone());
+bindClick('btnOrphanAssign', () => window.openOrphanAssign && window.openOrphanAssign());
 
-['fltMat', 'fltCl', 'fltQr', 'fltType', 'fltRev'].forEach(id => { bindChange(id, () => window.renderCours()); });
+['fltMat', 'fltCl', 'fltQr', 'fltType'].forEach(id => { bindChange(id, () => window.renderCours()); });
+bindChange('fltNotesType', () => {
+  const el = window.$('fltNotesType');
+  window.setNotesFilter({ type: el ? el.value : '' });
+});
+bindChange('fltNotesMat', () => {
+  const el = window.$('fltNotesMat');
+  window.setNotesFilter({ mat: el ? el.value : '' });
+});
+bindClick('btnNotesMetricNote', () => window.setNotesMetric('note'));
+bindClick('btnNotesMetricRang', () => window.setNotesMetric('rang'));
 bindClick('btnResetFilters', () => window.resetFilters());
 
 bindClick('btnSelPending', () => window.selPending());
@@ -1200,10 +1592,62 @@ function isFirestorePermissionDenied(err) {
   return /insufficient permissions|permission[\s_-]?denied|missing or insufficient|Accès Firestore refusé/i.test(msg);
 }
 
-/** Charge le document Firestore via l'UID Google (clé canonique), avec repli e-mail et migration. */
+/** Charge le document Firestore du profil actif (migration auto ancien blob racine). */
 async function resolveCloudUserDoc(user) {
   if (!user || !user.sub) {
     throw new Error('Identifiant Google (UID) manquant.');
+  }
+
+  // Chemin moderne : utilisateurs/{uid}/profiles/{profileId}
+  if (window.ProfilesIO && typeof window.ProfilesIO.resolveProfileCloudDoc === 'function') {
+    try {
+      const resolved = await window.ProfilesIO.resolveProfileCloudDoc(user);
+      // Jamais charger un index compte comme données app
+      let data = resolved.data;
+      if (data && (data._account === true || (window.ProfilesIO.isAccountIndex && window.ProfilesIO.isAccountIndex(data)))) {
+        console.error('[Auth] Index compte reçu comme payload — ignoré');
+        data = null;
+      }
+      if (data && data._deleted) data = null;
+      if (window.ProfilesIO.pinSessionProfileId) {
+        window.ProfilesIO.pinSessionProfileId(resolved.profileId);
+      }
+      return {
+        docRef: resolved.docRef,
+        data: data,
+        migrated: !!resolved.migrated,
+        storageKey: resolved.legacyRoot ? 'uid-legacy' : 'uid-profile',
+        profileId: resolved.profileId,
+        accountRef: resolved.accountRef,
+        legacyRoot: !!resolved.legacyRoot,
+        localOnly: !!resolved.localOnly,
+        cloudPending: !!resolved.cloudPending
+      };
+    } catch (e) {
+      // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
+      console.warn('[Auth] resolveProfileCloudDoc échec — repli local profil:', e && e.message);
+      let localData = null;
+      if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+        const pid = window.ProfilesIO.getSessionProfileId
+          ? window.ProfilesIO.getSessionProfileId()
+          : window.ProfilesIO.getActiveProfileId();
+        localData = window.ProfilesIO.readLocalProfileData(pid);
+        if (localData && localData._account) localData = null;
+      }
+      if (localData) {
+        return {
+          docRef: null,
+          data: localData,
+          migrated: false,
+          storageKey: 'local-fallback',
+          profileId: window._activeProfileId || 'default',
+          accountRef: null,
+          localOnly: true
+        };
+      }
+      if (!isFirestorePermissionDenied(e)) throw e;
+      throw e;
+    }
   }
 
   const uidRef = window.doc(window.db, 'utilisateurs', user.sub);
@@ -1218,7 +1662,12 @@ async function resolveCloudUserDoc(user) {
   }
 
   if (uidSnap && uidSnap.exists()) {
-    return { docRef: uidRef, data: uidSnap.data(), migrated: false, storageKey: 'uid' };
+    const raw = uidSnap.data();
+    // Si ProfilesIO absent et racine = index, ne pas charger comme D
+    if (raw && raw._account === true) {
+      return { docRef: uidRef, data: null, migrated: false, storageKey: 'uid-index-only' };
+    }
+    return { docRef: uidRef, data: raw, migrated: false, storageKey: 'uid' };
   }
 
   const tryLegacyEmail = async function () {
@@ -1230,6 +1679,9 @@ async function resolveCloudUserDoc(user) {
         return { docRef: legacyRef, data: null, migrated: false, storageKey: 'email' };
       }
       const data = legacySnap.data();
+      if (data && data._account === true) {
+        return { docRef: legacyRef, data: null, migrated: false, storageKey: 'email-index' };
+      }
       if (!uidDenied && window.setDoc) {
         try {
           await window.setDoc(uidRef, data);
@@ -1291,17 +1743,35 @@ async function initApp(user) {
       console.log("🌸 Chargement des données locales...");
       if (window.bootMark) window.bootMark('initApp.local.read.start');
       let localData = null;
+      const profileId = (window.ProfilesIO && window.ProfilesIO.getActiveProfileId)
+        ? window.ProfilesIO.getActiveProfileId()
+        : 'default';
+      window._activeProfileId = profileId;
+      if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
+        window.ProfilesIO.pinSessionProfileId(profileId);
+      }
       try {
-        localData = typeof window.safeLocalGet === 'function'
-          ? window.safeLocalGet('backup_local_cours')
-          : localStorage.getItem('backup_local_cours');
-        if (!localData) {
+        if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+          const parsed = window.ProfilesIO.readLocalProfileData(profileId);
+          if (parsed) localData = JSON.stringify(parsed);
+        }
+        if (!localData && profileId === 'default') {
+          localData = typeof window.safeLocalGet === 'function'
+            ? window.safeLocalGet('backup_local_cours')
+            : localStorage.getItem('backup_local_cours');
+        }
+        if (!localData && profileId === 'default') {
           localData = typeof window.safeLocalGet === 'function'
             ? window.safeLocalGet('mc_v28')
             : localStorage.getItem('mc_v28');
           if (localData) {
-            if (typeof window.safeLocalSet === 'function') window.safeLocalSet('backup_local_cours', localData);
-            else localStorage.setItem('backup_local_cours', localData);
+            if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+              window.ProfilesIO.writeLocalProfileData(profileId, localData);
+            } else if (typeof window.safeLocalSet === 'function') {
+              window.safeLocalSet('backup_local_cours', localData);
+            } else {
+              localStorage.setItem('backup_local_cours', localData);
+            }
           }
         }
       } catch (storageErr) {
@@ -1327,7 +1797,7 @@ async function initApp(user) {
       } else {
         window.D = null;
       }
-      if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0 });
+      if (window.bootMark) window.bootMark('initApp.local.read.done', { kb: localData ? Math.round(localData.length / 1024) : 0, profileId: profileId });
       window.cloudConnected = false;
     } else {
       // Attendre Firebase avant de tester les modules (évite faux « Modules manquants »)
@@ -1344,14 +1814,59 @@ async function initApp(user) {
             })
           : bootTimeout(resolveCloudUserDoc(user), 30000, 'Firestore'));
         window.docRef = cloud.docRef;
-        if (cloud.data) {
+        window._accountDocRef = cloud.accountRef || null;
+        window._profileCloudPending = !!cloud.cloudPending;
+        window._activeProfileId = cloud.profileId || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId());
+        if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
+          window.ProfilesIO.pinSessionProfileId(window._activeProfileId);
+        }
+        if (cloud.cloudPending) {
+          // Blob cloud pas encore dispo (création en cours sur un autre appareil) :
+          // pas de docRef writable → interdit de publier emptyData.
+          window.docRef = null;
+          window.cloudConnected = false;
+          console.warn('☁️ Profil en attente de synchronisation cloud (pas d’écriture vide).');
+        } else if (cloud.localOnly) {
+          window.cloudConnected = false;
+          console.warn('☁️ Repli local profil (cloud indisponible / structure).');
+        }
+        if (cloud.data && cloud.data._deleted) {
+          window.D = null;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+        } else if (cloud.data && cloud.data._account === true) {
+          console.error('☁️ Index compte refusé comme données app');
+          window.D = null;
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+        } else if (cloud.data) {
           window.D = cloud.data;
-          window.cloudConnected = true;
-          console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ')');
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
+          if (typeof window.captureCoursPlacementBase === 'function') {
+            window.captureCoursPlacementBase(window.D.cours);
+          }
+          // Miroir local pour conservation offline / bascule appareil
+          // (sauf pendant cloudPending : cloud.data est déjà le local conservé)
+          if (!cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
+            try { window.ProfilesIO.writeLocalProfileData(window._activeProfileId, window.D); } catch (mirrorErr) {
+              console.warn('Miroir local profil impossible:', mirrorErr);
+            }
+          }
+          console.log('☁️ Données Cloud synchronisées (UID ' + user.sub + ', profil ' + (window._activeProfileId || '?') + ')');
         } else {
           window.D = null;
-          window.cloudConnected = true;
-          console.log('☁️ Nouveau compte (UID ' + user.sub + ')');
+          if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
+          // Pendant pending sans payload : tenter le local non vide avant emptyData
+          if (cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+            try {
+              const localPending = window.ProfilesIO.readLocalProfileData(window._activeProfileId || 'default');
+              if (localPending && !localPending._account
+                && !(window.ProfilesIO.isEffectivelyEmptyProfile && window.ProfilesIO.isEffectivelyEmptyProfile(localPending))) {
+                window.D = localPending;
+                console.warn('☁️ Pending cloud — conservation des données locales non vides.');
+              }
+            } catch (_) { /* ignore */ }
+          }
+          console.log('☁️ Nouveau compte / profil (UID ' + user.sub + ')');
         }
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.done', { exists: !!cloud.data, migrated: cloud.migrated });
       } else {
@@ -1368,7 +1883,24 @@ async function initApp(user) {
     // Repli : ne pas écraser avec du vide si une sauvegarde locale existe
     if (!window.D) {
       try {
-        const backup = localStorage.getItem('backup_local_cours');
+        let backup = null;
+        let pid = 'default';
+        if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
+          pid = window.ProfilesIO.getSessionProfileId
+            ? window.ProfilesIO.getSessionProfileId()
+            : window.ProfilesIO.getActiveProfileId();
+          const parsed = window.ProfilesIO.readLocalProfileData(pid);
+          if (parsed && !parsed._account) backup = JSON.stringify(parsed);
+        }
+        if (!backup && (pid === 'default' || !pid)) {
+          const raw = localStorage.getItem('backup_local_cours');
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (parsed && !parsed._account) backup = raw;
+            } catch (_) { /* ignore */ }
+          }
+        }
         if (backup) {
           window.D = JSON.parse(backup);
           console.warn('☁️ Cloud indisponible — reprise de la sauvegarde locale.');
@@ -1386,7 +1918,17 @@ async function initApp(user) {
 
   try {
   if (localDataCorrupt) window._persistDisabled = true;
+  if (window.D && window.D._account === true) {
+    console.error('[initApp] window.D était un index compte — reset emptyData');
+    window.D = null;
+  }
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
+  if (window.ProfilesIO && window.ProfilesIO.pinSessionProfileId) {
+    window.ProfilesIO.pinSessionProfileId(
+      window._activeProfileId || window.ProfilesIO.getActiveProfileId()
+    );
+    window._activeProfileId = window.ProfilesIO.getSessionProfileId();
+  }
   if(!window.D.cours) window.D.cours = [];
   if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if(!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
@@ -1454,7 +1996,6 @@ async function initApp(user) {
   }
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b9aff';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
-  if(!window.D.settings.ankiSessionMin) window.D.settings.ankiSessionMin = 60;
   if(window.D.settings.ankiIncludeNew === undefined) window.D.settings.ankiIncludeNew = 5;
   if(!window.D.settings.ankiMaxPerDay) window.D.settings.ankiMaxPerDay = 75;
 
@@ -1465,20 +2006,27 @@ async function initApp(user) {
   if (!window.D.settings.algoV2) {
     window.D.settings.algoV2 = { horizon: '1y', sessionMinDefault: 90, pullForward: true, margeBudget: 0.92 };
   }
+  // Une seule durée de session : algoV2.sessionMinDefault ↔ ankiSessionMin (alias)
+  if (window.D.settings.algoV2.sessionMinDefault == null && window.D.settings.ankiSessionMin != null) {
+    window.D.settings.algoV2.sessionMinDefault = window.D.settings.ankiSessionMin;
+  }
+  if (window.D.settings.algoV2.sessionMinDefault == null) {
+    window.D.settings.algoV2.sessionMinDefault = 90;
+  }
+  window.D.settings.ankiSessionMin = window.D.settings.algoV2.sessionMinDefault;
   delete window.D.settings.showPomo;
   delete window.D.settings.pomoWork;
   delete window.D.settings.pomoBreak;
-
-  if (typeof window.reconcileOrphanCours === 'function') {
-    const reconciled = window.reconcileOrphanCours();
-    if (reconciled && !window._persistDisabled) window.save();
-  }
 
   if (window.isLocalMode) {
     window.D.settings.userName = "Mode Local";
     window.D.settings.appColor = '#5b9aff';
   } else if (user && user.given_name) {
-    window.D.settings.userName = user.given_name;
+    // Ne pas écraser un prénom déjà personnalisé par l'utilisateur
+    const cur = (window.D.settings.userName || '').trim();
+    if (!cur || cur === 'Étudiant' || cur === 'Etudiant') {
+      window.D.settings.userName = user.given_name;
+    }
   }
 
   if (typeof window.updateCloudIndicator === 'function') {
@@ -1489,12 +2037,6 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.start');
   window.applySettings();
   if (window.bootMark) window.bootMark('initApp.render.applySettings');
-  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
-    delete window.D.settings._needsAppearanceSave;
-    window.save();
-  } else if (window.D.settings._needsAppearanceSave) {
-    delete window.D.settings._needsAppearanceSave;
-  }
   window.renderMatieres();
   if (window.bootMark) window.bootMark('initApp.render.matieres');
   window.renderClasseurs();
@@ -1509,17 +2051,14 @@ async function initApp(user) {
   if (window.bootMark) window.bootMark('initApp.render.hydrateIcons');
   if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
   if (typeof window.ensureCardCreateFab === 'function') window.ensureCardCreateFab();
-  window.appReady = true;
-  if (window.bootMark) window.bootMark('initApp.done');
-  if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
-  if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
+  // Démarrer DeviceSession AVANT les saves post-migrate (anti faux-primary LWW)
   if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
-    // Multi-appareils uniquement si le cloud est OK — ne jamais bloquer le chargement des données
-    var deviceUserId = (!window.isLocalMode && window.cloudConnected && user && user.sub)
+    var deviceUserIdEarly = (!window.isLocalMode && user && user.sub)
       ? user.sub
       : null;
-    Promise.resolve(window.DeviceSession.start(deviceUserId)).then(function () {
+    try {
+      await Promise.resolve(window.DeviceSession.start(deviceUserIdEarly));
       if (typeof window.applyDeviceRoleUi === 'function') {
         window.applyDeviceRoleUi(window.DeviceSession.getStatus());
       }
@@ -1527,10 +2066,33 @@ async function initApp(user) {
           && window.DeviceSession.isSecondary && window.DeviceSession.isSecondary()) {
         window.DeviceSession.watchUserData(window.docRef);
       }
-    }).catch(function (err) {
+    } catch (err) {
       console.warn('DeviceSession start:', err);
-    });
+    }
   }
+
+  if (typeof window.reconcileOrphanCours === 'function') {
+    const reconciled = window.reconcileOrphanCours();
+    if (reconciled && !window._persistDisabled) {
+      try { await window.save(); } catch (eSave) {
+        if (!/SECONDARY_READ_ONLY/i.test(String(eSave && eSave.message))) console.warn(eSave);
+      }
+    }
+  }
+
+  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
+    delete window.D.settings._needsAppearanceSave;
+    try { await window.save(); } catch (eSave2) {
+      if (!/SECONDARY_READ_ONLY/i.test(String(eSave2 && eSave2.message))) console.warn(eSave2);
+    }
+  } else if (window.D.settings._needsAppearanceSave) {
+    delete window.D.settings._needsAppearanceSave;
+  }
+
+  window.appReady = true;
+  if (window.bootMark) window.bootMark('initApp.done');
+  if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
+  if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
   if (window._pendingTab) {
     const pending = window._pendingTab;
@@ -1539,6 +2101,8 @@ async function initApp(user) {
     window._pendingTabReset = false;
     window.switchTab(pending, reset);
   }
+  // Toujours sortir du pré-accueil (même si unlockPage déjà appelé par le timer 12s)
+  if (typeof window.enterApp === 'function') window.enterApp();
 
   if (localDataCorrupt) {
     window.sysAlert(
@@ -1594,6 +2158,62 @@ async function initApp(user) {
 }
 
 /**
+ * Baseline placement/stat des cours (pour merge 3-voies Principal ↔ patch Secondaire).
+ * Capturée après chargement cloud / setDoc réussi.
+ */
+window.captureCoursPlacementBase = function (cours) {
+  const base = Object.create(null);
+  const src = Array.isArray(cours) ? cours : (window.D && Array.isArray(window.D.cours) ? window.D.cours : []);
+  src.forEach(function (c) {
+    if (!c || !c.uid) return;
+    base[c.uid] = {
+      cl: c.cl || '',
+      inter: String(c.inter || ''),
+      stat: c.stat || ''
+    };
+  });
+  window._coursPlacementBase = base;
+  return base;
+};
+
+/**
+ * Merge patches cloud en avance : stat (pipeline max) + cl/inter en 3-voies
+ * (remote gagne seulement si le Principal n’a pas déplacé ce doc depuis la baseline).
+ */
+window.mergeRemoteCoursPatches = function (localCours, remoteCours) {
+  if (!Array.isArray(localCours) || !Array.isArray(remoteCours)) return;
+  const base = window._coursPlacementBase || Object.create(null);
+  const remoteByUid = Object.create(null);
+  remoteCours.forEach(function (rc) {
+    if (rc && rc.uid) remoteByUid[rc.uid] = rc;
+  });
+  const statOrder = { pending: 0, printed: 1, active: 2 };
+  localCours.forEach(function (lc) {
+    const rc = remoteByUid[lc.uid];
+    if (!rc) return;
+    if (rc.stat && rc.stat !== lc.stat) {
+      if ((statOrder[rc.stat] || 0) > (statOrder[lc.stat] || 0)) lc.stat = rc.stat;
+    }
+    if (!rc.cl || rc.inter == null || rc.inter === '') return;
+    const localCl = lc.cl || '';
+    const localInter = String(lc.inter || '');
+    const remoteCl = rc.cl || '';
+    const remoteInter = String(rc.inter || '');
+    if (localCl === remoteCl && localInter === remoteInter) return;
+    const b = base[lc.uid];
+    if (!b) return; // sans baseline : ne pas écraser un déplacement Principal potentiel
+    const baseCl = b.cl || '';
+    const baseInter = String(b.inter || '');
+    const localChanged = localCl !== baseCl || localInter !== baseInter;
+    const remoteChanged = remoteCl !== baseCl || remoteInter !== baseInter;
+    if (remoteChanged && !localChanged) {
+      lc.cl = rc.cl;
+      lc.inter = rc.inter;
+    }
+  });
+};
+
+/**
  * Sauvegarde locale + cloud Firestore (file d'attente : pas d'écritures concurrentes).
  * Retourne une Promise qui REJECTE en cas d'échec inattendu (les callers await le voient).
  * La file continue quand même pour les sauvegardes suivantes.
@@ -1613,6 +2233,15 @@ window._saveImpl = async function() {
   if (!window.D) return;
 
   const M = window.APP_MSG || {};
+
+  // Garde-fou : ne jamais persister un index compte
+  if (window.D._account === true) {
+    console.error('[save] Refus : window.D est un index compte');
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Sauvegarde refusée : données corrompues (index compte)', 'app.js');
+    }
+    throw new Error('Données corrompues (index compte) — sauvegarde refusée');
+  }
 
   if (window._persistDisabled) {
     if (!window._persistDisabledAlerted) {
@@ -1637,11 +2266,12 @@ window._saveImpl = async function() {
         window.showToast(M.SECONDARY_READ_ONLY || 'Appareil secondaire : les modifications ne sont pas enregistrées ici.');
       }
     }
-    return;
+    throw new Error('SECONDARY_READ_ONLY');
   }
 
   if (!window.D.meta) window.D.meta = {};
-  window.D.meta.revision = (Number(window.D.meta.revision) || 0) + 1;
+  const prevRevision = Number(window.D.meta.revision) || 0;
+  window.D.meta.revision = prevRevision + 1;
   window.D.meta.updatedAt = Date.now();
   if (window.DeviceSession && typeof window.DeviceSession.getDeviceId === 'function') {
     window.D.meta.updatedBy = window.DeviceSession.getDeviceId();
@@ -1649,12 +2279,31 @@ window._saveImpl = async function() {
   }
 
   const payload = JSON.stringify(window.D);
-  const okLocal = typeof window.safeLocalSet === 'function'
-    ? window.safeLocalSet('backup_local_cours', payload)
-    : (function () { try { localStorage.setItem('backup_local_cours', payload); return true; } catch (e) { return false; } })();
+  let okLocal = false;
+  // Toujours le profil épinglé de CETTE session (pas le localStorage live multi-onglets)
+  const sessionPid = window._activeProfileId
+    || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+    || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
+    || 'default';
+
+  const emptyOutgoing = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+    ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
+    : false;
+
+  // Anti-wipe local : délégué à writeLocalProfileData (garde centralisée)
+  // _allowEmptyProfileWrite autorise resetData
+
+  if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+    okLocal = !!window.ProfilesIO.writeLocalProfileData(sessionPid, payload);
+  } else {
+    okLocal = typeof window.safeLocalSet === 'function'
+      ? window.safeLocalSet('backup_local_cours', payload)
+      : (function () { try { localStorage.setItem('backup_local_cours', payload); return true; } catch (e) { return false; } })();
+  }
   if (!okLocal) {
+    window.D.meta.revision = prevRevision;
     if (typeof window.recordAppError === 'function') {
-      window.recordAppError('Erreur sauvegarde: localStorage indisponible', 'app.js');
+      window.recordAppError('Erreur sauvegarde: localStorage indisponible ou refus anti-wipe', 'app.js');
     }
     console.error("Échec sauvegarde locale");
     window.sysAlert(M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
@@ -1668,9 +2317,109 @@ window._saveImpl = async function() {
 
   if (window.cloudConnected && window.docRef && window.setDoc) {
     try {
-      await window.setDoc(window.docRef, window.D);
+      // Garde-fou : docRef doit correspondre au profil de cette session
+      const refPath = window.docRef && (window.docRef._path || window.docRef.path || '');
+      if (refPath && /\/profiles\//.test(String(refPath))) {
+        const refPid = String(refPath).split('/profiles/').pop().split('/')[0];
+        if (refPid && sessionPid && refPid !== sessionPid) {
+          throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
+        }
+      }
+      // Garde-fou : profil tombstoné / pending ailleurs
+      if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
+        const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
+        if (!writability.ok) {
+          throw new Error('Refus d’écrire cloud : profil non inscriptible (' + (writability.reason || '?') + ')');
+        }
+      }
+      // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide
+      // + anti lost-update : si le cloud (ex. patch secondaire) a avancé la révision, merger avant écriture
+      if (window.getDoc) {
+        let cloudGuardOk = false;
+        try {
+          const snap = await window.getDoc(window.docRef);
+          cloudGuardOk = true;
+          if (snap.exists()) {
+            const cur = snap.data();
+            if (cur && cur._account === true) {
+              throw new Error('Refus d’écrire le profil sur l’index compte cloud');
+            }
+            if (cur && cur._deleted) {
+              throw new Error('Refus d’écrire : profil cloud marqué supprimé');
+            }
+            const emptyCloud = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+              ? window.ProfilesIO.isEffectivelyEmptyProfile(cur)
+              : false;
+            if (emptyOutgoing && !emptyCloud && !window._allowEmptyProfileWrite) {
+              throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
+            }
+            const remoteRev = Number(cur && cur.meta && cur.meta.revision) || 0;
+            // Base = dernière révision cloud confirmée (pas revision-1 après un setDoc échoué)
+            const confirmed = window._lastCloudConfirmedRevision;
+            const localBase = (confirmed != null && confirmed !== '')
+              ? (Number(confirmed) || 0)
+              : prevRevision;
+            if (remoteRev > localBase) {
+              // Remote en avance (souvent patch secondaire) — merge 3-voies via baseline
+              if (typeof window.mergeRemoteCoursPatches === 'function') {
+                window.mergeRemoteCoursPatches(window.D.cours, cur.cours);
+              }
+              window.D.meta.revision = remoteRev + 1;
+              window.D.meta.updatedAt = Date.now();
+              console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
+              // Re-persister le local déjà écrit avec le merge
+              const mergedPayload = JSON.stringify(window.D);
+              if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+                window.ProfilesIO.writeLocalProfileData(sessionPid, mergedPayload);
+              } else if (typeof window.safeLocalSet === 'function') {
+                window.safeLocalSet('backup_local_cours', mergedPayload);
+              }
+            }
+          }
+        } catch (guardErr) {
+          if (/index compte|écraser|docRef profil|non inscriptible|marqué supprimé/i.test(String(guardErr && guardErr.message))) throw guardErr;
+          // getDoc échoue : fail-closed si on tente d’écrire du vide
+          if (emptyOutgoing && !window._allowEmptyProfileWrite) {
+            throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
+          }
+          console.warn('Garde cloud getDoc échouée — écriture non vide autorisée:', guardErr);
+        }
+        if (!cloudGuardOk && emptyOutgoing && !window._allowEmptyProfileWrite) {
+          throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
+        }
+      } else if (emptyOutgoing && !window._allowEmptyProfileWrite) {
+        throw new Error('Refus d’écrire un profil vide : getDoc indisponible');
+      }
+      var toWrite = window.D;
+      if (window.ProfilesIO && typeof window.ProfilesIO.stripUndefinedDeep === 'function') {
+        toWrite = window.ProfilesIO.stripUndefinedDeep(window.D);
+        if (!toWrite || typeof toWrite !== 'object') toWrite = window.D;
+      }
+      await window.setDoc(window.docRef, toWrite);
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+      window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
+      if (typeof window.captureCoursPlacementBase === 'function') {
+        window.captureCoursPlacementBase(window.D && window.D.cours);
+      }
+      if (window.ProfilesIO && typeof window.ProfilesIO.syncActiveProfileIndexMeta === 'function') {
+        try { await window.ProfilesIO.syncActiveProfileIndexMeta(); } catch (metaErr) {
+          console.warn('Index profils (tailles) non sync:', metaErr);
+        }
+      }
     } catch (e) {
+      // Remettre la révision d’avant cette tentative pour que le prochain merge
+      // détecte encore un cloud en avance (patch secondaire). Les données restent.
+      window.D.meta.revision = prevRevision;
+      try {
+        const rolled = JSON.stringify(window.D);
+        if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+          window.ProfilesIO.writeLocalProfileData(sessionPid, rolled);
+        } else if (typeof window.safeLocalSet === 'function') {
+          window.safeLocalSet('backup_local_cours', rolled);
+        }
+      } catch (rollErr) {
+        console.warn('Rollback révision locale impossible:', rollErr);
+      }
       const errMsg = e && e.message ? e.message : String(e);
       if (typeof window.recordAppError === 'function') {
         window.recordAppError('Erreur écriture cloud: ' + errMsg, 'app.js');
@@ -1695,7 +2444,23 @@ window._saveImpl = async function() {
 // =========================================================
 window.initAppAfterAuth = function(user) {
     if (window.bootMark) window.bootMark('initAppAfterAuth', { email: user && user.email });
-    return initApp(user);
+    var done = Promise.resolve().then(function () { return initApp(user); });
+    return done.catch(function (e) {
+      console.error('initAppAfterAuth:', e);
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('initAppAfterAuth: ' + (e && e.message ? e.message : e), 'app.js');
+      }
+    }).finally(function () {
+      // Filet : ne jamais rester bloqué sur le splash après auth / mode local
+      try {
+        if (window.appLaunched || window.isLocalMode || window.currentUser) {
+          if (typeof window.enterApp === 'function') window.enterApp();
+          if (typeof window.unlockPage === 'function') window.unlockPage();
+        }
+      } catch (e2) {
+        console.warn('unlock after init:', e2);
+      }
+    });
 };
 
 window.dispatchEvent(new CustomEvent('app-js-ready'));

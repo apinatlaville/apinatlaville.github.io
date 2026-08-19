@@ -44,7 +44,7 @@ window.showQR = function(uid) {
   window.curQRUid = uid;
   
   if(window.$('qrTitle')) window.$('qrTitle').innerHTML = window.iconLabel('qr-code', 'Code-Barres');
-  if(window.$('qrSub')) window.$('qrSub').textContent = window.escHtml(c.title);
+  if(window.$('qrSub')) window.$('qrSub').textContent = c.title || '';
   if(window.$('qrLbl')) window.$('qrLbl').textContent = uid;
   
   if(window.$('qrBox')) {
@@ -61,6 +61,7 @@ window.showQR = function(uid) {
 };
 
 window.markOnePrinted = function() {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
   const c = window.D.cours.find(x => x.uid===window.curQRUid);
   if (!c) return;
 
@@ -72,9 +73,10 @@ window.markOnePrinted = function() {
   if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
       && window.DeviceSession.canSecondaryPatch()) {
     window.DeviceSession.saveSecondaryPatch(function (data) {
-      if (!Array.isArray(data.cours)) return;
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
       const row = data.cours.find(x => x.uid === uid);
-      if (row) row.stat = nextStat;
+      if (!row) throw new Error('Document introuvable dans le cloud');
+      row.stat = nextStat;
     }).then(function () {
       window.renderCours && window.renderCours();
       window.showQR(uid);
@@ -85,6 +87,14 @@ window.markOnePrinted = function() {
         window.sysAlert('Impossible de synchroniser le statut depuis cet appareil.', 'Mode Secondaire');
       }
     });
+    return;
+  }
+
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible de synchroniser le statut depuis cet appareil.', 'Mode Secondaire');
+    }
     return;
   }
 
@@ -106,10 +116,10 @@ window.dlQR = function() {
 window.renderPrintGrid = function() {
   const gridPending = window.$('printGridPending');
   const gridHistory = window.$('printGridHistory');
-  if(!gridPending || !gridHistory) return;
+  if (!gridPending || !gridHistory || !window.D || !Array.isArray(window.D.cours)) return;
   
   const drawCard = (c) => `
-    <div class="pcard ${window.printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${c.uid}')">
+    <div class="pcard ${window.printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${window.escapeJsStr(c.uid)}')">
       <div class="pc-check">${window.printSel.has(c.uid) ? window.iconHtml('check', 14, 'icon-sm') : window.iconHtml('square', 14, 'icon-sm')}</div>
       <div class="pc-qr">
         <img src="${window.getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;">
@@ -138,11 +148,20 @@ window.toggleSel = function(uid) {
   window.renderPrintGrid();
 };
 
-window.selPending = function() { window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending').map(c=>c.uid)); window.renderPrintGrid(); };
-window.selAll = function() { window.printSel = new Set(window.D.cours.map(c=>c.uid)); window.renderPrintGrid(); };
+window.selPending = function() {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
+  window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending').map(c=>c.uid));
+  window.renderPrintGrid();
+};
+window.selAll = function() {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
+  window.printSel = new Set(window.D.cours.map(c=>c.uid));
+  window.renderPrintGrid();
+};
 window.selNone = function() { window.printSel.clear(); window.renderPrintGrid(); };
 
 window.executePrint = function() {
+  if (!window.D || !Array.isArray(window.D.cours)) return;
   const sel = window.D.cours.filter(c => window.printSel.has(c.uid));
   if (!sel.length) {
     if(typeof window.sysAlert === 'function') window.sysAlert('Sélectionne au moins un document pour pouvoir imprimer !', 'Impression impossible');
@@ -158,7 +177,7 @@ window.executePrint = function() {
       <div class="print-label">
         <img src="${window.getBarcodeURL(c.uid)}">
         <div class="pl-uid">${window.escHtml(c.uid)}</div>
-        <div class="pl-title">${window.escHtml(c.title.substring(0,35))}</div>
+        <div class="pl-title">${window.escHtml(String(c.title || '').substring(0,35))}</div>
       </div>`;
   });
   
@@ -173,17 +192,69 @@ window.executePrint = function() {
 
 window.confirmPrintSuccess = function(success) {
   window.closePrintConfirm();
-  if(success) {
-    window.printSel.forEach(uid => {
-      const x = window.D.cours.find(d=>d.uid===uid);
-      if(x && x.stat==='pending') x.stat = 'printed';
+  if (!success) return;
+  if (!window.D || !Array.isArray(window.D.cours)) return;
+
+  const uids = Array.from(window.printSel || []);
+  const markPrinted = function (cours) {
+    if (!Array.isArray(cours)) return 0;
+    let n = 0;
+    uids.forEach(function (uid) {
+      const x = cours.find(function (d) { return d.uid === uid; });
+      if (x && x.stat === 'pending') { x.stat = 'printed'; n++; }
     });
-    window.save(); 
-    window.printSel.clear(); 
-    window.renderCours(); 
-    window.renderPrintGrid(); 
-    window.renderDashboard();
+    return n;
+  };
+  const onOk = function () {
+    window.printSel.clear();
+    if (typeof window.renderCours === 'function') window.renderCours();
+    if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+  };
+  const onFail = function (err) {
+    console.warn('confirmPrintSuccess:', err);
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible d’enregistrer le statut imprimé (mode lecture ou sync).', 'Enregistrement');
+    }
+  };
+
+  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
+      && window.DeviceSession.canSecondaryPatch()) {
+    window.DeviceSession.saveSecondaryPatch(function (data) {
+      if (!Array.isArray(data.cours)) throw new Error('cours cloud manquant');
+      markPrinted(data.cours);
+    }).then(onOk).catch(onFail);
+    return;
   }
+
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : confirmation d’impression indisponible.')) {
+    return;
+  }
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    onFail(new Error('SECONDARY_READ_ONLY'));
+    return;
+  }
+
+  const prevByUid = Object.create(null);
+  uids.forEach(function (uid) {
+    const x = window.D.cours.find(function (d) { return d.uid === uid; });
+    if (x) prevByUid[uid] = x.stat;
+  });
+  markPrinted(window.D.cours);
+  Promise.resolve(window.save()).then(onOk).catch(function (err) {
+    const msg = String(err && err.message || err || '');
+    if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+      uids.forEach(function (uid) {
+        const x = window.D.cours.find(function (d) { return d.uid === uid; });
+        if (x && Object.prototype.hasOwnProperty.call(prevByUid, uid)) x.stat = prevByUid[uid];
+      });
+      onFail(err);
+      return;
+    }
+    onOk();
+  });
 };
 
 window._camLifecycle = Promise.resolve();

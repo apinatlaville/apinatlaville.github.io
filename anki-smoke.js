@@ -71,7 +71,9 @@
   if (typeof document !== 'undefined') {
     function scheduleSmoke() {
       setTimeout(function () {
-        if (!window.AnkiAlgo || window.location.search.indexOf('smoke=1') < 0) return;
+        if (!window.AnkiAlgo) return;
+        var q = (window.location && window.location.search) || '';
+        if (q.indexOf('smoke=1') < 0) return;
         var chain = Promise.resolve();
         if (typeof window.ensureAnkiUi === 'function') chain = chain.then(function () { return window.ensureAnkiUi(); });
         if (typeof window.ensureScriptsForTab === 'function') {

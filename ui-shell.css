@@ -491,6 +491,9 @@ body.ui-finder .app-chrome--top .sticky-top {
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
+.app-content:has(#paneLatexTest.on) {
+  overflow: hidden;
+}
 
 .ui-pane {
   display: none;

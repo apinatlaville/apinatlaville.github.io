@@ -17,6 +17,50 @@
     });
   };
 
+  /**
+   * Affichage sûr d’une face carte (texte + \\( latex \\)).
+   * Version légère toujours dispo ; latex-test.js enrichit latexToMarkup si MathLive est chargé.
+   */
+  window.latexToMarkup = window.latexToMarkup || function (latex) {
+    return '<span class="latex-lab-fallback-math">' + window.escHtml(latex) + '</span>';
+  };
+
+  window.latexBuildInline = window.latexBuildInline || function (before, latex, after) {
+    var math = (latex || '').trim() ? '\\(' + String(latex).trim() + '\\)' : '';
+    var parts = [];
+    if (before) parts.push(String(before));
+    if (math) parts.push(math);
+    if (after) parts.push(String(after));
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  };
+
+  window.formatCardFaceHtml = function (str) {
+    var s = String(str == null ? '' : str);
+    if (!s) return '';
+    var esc = window.escHtml;
+    var toMarkup = typeof window.latexToMarkup === 'function' ? window.latexToMarkup : function (t) {
+      return '<span class="latex-lab-fallback-math">' + esc(t) + '</span>';
+    };
+    if (s.indexOf('\\(') < 0) {
+      if (/\\[a-zA-Z{]/.test(s)) {
+        return '<span class="latex-lab-preview-math">' + toMarkup(s) + '</span>';
+      }
+      return esc(s);
+    }
+    var html = '';
+    var re = /\\\(([\s\S]*?)\\\)/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) html += esc(s.slice(last, m.index));
+      html += '<span class="latex-lab-preview-math">' + toMarkup(m[1]) + '</span>';
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) html += esc(s.slice(last));
+    return html;
+  };
+  window.formatQuickCardHtml = window.formatCardFaceHtml;
+
   /** Appelle window[name] si c'est une fonction (évite les typeof répétés) */
   window.callIf = function (name) {
     var fn = window[name];
@@ -262,12 +306,12 @@
 
   /** Débloque la page : retire auth-pending + splash */
   window.unlockPage = function (reason) {
+    document.body.classList.remove('boot-active', 'auth-pending');
     if (bootDismissed) return;
     bootDismissed = true;
     if (typeof window.bootLog === 'function') {
       window.bootLog('info', 'unlockPage', reason || 'splash retiré');
     }
-    document.body.classList.remove('boot-active', 'auth-pending');
     var splash = splashEl();
     if (!splash) return;
     splash.classList.add('splash-out');
@@ -283,6 +327,15 @@
 
   /** Écran de connexion si le boot reste bloqué */
   window.forceLoginScreen = function () {
+    // Si l'auth a déjà lancé l'app (initApp lent), ne jamais réafficher le login :
+    // sinon l'utilisateur reclique Google et handleAuthenticatedUser no-op (appLaunched).
+    if (window.appLaunched) {
+      if (window.bootMark) window.bootMark('boot.forceLoginScreen.skipped.appLaunched');
+      console.warn('[Auth] forceLoginScreen ignoré — app déjà lancée');
+      if (typeof window.enterApp === 'function') window.enterApp();
+      else window.unlockPage();
+      return;
+    }
     if (window.bootMark) window.bootMark('boot.forceLoginScreen');
     window.unlockPage();
     document.body.classList.add('not-logged-in');
@@ -322,6 +375,14 @@
       }
 
       if (authPending && bootElapsed >= 12000) {
+        if (window._appInitInProgress || window.appLaunched) {
+          window.bootLog('warn', 'watchdog.keepWaiting', {
+            reason: 'init en cours',
+            initInProgress: !!window._appInitInProgress,
+            appLaunched: !!window.appLaunched
+          });
+          return;
+        }
         window.bootLog('warn', 'watchdog.forceLogin', { reason: 'auth-pending > 12s' });
         window.appLaunched = false;
         window._appInitInProgress = false;

@@ -17,6 +17,7 @@
     'cloud.js': true,
     'device-session.js': true,
     'data.js': true,
+    'profiles-io.js': true,
     'app.js': true
   };
 
@@ -28,7 +29,8 @@
     ankiVizV2: ['anki-viz-v2.js'],
     print: ['scanner.js'],
     test: ['scanner.js'],
-    latexTest: ['latex-test.js']
+    latexTest: ['latex-test.js'],
+    quickLatex: ['latex-test.js', 'anki-quick-latex.js']
   };
 
   var DEFERRED_AFTER_BOOT = [
@@ -245,8 +247,10 @@
 
     return loadParallel(['ui-appearance.js', 'ui-components.js'])
       .then(function (rs) { track(rs); })
-      .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js']); })
+      .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js', 'cours-wizard.js']); })
       .then(function (rs) { track(rs); })
+      .then(function () { return loadScript('profiles-io.js'); })
+      .then(function (r) { track([r]); })
       .then(function () {
         return loadParallel(['device-session.js', 'anki-algo.js', 'anki-algo-v2.js']);
       })

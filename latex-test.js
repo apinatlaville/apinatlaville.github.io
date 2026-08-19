@@ -6,13 +6,16 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 3;
+  var UI_REV = 6;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
   var _wired = false;
   var _mf = null;
-  var _preview = null;
+  var _activeSection = 'maths';
+  var _activeSub = 'base';
+  var _spaceMode = true; /* Espace clavier → \, dans l'éditeur / le code */
+  var _snipFuse = null;
 
   /** Palettes PC* — volets déroulants, grille dense (clic = structure, Tab pour remplir) */
   var SNIP_GROUPS = [
@@ -600,6 +603,20 @@
     }
   ];
 
+  /**
+   * Familles (4 boutons) + sous-onglets = les 15 palettes, sans les empiler.
+   * Les « Fréquents » sont toujours en bandeau rapide (comme la barre du haut
+   * des éditeurs LaTeX classiques) — pas un 5ᵉ onglet.
+   */
+  var SNIP_SECTIONS = [
+    { id: 'maths', label: 'Maths', groups: ['base', 'analyse', 'algebre', 'proba', 'fonctions'] },
+    { id: 'symboles', label: 'Symboles', groups: ['grec', 'accents', 'ops', 'relations', 'fleches'] },
+    { id: 'structures', label: 'Structures', groups: ['ensembles', 'delim'] },
+    { id: 'sciences', label: 'Sciences', groups: ['physique', 'chimie'] }
+  ];
+
+  var QUICK_GROUP_ID = 'freq';
+
   function escHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;')
@@ -607,6 +624,13 @@
       .replace(/'/g, '&#39;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  function stripAccents(s) {
+    return String(s == null ? '' : s)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
   }
 
   function findSnipById(id) {
@@ -619,14 +643,236 @@
     return null;
   }
 
+  function getGroupById(id) {
+    for (var i = 0; i < SNIP_GROUPS.length; i++) {
+      if (SNIP_GROUPS[i].id === id) return SNIP_GROUPS[i];
+    }
+    return SNIP_GROUPS[0];
+  }
+
+  function getSectionById(id) {
+    for (var i = 0; i < SNIP_SECTIONS.length; i++) {
+      if (SNIP_SECTIONS[i].id === id) return SNIP_SECTIONS[i];
+    }
+    return SNIP_SECTIONS[0];
+  }
+
+  function sectionGroupCount(section) {
+    var n = 0;
+    for (var i = 0; i < section.groups.length; i++) {
+      var g = getGroupById(section.groups[i]);
+      if (g) n += g.items.length;
+    }
+    return n;
+  }
+
+  /** Mots-clés FR courants (fautes tolérées via Fuse) */
+  function frKeywordsFor(item, group) {
+    var parts = [group.label, item.title || '', item.label || ''];
+    var t = stripAccents(item.title || '');
+    var lab = stripAccents(item.label || '');
+    var lx = String(item.latex || '');
+    var extras = [];
+    if (group.id === 'chimie') {
+      extras.push('chimie', 'chemistry', 'chimestry', 'molecule', 'reaction', 'equilibre');
+    }
+    if (group.id === 'physique') {
+      extras.push('physique', 'mecanique', 'unite');
+    }
+    if (group.id === 'proba') {
+      extras.push('proba', 'probabilite', 'statistique');
+    }
+    if (/\bfraction\b|\bfrac\b|a\/b|\bdemi\b/.test(t + ' ' + lab)) {
+      extras.push('fraction', 'diviser', 'quotient');
+    }
+    if (/\bracine\b/.test(t) || (/\\sqrt/.test(lx) && /racine|√/.test(t + lab))) {
+      extras.push('racine', 'carree', 'sqrt');
+    }
+    if (/\bintegrale\b/.test(t) || (/\\int|\\oint|\\iint|\\iiint|\\oiint/.test(lx) && /integrale|∮|∫/.test(t + lab))) {
+      extras.push('integrale', 'primitive');
+    }
+    if (/\bsomme\b|\bserie\b/.test(t)) extras.push('somme', 'serie');
+    if (/\blimite\b|\blimsup\b|\bliminf\b|\blim\b/.test(t + ' ' + lab)) {
+      extras.push('limite', 'tend vers');
+    }
+    if (/\bmatrice\b|\bsysteme\b|\bdeterminant\b/.test(t)) {
+      extras.push('matrice', 'systeme', 'determinant');
+    }
+    if (/\bvecteur\b/.test(t)) extras.push('vecteur', 'fleche');
+    if (/\bderivee\b|\bpartielle\b/.test(t)) extras.push('derivee', 'differentielle');
+    if (/\bparenthese\b|\bcrochet\b|\baccolade\b|\bnorme\b|valeur absolue/.test(t)) {
+      extras.push('parenthese', 'delimiteur', 'encadrer');
+    }
+    if (/\bimplique\b|\bequivalence\b/.test(t) || (/\bfleche\b/.test(t) && !/\bvecteur\b/.test(t))) {
+      extras.push('implique', 'equivalence', 'fleche');
+    }
+    if (/\bappartient\b|\binclus\b|\bensemble\b|\bnaturels\b|\breels\b|\bcomplexes\b/.test(t)) {
+      extras.push('ensemble', 'appartient', 'inclusion');
+    }
+    if (/\bsinus\b|\bcosinus\b|\btangente\b|\blogarithme\b|\bexponentielle\b/.test(t)) {
+      extras.push('fonction', 'trigo', 'logarithme');
+    }
+    return parts.concat(extras).join(' ');
+  }
+
   function ensureSnipIds() {
     SNIP_GROUPS.forEach(function (group) {
       group.items.forEach(function (item, idx) {
         if (!item.id) item.id = group.id + '-' + idx;
+        item.groupId = group.id;
+        item.groupLabel = group.label;
+        item._titleNorm = stripAccents(item.title || '');
+        item._labelNorm = stripAccents(item.label || '');
+        item._groupNorm = stripAccents(group.label || '');
+        item._search = stripAccents(frKeywordsFor(item, group) + ' ' + (item.latex || ''));
       });
     });
   }
   ensureSnipIds();
+
+  function allSnipsFlat() {
+    var out = [];
+    SNIP_GROUPS.forEach(function (g) {
+      g.items.forEach(function (item) { out.push(item); });
+    });
+    return out;
+  }
+
+  /** Distance d’édition bornée (1–2 fautes), comme une recherche tolérante FR */
+  function editDistanceAtMost(a, b, max) {
+    if (a === b) return 0;
+    var la = a.length;
+    var lb = b.length;
+    if (Math.abs(la - lb) > max) return max + 1;
+    if (!la) return lb;
+    if (!lb) return la;
+    var prev = new Array(lb + 1);
+    var cur = new Array(lb + 1);
+    var j;
+    for (j = 0; j <= lb; j++) prev[j] = j;
+    for (var i = 1; i <= la; i++) {
+      cur[0] = i;
+      var rowMin = cur[0];
+      var ca = a.charCodeAt(i - 1);
+      for (j = 1; j <= lb; j++) {
+        var cost = ca === b.charCodeAt(j - 1) ? 0 : 1;
+        var v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        cur[j] = v;
+        if (v < rowMin) rowMin = v;
+      }
+      if (rowMin > max) return max + 1;
+      var tmp = prev;
+      prev = cur;
+      cur = tmp;
+    }
+    return prev[lb];
+  }
+
+  function typoBudget(q) {
+    if (q.length <= 5) return 1;
+    return 2;
+  }
+
+  /** Sous-chaîne exacte sur un mot entier (évite « limite » dans « delimiteurs ») */
+  function hasExactNeedle(text, qNorm) {
+    if (!text || !qNorm) return false;
+    var words = text.split(/[^a-z0-9]+/);
+    for (var i = 0; i < words.length; i++) {
+      if (words[i] === qNorm) return true;
+      /* Préfixe mot long : « proba » → probabilite */
+      if (qNorm.length >= 4 && words[i].indexOf(qNorm) === 0) return true;
+    }
+    return false;
+  }
+
+  /** Fautes d’orthographe sur les mots (1–2), initiale identique ; 2 fautes ⇒ préfixe 3 lettres */
+  function wordsTypoMatch(text, qNorm, budget) {
+    if (!text || qNorm.length < 2) return false;
+    var words = text.split(/[^a-z0-9]+/);
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (w.length < 3) continue;
+      if (w.charAt(0) !== qNorm.charAt(0)) continue;
+      if (Math.abs(w.length - qNorm.length) > budget) continue;
+      var d = editDistanceAtMost(w, qNorm, budget);
+      if (d > budget) continue;
+      if (d === 2 && w.slice(0, 3) !== qNorm.slice(0, 3)) continue;
+      return true;
+    }
+    return false;
+  }
+
+  function getSnipFuse() {
+    if (_snipFuse) return _snipFuse;
+    if (typeof Fuse === 'undefined') return null;
+    /* Uniquement des champs sans accents : « integrale » trouve « Intégrale » */
+    _snipFuse = new Fuse(allSnipsFlat(), {
+      keys: [
+        { name: '_titleNorm', weight: 3 },
+        { name: '_search', weight: 2.5 },
+        { name: '_groupNorm', weight: 1.2 },
+        { name: '_labelNorm', weight: 1 }
+      ],
+      threshold: 0.4,
+      ignoreLocation: true,
+      isCaseSensitive: false,
+      minMatchCharLength: 2,
+      includeScore: true
+    });
+    return _snipFuse;
+  }
+
+  function searchSnips(query) {
+    var q = (query || '').trim();
+    if (!q) return [];
+    var qNorm = stripAccents(q);
+    if (qNorm.length < 1) return [];
+    var budget = typoBudget(qNorm);
+    var seen = Object.create(null);
+    var out = [];
+
+    function relevant(item) {
+      var hay = item._search || '';
+      var titleN = item._titleNorm || stripAccents(item.title || '');
+      var groupN = item._groupNorm || stripAccents(item.groupLabel || '');
+      var labN = item._labelNorm || stripAccents(item.label || '');
+      /* Sous-chaîne sans accents : « algebre », « ete », « integrale »… */
+      if (
+        hay.indexOf(qNorm) !== -1 ||
+        titleN.indexOf(qNorm) !== -1 ||
+        labN.indexOf(qNorm) !== -1 ||
+        groupN.indexOf(qNorm) !== -1
+      ) {
+        return true;
+      }
+      if (qNorm.length < 2) return false;
+      if (hasExactNeedle(hay, qNorm) || hasExactNeedle(titleN, qNorm) || hasExactNeedle(groupN, qNorm)) {
+        return true;
+      }
+      return wordsTypoMatch(titleN, qNorm, budget) || wordsTypoMatch(groupN, qNorm, budget);
+    }
+
+    var fuse = getSnipFuse();
+    var ranked = fuse && qNorm.length >= 2 ? fuse.search(qNorm) : null;
+    if (ranked) {
+      ranked.forEach(function (r) {
+        if (!relevant(r.item)) return;
+        var key = (r.item.latex || '') + '\0' + (r.item.label || '');
+        if (seen[key]) return;
+        seen[key] = true;
+        out.push(r.item);
+      });
+    }
+
+    allSnipsFlat().forEach(function (item) {
+      if (!relevant(item)) return;
+      var key = (item.latex || '') + '\0' + (item.label || '');
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(item);
+    });
+    return out;
+  }
 
   function loadStylesheet(href) {
     if (document.querySelector('link[data-mathlive="' + href + '"]')) return;
@@ -666,21 +912,128 @@
     return _mathLivePromise;
   }
 
+  function getEditorLatex() {
+    if (!_mf) return '';
+    try {
+      return _mf.getValue ? _mf.getValue('latex') : (_mf.value || '');
+    } catch (e) {
+      return _mf.value || '';
+    }
+  }
+
+  function getTextBefore() {
+    var el = document.getElementById('latexTestBefore');
+    return el ? el.value : '';
+  }
+
+  function getTextAfter() {
+    var el = document.getElementById('latexTestAfter');
+    return el ? el.value : '';
+  }
+
+  function latexBuildInline(before, latex, after) {
+    var math = (latex || '').trim() ? '\\(' + String(latex).trim() + '\\)' : '';
+    var parts = [];
+    if (before) parts.push(String(before));
+    if (math) parts.push(math);
+    if (after) parts.push(String(after));
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  /** Phrase complète : texte + \( latex \) + texte */
+  function buildFullExport() {
+    var latex = getEditorLatex().trim();
+    var built = latexBuildInline(getTextBefore(), latex, getTextAfter());
+    return built || latex;
+  }
+
+  function latexToMarkup(latex) {
+    if (!latex) return '';
+    try {
+      if (window.MathfieldElement && typeof window.MathfieldElement.convertLatexToMarkup === 'function') {
+        return window.MathfieldElement.convertLatexToMarkup(latex);
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      if (window.MathLive && typeof window.MathLive.convertLatexToMarkup === 'function') {
+        return window.MathLive.convertLatexToMarkup(latex);
+      }
+    } catch (e2) { /* ignore */ }
+    return '<span class="latex-lab-fallback-math">' + escHtml(latex) + '</span>';
+  }
+
+  /** Aperçu lab / Easy : texte échappé + formule markup (une seule voie). */
+  function formatLatexPreviewHtml(before, latex, after) {
+    var html = '';
+    if (before) html += '<span class="latex-lab-preview-text">' + escHtml(before) + '</span>';
+    if (latex) html += '<span class="latex-lab-preview-math">' + latexToMarkup(latex) + '</span>';
+    if (after) html += '<span class="latex-lab-preview-text">' + escHtml(after) + '</span>';
+    return html;
+  }
+
+  /** Segments texte / math pour faces carte (plusieurs \\( … \\) OK). */
+  function parseLatexInlineSegments(str) {
+    var s = String(str == null ? '' : str);
+    var segments = [];
+    var re = /\\\(([\s\S]*?)\\\)/g;
+    var last = 0;
+    var m;
+    while ((m = re.exec(s)) !== null) {
+      if (m.index > last) segments.push({ type: 'text', value: s.slice(last, m.index) });
+      segments.push({ type: 'math', value: m[1] });
+      last = m.index + m[0].length;
+    }
+    if (last < s.length) segments.push({ type: 'text', value: s.slice(last) });
+    if (!segments.length && s) segments.push({ type: 'text', value: s });
+    return segments;
+  }
+
+  /**
+   * Éditeur Easy (1 champ formule) : avant / latex / après.
+   * Les formules suivantes restent dans « after » pour un round-trip via latexBuildInline.
+   */
+  function parseLatexInlineForEditor(str) {
+    var s = String(str == null ? '' : str);
+    var m = s.match(/^(.*?)\s*\\\(([\s\S]*?)\\\)\s*(.*)$/);
+    if (m) return { before: m[1].trim(), latex: m[2].trim(), after: m[3].trim() };
+    if (/\\[a-zA-Z{]/.test(s) && s.indexOf('\\(') < 0) {
+      return { before: '', latex: s.trim(), after: '' };
+    }
+    return { before: s, latex: '', after: '' };
+  }
+
+  /** HTML sûr pour afficher une face (Rapide / session / dock). */
+  function formatCardFaceHtml(str) {
+    var s = String(str == null ? '' : str);
+    if (!s) return '';
+    if (s.indexOf('\\(') < 0) {
+      if (/\\[a-zA-Z{]/.test(s)) {
+        return '<span class="latex-lab-preview-math">' + latexToMarkup(s) + '</span>';
+      }
+      return escHtml(s);
+    }
+    return parseLatexInlineSegments(s).map(function (seg) {
+      if (seg.type === 'math') {
+        return '<span class="latex-lab-preview-math">' + latexToMarkup(seg.value) + '</span>';
+      }
+      return escHtml(seg.value);
+    }).join('');
+  }
+
+  function syncPreview() {
+    var wrap = document.getElementById('latexTestPreviewWrap');
+    if (!wrap) return;
+    var html = formatLatexPreviewHtml(getTextBefore(), getEditorLatex(), getTextAfter());
+    if (!html) html = '<span class="anki-mut">Aperçu vide — tape une formule ou du texte</span>';
+    wrap.innerHTML = html;
+  }
+
   function syncFromEditor() {
     if (!_mf) return;
-    var latex = '';
-    try {
-      latex = _mf.getValue ? _mf.getValue('latex') : (_mf.value || '');
-    } catch (e) {
-      latex = _mf.value || '';
-    }
+    var latex = getEditorLatex();
     var codeEl = document.getElementById('latexTestCode');
     if (codeEl && document.activeElement !== codeEl) codeEl.value = latex;
-    if (_preview) {
-      try {
-        _preview.value = latex;
-      } catch (e) { /* ignore */ }
-    }
+    syncPreview();
   }
 
   function applyLatexToEditor(latex, focus) {
@@ -709,22 +1062,43 @@
     syncFromEditor();
   }
 
-  function copyLatex() {
+  function insertSpaceToken(kind) {
+    var map = {
+      thin: '\\,',
+      med: '\\:',
+      thick: '\\;',
+      quad: '\\quad',
+      qquad: '\\qquad',
+      textsp: '\\ '
+    };
+    insertSnip(map[kind] || '\\,');
+  }
+
+  function insertTextBox() {
+    insertSnip('\\text{#0}');
+  }
+
+  function copyLatex(full) {
     var codeEl = document.getElementById('latexTestCode');
-    var text = (codeEl && codeEl.value) || '';
+    var text = full ? buildFullExport() : ((codeEl && codeEl.value) || getEditorLatex());
     if (!text) {
       if (typeof window.showToast === 'function') window.showToast('Rien à copier');
       return;
     }
     var done = function () {
-      if (typeof window.showToast === 'function') window.showToast('LaTeX copié');
+      if (typeof window.showToast === 'function') {
+        window.showToast(full ? 'Phrase copiée (texte + formule)' : 'LaTeX copié');
+      }
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(function () {
-        codeEl.select();
-        try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+        if (codeEl) {
+          codeEl.focus();
+          codeEl.select();
+          try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+        }
       });
-    } else {
+    } else if (codeEl) {
       codeEl.select();
       try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
     }
@@ -734,52 +1108,174 @@
     applyLatexToEditor('', true);
     var codeEl = document.getElementById('latexTestCode');
     if (codeEl) codeEl.value = '';
+    var b = document.getElementById('latexTestBefore');
+    var a = document.getElementById('latexTestAfter');
+    if (b) b.value = '';
+    if (a) a.value = '';
+    syncPreview();
   }
 
-  function restoreDefaultAccords() {
-    document.querySelectorAll('.latex-lab-accord').forEach(function (acc) {
-      acc.classList.remove('is-filtered-out');
-      acc.open = acc.getAttribute('data-cat') === 'freq';
-      acc.querySelectorAll('.latex-lab-snip').forEach(function (btn) {
-        btn.classList.remove('is-hidden');
+  function isInsideTextCommand(value, caret) {
+    var before = String(value || '').slice(0, caret);
+    var idx = before.lastIndexOf('\\text{');
+    if (idx < 0) return false;
+    var after = before.slice(idx + 6);
+    return after.indexOf('}') === -1;
+  }
+
+  /** Dans le code LaTeX : Espace → \, (sauf dans \text{…}) */
+  function onCodeKeydown(e) {
+    if (!_spaceMode || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+    var el = e.target;
+    var start = el.selectionStart;
+    var end = el.selectionEnd;
+    var val = el.value || '';
+    if (isInsideTextCommand(val, start)) return; /* espace normal dans le texte */
+    e.preventDefault();
+    var token = e.shiftKey ? '\\quad' : '\\,';
+    el.value = val.slice(0, start) + token + val.slice(end);
+    var pos = start + token.length;
+    el.setSelectionRange(pos, pos);
+    applyLatexToEditor(el.value, false);
+  }
+
+  function onMathSpaceKeydown(e) {
+    if (!_spaceMode || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    insertSpaceToken(e.shiftKey ? 'quad' : 'thin');
+  }
+
+  function renderSectionTabs() {
+    return SNIP_SECTIONS.map(function (section) {
+      var active = section.id === _activeSection ? ' is-active' : '';
+      return (
+        '<button type="button" class="latex-lab-family' + active + '" role="tab" ' +
+          'aria-selected="' + (section.id === _activeSection ? 'true' : 'false') + '" ' +
+          'data-section="' + escHtml(section.id) + '">' +
+          '<span class="latex-lab-family-label">' + escHtml(section.label) + '</span>' +
+          '<span class="latex-lab-family-count">' + sectionGroupCount(section) + '</span>' +
+        '</button>'
+      );
+    }).join('');
+  }
+
+  function renderSubTabs(section) {
+    if (!section || !section.groups.length) return '';
+    return section.groups.map(function (gid) {
+      var group = getGroupById(gid);
+      var active = gid === _activeSub ? ' is-active' : '';
+      return (
+        '<button type="button" class="latex-lab-sub' + active + '" role="tab" ' +
+          'aria-selected="' + (gid === _activeSub ? 'true' : 'false') + '" ' +
+          'data-sub="' + escHtml(gid) + '">' +
+          escHtml(group.label) +
+          '<span class="latex-lab-sub-count">' + group.items.length + '</span>' +
+        '</button>'
+      );
+    }).join('');
+  }
+
+  function renderSnipButtons(items) {
+    return items.map(function (s) {
+      var tip = s.title || s.label;
+      if (s.groupLabel && tip.indexOf(s.groupLabel) === -1) tip += ' · ' + s.groupLabel;
+      return (
+        '<button type="button" class="latex-lab-snip" data-snip="' + escHtml(s.id) + '" ' +
+          'title="' + escHtml(tip) + '">' + escHtml(s.label) + '</button>'
+      );
+    }).join('');
+  }
+
+  function renderQuickBar() {
+    var group = getGroupById(QUICK_GROUP_ID);
+    if (!group) return '';
+    return (
+      '<div class="latex-lab-quick-row" role="toolbar" aria-label="Raccourcis fréquents">' +
+        '<span class="latex-lab-quick-label">Raccourcis</span>' +
+        '<div class="latex-lab-quick-snips">' + renderSnipButtons(group.items) + '</div>' +
+      '</div>'
+    );
+  }
+
+  function ensureActiveSub(section) {
+    if (!section) return;
+    if (section.groups.indexOf(_activeSub) === -1) {
+      _activeSub = section.groups[0];
+    }
+  }
+
+  function refreshPalette(query) {
+    var tabs = document.getElementById('latexTestCats');
+    var subs = document.getElementById('latexTestSubs');
+    var grid = document.getElementById('latexTestSnips');
+    var title = document.getElementById('latexTestCatTitle');
+    var hint = document.getElementById('latexTestPaletteHint');
+    var panel = document.getElementById('latexTestFamilyPanel');
+    var q = query != null ? query : ((document.getElementById('latexTestSearch') || {}).value || '');
+    q = (q || '').trim();
+
+    if (q) {
+      if (tabs) tabs.querySelectorAll('.latex-lab-family').forEach(function (btn) {
+        btn.classList.remove('is-active');
+        btn.setAttribute('aria-selected', 'false');
       });
-    });
-  }
-
-  function applySearch(query) {
-    var q = (query || '').trim().toLowerCase();
-    var accords = document.querySelectorAll('.latex-lab-accord');
-
-    if (!q) {
-      restoreDefaultAccords();
+      if (subs) {
+        subs.innerHTML = '';
+        subs.hidden = true;
+      }
+      if (panel) panel.classList.add('is-searching');
+      var hits = searchSnips(q);
+      if (title) title.textContent = hits.length ? ('Résultats (' + hits.length + ')') : 'Aucun résultat';
+      if (hint) hint.textContent = 'Sans accents · fautes tolérées';
+      if (grid) {
+        grid.innerHTML = hits.length
+          ? renderSnipButtons(hits)
+          : '<p class="anki-mut latex-lab-empty">Aucun symbole pour « ' + escHtml(q) + ' »</p>';
+        wireSnipButtons(grid);
+      }
       return;
     }
 
-    accords.forEach(function (acc) {
-      var visibleCount = 0;
-      acc.querySelectorAll('.latex-lab-snip').forEach(function (btn) {
-        var snip = findSnipById(btn.getAttribute('data-snip'));
-        if (!snip) return;
-        var hay = (snip.label + ' ' + (snip.title || '') + ' ' + snip.latex).toLowerCase();
-        var match = hay.indexOf(q) !== -1;
-        btn.classList.toggle('is-hidden', !match);
-        if (match) visibleCount++;
+    if (panel) panel.classList.remove('is-searching');
+    var section = getSectionById(_activeSection);
+    ensureActiveSub(section);
+
+    if (tabs) {
+      tabs.innerHTML = renderSectionTabs();
+      tabs.querySelectorAll('[data-section]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          _activeSection = btn.getAttribute('data-section');
+          var sec = getSectionById(_activeSection);
+          _activeSub = sec.groups[0];
+          refreshPalette('');
+        });
       });
-      acc.classList.toggle('is-filtered-out', visibleCount === 0);
-      acc.open = visibleCount > 0;
-    });
-  }
+    }
 
-  function openAllAccords() {
-    document.querySelectorAll('.latex-lab-accord:not(.is-filtered-out)').forEach(function (acc) {
-      acc.open = true;
-    });
-  }
+    if (subs) {
+      var subHtml = renderSubTabs(section);
+      subs.innerHTML = subHtml;
+      subs.hidden = !subHtml;
+      subs.querySelectorAll('[data-sub]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          _activeSub = btn.getAttribute('data-sub');
+          refreshPalette('');
+        });
+      });
+    }
 
-  function closeAllAccords() {
-    document.querySelectorAll('.latex-lab-accord').forEach(function (acc) {
-      acc.open = false;
-    });
+    var group = getGroupById(_activeSub);
+    if (title) {
+      title.textContent = section.label + ' · ' + group.label;
+    }
+    if (hint) {
+      hint.textContent = 'Sous-onglet · ' + group.items.length + ' symboles';
+    }
+    if (grid) {
+      grid.innerHTML = renderSnipButtons(group.items);
+      wireSnipButtons(grid);
+    }
   }
 
   function wireSnipButtons(container) {
@@ -792,30 +1288,7 @@
     });
   }
 
-  function renderAccordions() {
-    return SNIP_GROUPS.map(function (group, idx) {
-      var openAttr = group.id === 'freq' ? ' open' : '';
-      var buttons = group.items.map(function (s) {
-        var tip = escHtml(s.title || s.label);
-        return (
-          '<button type="button" class="latex-lab-snip" data-snip="' + escHtml(s.id) + '" ' +
-            'title="' + tip + '">' + escHtml(s.label) + '</button>'
-        );
-      }).join('');
-
-      return (
-        '<details class="latex-lab-accord" data-cat="' + escHtml(group.id) + '"' + openAttr + '>' +
-          '<summary class="latex-lab-accord-summary">' +
-            '<span class="latex-lab-accord-label">' + escHtml(group.label) + '</span>' +
-            '<span class="latex-lab-accord-count">' + group.items.length + '</span>' +
-          '</summary>' +
-          '<div class="latex-lab-snip-grid">' + buttons + '</div>' +
-        '</details>'
-      );
-    }).join('');
-  }
-
-  function configureMathField(mf, readOnly) {
+  function configureMathField(mf) {
     if (!mf) return;
     try {
       mf.menuItems = [];
@@ -823,15 +1296,10 @@
     } catch (e) { /* ignore */ }
     mf.setAttribute('virtual-keyboard-mode', 'manual');
     mf.setAttribute('math-virtual-keyboard-policy', 'manual');
-    if (readOnly) {
-      mf.setAttribute('read-only', '');
-      mf.style.pointerEvents = 'none';
-    }
   }
 
   function wireFields() {
     _mf = document.getElementById('latexTestField');
-    _preview = document.getElementById('latexTestPreview');
     if (!_mf) return;
 
     if (_wired) {
@@ -840,19 +1308,25 @@
     }
     _wired = true;
 
-    configureMathField(_mf, false);
-    configureMathField(_preview, true);
+    configureMathField(_mf);
     _mf.setAttribute('smart-mode', 'true');
 
     _mf.addEventListener('input', syncFromEditor);
     _mf.addEventListener('change', syncFromEditor);
+    _mf.addEventListener('keydown', onMathSpaceKeydown, true);
 
     var codeEl = document.getElementById('latexTestCode');
     if (codeEl) {
       codeEl.addEventListener('input', function () {
         applyLatexToEditor(codeEl.value, false);
       });
+      codeEl.addEventListener('keydown', onCodeKeydown);
     }
+
+    ['latexTestBefore', 'latexTestAfter'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', syncPreview);
+    });
 
     if (!_mf.value) {
       applyLatexToEditor('\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}', false);
@@ -866,59 +1340,104 @@
   function buildShell(root) {
     root.innerHTML =
       '<div class="latex-lab">' +
-        '<div class="latex-lab-toolbar">' +
+        '<header class="latex-lab-toolbar">' +
           '<div class="latex-lab-toolbar-head">' +
             '<h2 class="latex-lab-title"><span data-icon="flask-conical"></span> Labo LaTeX</h2>' +
             '<div class="latex-lab-head-actions">' +
               '<input type="search" id="latexTestSearch" class="latex-lab-search" ' +
-                'placeholder="Rechercher symbole, commande…" autocomplete="off" spellcheck="false">' +
-              '<button type="button" class="bs" id="latexTestOpenAll"><span data-icon="chevron-down"></span> Tout ouvrir</button>' +
-              '<button type="button" class="bs" id="latexTestCloseAll"><span data-icon="chevron-up"></span> Tout fermer</button>' +
-              '<button type="button" class="bs" id="latexTestCopy"><span data-icon="copy"></span> Copier LaTeX</button>' +
-              '<button type="button" class="bs" id="latexTestClear"><span data-icon="trash-2"></span> Effacer</button>' +
+                'placeholder="Sans accents : integrale, algebre, fraction…" ' +
+                'autocomplete="off" spellcheck="true" lang="fr">' +
+              '<button type="button" class="bs" id="latexTestCopy" title="Copier le code LaTeX seul">' +
+                '<span data-icon="copy"></span> Copier</button>' +
+              '<button type="button" class="bs" id="latexTestCopyFull" title="Copier texte + formule">' +
+                '<span data-icon="clipboard-list"></span> Phrase</button>' +
+              '<button type="button" class="bs" id="latexTestClear">' +
+                '<span data-icon="trash-2"></span></button>' +
             '</div>' +
           '</div>' +
-        '</div>' +
-        '<div class="latex-lab-accords" id="latexTestAccords">' + renderAccordions() + '</div>' +
-        '<div class="latex-lab-grid">' +
-          '<section class="latex-lab-panel">' +
-            '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">— clique un coeff, Tab pour le suivant</span></div>' +
-            '<div class="latex-lab-field-wrap">' +
-              '<math-field id="latexTestField" class="latex-lab-field"></math-field>' +
+        '</header>' +
+
+        '<div class="latex-lab-work">' +
+          '<div class="latex-lab-compose">' +
+            '<section class="latex-lab-panel latex-lab-panel-preview">' +
+              '<div class="latex-lab-panel-label">Aperçu <span class="anki-mut">· texte + formule</span></div>' +
+              '<div class="latex-lab-preview-wrap" id="latexTestPreviewWrap"></div>' +
+            '</section>' +
+            '<section class="latex-lab-panel latex-lab-panel-editor">' +
+              '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">· Tab = case suivante · Espace = espacement</span></div>' +
+              '<input type="text" id="latexTestBefore" class="latex-lab-text-field" ' +
+                'placeholder="Texte avant (ex. On a donc)" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-field-wrap">' +
+                '<math-field id="latexTestField" class="latex-lab-field"></math-field>' +
+              '</div>' +
+              '<input type="text" id="latexTestAfter" class="latex-lab-text-field" ' +
+                'placeholder="Texte après (ex. d’où le résultat.)" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-quickbar" role="toolbar" aria-label="Insertions rapides">' +
+                '<button type="button" class="latex-lab-quick" data-space="thin" title="Espace fin (touche Espace)">␣</button>' +
+                '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
+                '<button type="button" class="latex-lab-quick" data-space="quad" title="Grand espace (Maj+Espace)">□</button>' +
+                '<button type="button" class="latex-lab-quick" id="latexTestInsertText" title="Insérer du texte dans la formule">\\text{}</button>' +
+                '<label class="latex-lab-space-toggle" title="Espace clavier → espacement LaTeX">' +
+                  '<input type="checkbox" id="latexTestSpaceMode" checked> Espace auto' +
+                '</label>' +
+              '</div>' +
+            '</section>' +
+          '</div>' +
+
+          '<section class="latex-lab-palette">' +
+            '<div id="latexTestQuick" class="latex-lab-quick-wrap">' + renderQuickBar() + '</div>' +
+            '<div class="latex-lab-families" id="latexTestCats" role="tablist" aria-label="Familles de symboles"></div>' +
+            '<div class="latex-lab-family-panel" id="latexTestFamilyPanel">' +
+              '<div class="latex-lab-palette-head">' +
+                '<span class="latex-lab-panel-label" id="latexTestCatTitle">Maths · Bases</span>' +
+                '<span class="anki-mut latex-lab-palette-hint" id="latexTestPaletteHint">Sous-onglet</span>' +
+              '</div>' +
+              '<div class="latex-lab-subs" id="latexTestSubs" role="tablist" aria-label="Sous-catégories"></div>' +
+              '<div class="latex-lab-snip-grid" id="latexTestSnips" role="tabpanel"></div>' +
             '</div>' +
           '</section>' +
-          '<section class="latex-lab-panel latex-lab-panel-preview">' +
-            '<div class="latex-lab-panel-label">Aperçu</div>' +
-            '<div class="latex-lab-preview-wrap">' +
-              '<math-field id="latexTestPreview" class="latex-lab-preview"></math-field>' +
-            '</div>' +
-          '</section>' +
         '</div>' +
-        '<section class="latex-lab-panel latex-lab-code-panel">' +
-          '<div class="latex-lab-panel-label">Code LaTeX <span class="anki-mut">— éditable aussi à la main</span></div>' +
-          '<textarea id="latexTestCode" class="latex-lab-code" rows="3" spellcheck="false" placeholder="\\frac{a}{b}"></textarea>' +
-        '</section>' +
-        '<p class="latex-lab-hint anki-mut">Astuce : clique une case dans l\'éditeur puis <b>Tab</b> pour la suivante. Cherche un symbole dans la barre ci-dessus.</p>' +
+
+        '<details class="latex-lab-code-panel">' +
+          '<summary class="latex-lab-code-summary">Code LaTeX <span class="anki-mut">— modification simple (Espace = \\,)</span></summary>' +
+          '<textarea id="latexTestCode" class="latex-lab-code" rows="3" spellcheck="false" ' +
+            'placeholder="\\frac{a}{b}"></textarea>' +
+        '</details>' +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(root);
 
-    wireSnipButtons(document.getElementById('latexTestAccords'));
+    refreshPalette('');
+    var quickWrap = document.getElementById('latexTestQuick');
+    if (quickWrap) wireSnipButtons(quickWrap);
 
     var searchEl = document.getElementById('latexTestSearch');
     if (searchEl) {
       searchEl.addEventListener('input', function () {
-        applySearch(searchEl.value);
+        refreshPalette(searchEl.value);
       });
     }
 
-    var openAllBtn = document.getElementById('latexTestOpenAll');
-    var closeAllBtn = document.getElementById('latexTestCloseAll');
+    document.querySelectorAll('[data-space]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        insertSpaceToken(btn.getAttribute('data-space'));
+      });
+    });
+    var textBtn = document.getElementById('latexTestInsertText');
+    if (textBtn) textBtn.addEventListener('click', insertTextBox);
+
+    var spaceToggle = document.getElementById('latexTestSpaceMode');
+    if (spaceToggle) {
+      spaceToggle.addEventListener('change', function () {
+        _spaceMode = !!spaceToggle.checked;
+      });
+    }
+
     var copyBtn = document.getElementById('latexTestCopy');
+    var copyFullBtn = document.getElementById('latexTestCopyFull');
     var clearBtn = document.getElementById('latexTestClear');
-    if (openAllBtn) openAllBtn.addEventListener('click', openAllAccords);
-    if (closeAllBtn) closeAllBtn.addEventListener('click', closeAllAccords);
-    if (copyBtn) copyBtn.addEventListener('click', copyLatex);
+    if (copyBtn) copyBtn.addEventListener('click', function () { copyLatex(false); });
+    if (copyFullBtn) copyFullBtn.addEventListener('click', function () { copyLatex(true); });
     if (clearBtn) clearBtn.addEventListener('click', clearAll);
   }
 
@@ -965,5 +1484,356 @@
         window.renderLatexTest();
       });
     });
+  };
+
+  /** API partagée (cartes rapides LaTeX, session, dock, etc.) */
+  window.ensureMathLive = ensureMathLive;
+  window.latexToMarkup = latexToMarkup;
+  window.latexBuildInline = latexBuildInline;
+  window.formatCardFaceHtml = formatCardFaceHtml;
+  window.formatQuickCardHtml = formatCardFaceHtml; /* alias Rapide */
+  window.parseLatexInlineForEditor = parseLatexInlineForEditor;
+  window.parseLatexInlineSegments = parseLatexInlineSegments;
+
+  /**
+   * Monte une instance « LaTeX Easy » (même modèle que le labo) dans host.
+   * @returns {{ getInline:Function, setFromInline:Function, focus:Function, destroy:Function }}
+   */
+  window.mountLatexEasyEditor = function (host, opts) {
+    opts = opts || {};
+    if (!host) return null;
+    var prefix = opts.prefix || ('lex' + Math.random().toString(36).slice(2, 8));
+    var title = opts.title || 'LaTeX Easy';
+    var spaceMode = true;
+    var activeSection = 'maths';
+    var activeSub = 'base';
+    var mf = null;
+    var destroyed = false;
+
+    function pid(suf) { return prefix + suf; }
+    function gel(suf) { return document.getElementById(pid(suf)); }
+
+    function getLatex() {
+      if (!mf) return '';
+      try { return mf.getValue ? mf.getValue('latex') : (mf.value || ''); }
+      catch (e) { return mf.value || ''; }
+    }
+    function getBefore() { var el = gel('Before'); return el ? el.value : ''; }
+    function getAfter() { var el = gel('After'); return el ? el.value : ''; }
+
+    function syncPreview() {
+      var wrap = gel('PreviewWrap');
+      if (!wrap) return;
+      var html = formatLatexPreviewHtml(getBefore(), getLatex(), getAfter());
+      if (!html) html = '<span class="anki-mut">Aperçu vide — tape une formule ou du texte</span>';
+      wrap.innerHTML = html;
+    }
+
+    function syncFromEditor() {
+      if (!mf) return;
+      var latex = getLatex();
+      var codeEl = gel('Code');
+      if (codeEl && document.activeElement !== codeEl) codeEl.value = latex;
+      syncPreview();
+    }
+
+    function applyLatex(latex, focus) {
+      if (!mf) return;
+      try { mf.value = latex || ''; } catch (e) { /* ignore */ }
+      syncFromEditor();
+      if (focus) { try { mf.focus(); } catch (e2) { /* ignore */ } }
+    }
+
+    function insertSnipLocal(latex) {
+      if (!mf) return;
+      try {
+        if (typeof mf.executeCommand === 'function') mf.executeCommand(['insert', latex]);
+        else mf.value = (mf.value || '') + latex;
+        mf.focus();
+      } catch (e) { /* ignore */ }
+      syncFromEditor();
+    }
+
+    function insertSpaceLocal(kind) {
+      var map = { thin: '\\,', med: '\\:', thick: '\\;', quad: '\\quad', qquad: '\\qquad', textsp: '\\ ' };
+      insertSnipLocal(map[kind] || '\\,');
+    }
+
+    function renderSnips(items) {
+      return items.map(function (s) {
+        var tip = s.title || s.label;
+        if (s.groupLabel && tip.indexOf(s.groupLabel) === -1) tip += ' · ' + s.groupLabel;
+        return (
+          '<button type="button" class="latex-lab-snip" data-snip="' + escHtml(s.id) + '" ' +
+            'title="' + escHtml(tip) + '">' + escHtml(s.label) + '</button>'
+        );
+      }).join('');
+    }
+
+    function wireSnips(container) {
+      if (!container) return;
+      container.querySelectorAll('[data-snip]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var snip = findSnipById(btn.getAttribute('data-snip'));
+          if (snip) insertSnipLocal(snip.latex);
+        });
+      });
+    }
+
+    function refreshPalette(query) {
+      if (destroyed) return;
+      var tabs = gel('Cats');
+      var subs = gel('Subs');
+      var grid = gel('Snips');
+      var titleEl = gel('CatTitle');
+      var hint = gel('PaletteHint');
+      var panel = gel('FamilyPanel');
+      var searchEl = gel('Search');
+      var q = query != null ? query : ((searchEl && searchEl.value) || '');
+      q = (q || '').trim();
+
+      if (q) {
+        if (tabs) tabs.querySelectorAll('.latex-lab-family').forEach(function (btn) {
+          btn.classList.remove('is-active');
+          btn.setAttribute('aria-selected', 'false');
+        });
+        if (subs) { subs.innerHTML = ''; subs.hidden = true; }
+        if (panel) panel.classList.add('is-searching');
+        var hits = searchSnips(q);
+        if (titleEl) titleEl.textContent = hits.length ? ('Résultats (' + hits.length + ')') : 'Aucun résultat';
+        if (hint) hint.textContent = 'Sans accents · fautes tolérées';
+        if (grid) {
+          grid.innerHTML = hits.length
+            ? renderSnips(hits)
+            : '<p class="anki-mut latex-lab-empty">Aucun symbole pour « ' + escHtml(q) + ' »</p>';
+          wireSnips(grid);
+        }
+        return;
+      }
+
+      if (panel) panel.classList.remove('is-searching');
+      var section = getSectionById(activeSection);
+      if (section.groups.indexOf(activeSub) === -1) activeSub = section.groups[0];
+
+      if (tabs) {
+        tabs.innerHTML = SNIP_SECTIONS.map(function (sec) {
+          var active = sec.id === activeSection ? ' is-active' : '';
+          return (
+            '<button type="button" class="latex-lab-family' + active + '" role="tab" ' +
+              'aria-selected="' + (sec.id === activeSection ? 'true' : 'false') + '" ' +
+              'data-section="' + escHtml(sec.id) + '">' +
+              '<span class="latex-lab-family-label">' + escHtml(sec.label) + '</span>' +
+              '<span class="latex-lab-family-count">' + sectionGroupCount(sec) + '</span>' +
+            '</button>'
+          );
+        }).join('');
+        tabs.querySelectorAll('[data-section]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            activeSection = btn.getAttribute('data-section');
+            activeSub = getSectionById(activeSection).groups[0];
+            refreshPalette('');
+          });
+        });
+      }
+
+      if (subs) {
+        var subHtml = section.groups.map(function (gid) {
+          var group = getGroupById(gid);
+          var active = gid === activeSub ? ' is-active' : '';
+          return (
+            '<button type="button" class="latex-lab-sub' + active + '" role="tab" ' +
+              'aria-selected="' + (gid === activeSub ? 'true' : 'false') + '" ' +
+              'data-sub="' + escHtml(gid) + '">' +
+              escHtml(group.label) +
+              '<span class="latex-lab-sub-count">' + group.items.length + '</span>' +
+            '</button>'
+          );
+        }).join('');
+        subs.innerHTML = subHtml;
+        subs.hidden = !subHtml;
+        subs.querySelectorAll('[data-sub]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            activeSub = btn.getAttribute('data-sub');
+            refreshPalette('');
+          });
+        });
+      }
+
+      var group = getGroupById(activeSub);
+      if (titleEl) titleEl.textContent = section.label + ' · ' + group.label;
+      if (hint) hint.textContent = 'Sous-onglet · ' + group.items.length + ' symboles';
+      if (grid) {
+        grid.innerHTML = renderSnips(group.items);
+        wireSnips(grid);
+      }
+    }
+
+    var freqGroup = getGroupById(QUICK_GROUP_ID);
+    var quickHtml = freqGroup
+      ? ('<div class="latex-lab-quick-row" role="toolbar" aria-label="Raccourcis fréquents">' +
+          '<span class="latex-lab-quick-label">Raccourcis</span>' +
+          '<div class="latex-lab-quick-snips">' + renderSnips(freqGroup.items) + '</div></div>')
+      : '';
+
+    host.innerHTML =
+      '<div class="latex-lab latex-lab-easy-embed">' +
+        '<header class="latex-lab-toolbar">' +
+          '<div class="latex-lab-toolbar-head">' +
+            '<h2 class="latex-lab-title"><span data-icon="flask-conical"></span> ' + escHtml(title) + '</h2>' +
+            '<div class="latex-lab-head-actions">' +
+              '<input type="search" id="' + pid('Search') + '" class="latex-lab-search" ' +
+                'placeholder="Sans accents : integrale, algebre…" autocomplete="off" spellcheck="true" lang="fr">' +
+              '<button type="button" class="bs" id="' + pid('Clear') + '" title="Effacer">' +
+                '<span data-icon="trash-2"></span></button>' +
+            '</div>' +
+          '</div>' +
+        '</header>' +
+        '<div class="latex-lab-work">' +
+          '<div class="latex-lab-compose">' +
+            '<section class="latex-lab-panel latex-lab-panel-preview">' +
+              '<div class="latex-lab-panel-label">Aperçu <span class="anki-mut">· texte + formule</span></div>' +
+              '<div class="latex-lab-preview-wrap" id="' + pid('PreviewWrap') + '"></div>' +
+            '</section>' +
+            '<section class="latex-lab-panel latex-lab-panel-editor">' +
+              '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">· Tab = case suivante · Espace = espacement</span></div>' +
+              '<input type="text" id="' + pid('Before') + '" class="latex-lab-text-field" ' +
+                'placeholder="Texte avant" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-field-wrap">' +
+                '<math-field id="' + pid('Field') + '" class="latex-lab-field"></math-field>' +
+              '</div>' +
+              '<input type="text" id="' + pid('After') + '" class="latex-lab-text-field" ' +
+                'placeholder="Texte après" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-quickbar" role="toolbar" aria-label="Insertions rapides">' +
+                '<button type="button" class="latex-lab-quick" data-space="thin" title="Espace fin">␣</button>' +
+                '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
+                '<button type="button" class="latex-lab-quick" data-space="quad" title="Grand espace">□</button>' +
+                '<button type="button" class="latex-lab-quick" id="' + pid('InsertText') + '" title="Texte dans la formule">\\text{}</button>' +
+                '<label class="latex-lab-space-toggle" title="Espace clavier → espacement LaTeX">' +
+                  '<input type="checkbox" id="' + pid('SpaceMode') + '" checked> Espace auto' +
+                '</label>' +
+              '</div>' +
+            '</section>' +
+          '</div>' +
+          '<section class="latex-lab-palette">' +
+            '<div id="' + pid('Quick') + '" class="latex-lab-quick-wrap">' + quickHtml + '</div>' +
+            '<div class="latex-lab-families" id="' + pid('Cats') + '" role="tablist"></div>' +
+            '<div class="latex-lab-family-panel" id="' + pid('FamilyPanel') + '">' +
+              '<div class="latex-lab-palette-head">' +
+                '<span class="latex-lab-panel-label" id="' + pid('CatTitle') + '">Maths · Bases</span>' +
+                '<span class="anki-mut latex-lab-palette-hint" id="' + pid('PaletteHint') + '">Sous-onglet</span>' +
+              '</div>' +
+              '<div class="latex-lab-subs" id="' + pid('Subs') + '" role="tablist"></div>' +
+              '<div class="latex-lab-snip-grid" id="' + pid('Snips') + '" role="tabpanel"></div>' +
+            '</div>' +
+          '</section>' +
+        '</div>' +
+        '<details class="latex-lab-code-panel">' +
+          '<summary class="latex-lab-code-summary">Code LaTeX <span class="anki-mut">— Espace = \\,</span></summary>' +
+          '<textarea id="' + pid('Code') + '" class="latex-lab-code" rows="3" spellcheck="false" ' +
+            'placeholder="\\frac{a}{b}"></textarea>' +
+        '</details>' +
+      '</div>';
+
+    if (typeof window.hydrateIcons === 'function') window.hydrateIcons(host);
+    refreshPalette('');
+    wireSnips(gel('Quick'));
+
+    var searchEl = gel('Search');
+    if (searchEl) searchEl.addEventListener('input', function () { refreshPalette(searchEl.value); });
+    host.querySelectorAll('[data-space]').forEach(function (btn) {
+      btn.addEventListener('click', function () { insertSpaceLocal(btn.getAttribute('data-space')); });
+    });
+    var textBtn = gel('InsertText');
+    if (textBtn) textBtn.addEventListener('click', function () { insertSnipLocal('\\text{#0}'); });
+    var spaceToggle = gel('SpaceMode');
+    if (spaceToggle) spaceToggle.addEventListener('change', function () { spaceMode = !!spaceToggle.checked; });
+    var clearBtn = gel('Clear');
+    if (clearBtn) clearBtn.addEventListener('click', function () {
+      applyLatex('', true);
+      var b = gel('Before'); var a = gel('After'); var c = gel('Code');
+      if (b) b.value = '';
+      if (a) a.value = '';
+      if (c) c.value = '';
+      syncPreview();
+    });
+
+    function wireMath() {
+      mf = gel('Field');
+      if (!mf) return;
+      configureMathField(mf);
+      mf.setAttribute('smart-mode', 'true');
+      mf.addEventListener('input', syncFromEditor);
+      mf.addEventListener('change', syncFromEditor);
+      mf.addEventListener('keydown', function (e) {
+        if (!spaceMode || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        insertSpaceLocal(e.shiftKey ? 'quad' : 'thin');
+      }, true);
+
+      var codeEl = gel('Code');
+      if (codeEl) {
+        codeEl.addEventListener('input', function () { applyLatex(codeEl.value, false); });
+        codeEl.addEventListener('keydown', function (e) {
+          if (!spaceMode || e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
+          var start = codeEl.selectionStart;
+          var end = codeEl.selectionEnd;
+          var val = codeEl.value || '';
+          if (isInsideTextCommand(val, start)) return;
+          e.preventDefault();
+          var token = e.shiftKey ? '\\quad' : '\\,';
+          codeEl.value = val.slice(0, start) + token + val.slice(end);
+          var pos = start + token.length;
+          codeEl.setSelectionRange(pos, pos);
+          applyLatex(codeEl.value, false);
+        });
+      }
+      ['Before', 'After'].forEach(function (suf) {
+        var el = gel(suf);
+        if (el) el.addEventListener('input', syncPreview);
+      });
+
+      if (opts.seedInline != null) {
+        var parts = parseLatexInlineForEditor(opts.seedInline);
+        var b = gel('Before'); var a = gel('After');
+        if (b) b.value = parts.before || '';
+        if (a) a.value = parts.after || '';
+        applyLatex(parts.latex || '', false);
+      } else {
+        syncFromEditor();
+      }
+      if (opts.autofocus !== false) {
+        try { mf.focus(); } catch (e) { /* ignore */ }
+      }
+    }
+
+    var ready = ensureMathLive().then(function () {
+      return customElements.whenDefined('math-field');
+    }).then(wireMath).catch(function (err) {
+      host.insertAdjacentHTML('afterbegin',
+        '<p class="latex-lab-error">' + escHtml((err && err.message) || 'MathLive indisponible') + '</p>');
+      // Propager l’échec : sinon le popup active « Appliquer » et wipe les champs
+      throw err || new Error('MathLive indisponible');
+    });
+
+    return {
+      ready: ready,
+      getInline: function () {
+        return latexBuildInline(getBefore(), getLatex(), getAfter());
+      },
+      setFromInline: function (str) {
+        var parts = parseLatexInlineForEditor(str);
+        var b = gel('Before'); var a = gel('After');
+        if (b) b.value = parts.before || '';
+        if (a) a.value = parts.after || '';
+        applyLatex(parts.latex || '', false);
+      },
+      focus: function () { try { if (mf) mf.focus(); } catch (e) { /* ignore */ } },
+      destroy: function () {
+        destroyed = true;
+        mf = null;
+        host.innerHTML = '';
+      }
+    };
   };
 })();
