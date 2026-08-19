@@ -4223,6 +4223,15 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     bindAutoGrowTextareas(ov);
     renderCoursLinkUI('quick');
     const qEl = $("quickQ");
+    const rEl = $("quickR");
+    if (rEl) {
+      rEl.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.isComposing && !e.repeat) {
+          e.preventDefault();
+          window.ankiV2SaveQuick();
+        }
+      });
+    }
     if (qEl) qEl.focus();
   }
 
@@ -4257,7 +4266,17 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     } else go();
   };
 
+  function setQuickSaveBusy(busy) {
+    const ov = $('ovQuickCreate');
+    if (!ov) return;
+    ov.querySelectorAll('.macts .bp, .macts .ui-btn-accent').forEach(function (btn) {
+      btn.disabled = !!busy;
+      btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+    });
+  }
+
   window.ankiV2SaveQuick = function () {
+    if (window._quickSaveInFlight) return;
     showFormError('quickFormError', '');
     const q = fieldVal('quickQ');
     const r = fieldVal('quickR');
@@ -4265,6 +4284,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!q) return showFormError('quickFormError', 'La question est obligatoire.');
     if (!mat) return showFormError('quickFormError', 'Choisis une matière.');
     const coursIds = Array.from(S.coursLinkSelection || []);
+    window._quickSaveInFlight = true;
+    setQuickSaveBusy(true);
     Promise.resolve(window.quickAddAnkiCard({
       question: q,
       reponse: r,
@@ -4293,12 +4314,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       window._quickCreateCount = 0;
       const ov = $("ovQuickCreate");
       if (ov) ov.classList.add('hidden');
-      window.sysAlert(window.iconLabel('check', 'Carte rapide créée et active.'), 'Rapide Y-');
+      if (typeof window.showToast === 'function') {
+        window.showToast('Carte ' + card.id + ' créée et active.');
+      } else {
+        window.sysAlert(window.iconLabel('check', 'Carte rapide créée et active.'), 'Rapide Y-');
+      }
     }).catch(function (err) {
-      // Évite le double message si quickAddAnkiCard a déjà toast/alert
       const msg = String(err && err.message || err || '');
       if (/SECONDARY_READ_ONLY|NO_DATA/i.test(msg)) return;
       showFormError('quickFormError', 'Enregistrement impossible — la carte n’a pas été créée.');
+    }).finally(function () {
+      window._quickSaveInFlight = false;
+      setQuickSaveBusy(false);
     });
   };
 

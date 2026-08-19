@@ -16,6 +16,56 @@
 
   const esc = s => window.escHtml(s);
 
+  function escAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  function faceNeedsMath(str) {
+    var s = String(str == null ? '' : str);
+    return s.indexOf('\\(') >= 0 || /\\[a-zA-Z[{]/.test(s);
+  }
+
+  /** Re-rendu des faces LaTeX une fois MathLive / formatCardFaceHtml chargés */
+  window.hydrateQuickCardFaces = function (root) {
+    var host = root || document.getElementById('qkSections') || document;
+    var nodes = host.querySelectorAll('[data-card-face-id]');
+    if (!nodes.length) return Promise.resolve();
+    var needs = false;
+    nodes.forEach(function (el) {
+      var id = el.getAttribute('data-card-face-id');
+      var side = el.getAttribute('data-card-face-side') || 'q';
+      var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
+      if (!c) return;
+      var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
+      if (faceNeedsMath(raw)) needs = true;
+    });
+    if (!needs) return Promise.resolve();
+    var load = Promise.resolve();
+    if (typeof window.ensureScriptsForTab === 'function') {
+      load = window.ensureScriptsForTab('quickLatex');
+    } else if (typeof window.ensureMathLive === 'function') {
+      load = window.ensureMathLive();
+    }
+    return load.then(function () {
+      nodes.forEach(function (el) {
+        var id = el.getAttribute('data-card-face-id');
+        var side = el.getAttribute('data-card-face-side') || 'q';
+        var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
+        if (!c || typeof window.formatCardFaceHtml !== 'function') return;
+        var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
+        if (!raw) return;
+        if (side === 'r' && !raw.trim()) {
+          el.innerHTML = '<em style="color:var(--mut);">Pas de réponse — auto-évaluation libre</em>';
+        } else {
+          el.innerHTML = window.formatCardFaceHtml(raw);
+        }
+      });
+    }).catch(function () { /* garde le fallback texte */ });
+  };
+
   function isQuickCard(c) {
     return window.AnkiAlgo && window.AnkiAlgo.cardKind(c) === "quick";
   }
@@ -148,6 +198,7 @@
   }
 
   window.quickAdd = function () {
+    if (window._quickAddInFlight) return;
     const qEl = $("qkQ");
     const rEl = $("qkR");
     const matEl = $("qkMat");
@@ -160,12 +211,18 @@
     Q.mat = mat;
     Q.coursId = coursId;
     if (!window.quickAddAnkiCard) { window.sysAlert("Module Anki non chargé.", "Erreur"); return; }
+    window._quickAddInFlight = true;
+    const createBtn = document.querySelector('.quick-create .bp');
+    if (createBtn) {
+      createBtn.disabled = true;
+      createBtn.setAttribute('aria-busy', 'true');
+    }
     const doAdd = function () {
       if (typeof window.quickAddAnkiCard !== 'function') {
         window.sysAlert("Module Anki non chargé.", "Erreur");
-        return;
+        return Promise.reject(new Error('NO_ANKI'));
       }
-      Promise.resolve(window.quickAddAnkiCard({
+      return Promise.resolve(window.quickAddAnkiCard({
         question: q,
         reponse: r,
         mat,
@@ -180,16 +237,24 @@
         if (rEl) rEl.value = '';
         qEl.focus();
         renderSections();
-      }).catch(function () {
-        /* quickAddAnkiCard / save ont déjà alerté */
+        if (typeof window.showToast === 'function') {
+          window.showToast('Carte ' + card.id + ' créée.');
+        }
       });
+    };
+    const finish = function () {
+      window._quickAddInFlight = false;
+      if (createBtn) {
+        createBtn.disabled = false;
+        createBtn.removeAttribute('aria-busy');
+      }
     };
     if (typeof window.ensureScriptsForTab === 'function') {
       window.ensureScriptsForTab('ankiV2').then(doAdd).catch(function () {
         window.sysAlert("Module Anki non chargé.", "Erreur");
-      });
+      }).finally(finish);
     } else {
-      doAdd();
+      Promise.resolve(doAdd()).finally(finish);
     }
   };
 
@@ -266,7 +331,7 @@
               ${coursChip(c)}
               ${inRes ? `<span class="anki-tag" style="background:rgba(255,170,51,.15);color:var(--gold);">Ancien réservoir</span>` : ''}
             </div>
-            <div class="qk-q">${formatFace(c.question)}</div>
+            <div class="qk-q" data-card-face-id="${escAttr(c.id)}" data-card-face-side="q">${formatFace(c.question)}</div>
             <div class="qk-foot">
               <span class="anki-mut">${window.iconLabel('zap', 'Rapide')}</span>
               <span class="qk-actions" onclick="event.stopPropagation();">
@@ -278,7 +343,7 @@
             <div class="anki-card-stats qk-stats">${quickCardStats(c)}</div>
           </div>
           <div class="qk-back">
-            <div class="qk-r">${c.reponse ? formatFace(c.reponse) : '<em style="color:var(--mut);">Pas de réponse — auto-évaluation libre</em>'}</div>
+            <div class="qk-r" data-card-face-id="${escAttr(c.id)}" data-card-face-side="r">${c.reponse ? formatFace(c.reponse) : '<em style="color:var(--mut);">Pas de réponse — auto-évaluation libre</em>'}</div>
           </div>
         </div>
       </div>
@@ -337,6 +402,9 @@
       `;
     }).join('');
     if (window.hydrateIcons) window.hydrateIcons(host);
+    if (typeof window.hydrateQuickCardFaces === 'function') {
+      window.hydrateQuickCardFaces(host);
+    }
   }
 
   window.quickStartAll = function () {
