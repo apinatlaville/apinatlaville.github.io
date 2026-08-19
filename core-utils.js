@@ -226,6 +226,33 @@
     }
   };
 
+  window._bootLog = window._bootLog || [];
+  window._bootStartedAt = Date.now();
+
+  /**
+   * Journal structuré du démarrage — copie/colle la console si le site bloque.
+   * Ex. : window._bootLog  ou  filtre la console sur "[boot]"
+   */
+  window.bootLog = function (level, phase, detail) {
+    var entry = {
+      t: Date.now(),
+      level: level || 'info',
+      phase: phase || 'unknown',
+      detail: detail != null ? detail : null
+    };
+    window._bootLog.push(entry);
+    var tag = '[boot][' + entry.phase + ']';
+    var payload = detail != null
+      ? (typeof detail === 'object' ? detail : String(detail))
+      : '';
+    if (entry.level === 'error') console.error(tag, payload);
+    else if (entry.level === 'warn') console.warn(tag, payload);
+    else console.log(tag, payload);
+    if (window.bootMark) {
+      window.bootMark('log.' + entry.phase, typeof detail === 'object' ? detail : { msg: String(payload) });
+    }
+  };
+
   var bootDismissed = false;
 
   function splashEl() { return document.getElementById('splashScreen'); }
@@ -234,13 +261,17 @@
   window.setBootStep = function () {};
 
   /** Débloque la page : retire auth-pending + splash */
-  window.unlockPage = function () {
+  window.unlockPage = function (reason) {
     if (bootDismissed) return;
     bootDismissed = true;
+    if (typeof window.bootLog === 'function') {
+      window.bootLog('info', 'unlockPage', reason || 'splash retiré');
+    }
     document.body.classList.remove('boot-active', 'auth-pending');
     var splash = splashEl();
     if (!splash) return;
     splash.classList.add('splash-out');
+    splash.setAttribute('aria-busy', 'false');
     setTimeout(function () {
       if (splash.parentNode) splash.remove();
     }, 400);
@@ -262,13 +293,57 @@
   };
 
   /**
-   * Secours boot (délai unique) : si l'app n'est pas prête après 12 s
-   * et que l'écran d'auth est encore masqué, afficher la connexion.
+   * Watchdog boot : évite le spinner infini (auth-pending ou initApp bloquée).
+   * S'arrête dès que window.appReady === true.
    */
-  setTimeout(function () {
-    if (!window.appReady && document.body.classList.contains('auth-pending')) {
-      if (window.bootMark) window.bootMark('boot.timeout12s.forceLogin');
-      window.forceLoginScreen();
-    }
-  }, 12000);
+  (function startBootWatchdog() {
+    var tick = 0;
+    var timer = setInterval(function () {
+      tick++;
+      if (window.appReady) {
+        clearInterval(timer);
+        return;
+      }
+      var authPending = document.body.classList.contains('auth-pending');
+      var initElapsed = window._bootInitStartedAt
+        ? Date.now() - window._bootInitStartedAt
+        : 0;
+      var bootElapsed = Date.now() - (window._bootStartedAt || Date.now());
+
+      if (tick === 1 || tick % 5 === 0) {
+        window.bootLog('info', 'watchdog', {
+          appReady: !!window.appReady,
+          appLaunched: !!window.appLaunched,
+          initInProgress: !!window._appInitInProgress,
+          authPending: authPending,
+          bootElapsedMs: bootElapsed,
+          initElapsedMs: initElapsed
+        });
+      }
+
+      if (authPending && bootElapsed >= 12000) {
+        window.bootLog('warn', 'watchdog.forceLogin', { reason: 'auth-pending > 12s' });
+        window.appLaunched = false;
+        window._appInitInProgress = false;
+        window.forceLoginScreen();
+        return;
+      }
+
+      if (window._bootInitStartedAt && initElapsed >= 30000) {
+        window.bootLog('error', 'watchdog.initTimeout', { initElapsedMs: initElapsed });
+        window.appLaunched = false;
+        window._appInitInProgress = false;
+        window._bootInitStartedAt = null;
+        window.unlockPage('init timeout');
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert(
+            'Le chargement des données a pris trop de temps.<br><br>' +
+            'Recharge la page. Si le problème persiste, ouvre la console (F12) et cherche les lignes <code>[boot]</code>.',
+            window.APP_MSG.BOOT_TITLE || 'Erreur de démarrage'
+          );
+        }
+        clearInterval(timer);
+      }
+    }, 2000);
+  })();
 })();

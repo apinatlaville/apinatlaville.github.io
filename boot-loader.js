@@ -231,6 +231,7 @@
   }
 
   window.bootLoadApplication = function () {
+    if (typeof window.bootLog === 'function') window.bootLog('info', 'loader.start');
     if (typeof window.setBootStep === 'function') window.setBootStep('scripts');
     if (window.bootMark) window.bootMark('boot.loader.start');
 
@@ -254,6 +255,12 @@
       .then(function (r) { track([r]); })
       .then(function () {
         if (window.bootMark) window.bootMark('boot.loader.scripts.done');
+        if (typeof window.bootLog === 'function') {
+          window.bootLog('info', 'loader.scripts.done', {
+            failures: bootFailures.length,
+            fatal: bootFailures.some(function (r) { return r && r.critical; })
+          });
+        }
         if (bootFailures.length && typeof window.notifyScriptLoadFailures === 'function') {
           window.notifyScriptLoadFailures(bootFailures);
         }
@@ -273,10 +280,14 @@
       .then(function (result) {
         if (result && result.fatal) return;
         loadDeferredBackground();
+        if (typeof window.bootLog === 'function') window.bootLog('info', 'loader.complete');
         if (window.bootMark) window.bootMark('boot.loader.complete');
       })
       .catch(function (err) {
         console.error('Boot loader:', err);
+        if (typeof window.bootLog === 'function') {
+          window.bootLog('error', 'loader.error', { message: err && err.message ? err.message : String(err) });
+        }
         if (window.bootMark) window.bootMark('boot.loader.error', { error: String(err && err.message ? err.message : err) });
         var M = window.APP_MSG || {};
         if (typeof window.sysAlert === 'function') {

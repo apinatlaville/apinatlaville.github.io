@@ -1264,11 +1264,27 @@ async function resolveCloudUserDoc(user) {
 }
 
 async function initApp(user) {
+  window._bootInitStartedAt = Date.now();
+  if (typeof window.bootLog === 'function') {
+    window.bootLog('info', 'initApp.start', { local: !!window.isLocalMode, email: user && user.email });
+  }
   if (window.bootMark) window.bootMark('initApp.start', { local: !!window.isLocalMode, email: user && user.email });
   window._persistDisabled = false;
   let localDataCorrupt = false;
   let cloudInitFailed = false;
   let cloudInitError = null;
+  let initFatalError = null;
+
+  function bootTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise(function (_, reject) {
+        setTimeout(function () {
+          reject(new Error(label + ' — délai dépassé (' + ms + ' ms)'));
+        }, ms);
+      })
+    ]);
+  }
 
   try {
     if (window.isLocalMode) {
@@ -1316,13 +1332,17 @@ async function initApp(user) {
     } else {
       // Attendre Firebase avant de tester les modules (évite faux « Modules manquants »)
       if (window.firebaseReady) {
-        try { await window.firebaseReady; } catch (fe) { throw fe; }
+        try {
+          await bootTimeout(window.firebaseReady, 25000, 'Firebase');
+        } catch (fe) { throw fe; }
       }
       if (window.doc && window.db && window.getDoc) {
         if (window.bootMark) window.bootMark('initApp.cloud.fetch.start', { uid: user.sub, email: user.email });
         const cloud = await (window.bootProfiler
-          ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () { return resolveCloudUserDoc(user); })
-          : resolveCloudUserDoc(user));
+          ? window.bootProfiler.measureAsync('initApp.cloud.fetch', function () {
+              return bootTimeout(resolveCloudUserDoc(user), 30000, 'Firestore');
+            })
+          : bootTimeout(resolveCloudUserDoc(user), 30000, 'Firestore'));
         window.docRef = cloud.docRef;
         if (cloud.data) {
           window.D = cloud.data;
@@ -1364,6 +1384,7 @@ async function initApp(user) {
     window.cloudConnected = false;
   }
 
+  try {
   if (localDataCorrupt) window._persistDisabled = true;
   if(!window.D) window.D = JSON.parse(JSON.stringify(window.emptyData));
   if(!window.D.cours) window.D.cours = [];
@@ -1518,8 +1539,6 @@ async function initApp(user) {
     window._pendingTabReset = false;
     window.switchTab(pending, reset);
   }
-  if (typeof window.unlockPage === 'function') window.unlockPage();
-  else if (typeof window.dismissSplash === 'function') window.dismissSplash();
 
   if (localDataCorrupt) {
     window.sysAlert(
@@ -1548,6 +1567,29 @@ async function initApp(user) {
           'Vérifie ta connexion, les règles Firestore, puis recharge la page.'),
       'Erreur de synchronisation'
     );
+  }
+  } catch (fatalErr) {
+    initFatalError = fatalErr;
+    var fatalMsg = fatalErr && fatalErr.message ? fatalErr.message : String(fatalErr);
+    if (typeof window.bootLog === 'function') {
+      window.bootLog('error', 'initApp.fatal', { message: fatalMsg });
+    }
+    console.error('[boot] Erreur inattendue pendant initApp :', fatalErr);
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Init bloquée : ' + fatalMsg, 'app.js');
+    }
+    if (!window.D && window.emptyData) {
+      try { window.D = JSON.parse(JSON.stringify(window.emptyData)); } catch (e) { /* ignore */ }
+    }
+    if (window.D) window.appReady = true;
+    throw fatalErr;
+  } finally {
+    window._bootInitStartedAt = null;
+    if (typeof window.unlockPage === 'function') window.unlockPage(initFatalError ? 'init fatal' : 'init done');
+    else if (typeof window.dismissSplash === 'function') window.dismissSplash();
+    if (typeof window.bootLog === 'function') {
+      window.bootLog('info', 'initApp.finally', { appReady: !!window.appReady, fatal: !!initFatalError });
+    }
   }
 }
 

@@ -80,29 +80,84 @@ function showLoginUi() {
 }
 
 function launchAppWhenReady(payload) {
-  if (window.appLaunched) return;
+  if (window.appLaunched || window._appInitInProgress) return;
 
   window._pendingAuthPayload = payload;
   let attempts = 0;
   const maxAttempts = 120;
 
+  function runInit() {
+    if (window.appLaunched || window._appInitInProgress || !window.initAppAfterAuth) {
+      return Promise.resolve();
+    }
+    window._appInitInProgress = true;
+    window._bootInitStartedAt = Date.now();
+    if (typeof window.bootLog === 'function') {
+      window.bootLog('info', 'launchApp.start', { email: payload && payload.email });
+    }
+    if (window.bootMark) window.bootMark('launchApp.start', { email: payload && payload.email });
+
+    return Promise.resolve(window.initAppAfterAuth(payload))
+      .then(function () {
+        window.appLaunched = true;
+        window._pendingAuthPayload = null;
+        if (typeof window.bootLog === 'function') window.bootLog('info', 'launchApp.success');
+        if (window.bootMark) window.bootMark('launchApp.success');
+      })
+      .catch(function (err) {
+        window.appLaunched = false;
+        var msg = err && err.message ? err.message : String(err);
+        if (typeof window.bootLog === 'function') {
+          window.bootLog('error', 'launchApp.failed', { message: msg });
+        }
+        console.error('[boot] initApp a échoué — rechargement ou reconnexion conseillé.', err);
+        if (typeof window.recordAppError === 'function') {
+          window.recordAppError('Init échouée : ' + msg, 'cloud.js');
+        }
+        if (typeof window.unlockPage === 'function') window.unlockPage('init failed');
+        showLoginUi();
+        var loginOverlay = document.getElementById('loginOverlay');
+        if (loginOverlay) {
+          var debugDiv = document.getElementById('debug-auth-error');
+          if (!debugDiv) {
+            debugDiv = document.createElement('div');
+            debugDiv.id = 'debug-auth-error';
+            debugDiv.style.color = 'var(--red)';
+            debugDiv.style.marginTop = '20px';
+            debugDiv.style.fontWeight = 'bold';
+            debugDiv.style.textAlign = 'center';
+            loginOverlay.appendChild(debugDiv);
+          }
+          debugDiv.innerHTML = (window.iconLabel ? window.iconLabel('circle-x', 'Échec du chargement.') : 'Échec du chargement.') +
+            '<br><small style="font-weight:normal;color:#aaa;">Console (F12) → filtre <code>[boot]</code></small>';
+        }
+      })
+      .finally(function () {
+        window._appInitInProgress = false;
+        window._bootInitStartedAt = null;
+      });
+  }
+
   function tryLaunch() {
-    if (window.appLaunched) return;
+    if (window.appLaunched || window._appInitInProgress) return;
     attempts++;
     if (window.bootMark && (attempts === 1 || attempts % 10 === 0 || attempts >= maxAttempts)) {
       window.bootMark('launchApp.attempt', { n: attempts, hasInit: !!window.initAppAfterAuth });
     }
+    if (typeof window.bootLog === 'function' && (attempts === 1 || attempts % 20 === 0)) {
+      window.bootLog('info', 'launchApp.waitAppJs', { attempt: attempts, hasInit: !!window.initAppAfterAuth });
+    }
 
     if (window.initAppAfterAuth) {
-      window.appLaunched = true;
-      window._pendingAuthPayload = null;
-      if (window.bootMark) window.bootMark('launchApp.success', { attempts: attempts });
-      window.initAppAfterAuth(payload);
+      runInit();
       return;
     }
 
     if (attempts >= maxAttempts) {
       if (window.bootMark) window.bootMark('launchApp.timeout', { attempts: attempts });
+      if (typeof window.bootLog === 'function') {
+        window.bootLog('error', 'launchApp.timeout', { attempts: attempts });
+      }
       console.error("❌ CRITIQUE : app.js n'a pas chargé à temps.");
       if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
       else showLoginUi();
@@ -126,19 +181,21 @@ function launchAppWhenReady(payload) {
     setTimeout(tryLaunch, 100);
   }
 
-  tryLaunch();
+  if (window.initAppAfterAuth) {
+    runInit();
+  } else {
+    tryLaunch();
+  }
 }
 
 window.addEventListener('app-js-ready', function() {
-  if (window.appLaunched || !window._pendingAuthPayload || !window.initAppAfterAuth) return;
-  window.appLaunched = true;
-  const payload = window._pendingAuthPayload;
-  window._pendingAuthPayload = null;
-  window.initAppAfterAuth(payload);
+  if (window.appLaunched || window._appInitInProgress || !window._pendingAuthPayload || !window.initAppAfterAuth) return;
+  if (typeof window.bootLog === 'function') window.bootLog('info', 'launchApp.appJsReady');
+  launchAppWhenReady(window._pendingAuthPayload);
 });
 
 function handleAuthenticatedUser(user) {
-  if (window.isLocalMode || window.appLaunched) return;
+  if (window.isLocalMode || window.appLaunched || window._appInitInProgress) return;
   const payload = userPayload(user);
   window.currentUser = payload;
   enterAppUi();
@@ -190,6 +247,8 @@ window.signOut = async function() {
   window.appLaunched = false;
   window.appReady = false;
   window._authListenerAttached = false;
+  window._appInitInProgress = false;
+  window._bootInitStartedAt = null;
 
   if (window.auth) {
     try {
