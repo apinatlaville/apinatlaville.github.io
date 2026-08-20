@@ -188,8 +188,10 @@
       state.hub = hub;
       return hub;
     }).catch(function (err) {
+      // Ne pas faire semblant de succès : sinon claimPrimary / heartbeat
+      // croient le hub à jour alors que Firestore a refusé l’écriture.
       console.warn('DeviceSession presence write:', err);
-      return hub;
+      return Promise.reject(err);
     });
   }
 
@@ -419,6 +421,8 @@
         return safeWritePresence(function (hub) {
           return applySecondaryPresence(hub);
         }, true).then(function () { emit(); });
+      }).catch(function (err) {
+        console.warn('DeviceSession heartbeat:', err);
       });
     });
   }
@@ -532,7 +536,7 @@
         var hub = applyClaim(cloneHub(state.hub));
         return writeHub(hub).then(function () {
           return readHubOnce().then(function (verify) {
-            state.hub = verify || hub;
+            state.hub = verify || emptyHub();
             if (state.hub.primaryDeviceId === getDeviceId()) {
               state.effectiveRole = CONFIG.ROLES.PRIMARY;
               return getStatus();
@@ -542,12 +546,11 @@
                 return attempt(tryNo + 1);
               });
             }
-            var forced = applyClaim(cloneHub(state.hub));
-            return writeHub(forced).then(function () {
-              state.hub = forced;
-              state.effectiveRole = CONFIG.ROLES.PRIMARY;
-              return getStatus();
-            });
+            // Fail-closed : ne jamais s’auto-proclamer PRIMARY si le hub
+            // ne nous confirme pas (évite double-Principal + LWW wipe).
+            state.effectiveRole = CONFIG.ROLES.SECONDARY;
+            state.needsRoleChoice = true;
+            return getStatus();
           });
         });
       });
@@ -555,17 +558,15 @@
 
     return enqueuePresence(function () { return attempt(1); }).then(function (status) {
       _claimInFlight = false;
-      state.effectiveRole = CONFIG.ROLES.PRIMARY;
       emit();
       return status || getStatus();
     }).catch(function (err) {
       _claimInFlight = false;
       console.warn('claimPrimary:', err);
-      state.effectiveRole = CONFIG.ROLES.PRIMARY;
-      return safeWritePresence(function (hub) { return applyClaim(hub); }, false).then(function () {
-        emit();
-        return getStatus();
-      });
+      state.effectiveRole = CONFIG.ROLES.SECONDARY;
+      state.needsRoleChoice = true;
+      emit();
+      return getStatus();
     });
   }
 
@@ -718,6 +719,12 @@
       var data = snap.data();
       if (!data || data._account === true || data._deleted) return;
       window.D = data;
+      // Même baseline que le patch secondaire — sinon un claim Primary
+      // ultérieur merge avec une révision périmée et peut écraser des edits.
+      window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
+      if (typeof window.captureCoursPlacementBase === 'function') {
+        window.captureCoursPlacementBase(data.cours);
+      }
       var pid = window._activeProfileId
         || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
         || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())

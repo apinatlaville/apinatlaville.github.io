@@ -576,6 +576,11 @@
     }
 
     let pool = exercices.filter(c => V2.isActive(c));
+    // Réglage ankiIncludeNew : tirer N cartes du réservoir (activées au start session)
+    const nNew = Math.max(0, parseInt(o.includeNew, 10) || 0);
+    if (nNew > 0) {
+      pool = pool.concat(exercices.filter(c => V2.isReservoir(c)).slice(0, nNew));
+    }
     if (o.selectedIds && o.selectedIds.length) {
       const set = new Set(o.selectedIds);
       pool = pool.filter(c => set.has(c.id));
