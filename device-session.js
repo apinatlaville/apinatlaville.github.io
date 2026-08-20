@@ -592,6 +592,11 @@
     }).then(function () {
       emit();
       return getStatus();
+    }).catch(function (err) {
+      // Rôle déjà SECONDARY localement — ne pas bloquer l’UI si le hub refuse
+      console.warn('switchToSecondary:', err);
+      emit();
+      return getStatus();
     });
   }
 

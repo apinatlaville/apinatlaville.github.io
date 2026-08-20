@@ -2711,12 +2711,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   };
   window.ankiV2SetQuickQueue = function (ids) {
     if (!Array.isArray(ids) || !ids.length) return;
-    if (sessionIsLive()) {
-      return promptSessionConflict('btn-quick-start');
-    }
     if (typeof window.refuseSecondaryFullMutation === 'function'
         && window.refuseSecondaryFullMutation('Appareil secondaire : démarrage de session indisponible.')) {
       return;
+    }
+    if (sessionIsLive()) {
+      return promptSessionConflict('btn-quick-start');
     }
     const cards = ids.map(id => ankFind(id)).filter(Boolean);
     if (!cards.length) return;
@@ -3233,9 +3233,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       nextCard();
       window.sysAlert("Dernière notation annulée. Paramètres restaurés — l'historique est conservé (entrée undo ajoutée).", "Undo");
     }).catch(function (e) {
-      S._evalBusy = false;
       console.error('ankiV2UndoLastEval save:', e);
-      if (typeof window.sysAlert === 'function') {
+      // Mutation déjà appliquée (souvent local OK / cloud KO) — avancer pour éviter double-undo
+      try { nextCard(); } catch (e2) { S._evalBusy = false; }
+      if (typeof window.sysAlert === 'function'
+          && !/SECONDARY_READ_ONLY|synchronisation cloud/i.test(String(e && e.message))) {
         window.sysAlert('Annulation locale OK, mais la sauvegarde a échoué — réessaie.', 'Undo');
       }
     });
@@ -3440,10 +3442,13 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     Promise.resolve(persistSession()).then(function () {
       nextCard(true);
     }).catch(function (err) {
-      S._evalBusy = false;
       console.error('evalCardV2 save:', err);
-      if (typeof window.sysAlert === 'function') {
-        window.sysAlert('Évaluation locale OK, mais la sauvegarde a échoué — ne quitte pas : réessaie.', 'Synchrotron');
+      // Notation déjà appliquée en mémoire (local souvent OK) — avancer pour
+      // empêcher une double notation si on se contentait de relâcher _evalBusy.
+      try {
+        nextCard(true);
+      } catch (e2) {
+        S._evalBusy = false;
       }
     });
     } catch (e) {

@@ -67,8 +67,8 @@ assert(/refuseSecondaryFullMutation[\s\S]*ankiV2UndoLastEval|ankiV2UndoLastEval[
   'ankiV2UndoLastEval : garde secondaire');
 assert(/refuseSecondaryFullMutation[\s\S]*ankiV2UpdateTemps|ankiV2UpdateTemps[\s\S]*refuseSecondaryFullMutation/.test(ankiSrc),
   'ankiV2UpdateTemps : garde secondaire');
-assert(/sessionIsLive[\s\S]*ankiV2SetQuickQueue|ankiV2SetQuickQueue[\s\S]*sessionIsLive/.test(ankiSrc),
-  'ankiV2SetQuickQueue : conflit session');
+assert(/ankiV2SetQuickQueue[\s\S]*refuseSecondaryFullMutation[\s\S]*sessionIsLive/.test(ankiSrc),
+  'ankiV2SetQuickQueue : secondaire avant conflit session');
 assert(/stats\.total = \(S\.stats\.total \|\| 0\) \+ 1/.test(ankiSrc),
   'fail requeue incrémente total (évite done>total)');
 assert(/persistSession\(\)\)\.then\(function \(\) \{\s*nextCard/.test(ankiSrc)
@@ -76,10 +76,14 @@ assert(/persistSession\(\)\)\.then\(function \(\) \{\s*nextCard/.test(ankiSrc)
   'evalCardV2 attend persist avant nextCard');
 assert(/return Promise\.resolve\(typeof window\.save/.test(ankiSrc),
   'persistSession retourne la Promise save');
+assert(/evalCardV2 save:[\s\S]*nextCard\(true\)/.test(ankiSrc),
+  'evalCardV2 : avance quand même si save échoue (anti double-notation)');
+assert(/switchToSecondary:[\s\S]*getStatus\(\)/.test(dsSrc),
+  'switchToSecondary catch : ne bloque pas l’UI');
 assert(/r\.onkeydown =/.test(quickSrc), 'bindEnter : onkeydown (pas de stack listeners)');
 assert(/coursWizardDeleteCreated[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(wizSrc),
   'wizard delete catch save errors');
-assert(/__BOOT_CACHE_V\s*=\s*'20260820c'/.test(indexSrc), 'cache 20260820c');
+assert(/__BOOT_CACHE_V\s*=\s*'20260820d'/.test(indexSrc), 'cache 20260820d');
 
 // ── Runtime : includeNew + cardBaseId cockpit ──
 console.log('\n=== Runtime includeNew / chunks ===\n');
@@ -161,6 +165,34 @@ assert(chunks.length >= 1, 'chunksDevoirTonight produit des bouts');
 assert(chunks.every(c => c.id.indexOf('#') > 0 && c._devoirChunkOf === 'W-DM1'),
   'bouts ont id W-xxx#n et _devoirChunkOf');
 assert(String(chunks[0].id).split('#')[0] === 'W-DM1', 'cardBaseId(chunk) = parent');
+
+// Exclude parent doit retirer tous les bouts (simulation filtre cockpit)
+const excluded = new Set(['W-DM1']);
+const afterExclude = chunks.filter(c => !excluded.has(String(c.id).split('#')[0]));
+assert(afterExclude.length === 0, 'exclude parent retire tous les bouts W-xxx#n');
+
+// includeNew sous budget serré + beaucoup d’actifs overdue : réservoir quand même pris
+const manyActive = [];
+for (let i = 0; i < 8; i++) {
+  manyActive.push({
+    id: 'X-OLD' + i,
+    type: 'exercice',
+    statut: 'actif',
+    titre: 'Old ' + i,
+    mat: 'MATH',
+    tempsCible: 600,
+    ease: 2.5,
+    intervalle: 1,
+    repetitions: 3,
+    importance: 5,
+    profil: 'COURS',
+    dateProchaineRevision: V2.addDays(today, -3)
+  });
+}
+w.D.exercices = manyActive.concat(reservoir);
+const planTight = V2.buildSession(w.D.exercices, { sessionMinutes: 30, includeNew: 2, marge: 0.99 });
+const resTight = planTight.cartes.filter(c => String(c.id).startsWith('X-RES'));
+assert(resTight.length === 2, 'includeNew sous budget serré : 2 réservoir prioritaires (' + resTight.length + ')');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

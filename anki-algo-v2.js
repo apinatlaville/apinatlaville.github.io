@@ -578,8 +578,11 @@
     let pool = exercices.filter(c => V2.isActive(c));
     // Réglage ankiIncludeNew : tirer N cartes du réservoir (activées au start session)
     const nNew = Math.max(0, parseInt(o.includeNew, 10) || 0);
-    if (nNew > 0) {
-      pool = pool.concat(exercices.filter(c => V2.isReservoir(c)).slice(0, nNew));
+    const forcedFromReservoir = nNew > 0
+      ? exercices.filter(c => V2.isReservoir(c)).slice(0, nNew)
+      : [];
+    if (forcedFromReservoir.length) {
+      pool = pool.concat(forcedFromReservoir);
     }
     if (o.selectedIds && o.selectedIds.length) {
       const set = new Set(o.selectedIds);
@@ -611,10 +614,19 @@
     const overload = used > budget;
     const overloadDelta = overload ? used - budget : 0;
 
-    const mainsEligible = pileMain.filter(c => V2.isEligibleTonight(c, ref, o.pullForward));
+    const mainsEligible = pileMain.filter(c =>
+      V2.isReservoir(c) || V2.isEligibleTonight(c, ref, o.pullForward)
+    );
+    const resIds = new Set(forcedFromReservoir.map(c => c.id));
     const mainsSorted = mainsEligible
       .map(c => ({ card: c, sc: V2.priorityScore(c, ref) }))
-      .sort((a, b) => b.sc.priority - a.sc.priority);
+      .sort((a, b) => {
+        // Cartes réservoir demandées par includeNew : prises en priorité (sinon score 0)
+        const aRes = resIds.has(a.card.id) ? 1 : 0;
+        const bRes = resIds.has(b.card.id) ? 1 : 0;
+        if (aRes !== bRes) return bRes - aRes;
+        return b.sc.priority - a.sc.priority;
+      });
 
     const mainsTaken = [];
     for (const x of mainsSorted) {
