@@ -1032,13 +1032,21 @@ body.theme-light .cours-create-item:focus-visible {
       if (STATE.lastUid === uid) STATE.lastUid = STATE.createdUids[STATE.createdUids.length - 1] || null;
       if (typeof window.pruneUnsortedMatiere === 'function') window.pruneUnsortedMatiere();
       if (typeof window.pruneUnsortedClasseur === 'function') window.pruneUnsortedClasseur();
-      if (typeof window.save === 'function') window.save();
+      // UI immédiate (inventaire / grilles), puis persistance — alerte si save échoue
       if (typeof window.renderCours === 'function') window.renderCours();
       if (typeof window.renderDashboard === 'function') window.renderDashboard();
       if (typeof window.renderMatieres === 'function') window.renderMatieres();
       if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
       if (typeof window.renderNotes === 'function') window.renderNotes();
       paint();
+      if (typeof window.save === 'function') {
+        Promise.resolve(window.save()).catch(function (e) {
+          console.error('coursWizardDeleteCreated save:', e);
+          if (typeof window.sysAlert === 'function') {
+            window.sysAlert('Document retiré localement, mais la sauvegarde a échoué — réessaie hors ligne.', 'Base Doc');
+          }
+        });
+      }
     };
     if (typeof window.sysConfirm === 'function') {
       window.sysConfirm('Supprimer définitivement le document ' + (typeof window.escHtml === 'function' ? window.escHtml(uid) : uid) + ' ?', run, 'Suppression');

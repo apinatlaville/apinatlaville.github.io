@@ -193,8 +193,16 @@
 
   function bindEnter() {
     const r = $("qkR"); const q = $("qkQ");
-    if (r) r.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); window.quickAdd(); } });
-    if (q) q.addEventListener('keydown', e => { if (e.key === 'Enter' && r) r.focus(); });
+    if (r) {
+      r.onkeydown = function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); window.quickAdd(); }
+      };
+    }
+    if (q) {
+      q.onkeydown = function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); if (r) r.focus(); }
+      };
+    }
   }
 
   window.quickAdd = function () {

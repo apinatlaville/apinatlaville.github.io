@@ -382,6 +382,45 @@ async function pocCreateRace() {
   assert(!written || (written.cours && written.cours.length >= 6), 'DS5: pas de coquille écrite sur labo');
 }
 
+// ─── DS6: claimPrimary échoué → SECONDARY (pas faux PRIMARY) ───
+async function pocClaimPrimaryFailClosed() {
+  console.log('\n[DS6] claimPrimary : écriture hub en échec → secondary (pas faux primary)');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: {
+      'other-dev': { label: 'PC', role: 'primary', lastSeen: t }
+    },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  const { DS } = loadModules(env);
+  await DS.start('uid1');
+  if (typeof DS.switchToSecondary === 'function') await DS.switchToSecondary();
+  assert(DS.canFullSave() === false, 'DS6: secondary avant claim');
+
+  const origSet = fsMock.setDoc.bind(fsMock);
+  fsMock.setDoc = async (ref, data) => {
+    if (String(ref._path || '').includes('/presence/')) {
+      throw new Error('permission-denied');
+    }
+    return origSet(ref, data);
+  };
+  env.setDoc = fsMock.setDoc;
+
+  const st = await DS.claimPrimary();
+  assert(st.isPrimary !== true && st.isSecondary === true, 'DS6: claim échoué → secondary');
+  assert(DS.canFullSave() === false, 'DS6: canFullSave false après claim échoué');
+  const hub = fsMock.docs.get('utilisateurs/uid1/presence/hub');
+  assert(hub && hub.primaryDeviceId === 'other-dev', 'DS6: hub non écrasé');
+  DS.stop();
+}
+
 async function main() {
   console.log('=== Preuves adversatives DeviceSession ===');
   await pocJoinGate();
@@ -389,6 +428,7 @@ async function main() {
   await pocSecondaryNoRecreate();
   await pocSecondaryMirrorAllowEmpty();
   await pocCreateRace();
+  await pocClaimPrimaryFailClosed();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
   if (failures.length) {
     console.error('Échecs:\n' + failures.map((f) => ' - ' + f).join('\n'));
