@@ -632,7 +632,7 @@
       const map = {};
       ankSessionPool().forEach(c => { map[c.id] = c; });
       const ref = window.AnkiAlgoV2.todayISO();
-      const cartes = [];
+      let cartes = [];
       selectedIds.forEach(id => {
         const c = map[id];
         if (!c) return;
@@ -647,7 +647,30 @@
           cartes.push(c);
         }
       });
-      S.manualOrder = selectedIds.slice();
+      // Respecter un reorder DnD (manualOrder peut contenir des W-xxx#n)
+      if (S.manualOrder && S.manualOrder.length) {
+        const byId = {};
+        cartes.forEach(c => { byId[c.id] = c; });
+        const seen = new Set();
+        const ordered = [];
+        S.manualOrder.forEach(id => {
+          if (byId[id] && !seen.has(id)) {
+            ordered.push(byId[id]);
+            seen.add(id);
+          }
+        });
+        cartes.forEach(c => {
+          if (!seen.has(c.id)) {
+            ordered.push(c);
+            seen.add(c.id);
+          }
+        });
+        cartes = ordered;
+      }
+      // Ne pas écraser un ordre DnD déjà posé
+      if (!S.manualOrder || !S.manualOrder.length) {
+        S.manualOrder = selectedIds.slice();
+      }
       let countDevoir = 0, countMain = 0, countQuick = 0;
       cartes.forEach(c => {
         const k = window.AnkiAlgoV2.cardKind(c);
@@ -1387,9 +1410,20 @@
       row.addEventListener('drop', e => {
         e.preventDefault();
         const ids = Array.from(box.querySelectorAll('.anki-q-row')).map(r => r.dataset.id);
+        // Ordre file = ids affichés (y compris bouts W-xxx#n)
         S.manualOrder = ids;
         if (S.cockpitMode === 'manual') {
-          S.selectionOrder = ids.slice();
+          // selectionOrder reste en ids parent (grille pick) — uniques, ordre d'apparition
+          const parents = [];
+          const seenP = new Set();
+          ids.forEach(function (id) {
+            const b = cardBaseId(id);
+            if (!seenP.has(b)) {
+              seenP.add(b);
+              parents.push(b);
+            }
+          });
+          S.selectionOrder = parents.filter(function (p) { return S.selectionIds.has(p); });
         }
         window.AnkiAlgoV2.log("reorder", { ids });
         refreshQueueOnly();

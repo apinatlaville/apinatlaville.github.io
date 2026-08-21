@@ -67,6 +67,10 @@ assert(/refuseSecondaryFullMutation[\s\S]*ankiV2UndoLastEval|ankiV2UndoLastEval[
   'ankiV2UndoLastEval : garde secondaire');
 assert(/refuseSecondaryFullMutation[\s\S]*ankiV2UpdateTemps|ankiV2UpdateTemps[\s\S]*refuseSecondaryFullMutation/.test(ankiSrc),
   'ankiV2UpdateTemps : garde secondaire');
+assert(/selectionOrder = parents\.filter|seenP\.has\(b\)/.test(ankiSrc),
+  'DnD : selectionOrder = parents uniques');
+assert(/byId\[id\] && !seen\.has\(id\)/.test(ankiSrc),
+  'mode manuel : reorder respecte ids chunk');
 assert(/ankiV2SetQuickQueue[\s\S]*refuseSecondaryFullMutation[\s\S]*sessionIsLive/.test(ankiSrc),
   'ankiV2SetQuickQueue : secondaire avant conflit session');
 assert(/stats\.total = \(S\.stats\.total \|\| 0\) \+ 1/.test(ankiSrc),
@@ -83,7 +87,7 @@ assert(/switchToSecondary:[\s\S]*getStatus\(\)/.test(dsSrc),
 assert(/r\.onkeydown =/.test(quickSrc), 'bindEnter : onkeydown (pas de stack listeners)');
 assert(/coursWizardDeleteCreated[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(wizSrc),
   'wizard delete catch save errors');
-assert(/__BOOT_CACHE_V\s*=\s*'20260820d'/.test(indexSrc), 'cache 20260820d');
+assert(/__BOOT_CACHE_V\s*=\s*'20260821a'/.test(indexSrc), 'cache 20260821a');
 
 // ── Runtime : includeNew + cardBaseId cockpit ──
 console.log('\n=== Runtime includeNew / chunks ===\n');
