@@ -580,7 +580,7 @@
 
     if (S.manualOrder && S.manualOrder.length) {
       // Conserve l'ordre manuel pour les cartes encore dans le plan,
-      // puis ajoute les nouvelles éligibles (DM bouts, pull-forward…) à la fin.
+      // puis ajoute les nouvelles éligibles (pull-forward…) à la fin.
       const map = {};
       cartes.forEach(c => { map[c.id] = c; });
       const seen = new Set();
