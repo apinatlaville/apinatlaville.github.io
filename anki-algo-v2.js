@@ -532,54 +532,43 @@
     const budget = (o.sessionMinutes || 60) * 60 * o.marge;
 
     if (!Array.isArray(exercices)) {
-      return { cartes: [], tempsTotalPrev: 0, countDevoir: 0, countMain: 0, countQuick: 0, reportees: [], marge: o.marge, overload: false, overloadDelta: 0 };
+      return {
+        cartes: [], tempsTotalPrev: 0,
+        countDevoir: 0, countDevoirForce: 0, countDevoirLatent: 0, countDevoirParents: 0,
+        countMain: 0, countQuick: 0, reportees: [],
+        marge: o.marge, overload: false, overloadDelta: 0
+      };
+    }
+
+    // Les devoirs (W-) ne sont plus dans le Synchrotron — onglet Agenda dédié.
+    function isDevoirCard(c) {
+      return !!(c && (V2.cardKind(c) === "devoir" || c.type === "devoir" || c.type === "devoir-morceau" || c._devoirChunkOf));
     }
 
     if (o.manualOrder && o.manualOrder.length) {
       const map = {};
-      exercices.filter(c => V2.isActive(c)).forEach(c => { map[c.id] = c; });
+      exercices.filter(c => V2.isActive(c) && !isDevoirCard(c)).forEach(c => { map[c.id] = c; });
       const ordered = o.manualOrder.map(id => map[id]).filter(Boolean);
       const result = []; let used = 0;
       for (const c of ordered) {
-        // DM : intercaler autant de bouts que le budget le permet (1er bout forcé comme Phase 0)
-        if (V2.cardKind(c) === "devoir") {
-          const restants = Math.max(0, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
-          if (!restants || c.statut === "fini" || c.statut === "termine" || c.statut === "terminé") continue;
-          const chunks = V2.chunksDevoirTonight(c, ref, Math.max(0, budget - used), {
-            forced: true,
-            maxChunks: 8
-          });
-          const list = chunks.length
-            ? chunks
-            : [V2.makeDevoirChunk(c, c._morceauxFaits || 0)].filter(Boolean);
-          for (let i = 0; i < list.length; i++) {
-            const ch = list[i];
-            const t = _tempsCarte(ch);
-            if (i > 0 && used + t > budget) break;
-            result.push(ch);
-            used += t;
-          }
-          continue;
-        }
         const t = _tempsCarte(c);
         if (used + t > budget && result.length) break;
         result.push(c); used += t;
       }
       return {
         cartes: result, tempsTotalPrev: used,
-        countDevoir: result.filter(c => V2.cardKind(c) === "devoir").length,
+        countDevoir: 0, countDevoirForce: 0, countDevoirLatent: 0, countDevoirParents: 0,
         countMain: result.filter(c => V2.cardKind(c) === "main").length,
         countQuick: result.filter(c => V2.cardKind(c) === "quick").length,
-        reportees: ordered.filter(c => !result.some(r => (r._devoirChunkOf || r.id) === c.id)),
+        reportees: ordered.filter(c => !result.some(r => r.id === c.id)),
         marge: o.marge, overload: false, overloadDelta: 0
       };
     }
 
-    let pool = exercices.filter(c => V2.isActive(c));
-    // Réglage ankiIncludeNew : tirer N cartes du réservoir (activées au start session)
+    let pool = exercices.filter(c => V2.isActive(c) && !isDevoirCard(c));
     const nNew = Math.max(0, parseInt(o.includeNew, 10) || 0);
     const forcedFromReservoir = nNew > 0
-      ? exercices.filter(c => V2.isReservoir(c)).slice(0, nNew)
+      ? exercices.filter(c => V2.isReservoir(c) && !isDevoirCard(c)).slice(0, nNew)
       : [];
     if (forcedFromReservoir.length) {
       pool = pool.concat(forcedFromReservoir);
@@ -589,31 +578,14 @@
       pool = pool.filter(c => set.has(c.id));
     }
 
-    const pileDevoir = [], pileMain = [], pileQuick = [];
+    const pileMain = [], pileQuick = [];
     pool.forEach(c => {
       const k = V2.cardKind(c);
-      if (k === "devoir") pileDevoir.push(c);
-      else if (k === "quick") pileQuick.push(c);
-      else pileMain.push(c);
+      if (k === "quick") pileQuick.push(c);
+      else if (k !== "devoir") pileMain.push(c);
     });
 
-    const seuilDevoir = (window.D && window.D.settings && window.D.settings.seuilDevoirForce) || 35;
-    const devoirsScored = pileDevoir
-      .map(c => ({ card: c, score: V2.urgenceDevoir(c, ref) }))
-      .sort((a, b) => b.score.total - a.score.total);
-    const devoirsForces = devoirsScored.filter(x => x.score.total >= seuilDevoir);
-    const devoirsLatents = devoirsScored.filter(x => x.score.total < seuilDevoir);
-
-    // Phase 0a : 1er bout de chaque DM forcé (peut surcharger le budget)
-    const forcedFirst = [];
     let used = 0;
-    devoirsForces.forEach(x => {
-      const chunks = V2.chunksDevoirTonight(x.card, ref, Math.max(0, budget - used), { forced: true, maxChunks: 1 });
-      chunks.forEach(ch => { forcedFirst.push(ch); used += _tempsCarte(ch); });
-    });
-    const overload = used > budget;
-    const overloadDelta = overload ? used - budget : 0;
-
     const mainsEligible = pileMain.filter(c =>
       V2.isReservoir(c) || V2.isEligibleTonight(c, ref, o.pullForward)
     );
@@ -621,7 +593,6 @@
     const mainsSorted = mainsEligible
       .map(c => ({ card: c, sc: V2.priorityScore(c, ref) }))
       .sort((a, b) => {
-        // Cartes réservoir demandées par includeNew : prises en priorité (sinon score 0)
         const aRes = resIds.has(a.card.id) ? 1 : 0;
         const bRes = resIds.has(b.card.id) ? 1 : 0;
         if (aRes !== bRes) return bRes - aRes;
@@ -631,36 +602,9 @@
     const mainsTaken = [];
     for (const x of mainsSorted) {
       const t = _tempsCarte(x.card);
-      if (used + t > budget && (forcedFirst.length || mainsTaken.length)) break;
+      if (used + t > budget && mainsTaken.length) break;
       mainsTaken.push(x.card);
       used += t;
-    }
-
-    // Phase 0b : bouts supplémentaires des DM forcés (rattrapage calendaire) — intercalés après les X-
-    const forcedExtra = [];
-    devoirsForces.forEach(x => {
-      const allWanted = V2.chunksDevoirTonight(x.card, ref, 1e9, { forced: true });
-      const alreadyIds = new Set(forcedFirst.filter(ch => ch._devoirChunkOf === x.card.id).map(ch => ch.id));
-      for (let i = 0; i < allWanted.length; i++) {
-        const ch = allWanted[i];
-        if (alreadyIds.has(ch.id)) continue;
-        const t = _tempsCarte(ch);
-        if (used + t > budget) break;
-        forcedExtra.push(ch);
-        used += t;
-      }
-    });
-
-    // W- opportunistes (latents) : autant de bouts que le budget permet
-    const latentsTaken = [];
-    for (const x of devoirsLatents) {
-      const chunks = V2.chunksDevoirTonight(x.card, ref, Math.max(0, budget - used), { forced: false });
-      chunks.forEach(ch => {
-        const t = _tempsCarte(ch);
-        if (used + t > budget) return;
-        latentsTaken.push(ch);
-        used += t;
-      });
     }
 
     const quickSorted = pileQuick
@@ -668,7 +612,6 @@
       .map(c => ({ card: c, sc: V2.priorityScoreQuick(c, ref) }))
       .sort((a, b) => b.sc.priority - a.sc.priority);
 
-    // Y- tissées : respectent le budget + plafond ankiMaxAnglaisFill
     const maxQuick = (window.D && window.D.settings && window.D.settings.ankiMaxAnglaisFill != null)
       ? Math.max(0, parseInt(window.D.settings.ankiMaxAnglaisFill, 10) || 0)
       : 5;
@@ -681,9 +624,7 @@
       used += t;
     }
 
-    // Intercalation : 1er bout forcé → X- → bouts extra DM → latents, puis tissage Y-
-    const longPool = forcedFirst.concat(mainsTaken).concat(forcedExtra).concat(latentsTaken);
-    const woven = needA1().weaveSession(longPool, quicksWoven);
+    const woven = needA1().weaveSession(mainsTaken, quicksWoven);
     let final = woven.slice();
     let usedFinal = final.reduce((s, c) => s + _tempsCarte(c), 0);
 
@@ -698,24 +639,21 @@
       quicksExtra++;
     }
 
-    const devoirChunks = final.filter(c => V2.cardKind(c) === "devoir");
-    const uniqueDevoirParents = new Set(devoirChunks.map(c => c._devoirChunkOf || c.id));
-
     return {
       cartes: final,
       tempsTotalPrev: usedFinal,
-      countDevoir: devoirChunks.length,
-      countDevoirForce: forcedFirst.length + forcedExtra.length,
-      countDevoirLatent: latentsTaken.length,
-      countDevoirParents: uniqueDevoirParents.size,
+      countDevoir: 0,
+      countDevoirForce: 0,
+      countDevoirLatent: 0,
+      countDevoirParents: 0,
       countMain: mainsTaken.length,
       countQuick: quicksWoven.length + quicksExtra,
       countQuickWoven: quicksWoven.length,
       countQuickExtra: quicksExtra,
       reportees: [],
       marge: o.marge,
-      overload,
-      overloadDelta
+      overload: false,
+      overloadDelta: 0
     };
   };
 
@@ -755,30 +693,8 @@
 
     (exercices || []).forEach(function (c) {
       if (!c || c.statut !== "actif") return;
-
-      if (c.type === "devoir" || V2.cardKind(c) === "devoir") {
-        const restants = Math.max(0, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
-        // Plus de temps restant estimé → rien à projeter
-        if (c._tempsRestantMin != null && c._tempsRestantMin <= 0) return;
-        if (!restants) return;
-        const tempsParSession = V2.cardDuration(c);
-        let date = c.dateProchaineRevision || today;
-        if (date < today) date = today;
-        for (let i = 0; i < restants; i++) {
-          if (out[date]) {
-            out[date].push(Object.assign({}, c, {
-              tempsCible: tempsParSession,
-              _projDate: date,
-              _projSessionIdx: (c._morceauxFaits || 0) + i + 1,
-              _projSessionTotal: c._morceauxTotal || 1,
-              _projKind: "devoir"
-            }));
-          }
-          date = V2.addDays(date, 1);
-          if (date > horizonEnd) break;
-        }
-        return;
-      }
+      // Devoirs gérés dans l'onglet Agenda — hors prévisions Synchrotron
+      if (c.type === "devoir" || V2.cardKind(c) === "devoir") return;
 
       let sim = {
         id: c.id,
@@ -871,9 +787,7 @@
       .sort((a, b) => V2.priorityScore(b, ref).priority - V2.priorityScore(a, ref).priority);
     const quicks = list.filter(c => V2.cardKind(c) === "quick")
       .sort((a, b) => V2.priorityScoreQuick(b, ref).priority - V2.priorityScoreQuick(a, ref).priority);
-    const devoirs = list.filter(c => V2.cardKind(c) === "devoir")
-      .sort((a, b) => V2.urgenceDevoir(b, ref).total - V2.urgenceDevoir(a, ref).total);
-    const ordered = devoirs.concat(mains).concat(quicks);
+    const ordered = mains.concat(quicks);
     return V2.buildSession(ordered, {
       sessionMinutes: sessionMinutes || 120,
       pullForward: true,

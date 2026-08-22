@@ -727,6 +727,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     }
     case 'notes': window.renderNotes(); break;
     case 'flashcards': window.renderFlashcards(); break;
+    case 'agenda': if (typeof window.renderAgenda === 'function') window.renderAgenda(); break;
     case 'ankiV2': if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2(); break;
     case 'ankiVizV2': if (typeof window.renderAnkiVizV2 === 'function') window.renderAnkiVizV2(); break;
     case 'print': if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid(); break;

@@ -396,8 +396,16 @@ body.theme-light .anki-create-item:focus-visible {
   window.pickCardType = function (kind) {
     const opts = Object.assign({}, window._cardCreateOpts || {});
     window.closeCardTypePicker();
-    if (kind === 'devoir' && typeof window.ankiV2OpenDevoirModal === 'function') {
-      window.ankiV2OpenDevoirModal(opts);
+    if (kind === 'devoir') {
+      if (typeof window.agendaOpenModal === 'function') {
+        window.agendaOpenModal(opts);
+      } else if (typeof window.ankiV2OpenDevoirModal === 'function') {
+        window.ankiV2OpenDevoirModal(opts);
+      } else if (typeof window.ensureScriptsForTab === 'function') {
+        window.ensureScriptsForTab('agenda').then(function () {
+          if (typeof window.agendaOpenModal === 'function') window.agendaOpenModal(opts);
+        });
+      }
     } else if (kind === 'main' && typeof window.ankiV2OpenExoModal === 'function') {
       window.ankiV2OpenExoModal(opts);
     } else if (kind === 'quick') {

@@ -24,6 +24,7 @@
   /** Bundles chargés à l'ouverture d'un onglet (pas au splash) */
   var TAB_BUNDLES = {
     flashcards: ['anki-quick.js'],
+    agenda: ['agenda.js'],
     /* app-v2 avant card-ui : le FAB (fin de card-ui) doit trouver les modales déjà définies */
     ankiV2: ['anki-app-v2.js', 'anki-card-ui.js'],
     ankiVizV2: ['anki-viz-v2.js'],
@@ -163,7 +164,7 @@
   window.ensureAnkiUi = function () {
     if (window._ankiUiReady) return window._ankiUiReady;
     if (_lazyLoading.ankiUi) return _lazyLoading.ankiUi;
-    _lazyLoading.ankiUi = loadSequential(['anki-app-v2.js', 'anki-card-ui.js'], true).then(function (results) {
+    _lazyLoading.ankiUi = loadSequential(['anki-app-v2.js', 'anki-card-ui.js', 'agenda.js'], true).then(function (results) {
       reportFailed(results);
       delete _lazyLoading.ankiUi;
       var failed = (results || []).some(function (r) { return r && !r.ok; });
