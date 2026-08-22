@@ -332,7 +332,7 @@
             <div style="padding:12px;border-radius:10px;background:rgba(233,79,100,0.1);border:1px solid rgba(233,79,100,0.35);">
               <div style="font-size:11px;color:#e94f64;font-weight:700;">W- DEVOIRS</div>
               <div style="font-size:22px;font-weight:700;">${devoir}</div>
-              <p style="font-size:12px;margin:6px 0 0;">Agenda calendaire · découpés en morceaux · pas de fenêtres ★ · priorité = date limite / urgence</p>
+              <p style="font-size:12px;margin:6px 0 0;">Onglet Agenda dédié · liste + date limite · hors session Synchrotron</p>
             </div>
             <div style="padding:12px;border-radius:10px;background:rgba(66,181,107,0.1);border:1px solid rgba(66,181,107,0.35);">
               <div style="font-size:11px;color:#42b56b;font-weight:700;">X- PRINCIPALES</div>
@@ -610,15 +610,13 @@ mature + qScore &gt; 3 → date = début de fenêtre ★ (formule nœud 4)</div>
 
           <div class="av-h4">Ordre de remplissage (buildSession — code réel)</div>
           <ol style="padding-left:20px;font-size:13px;line-height:1.75;margin:0;">
-            <li><b>W- forcés</b> — <code>urgenceDevoir</code> ≥ ${seuil} (deadline + morceaux restants) · 1er bout même si ça surcharge un peu</li>
             <li><b>X- éligibles</b> — overdue / active (+ soon si pullForward) · tri <code>prioX</code></li>
-            <li><b>W- extra forcés</b> puis <b>W- latents</b> — d’autres bouts si le budget le permet</li>
             <li><b>Y- éligibles</b> — tri <code>prioY</code> (file séparée) · tissées dans le long pool (plafond ${maxQuick})</li>
             <li><b>Y- extras</b> — s’il reste du budget après le tissage, encore des Y- en fin de file</li>
           </ol>
           <p style="font-size:12px;color:var(--mut);margin:10px 0 0;">
+            Les devoirs W- ne sont <b>plus</b> injectés ici — onglet <b>Agenda</b> (liste simple, hors Synchrotron).
             Éligible = <code>overdue</code> ou <code>active</code> · <code>soon</code> seulement si « Avancer » est coché (X- et Y-).
-            Soirée DM courte ? Lance depuis l’Agenda. Soirée longue ? l’algo peut tirer des cartes soon.
           </p>
         </div>
       </div>
@@ -634,7 +632,7 @@ mature + qScore &gt; 3 → date = début de fenêtre ★ (formule nœud 4)</div>
         <div class="av-node-body">
           <div class="av-steps">
             <div class="av-step"><b>Cockpit</b>Construit la session auto · Play · durée du soir</div>
-            <div class="av-step"><b>Agenda</b>Devoirs W- · découpage · lancement DM seul</div>
+            <div class="av-step"><b>Agenda</b>Onglet dédié · liste des devoirs (hors Synchrotron)</div>
             <div class="av-step"><b>Réservoir</b>Cartes en attente d’activation</div>
             <div class="av-step"><b>Bibliothèque</b>Parcourir / éditer toutes les cartes</div>
             <div class="av-step"><b>Prévisions</b>Charge à venir (jours / cours / selon la note)</div>
@@ -645,7 +643,7 @@ mature + qScore &gt; 3 → date = début de fenêtre ★ (formule nœud 4)</div>
             <li><b>Auto (Cockpit)</b> — l’algo remplit · tu lances Play</li>
             <li><b>Manuel</b> — tu coches · tri prio · ordre libre dans le budget</li>
             <li><b>Play chapitre</b> — toutes les cartes actives d’un cours, tri prio (sans filtre « ce soir »)</li>
-            <li><b>Agenda / DM</b> — devoir seul ou forcé si date proche</li>
+            <li><b>Agenda</b> — onglet dédié · CRUD devoirs (pas de session Synchrotron)</li>
             <li><b>Rapide</b> — onglet Y- à part (midi)</li>
           </ul>
           <p style="font-size:12px;color:var(--mut);margin:10px 0 0;">
@@ -696,7 +694,7 @@ projectAfterScore(carte, note) → intervalle, ease, date, fenêtre, phase</div>
             <div><dt>_blocageActif</dt><dd>Flag après échec · levé à note ≥ validate ou après timeout de révisions. N’entre pas dans prio V2 (l’ease baisse, elle).</dd></div>
             <div><dt>Horizon 1 an / 2 ans</dt><dd>Échelle les fenêtres ★ : ×0,55 (1 an) ou ×1 (2 ans).</dd></div>
             <div><dt>Importance ★1–5</dt><dd>Poids dans prio (+200×★) · fenêtres mature · et multiplicateur d’intervalle SM-2 (plus de ★ → intervalles un peu plus courts).</dd></div>
-            <div><dt>Morceaux (DM)</dt><dd>Découpage d’un devoir W- en sessions successives.</dd></div>
+            <div><dt>Devoir (DM)</dt><dd>Carte W- listée dans l’onglet Agenda (date limite) — hors file Synchrotron.</dd></div>
           </dl>
         </div>
       </div>

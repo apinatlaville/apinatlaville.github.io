@@ -2852,6 +2852,29 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .anki-progress-bar { height: 100%; transition: width .3s; }
 .anki-decoupe label { font-weight: 500; }
 
+/* Agenda (onglet dédié hors Synchrotron) */
+.agenda-page { padding: 0 0 24px; }
+.agenda-row-actions { display: flex; flex-wrap: wrap; gap: 4px; flex: 0 0 auto; }
+.agenda-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.agenda-badge-late { background: rgba(233,79,100,0.18); color: var(--red); }
+.agenda-badge-today { background: rgba(232,192,112,0.2); color: var(--gold); }
+.agenda-finis-title {
+  font-size: 13px;
+  margin: 18px 0 8px;
+  color: var(--mut);
+  font-weight: 600;
+}
+.agenda-row-done { opacity: 0.72; }
+.agenda-modal .modal-body-scroll { max-height: min(60vh, 420px); overflow: auto; }
+
 /* Calendrier jour par jour */
 .anki-cal-list { display: flex; flex-direction: column; gap: 8px; }
 .anki-cal-day {

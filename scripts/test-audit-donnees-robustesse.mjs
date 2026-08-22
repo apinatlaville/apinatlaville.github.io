@@ -45,16 +45,23 @@ assert(/watchUserData[\s\S]*_lastCloudConfirmedRevision/.test(dsSrc),
 assert(/watchUserData[\s\S]*captureCoursPlacementBase/.test(dsSrc),
   'watchUserData capture baseline cl/inter');
 
-console.log('\n=== Cockpit W- / includeNew ===\n');
+console.log('\n=== Cockpit sans W- / includeNew ===\n');
 assert(/function cardBaseId/.test(ankiSrc), 'helper cardBaseId');
 assert(/function setEffectiveIdsFromPlan/.test(ankiSrc), 'helper setEffectiveIdsFromPlan');
 assert(/excludedIds\.has\(cardBaseId\(c\.id\)\)/.test(ankiSrc), 'exclude filtre par id parent');
-assert(/chunksDevoirTonight[\s\S]*forced: true[\s\S]*selectedIds|isManualTab[\s\S]*chunksDevoirTonight/.test(ankiSrc),
-  'mode manuel : W- → bouts');
+assert(/Les devoirs \(W-\) ne sont plus dans le Synchrotron|isDevoirCard\(c\) return/.test(algoV2Src)
+  || /ne sont plus dans le Synchrotron/.test(algoV2Src),
+  'buildSession exclut les devoirs W-');
+assert(!/chunksDevoirTonight\(x\.card/.test(algoV2Src),
+  'buildSession ne découpe plus les devoirs');
 assert(/includeNew[\s\S]*isReservoir|isReservoir[\s\S]*includeNew/.test(algoV2Src),
   'buildSession V2 honore includeNew (réservoir)');
 assert(/ankiIncludeNew !== undefined \? settings\.ankiIncludeNew : 0/.test(ankiSrc),
   'défaut includeNew = 0 (aligné UI)');
+assert(/paneAgenda|renderAgenda/.test(fs.readFileSync(path.join(root, 'agenda.js'), 'utf8')),
+  'module agenda.js présent');
+assert(/agenda:\s*\{[^}]*pane:\s*'paneAgenda'/.test(fs.readFileSync(path.join(root, 'nav-config.js'), 'utf8')),
+  'onglet Agenda dans nav-config');
 
 console.log('\n=== Secondaire / save / stats ===\n');
 assert(/refuseSecondaryFullMutation[\s\S]*ankiV2RecalDates|ankiV2RecalDates[\s\S]*refuseSecondaryFullMutation/.test(ankiSrc),
@@ -87,10 +94,10 @@ assert(/switchToSecondary:[\s\S]*getStatus\(\)/.test(dsSrc),
 assert(/r\.onkeydown =/.test(quickSrc), 'bindEnter : onkeydown (pas de stack listeners)');
 assert(/coursWizardDeleteCreated[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(wizSrc),
   'wizard delete catch save errors');
-assert(/__BOOT_CACHE_V\s*=\s*'20260821a'/.test(indexSrc), 'cache 20260821a');
+assert(/__BOOT_CACHE_V\s*=\s*'20260822b'/.test(indexSrc), 'cache 20260822b');
 
-// ── Runtime : includeNew + cardBaseId cockpit ──
-console.log('\n=== Runtime includeNew / chunks ===\n');
+// ── Runtime : includeNew + exclusion W- ──
+console.log('\n=== Runtime includeNew / pas de W- ===\n');
 
 function loadAlgo() {
   const sandbox = {
@@ -156,24 +163,19 @@ const dm = {
   statut: 'actif',
   titre: 'DM test',
   mat: 'MATH',
-  _morceauxTotal: 3,
-  _morceauxFaits: 0,
-  _tempsRestantMin: 60,
-  _dureeTotaleMin: 60,
   tempsCible: 20 * 60,
   dateLimite: V2.addDays(today, 2),
   dateProchaineRevision: today
 };
-const chunks = V2.chunksDevoirTonight(dm, today, 1e9, { forced: true });
-assert(chunks.length >= 1, 'chunksDevoirTonight produit des bouts');
-assert(chunks.every(c => c.id.indexOf('#') > 0 && c._devoirChunkOf === 'W-DM1'),
-  'bouts ont id W-xxx#n et _devoirChunkOf');
-assert(String(chunks[0].id).split('#')[0] === 'W-DM1', 'cardBaseId(chunk) = parent');
+const planWithDm = V2.buildSession(active.concat([dm]), { sessionMinutes: 90, includeNew: 0 });
+assert(!planWithDm.cartes.some(c => String(c.id).startsWith('W') || c._devoirChunkOf),
+  'buildSession n’injecte plus de devoir W-');
+assert(planWithDm.countDevoir === 0, 'countDevoir = 0');
 
-// Exclude parent doit retirer tous les bouts (simulation filtre cockpit)
-const excluded = new Set(['W-DM1']);
-const afterExclude = chunks.filter(c => !excluded.has(String(c.id).split('#')[0]));
-assert(afterExclude.length === 0, 'exclude parent retire tous les bouts W-xxx#n');
+// cardBaseId encore utile pour X-/Y- (ids parent)
+assert(typeof w.cardBaseId !== 'function', 'cardBaseId est dans anki-app (pas algo)');
+const baseId = String('X-ACT1#0').split('#')[0];
+assert(baseId === 'X-ACT1', 'split # → parent id');
 
 // includeNew sous budget serré + beaucoup d’actifs overdue : réservoir quand même pris
 const manyActive = [];
