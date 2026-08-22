@@ -4548,7 +4548,7 @@ body.nav-sidebar-left #paneLatexTest.on {
   min-height: 96px;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
   gap: 0.35em 0.5em;
   padding: 12px 14px;
@@ -4570,9 +4570,20 @@ body.nav-sidebar-left #paneLatexTest.on {
   white-space: pre-wrap;
 }
 .latex-lab-preview-math {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1.15;
   font-size: 1.45rem;
+}
+.latex-lab-preview-math .ML__latex,
+.latex-lab-preview-math .ML__base {
+  vertical-align: middle;
+}
+.qk-q .latex-lab-preview-math,
+.qk-r .latex-lab-preview-math,
+.anki-card-q .latex-lab-preview-math,
+.anki-card-a .latex-lab-preview-math {
+  vertical-align: -0.12em;
 }
 .latex-lab-fallback-math {
   font-family: 'DM Mono', ui-monospace, monospace;

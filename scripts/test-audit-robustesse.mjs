@@ -31,7 +31,9 @@ const indexSrc = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 console.log('=== LaTeX centralisé ===\n');
 assert(/window\.formatCardFaceHtml\s*=/.test(coreSrc), 'formatCardFaceHtml dans core-utils (toujours dispo)');
 assert(/parseLatexInlineForEditor/.test(latexSrc), 'parseLatexInlineForEditor partagé');
-assert(/formatLatexPreviewHtml/.test(latexSrc), 'aperçu lab/Easy dédupliqué');
+assert(/id:\s*'vecteurs'/.test(latexSrc), 'palette Vecteurs dédiée');
+assert(/normalizeVectorLatex/.test(latexSrc), 'normalisation \\vec multi-caractères');
+assert(/overrightarrow/.test(latexSrc), 'raccourcis vecteur \\overrightarrow');
 assert(/latexBuildInline\(getTextBefore/.test(latexSrc) || /buildFullExport[\s\S]*latexBuildInline/.test(latexSrc),
   'buildFullExport réutilise latexBuildInline');
 assert(!/latexToMarkup\(tex\)/.test(quickSrc),
@@ -96,7 +98,7 @@ const oqBody = oqEnd > 0 ? oq.slice(0, oqEnd) : oq.slice(0, 800);
 assert(!/openCardTypePicker\(window\._cardCreateOpts/.test(oqBody),
   'openQuickCardCreate ne reboucle plus sur le type picker');
 assert(/consultation \(pas de création/.test(indexSrc), 'hint Base Doc secondaire clarifié');
-assert(/__BOOT_CACHE_V\s*=\s*'20260821a'/.test(indexSrc), 'cache 20260821a');
+assert(/__BOOT_CACHE_V\s*=\s*'20260822a'/.test(indexSrc), 'cache 20260822a');
 assert(/throw err/.test(latexSrc) && /MathLive indisponible/.test(latexSrc),
   'échec MathLive propage ready (anti-wipe Appliquer)');
 

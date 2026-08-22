@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 6;
+  var UI_REV = 7;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -29,7 +29,8 @@
         { label: '∑', latex: '\\sum_{#0}^{#1}#2', title: 'Somme' },
         { label: 'lim', latex: '\\lim_{#0\\to#1}#2', title: 'Limite' },
         { label: 'Mat2', latex: '\\begin{pmatrix}#0&#1\\\\#2&#3\\end{pmatrix}', title: 'Matrice 2×2' },
-        { label: 'vec', latex: '\\vec{#0}', title: 'Vecteur' },
+        { label: '→u', latex: '\\overrightarrow{#0}', title: 'Vecteur (flèche au-dessus)' },
+        { label: 'col2', latex: '\\begin{pmatrix}#0\\\\#1\\end{pmatrix}', title: 'Vecteur colonne 2D' },
         { label: '∂', latex: '\\frac{\\partial #0}{\\partial #1}', title: 'Dérivée partielle' },
         { label: 'ce{}', latex: '\\ce{#0}', title: 'Formule chimie mhchem' },
         { label: '≤', latex: '\\leq', title: 'Inférieur ou égal' },
@@ -128,6 +129,34 @@
       ]
     },
     {
+      id: 'vecteurs',
+      label: 'Vecteurs',
+      items: [
+        { label: '→u', latex: '\\overrightarrow{#0}', title: 'Vecteur — flèche au-dessus (recommandé)' },
+        { label: '→AB', latex: '\\overrightarrow{#0}', title: 'Vecteur nommé (AB, OM, u…)' },
+        { label: 'u⃗', latex: '\\vec{#0}', title: 'Flèche courte — 1 caractère seulement' },
+        { label: 'bold u', latex: '\\mathbf{#0}', title: 'Vecteur en gras' },
+        { label: 'col 2', latex: '\\begin{pmatrix}#0\\\\#1\\end{pmatrix}', title: 'Vecteur colonne 2D (x ; y)' },
+        { label: 'col 3', latex: '\\begin{pmatrix}#0\\\\#1\\\\#2\\end{pmatrix}', title: 'Vecteur colonne 3D (x ; y ; z)' },
+        { label: 'ligne 2', latex: '\\begin{pmatrix}#0&#1\\end{pmatrix}', title: 'Vecteur ligne 2D (x y)' },
+        { label: 'OM', latex: '\\overrightarrow{OM}', title: 'Vecteur position OM' },
+        { label: 'AB', latex: '\\overrightarrow{AB}', title: 'Vecteur AB' },
+        { label: 'i,j,k', latex: '\\vec{i},\\,\\vec{j},\\,\\vec{k}', title: 'Base canonique ℝ³' },
+        { label: 'u·v', latex: '#0\\cdot#1', title: 'Produit scalaire' },
+        { label: 'u×v', latex: '#0\\times#1', title: 'Produit vectoriel' },
+        { label: '‖u‖', latex: '\\lVert#0\\rVert', title: 'Norme d\'un vecteur' },
+        { label: '⟨u|v⟩', latex: '\\langle#0\\mid#1\\rangle', title: 'Produit scalaire ⟨·|·⟩' },
+        { label: 'proj', latex: '\\mathrm{proj}_{#0}\\left(#1\\right)', title: 'Projection sur un vecteur' },
+        { label: 'det u,v', latex: '\\det\\left(#0,#1\\right)', title: 'Déterminant (2 vecteurs du plan)' },
+        { label: 'M·v', latex: '#0\\,#1', title: 'Matrice × vecteur (espace fin)' },
+        { label: 'λu', latex: '#0\\,#1', title: 'Scalaire × vecteur' },
+        { label: 'u+v', latex: '#0+#1', title: 'Somme de vecteurs' },
+        { label: 'u-v', latex: '#0-#1', title: 'Différence de vecteurs' },
+        { label: '∥', latex: '#0\\parallel#1', title: 'Vecteurs parallèles' },
+        { label: '⊥', latex: '#0\\perp#1', title: 'Vecteurs orthogonaux' }
+      ]
+    },
+    {
       id: 'algebre',
       label: 'Algèbre',
       items: [
@@ -138,8 +167,8 @@
         { label: 'det3', latex: '\\begin{vmatrix}#0&#1&#2\\\\#3&#4&#5\\\\#6&#7&#8\\end{vmatrix}', title: 'Déterminant 3×3' },
         { label: 'Syst.2', latex: '\\begin{cases}#0\\\\#1\\end{cases}', title: 'Système 2 eq.' },
         { label: 'Syst.3', latex: '\\begin{cases}#0\\\\#1\\\\#2\\end{cases}', title: 'Système 3 eq.' },
-        { label: 'vec', latex: '\\vec{#0}', title: 'Vecteur' },
-        { label: '→v', latex: '\\overrightarrow{#0}', title: 'Vecteur flèche' },
+        { label: '→u', latex: '\\overrightarrow{#0}', title: 'Vecteur (voir onglet Vecteurs)' },
+        { label: 'col 2', latex: '\\begin{pmatrix}#0\\\\#1\\end{pmatrix}', title: 'Vecteur colonne 2D' },
         { label: 'â', latex: '\\hat{#0}', title: 'Chapeau' },
         { label: 'Ā', latex: '\\overline{#0}', title: 'Barre / conjugué' },
         { label: 'A̲', latex: '\\underline{#0}', title: 'Souligné' },
@@ -231,8 +260,8 @@
         { label: 'check', latex: '\\check{#0}', title: 'Caron / check' },
         { label: 'ã', latex: '\\tilde{#0}', title: 'Tilde' },
         { label: 'ā', latex: '\\bar{#0}', title: 'Barre' },
-        { label: 'vec', latex: '\\vec{#0}', title: 'Vecteur' },
-        { label: '→', latex: '\\overrightarrow{#0}', title: 'Flèche droite' },
+        { label: 'u⃗', latex: '\\vec{#0}', title: 'Flèche courte (1 caractère)' },
+        { label: '→', latex: '\\overrightarrow{#0}', title: 'Flèche vecteur (recommandé)' },
         { label: '←', latex: '\\overleftarrow{#0}', title: 'Flèche gauche' },
         { label: '↔', latex: '\\overleftrightarrow{#0}', title: 'Double flèche' },
         { label: 'ẋ', latex: '\\dot{#0}', title: 'Point' },
@@ -609,7 +638,7 @@
    * des éditeurs LaTeX classiques) — pas un 5ᵉ onglet.
    */
   var SNIP_SECTIONS = [
-    { id: 'maths', label: 'Maths', groups: ['base', 'analyse', 'algebre', 'proba', 'fonctions'] },
+    { id: 'maths', label: 'Maths', groups: ['base', 'vecteurs', 'analyse', 'algebre', 'proba', 'fonctions'] },
     { id: 'symboles', label: 'Symboles', groups: ['grec', 'accents', 'ops', 'relations', 'fleches'] },
     { id: 'structures', label: 'Structures', groups: ['ensembles', 'delim'] },
     { id: 'sciences', label: 'Sciences', groups: ['physique', 'chimie'] }
@@ -648,6 +677,13 @@
       if (SNIP_GROUPS[i].id === id) return SNIP_GROUPS[i];
     }
     return SNIP_GROUPS[0];
+  }
+
+  function paletteHintForGroup(group) {
+    if (group && group.id === 'vecteurs') {
+      return '→u = flèche alignée · col 2/3 = vecteur colonne · Tab pour remplir';
+    }
+    return 'Sous-onglet · ' + (group ? group.items.length : 0) + ' symboles';
   }
 
   function getSectionById(id) {
@@ -697,6 +733,9 @@
     }
     if (/\bmatrice\b|\bsysteme\b|\bdeterminant\b/.test(t)) {
       extras.push('matrice', 'systeme', 'determinant');
+    }
+    if (group.id === 'vecteurs') {
+      extras.push('vecteur', 'fleche', 'colonne', 'norme', 'scalaire', 'vectoriel', 'projection');
     }
     if (/\bvecteur\b/.test(t)) extras.push('vecteur', 'fleche');
     if (/\bderivee\b|\bpartielle\b/.test(t)) extras.push('derivee', 'differentielle');
@@ -947,19 +986,32 @@
     return built || latex;
   }
 
+  /**
+   * \\vec{AB} n’aligne la flèche que sur la 1ʳᵉ lettre — bascule vers \\overrightarrow{} si besoin.
+   */
+  function normalizeVectorLatex(latex) {
+    if (!latex) return latex;
+    return String(latex).replace(/\\vec\{([^}]*)\}/g, function (_, inner) {
+      var core = inner.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, 'X').replace(/[_^{}\\, ]/g, '');
+      if (core.length > 1) return '\\overrightarrow{' + inner + '}';
+      return '\\vec{' + inner + '}';
+    });
+  }
+
   function latexToMarkup(latex) {
     if (!latex) return '';
+    var normalized = normalizeVectorLatex(latex);
     try {
       if (window.MathfieldElement && typeof window.MathfieldElement.convertLatexToMarkup === 'function') {
-        return window.MathfieldElement.convertLatexToMarkup(latex);
+        return window.MathfieldElement.convertLatexToMarkup(normalized);
       }
     } catch (e) { /* ignore */ }
     try {
       if (window.MathLive && typeof window.MathLive.convertLatexToMarkup === 'function') {
-        return window.MathLive.convertLatexToMarkup(latex);
+        return window.MathLive.convertLatexToMarkup(normalized);
       }
     } catch (e2) { /* ignore */ }
-    return '<span class="latex-lab-fallback-math">' + escHtml(latex) + '</span>';
+    return '<span class="latex-lab-fallback-math">' + escHtml(normalized) + '</span>';
   }
 
   /** Aperçu lab / Easy : texte échappé + formule markup (une seule voie). */
@@ -1270,7 +1322,7 @@
       title.textContent = section.label + ' · ' + group.label;
     }
     if (hint) {
-      hint.textContent = 'Sous-onglet · ' + group.items.length + ' symboles';
+      hint.textContent = paletteHintForGroup(group);
     }
     if (grid) {
       grid.innerHTML = renderSnipButtons(group.items);
@@ -1489,6 +1541,7 @@
   /** API partagée (cartes rapides LaTeX, session, dock, etc.) */
   window.ensureMathLive = ensureMathLive;
   window.latexToMarkup = latexToMarkup;
+  window.normalizeVectorLatex = normalizeVectorLatex;
   window.latexBuildInline = latexBuildInline;
   window.formatCardFaceHtml = formatCardFaceHtml;
   window.formatQuickCardHtml = formatCardFaceHtml; /* alias Rapide */
@@ -1661,7 +1714,7 @@
 
       var group = getGroupById(activeSub);
       if (titleEl) titleEl.textContent = section.label + ' · ' + group.label;
-      if (hint) hint.textContent = 'Sous-onglet · ' + group.items.length + ' symboles';
+      if (hint) hint.textContent = paletteHintForGroup(group);
       if (grid) {
         grid.innerHTML = renderSnips(group.items);
         wireSnips(grid);
