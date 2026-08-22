@@ -3407,26 +3407,20 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     showExoModal(preset);
   };
   window.ankiV2OpenDevoirModal = function (opts) {
-    if (typeof window.refuseSecondaryFullMutation === 'function'
-        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
-      return;
-    }
     opts = opts && typeof opts === 'object' ? opts : {};
-    ensure(); editingExoId = null;
-    const preset = { type: 'devoir', tempsCible: 30 * 60, profil: 'EXO', statut: 'actif' };
-    if (opts.mat) preset.mat = opts.mat;
-    if (opts.coursId) {
-      S.coursLinkSelection = new Set([opts.coursId]);
-      if (!preset.mat) {
-        const co = (window.D.cours || []).find(x => x.uid === opts.coursId);
-        if (co) preset.mat = co.mat;
+    const open = function () {
+      if (typeof window.showTab === 'function') {
+        try { window.showTab('agenda'); } catch (e) { /* ignore */ }
       }
+      if (typeof window.agendaOpenModal === 'function') {
+        window.agendaOpenModal(opts);
+      }
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('agenda').then(open).catch(open);
     } else {
-      S.coursLinkSelection = new Set();
+      open();
     }
-    S.coursLinkQuery = "";
-    const ovE = $("ovExo"); if (ovE) ovE.classList.add("hidden");
-    showDevoirModal(preset);
   };
   window.ankiV2EditExo = function (id) {
     if (typeof window.refuseSecondaryFullMutation === 'function'
