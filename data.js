@@ -17,11 +17,12 @@ window.emptyData = {
     {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
   ],
   classeurs: [
-    {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter: 12, interNames: {}},
-    {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter: 12, interNames: {}},
-    {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter: 12, interNames: {}},
-    {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, interNames: {}},
+    {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter: 12, defaultAnnee: 1, interNames: {}},
+    {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter: 12, defaultAnnee: 1, interNames: {}},
+    {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter: 12, defaultAnnee: 1, interNames: {}},
+    {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, defaultAnnee: 1, interNames: {}},
   ],
+  chapitres: [],
   cours: [],
   exercices: [],
   devoirs: []

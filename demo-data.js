@@ -9,10 +9,18 @@ window.demoData = {
     {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
   ],
   classeurs: [
-    {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter: 12, interNames: {'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique'}},
-    {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter: 12, interNames: {'01':'Algèbre linéaire','02':'Analyse','03':'Réduction'}},
-    {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter: 12, interNames: {'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools'}},
-    {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
+    {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter: 12, defaultAnnee: 1, interNames: {'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique'}},
+    {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter: 12, defaultAnnee: 1, interNames: {'01':'Algèbre linéaire','02':'Analyse','03':'Réduction'}},
+    {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter: 12, defaultAnnee: 1, interNames: {'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools'}},
+    {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, defaultAnnee: 2, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
+  ],
+  chapitres: [
+    { id: 'CH-PHYS-01', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', title: 'Mécanique', created: '2026-08-01', notes: '' },
+    { id: 'CH-PHYS-02', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', title: 'Thermodynamique', created: '2026-08-01', notes: '' },
+    { id: 'CH-PHYS-03', mat: 'PHYS', annee: 1, cl: 'A', inter: '03', title: 'Électromagnétisme', created: '2026-08-01', notes: '' },
+    { id: 'CH-MATH-01', mat: 'MATH', annee: 1, cl: 'B', inter: '01', title: 'Algèbre linéaire', created: '2026-08-01', notes: '' },
+    { id: 'CH-MATH-02', mat: 'MATH', annee: 1, cl: 'B', inter: '02', title: 'Analyse', created: '2026-08-01', notes: '' },
+    { id: 'CH-PHYS-03-2', mat: 'PHYS', annee: 2, cl: 'A', inter: '03', title: 'Électrostatique (L2)', created: '2026-08-10', notes: 'Exemple 2ème année' }
   ],
   cours: (function () {
     const _d = new Date(); _d.setHours(0, 0, 0, 0);
