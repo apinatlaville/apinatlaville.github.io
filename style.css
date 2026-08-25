@@ -2919,22 +2919,54 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .programme-row-notes { font-size: 12px; color: var(--mut); margin-top: 6px; }
 .programme-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .programme-wiz-modal { max-width: 520px; width: min(520px, 94vw); }
+.programme-wiz-modal.card-type-surface {
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 720px);
+  overflow: hidden;
+}
+.programme-wiz-body,
+#progWizardBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+.programme-wiz-close-row { flex-shrink: 0; margin-top: 12px; }
 .programme-wiz-sub { font-size: 13px; color: var(--mut); margin: 0 0 12px; line-height: 1.45; }
 .programme-wiz-choices { display: flex; flex-direction: column; gap: 8px; }
 .programme-wiz-choice { width: 100%; justify-content: flex-start; }
 .programme-wiz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
 .programme-wiz-tile { text-align: left; padding: 10px 12px; }
 .programme-wiz-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; }
-.programme-wiz-disabled { opacity: 0.55; }
-.programme-bulk-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow: auto; margin-bottom: 10px; }
+.programme-phase2-hint {
+  font-size: 11px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--bd);
+  background: rgba(255, 255, 255, 0.03);
+  text-align: center;
+}
+.programme-bulk-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .programme-bulk-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 8px 10px;
   border: 1px solid var(--bd);
   border-radius: 8px;
   cursor: pointer;
+}
+.programme-bulk-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--acc);
+  flex-shrink: 0;
 }
 .programme-bulk-slot { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--mut); }
 .programme-title-preview { margin-bottom: 8px; font-weight: 600; }
