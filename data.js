@@ -1184,7 +1184,8 @@ window.saveCours = function() {
       newUid = prefix + '-' + suffix;
       const uidTaken = window.D.cours.some(x => x.uid === newUid)
         || (window.D.exercices || []).some(x => x.id === newUid)
-        || (window.D.devoirs || []).some(x => x.id === newUid);
+        || (window.D.devoirs || []).some(x => x.id === newUid)
+        || (window.D.chapitres || []).some(x => x.id === newUid);
       if (uidTaken) {
         return window.sysAlert("Ce code (" + window.escHtml(newUid) + ") est déjà utilisé ! Trouve-en un autre.", "Erreur de code");
       }

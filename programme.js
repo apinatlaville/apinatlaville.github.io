@@ -84,23 +84,33 @@
     return 'Chap. ' + title;
   };
 
-  function matSlug(matId) {
-    var m = matObj(matId);
-    var s = (m.label || matId || 'XX').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    return s.slice(0, 4) || 'CH';
-  }
-
-  window.generateChapitreId = function (mat, inter) {
+  /** Même format que les documents Base Doc : PH-A1B, MA-7Z3, CH-W2N… */
+  window.generateChapitreId = function (mat) {
     window.ensureChapitresArray();
-    var prefix = 'CH-' + matSlug(mat) + (inter ? '-' + String(inter).replace(/[^0-9A-Za-z]/g, '') : '');
-    var existing = {};
-    (window.D.chapitres || []).forEach(function (c) { if (c && c.id) existing[c.id] = true; });
-    if (!existing[prefix]) return prefix;
-    for (var n = 2; n < 200; n++) {
-      var id = prefix + '-' + n;
-      if (!existing[id]) return id;
+    if (typeof window.genUid === 'function') {
+      return window.genUid(String(mat || ''));
     }
-    return prefix + '-' + Date.now();
+    var prefix = String(mat || 'XX').substring(0, 2).toUpperCase();
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    for (var attempt = 0; attempt < 500; attempt++) {
+      var suffix = '';
+      for (var i = 0; i < 3; i++) suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      var id = prefix + '-' + suffix;
+      var taken = (window.D.cours || []).some(function (c) { return c.uid === id; })
+        || (window.D.exercices || []).some(function (e) { return e.id === id; })
+        || (window.D.devoirs || []).some(function (d) { return d.id === id; })
+        || (window.D.chapitres || []).some(function (c) { return c.id === id; });
+      if (!taken) return id;
+    }
+    return prefix + '-' + Date.now().toString(36).slice(-3).toUpperCase();
+  };
+
+  window.isChapitreIdTaken = function (id) {
+    if (!id) return true;
+    return (window.D.cours || []).some(function (c) { return c.uid === id; })
+      || (window.D.exercices || []).some(function (e) { return e.id === id; })
+      || (window.D.devoirs || []).some(function (d) { return d.id === id; })
+      || (window.D.chapitres || []).some(function (c) { return c.id === id; });
   };
 
   window.listChapitres = function (opts) {
@@ -167,8 +177,8 @@
     if (/^Chap\.\s/i.test(title)) title = title.replace(/^Chap\.\s/i, '').trim();
     var annee = window.normalizeAnnee(payload.annee);
     var inter = payload.inter != null ? String(payload.inter) : '';
-    var id = payload.id || window.generateChapitreId(payload.mat, inter || null);
-    if ((window.D.chapitres || []).some(function (c) { return c.id === id; })) {
+    var id = payload.id || window.generateChapitreId(payload.mat);
+    if (window.isChapitreIdTaken(id)) {
       return { ok: false, error: 'Id chapitre déjà utilisé : ' + id };
     }
     var ch = {
@@ -242,7 +252,7 @@
         inter: slot,
         annee: annee,
         title: label,
-        id: window.generateChapitreId(mat, slot)
+        id: window.generateChapitreId(mat)
       });
       if (res.ok) created.push(res.chapitre);
       else if (res.error) errors.push(res.error);

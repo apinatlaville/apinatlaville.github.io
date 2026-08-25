@@ -427,8 +427,9 @@ window.genUid = function(prefixeMatiere) {
     const collisionCours = window.D.cours.some(c => c.uid === nouveauCode);
     const collisionExos = window.D.exercices.some(e => e.id === nouveauCode);
     const collisionDevoirs = (window.D.devoirs || []).some(e => e.id === nouveauCode);
+    const collisionChapitres = (window.D.chapitres || []).some(c => c.id === nouveauCode);
 
-    if (!collisionCours && !collisionExos && !collisionDevoirs) {
+    if (!collisionCours && !collisionExos && !collisionDevoirs && !collisionChapitres) {
       estUnique = true; 
     }
   }

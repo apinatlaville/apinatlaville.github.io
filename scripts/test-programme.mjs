@@ -45,7 +45,7 @@ assert(/window\.renderProgrammeSearchTest\s*=/.test(labSrc), 'API renderProgramm
 assert(/chap-prefix/.test(read('style.css')), 'styles Chap. prefix');
 assert(/programme-wiz-body|programme-wiz-modal\.card-type-surface/.test(read('style.css')), 'modal wizard scrollable');
 assert(/programme-phase2-hint/.test(read('style.css')), 'hint phase 2 sans checkbox');
-assert(/__BOOT_CACHE_V\s*=\s*'20260825b'/.test(indexSrc), 'cache 20260825b');
+assert(/__BOOT_CACHE_V\s*=\s*'20260825c'/.test(indexSrc), 'cache 20260825c');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
@@ -66,7 +66,7 @@ function loadProgramme() {
         chapitres: [],
         cours: [
           { uid: 'PH-1', title: 'Doc 1', mat: 'PHYS', cl: 'A', inter: '01' },
-          { uid: 'PH-2', title: 'Doc 2', mat: 'PHYS', cl: 'A', inter: '02', chapitreId: 'CH-X' }
+          { uid: 'PH-2', title: 'Doc 2', mat: 'PHYS', cl: 'A', inter: '02', chapitreId: 'PH-Z9X' }
         ]
       },
       escHtml: (s) => String(s),
@@ -93,6 +93,10 @@ function loadProgramme() {
   const r1 = w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '01', annee: 1, title: 'Mécanique' });
   assert(r1.ok && r1.chapitre.annee === 1, 'createChapitre ok');
   assert(r1.chapitre.title === 'Mécanique', 'titre sans préfixe Chap.');
+  assert(/^[A-Z]{2}-[A-Z0-9]{3}$/.test(r1.chapitre.id), 'id même format que Base Doc (PH-A1B)');
+  assert(!/^CH-/.test(r1.chapitre.id) || r1.chapitre.id.indexOf('CH-') === 0 && r1.chapitre.mat === 'CHIM',
+    'pas de préfixe CH- chapitre (sauf matière CHIM)');
+  assert(r1.chapitre.mat === 'PHYS' ? /^PH-/.test(r1.chapitre.id) : true, 'préfixe matière PHYS = PH');
 
   const bad = w.updateChapitre(r1.chapitre.id, { annee: 2 });
   assert(!bad.ok, 'annee immuable après création');
@@ -119,7 +123,7 @@ function loadProgramme() {
   const stub = w.proposeChapitreLink('PH-1');
   assert(stub.stub && !stub.ok, 'proposeChapitreLink stub phase 1');
 
-  assert(!w.D.cours.some(c => c.chapitreId && c.chapitreId !== 'CH-X'), 'pas de migration auto cours');
+  assert(!w.D.cours.some(c => c.chapitreId && c.chapitreId !== 'PH-Z9X'), 'pas de migration auto cours');
 }
 
 console.log('\n=== demo-data ===\n');
