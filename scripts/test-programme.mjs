@@ -45,7 +45,10 @@ assert(/window\.renderProgrammeSearchTest\s*=/.test(labSrc), 'API renderProgramm
 assert(/chap-prefix/.test(read('style.css')), 'styles Chap. prefix');
 assert(/programme-wiz-body|programme-wiz-modal\.card-type-surface/.test(read('style.css')), 'modal wizard scrollable');
 assert(/programme-phase2-hint/.test(read('style.css')), 'hint phase 2 sans checkbox');
-assert(/__BOOT_CACHE_V\s*=\s*'20260825c'/.test(indexSrc), 'cache 20260825c');
+assert(/window\.moveChapitre\s*=/.test(progSrc), 'API moveChapitre');
+assert(/programmeMoveChapitre/.test(progSrc), 'UI reorder chapitres');
+assert(/programme-row-order/.test(read('style.css')), 'styles boutons ordre');
+assert(/__BOOT_CACHE_V\s*=\s*'20260825d'/.test(indexSrc), 'cache 20260825d');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
@@ -124,6 +127,17 @@ function loadProgramme() {
   assert(stub.stub && !stub.ok, 'proposeChapitreLink stub phase 1');
 
   assert(!w.D.cours.some(c => c.chapitreId && c.chapitreId !== 'PH-Z9X'), 'pas de migration auto cours');
+
+  w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '04', annee: 1, title: 'Optique' });
+  var phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
+  assert(phys1.length === 2, '2 chapitres PHYS 1ère');
+  assert(phys1[0].title === 'Méca renommée', 'ordre initial : premier créé');
+  var moved = w.moveChapitre(phys1[0].id, 1);
+  assert(moved.ok, 'moveChapitre ok');
+  phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
+  assert(phys1[1].title === 'Méca renommée', 'ordre après descente');
+  var blocked = w.moveChapitre(phys1[1].id, 1);
+  assert(!blocked.ok, 'moveChapitre bloqué en bas');
 }
 
 console.log('\n=== demo-data ===\n');
