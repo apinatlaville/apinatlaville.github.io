@@ -31,7 +31,9 @@ const indexSrc = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 console.log('=== LaTeX centralisé ===\n');
 assert(/window\.formatCardFaceHtml\s*=/.test(coreSrc), 'formatCardFaceHtml dans core-utils (toujours dispo)');
 assert(/parseLatexInlineForEditor/.test(latexSrc), 'parseLatexInlineForEditor partagé');
-assert(/formatLatexPreviewHtml/.test(latexSrc), 'aperçu lab/Easy dédupliqué');
+assert(/id:\s*'vecteurs'/.test(latexSrc), 'palette Vecteurs dédiée');
+assert(/normalizeVectorLatex/.test(latexSrc), 'normalisation \\vec multi-caractères');
+assert(/overrightarrow/.test(latexSrc), 'raccourcis vecteur \\overrightarrow');
 assert(/latexBuildInline\(getTextBefore/.test(latexSrc) || /buildFullExport[\s\S]*latexBuildInline/.test(latexSrc),
   'buildFullExport réutilise latexBuildInline');
 assert(!/latexToMarkup\(tex\)/.test(quickSrc),
