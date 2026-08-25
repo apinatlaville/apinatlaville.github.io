@@ -27,10 +27,15 @@ const nav = read('nav-config.js');
 const boot = read('boot-loader.js');
 
 assert(/APP_TAB_REGISTRY|APP_NAV_GROUPS/.test(nav), 'nav-config expose registre onglets');
-assert(/cours|ankiV2|flashcards|home|notes|print|settings/.test(nav), 'onglets métier présents');
+assert(/cours|ankiV2|flashcards|home|notes|print|settings|programme/.test(nav), 'onglets métier présents');
 assert(/bootLoadApplication|loadParallel|cours-wizard/.test(boot), 'boot-loader charge app + wizard');
 assert(/device-session|profiles-io|anki-algo-v2|anki-app-v2/.test(boot), 'boot charge sync + Anki');
 assert(/__BOOT_CACHE_V\s*=\s*'2026082[0-9][a-z]'/.test(index), 'cache version définie');
+
+console.log('\n=== Programme / chapitres ===\n');
+assert(/paneProgramme|renderProgramme/.test(read('programme.js')), 'module programme.js');
+assert(/programmeSearchTest|renderProgrammeSearchTest/.test(read('programme-search-test.js')), 'labo recherche programme');
+assert(/chapitres:\s*\[\]/.test(read('data.js')), 'D.chapitres dans emptyData');
 assert(/loginOverlay|activeProfileChip|deviceSessionPanel/.test(index), 'UI auth / profil / device');
 assert(/ovCoursWizard|ovAnkiSession|ovQuickCreate|ovQuickLatex/.test(index)
   || /ovCours|ovAnkiSession|quick/.test(index), 'overlays création / session présents');
@@ -82,7 +87,6 @@ function loadAlgo() {
   ];
   w.D.devoirs = [{
     id: 'W-D1', type: 'devoir', statut: 'actif', titre: 'DM', mat: 'MATH',
-    _morceauxTotal: 3, _morceauxFaits: 0, _tempsRestantMin: 45, _dureeTotaleMin: 45,
     tempsCible: 15 * 60, dateLimite: V2.addDays(today, 1), dateProchaineRevision: today
   }];
 
@@ -92,35 +96,34 @@ function loadAlgo() {
   );
   assert(planAuto.cartes.length >= 2, 'buildSession produit une file');
   assert(planAuto.cartes.some(c => c.id === 'X-R1'), 'includeNew tire le réservoir');
-  assert(planAuto.cartes.some(c => c._devoirChunkOf === 'W-D1' || c.id === 'W-D1'), 'devoir en bouts ou parent');
+  assert(!planAuto.cartes.some(c => c._devoirChunkOf === 'W-D1' || String(c.id).startsWith('W')),
+    'devoir absent de la file Synchrotron');
+  assert(planAuto.countDevoir === 0, 'countDevoir = 0');
 
-  const chunks = V2.chunksDevoirTonight(w.D.devoirs[0], today, 1e9, { forced: true });
-  assert(chunks.length >= 1, 'chunks devoir générés');
-  const base = (id) => String(id).split('#')[0];
-  assert(chunks.every(c => base(c.id) === 'W-D1'), 'tous les bouts partagent le parent');
-
-  // Simulation reorder DnD : ordre chunk puis X
-  const queueIds = chunks.map(c => c.id).concat(['X-A1']);
+  // DnD parents uniques (X-/Y- seulement)
+  const queueIds = ['X-A1', 'Y-Q1', 'X-A1'];
   const parents = [];
   const seenP = new Set();
+  const base = (id) => String(id).split('#')[0];
   queueIds.forEach(id => {
     const b = base(id);
     if (!seenP.has(b)) { seenP.add(b); parents.push(b); }
   });
-  assert(parents[0] === 'W-D1' && parents.includes('X-A1'), 'DnD → selectionOrder parents uniques');
+  assert(parents[0] === 'X-A1' && parents.includes('Y-Q1') && parents.length === 2,
+    'DnD → selectionOrder parents uniques');
 
-  // Reorder par manualOrder chunk ids
-  const cartes = chunks.concat([w.D.exercices[0]]);
+  // Reorder manualOrder
+  const cartes = [w.D.exercices[0], w.D.exercices[2]];
   const byId = {};
   cartes.forEach(c => { byId[c.id] = c; });
   const reordered = [];
   const seen = new Set();
-  const wantOrder = [chunks[chunks.length - 1].id, 'X-A1'].concat(chunks.slice(0, -1).map(c => c.id));
+  const wantOrder = ['Y-Q1', 'X-A1'];
   wantOrder.forEach(id => {
     if (byId[id] && !seen.has(id)) { reordered.push(byId[id]); seen.add(id); }
   });
   cartes.forEach(c => { if (!seen.has(c.id)) reordered.push(c); });
-  assert(reordered[0].id === chunks[chunks.length - 1].id, 'reorder chunk-level conservé');
+  assert(reordered[0].id === 'Y-Q1', 'reorder conservé');
   assert(reordered.some(c => c.id === 'X-A1'), 'X reste dans la file après reorder');
 
   // Activation réservoir

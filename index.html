@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260822a';
+  window.__BOOT_CACHE_V = '20260825a';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -328,7 +328,7 @@
 </div>
 
 <div class="pane ui-pane" id="paneFlashcards"></div>
-
+<div class="pane ui-pane" id="paneAgenda"></div>
 <div class="pane ui-pane" id="paneAnkiV2"></div>
 <div class="pane ui-pane" id="paneAnkiVizV2"></div>
 
@@ -353,6 +353,8 @@
   <h3 style="font-family:'Inter'; margin-top:30px; margin-bottom:10px; color:var(--grn); display:flex;align-items:center;gap:8px;"><span class="status-dot status-green"></span> Historique (Déjà imprimés)</h3>
   <div class="cgrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:10px; opacity:0.7;" id="printGridHistory"></div>
 </div>
+
+<div class="pane ui-pane" id="paneProgramme"></div>
 
 <div class="pane ui-pane" id="paneClasseurs">
   <div class="cl-grid" id="clGrid"></div>
@@ -475,6 +477,8 @@
     <button class="bp" onclick="window.resetData()" style="background:var(--red); color:#fff; width:100%;" id="btnResetData">Vider et réinitialiser</button>
   </div>
 </div>
+
+<div class="pane ui-pane" id="paneProgrammeSearchTest"></div>
 
 <div class="pane ui-pane" id="paneLogs">
   <div class="ui-section">
@@ -762,6 +766,37 @@
     </div>
     
     <button class="bs" onclick="window.stopCam()" id="btnStopCam" style="width:100%; margin-top:10px; border-color:var(--red); color:var(--red); padding:10px;"><span data-icon="x"></span> Fermer le scanner</button>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovProgrammeWizard">
+  <div class="modal card-type-surface programme-wiz-modal">
+    <h2><span data-icon="book-open"></span> Créer un chapitre</h2>
+    <div id="progWizardBody"></div>
+    <div class="macts" style="margin-top:12px;">
+      <button type="button" class="bs" onclick="window.programmeCloseWizard()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov hidden" id="ovProgrammeEdit">
+  <div class="modal card-type-surface programme-edit-modal">
+    <h2><span data-icon="pencil"></span> Modifier le chapitre</h2>
+    <div id="progEditMeta" class="programme-edit-meta"></div>
+    <input type="hidden" id="progEditId">
+    <div id="progEditError" class="anki-form-error" role="alert"></div>
+    <div class="fg">
+      <label>Titre <span class="anki-mut">(sans « Chap. »)</span></label>
+      <input type="text" id="progEditTitle">
+    </div>
+    <div class="fg">
+      <label>Notes</label>
+      <textarea id="progEditNotes" rows="3"></textarea>
+    </div>
+    <div class="macts">
+      <button type="button" class="bs" onclick="window.programmeCloseEdit()">Annuler</button>
+      <button type="button" class="bp" onclick="window.programmeSaveEdit()">Enregistrer</button>
+    </div>
   </div>
 </div>
 

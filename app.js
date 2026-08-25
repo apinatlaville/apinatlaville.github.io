@@ -727,8 +727,11 @@ window.runTabShow = function(tab, overrideResetFilters) {
     }
     case 'notes': window.renderNotes(); break;
     case 'flashcards': window.renderFlashcards(); break;
+    case 'agenda': if (typeof window.renderAgenda === 'function') window.renderAgenda(); break;
     case 'ankiV2': if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2(); break;
     case 'ankiVizV2': if (typeof window.renderAnkiVizV2 === 'function') window.renderAnkiVizV2(); break;
+    case 'programme': if (typeof window.renderProgramme === 'function') window.renderProgramme(); break;
+    case 'programmeSearchTest': if (typeof window.renderProgrammeSearchTest === 'function') window.renderProgrammeSearchTest(); break;
     case 'print': if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid(); break;
     case 'classeurs':
       window.isEditingCl = false;
@@ -1930,6 +1933,7 @@ async function initApp(user) {
     window._activeProfileId = window.ProfilesIO.getSessionProfileId();
   }
   if(!window.D.cours) window.D.cours = [];
+  if(!Array.isArray(window.D.chapitres)) window.D.chapitres = [];
   if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if(!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
   if (window.AnkiAlgo && typeof window.AnkiAlgo.migrateData === 'function') {
@@ -1944,43 +1948,25 @@ async function initApp(user) {
     }
     if (!c.profil) c.profil = 'COURS';
   });
-  // ⚠️ v3.4 : on NE découpe PLUS en cartes séparées.
-  // Le DM reste UN seul objet avec _morceauxTotal / _morceauxFaits.
-  // Migration : fusionner les anciens devoir-morceau résiduels dans leur parent.
-  if (Array.isArray(window.D.exercices)) {
-    const legacyMorceaux = window.D.exercices.filter(c => c.type === 'devoir-morceau')
-      .concat((window.D.devoirs || []).filter(c => c.type === 'devoir-morceau'));
-    legacyMorceaux.forEach(m => {
-      const parent = (window.D.devoirs || []).find(p => p.id === m._morceauOf)
-        || window.D.exercices.find(p => p.id === m._morceauOf && p.type === 'devoir');
-      if (parent) {
-        const siblings = legacyMorceaux.filter(x => x._morceauOf === parent.id);
-        if (!parent._morceauxTotal || parent._morceauxTotal < 2) {
-          parent._morceauxTotal = Math.max(2, siblings.length + 1);
+  // Plus de découpage DM : purge devoir-morceau + champs _morceaux*.
+  if (typeof window.migrateDevoirsLegacy === 'function') {
+    window.migrateDevoirsLegacy();
+  } else {
+    const stripKeys = [
+      '_morceauxTotal', '_morceauxFaits', '_sessionMinMin', '_tempsProposeMin',
+      '_tempsRestantMin', '_dureeTotaleMin', '_isMorceauParent', '_morceauIndex', '_morceauOf'
+    ];
+    const scrub = (list) => {
+      if (!Array.isArray(list)) return [];
+      return list.filter(c => c && c.type !== 'devoir-morceau').map(c => {
+        if (c.type === 'devoir' || (c.id && String(c.id).charAt(0) === 'W')) {
+          stripKeys.forEach(k => { delete c[k]; });
         }
-        if (m.statut === 'fini' && (parent._morceauxFaits || 0) < (parent._morceauxTotal || 1)) {
-          parent._morceauxFaits = (parent._morceauxFaits || 0) + 1;
-        }
-      }
-    });
-    window.D.exercices = window.D.exercices.filter(c => c.type !== 'devoir-morceau');
-    window.D.devoirs = (window.D.devoirs || []).filter(c => c.type !== 'devoir-morceau');
-    // Réinitialise les parents qui ont été tripotés par les versions précédentes
-    (window.D.devoirs || []).forEach(c => {
-      if (c.type === 'devoir' && c._isMorceauParent) {
-        delete c._morceauIndex;
-        delete c._isMorceauParent;
-        if (c._dureeTotaleMin) c.tempsCible = c._dureeTotaleMin * 60;
-      }
-    });
-    window.D.exercices.forEach(c => {
-      if (c.type === 'devoir' && c._isMorceauParent) {
-        delete c._morceauIndex;
-        delete c._isMorceauParent;
-        // tempsCible reflète UN morceau ; on remet la durée totale si _dureeTotaleMin présent
-        if (c._dureeTotaleMin) c.tempsCible = c._dureeTotaleMin * 60;
-      }
-    });
+        return c;
+      });
+    };
+    window.D.exercices = scrub(window.D.exercices);
+    window.D.devoirs = scrub(window.D.devoirs);
   }
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));

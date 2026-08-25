@@ -1,6 +1,7 @@
 /**
  * anki-app.js v4 — UI Mode Synchrotron (PC*)
- * Vues : Cockpit · Agenda · Réservoir · Bibliothèque · Prévisions · Stats · Réglages
+ * Vues : Cockpit · Réservoir · Bibliothèque · Prévisions · Stats · Réglages
+ * (Agenda / devoirs → onglet dédié agenda.js)
  */
 (function () {
   const $ = id => document.getElementById(id);
@@ -234,18 +235,17 @@
     if (idx >= 0) return { list: window.D.devoirs, idx };
     return null;
   }
-  /** Rehydrate une entrée de file (y compris bout virtuel W-xxx#n). */
+  /** Rehydrate une entrée de file. Les bouts W-xxx#n ne sont plus supportés. */
   function rehydrateQueueCard(id) {
     if (!id) return null;
     const s = String(id);
     if (s.includes('#')) {
-      const parts = s.split('#');
-      const parent = ankFind(parts[0]);
-      if (!parent) return null;
-      const idx = parseInt(parts[1], 10) || 0;
-      return window.AnkiAlgoV2.makeDevoirChunk(parent, idx);
+      // Ancien bout virtuel — ignorer (Agenda hors Synchrotron)
+      return null;
     }
-    return ankFind(id);
+    const c = ankFind(id);
+    if (c && isDevoirCard(c)) return null;
+    return c;
   }
   function updateReservoirTabBadge(root) {
     const btn = root && root.querySelector('[data-testid="anki-tab-reservoir"]');
@@ -285,7 +285,6 @@
       const urg = window.AnkiAlgoV2.urgenceDevoir(c, today);
       const bits = [`urgW ${urg.total.toFixed(0)}`];
       if (c.dateLimite) bits.push(`limite ${c.dateLimite}`);
-      if (c._morceauxTotal) bits.push(`sess ${(c._morceauxFaits || 0) + 1}/${c._morceauxTotal}`);
       return bits.join(' · ');
     }
     const isQuick = window.AnkiAlgoV2.cardKind(c) === 'quick' || isQuickCard(c);
@@ -420,6 +419,11 @@
   // ===== Vue principale =====
   window.renderAnkiV2 = function () {
     ensure();
+    if (typeof window.migrateDevoirsLegacy === 'function') {
+      if (window.migrateDevoirsLegacy()) {
+        try { window.save(); } catch (e) { /* ignore */ }
+      }
+    }
     const canMutate = !(window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function')
       || window.DeviceSession.canFullSave();
     if (canMutate) {
@@ -438,12 +442,11 @@
     root.innerHTML = `
       <div class="anki-head">
         <h2>${window.iconLabel('dna', 'Synchrotron')} <span class="anki-sub">— Répétition espacée PC*</span></h2>
-        <p>Fenêtres ★ · Phases · 2 files d’urgence (prioX / prioY) · Devoirs (urgW).</p>
+        <p>Fenêtres ★ · Phases · 2 files d’urgence (prioX / prioY). Les devoirs sont dans l’onglet Agenda.</p>
       </div>
 
       <div class="anki-nav">
         <button class="anki-tab ${S.view === 'cockpit' ? 'on' : ''}" data-anki-v2-view="cockpit" data-testid="anki-tab-cockpit" onclick="window.ankiV2SetView('cockpit')">${window.iconLabel('sliders', 'Cockpit')}</button>
-        <button class="anki-tab ${S.view === 'agenda' ? 'on' : ''}" data-anki-v2-view="agenda" data-testid="anki-tab-agenda" onclick="window.ankiV2SetView('agenda')">${window.iconLabel('clipboard-list', 'Agenda')}</button>
         <button class="anki-tab ${S.view === 'reservoir' ? 'on' : ''}" data-anki-v2-view="reservoir" data-testid="anki-tab-reservoir" onclick="window.ankiV2SetView('reservoir')">${window.iconLabel('hourglass', 'Réservoir')}${reservoir ? `<span class="anki-tab-badge">${reservoir}</span>` : ''}</button>
         <button class="anki-tab ${S.view === 'library' ? 'on' : ''}" data-anki-v2-view="library" data-testid="anki-tab-library" onclick="window.ankiV2SetView('library')">${window.iconLabel('book-open', 'Bibliothèque')}</button>
         <button class="anki-tab ${S.view === 'forecast' ? 'on' : ''}" data-anki-v2-view="forecast" data-testid="anki-tab-forecast" onclick="window.ankiV2SetView('forecast')">${window.iconLabel('calendar', 'Prévisions')}</button>
@@ -470,6 +473,10 @@
   };
 
   window.ankiV2SetView = function (v) {
+    if (v === 'agenda') {
+      if (typeof window.showTab === 'function') window.showTab('agenda');
+      return;
+    }
     if (S.current) pauseChrono(true);
     S.view = v;
     const root = $("paneAnkiV2");
@@ -549,18 +556,8 @@
       if (cartes.some(c => cardBaseId(c.id) === base)) return;
       const c = ankFind(base);
       if (!c || !window.AnkiAlgoV2.isActive(c)) return;
-      const kind = window.AnkiAlgoV2.cardKind(c);
-      const toAdd = [];
-      if (kind === 'devoir') {
-        const chunks = window.AnkiAlgoV2.chunksDevoirTonight(c, ref, 1e9, { forced: true });
-        if (chunks.length) chunks.forEach(ch => toAdd.push(ch));
-        else {
-          const ch = window.AnkiAlgoV2.makeDevoirChunk(c, c._morceauxFaits || 0);
-          if (ch) toAdd.push(ch);
-        }
-      } else {
-        toAdd.push(c);
-      }
+      if (window.AnkiAlgoV2.cardKind(c) === 'devoir' || isDevoirCard(c)) return;
+      const toAdd = [c];
       toAdd.forEach(card => {
         const t = cardDurationSec(card);
         if (overflowExtend) {
@@ -583,7 +580,7 @@
 
     if (S.manualOrder && S.manualOrder.length) {
       // Conserve l'ordre manuel pour les cartes encore dans le plan,
-      // puis ajoute les nouvelles éligibles (DM bouts, pull-forward…) à la fin.
+      // puis ajoute les nouvelles éligibles (pull-forward…) à la fin.
       const map = {};
       cartes.forEach(c => { map[c.id] = c; });
       const seen = new Set();
@@ -636,18 +633,10 @@
       selectedIds.forEach(id => {
         const c = map[id];
         if (!c) return;
-        if (window.AnkiAlgoV2.cardKind(c) === 'devoir') {
-          const chunks = window.AnkiAlgoV2.chunksDevoirTonight(c, ref, 1e9, { forced: true });
-          if (chunks.length) chunks.forEach(ch => cartes.push(ch));
-          else {
-            const ch = window.AnkiAlgoV2.makeDevoirChunk(c, c._morceauxFaits || 0);
-            if (ch) cartes.push(ch);
-          }
-        } else {
-          cartes.push(c);
-        }
+        if (window.AnkiAlgoV2.cardKind(c) === 'devoir' || isDevoirCard(c)) return;
+        cartes.push(c);
       });
-      // Respecter un reorder DnD (manualOrder peut contenir des W-xxx#n)
+      // Respecter un reorder DnD
       if (S.manualOrder && S.manualOrder.length) {
         const byId = {};
         cartes.forEach(c => { byId[c.id] = c; });
@@ -796,9 +785,8 @@
     const c = $("ankiV2ViewContent");
     if (!c) return;
     const scrollY = S.view === "library" ? (window.scrollY || window.pageYOffset || 0) : 0;
-    if (S.view === "diag") S.view = "cockpit";
+    if (S.view === "diag" || S.view === "agenda") S.view = "cockpit";
     if (S.view === "cockpit")        c.innerHTML = viewCockpit();
-    else if (S.view === "agenda")    c.innerHTML = viewAgenda();
     else if (S.view === "reservoir") c.innerHTML = viewReservoir();
     else if (S.view === "library")   c.innerHTML = viewLibrary();
     else if (S.view === "forecast")  c.innerHTML = viewForecast();
@@ -932,24 +920,12 @@
     const total = plan.tempsTotalPrev;
 
     const counts = {
-      devoir: plan.countDevoir || 0,
-      devoirF: plan.countDevoirForce || 0,
-      devoirL: plan.countDevoirLatent || 0,
       main:   plan.countMain   || 0,
       quick:  plan.countQuick  || 0,
       quickW: plan.countQuickWoven || 0,
       quickE: plan.countQuickExtra || 0
     };
-    const overloadBanner = plan.overload ? `
-      <div class="anki-overload-banner" data-testid="overload-banner"
-           style="margin:0 0 10px;padding:10px 12px;border-radius:8px;
-                  background:rgba(233,79,100,0.15);border:1px solid var(--red);color:var(--red);
-                  display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;">
-        ${window.iconHtml('alert-triangle', 16)} <span>Pas assez de temps prévu pour les devoirs urgents : il manque
-        <b>${window.AnkiAlgoV2.fmtDur(plan.overloadDelta)}</b>. Pense à augmenter la durée de session,
-        ou à devancer certains DM sur les jours précédents.</span>
-      </div>
-    ` : '';
+    const overloadBanner = '';
 
     const cockpitSearch = S.cockpitSearch || '';
     const displayList = getCockpitDisplayList();
@@ -966,8 +942,7 @@
           <div>
             <h3>${isManualTab ? window.iconLabel('mouse-pointer-click', 'File manuelle') : window.iconLabel('brain', 'File automatique')} <span class="anki-mut" id="ankiQueueMeta">(${cartes.length} cartes · ${window.AnkiAlgoV2.fmtDur(total)})</span></h3>
             <p class="anki-mut" data-testid="cockpit-piles-counts">
-              <span style="color:var(--red);font-weight:700;">${window.iconLabel('pin', `${counts.devoir} devoir${counts.devoir > 1 ? 's' : ''}`)}</span>${counts.devoirF ? ` (${counts.devoirF} forcé${counts.devoirF > 1 ? 's' : ''}${counts.devoirL ? ' + ' + counts.devoirL + ' latent' + (counts.devoirL > 1 ? 's' : '') : ''})` : ''}
-              · <span style="color:var(--grn);font-weight:700;">${window.iconLabel('brain', `${counts.main} principale${counts.main > 1 ? 's' : ''}`)}</span>
+              <span style="color:var(--grn);font-weight:700;">${window.iconLabel('brain', `${counts.main} principale${counts.main > 1 ? 's' : ''}`)}</span>
               · <span style="color:#5b8def;font-weight:700;">${window.iconLabel('languages', `${counts.quick} rapide${counts.quick > 1 ? 's' : ''}`)}</span>${counts.quickW ? ` (${counts.quickW} tissée${counts.quickW > 1 ? 's' : ''}${counts.quickE ? ' + ' + counts.quickE + ' fin' : ''})` : ''}
               · marge ${Math.round((plan.marge || 0.92) * 100)}%
               · ${isManualTab ? '<span style="color:var(--gold);">Uniquement ta sélection</span>' : '<span style="color:var(--grn);">Algorithme + ajustements</span>'}
@@ -1023,79 +998,16 @@
     return html;
   }
 
-  // ====== VUE AGENDA (devoirs W- triés par date limite) ======
+  // ====== VUE AGENDA déplacée vers l'onglet dédié (agenda.js) ======
   function viewAgenda() {
-    const ref = window.AnkiAlgoV2.todayISO();
-    const seuil = (window.D.settings && window.D.settings.seuilDevoirForce) || 35;
-    const devoirs = (window.D.devoirs || [])
-      .filter(c => c.statut === 'actif')
-      .map(c => ({ card: c, urg: window.AnkiAlgoV2.urgenceDevoir(c, ref) }))
-      .sort((a, b) => {
-        const da = a.card.dateLimite || '9999-12-31';
-        const db = b.card.dateLimite || '9999-12-31';
-        if (da !== db) return da.localeCompare(db);
-        return b.urg.total - a.urg.total;
-      });
-
-    const forcesCeSoir = devoirs.filter(x => x.urg.total >= seuil);
-    const tempsForce = forcesCeSoir.reduce((s, x) => {
-      const chunks = window.AnkiAlgoV2.chunksDevoirTonight(x.card, ref, 1e9, { forced: true });
-      return s + chunks.reduce((a, ch) => a + window.AnkiAlgoV2.cardDuration(ch), 0);
-    }, 0);
-    const boutsForce = forcesCeSoir.reduce((s, x) => {
-      return s + window.AnkiAlgoV2.chunksDevoirTonight(x.card, ref, 1e9, { forced: true }).length;
-    }, 0);
-
-    return `
-      <div class="anki-card-block">
-        <div class="anki-block-hdr">
-          <div>
-            <h3>${window.iconLabel('clipboard-list', 'Agenda — Devoirs W-')}</h3>
-            <p class="anki-mut" style="font-size:12px;">Tous les DM / colles / exos à rendre, triés par <b>date limite</b>. Découpe auto selon ton temps restant · bouts intercalés en session.</p>
-          </div>
-          <div class="anki-block-actions">
-            <button class="bp" onclick="window.ankiV2OpenDevoirModal()">+ Ajouter un devoir</button>
-          </div>
-        </div>
-        ${forcesCeSoir.length ? `
-          <div style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(233,79,100,0.12);border:1px solid rgba(233,79,100,0.35);font-size:13px;">
-            <b>Ce soir (Phase 0)</b> : ${forcesCeSoir.length} devoir(s) · ${boutsForce} bout(s) · ~${window.AnkiAlgoV2.fmtDur(tempsForce)}
-            <span class="anki-mut"> — urgence calendaire ≥ ${seuil}</span>
-          </div>
-        ` : `<p class="anki-mut" style="font-size:12px;margin-bottom:12px;">Aucun devoir forcé ce soir (urgence &lt; ${seuil}). Les W- opportunistes peuvent entrer si le budget le permet.</p>`}
-        <div class="anki-devoirs-list">${renderAgendaList(devoirs, seuil) || '<div class="anki-empty">Aucun devoir actif. Ajoute un DM avec date limite.</div>'}</div>
-        <p class="anki-mut" style="font-size:11px;margin-top:10px;">Temps restant + session mini → bouts auto · intercalés où le budget le permet · Fait / Partiel / À refaire.</p>
-      </div>
-    `;
+    if (typeof window.showTab === 'function') {
+      setTimeout(function () { window.showTab('agenda'); }, 0);
+    }
+    return '<div class="anki-empty">Les devoirs sont dans l’onglet <b>Agenda</b>.</div>';
   }
 
-  function renderAgendaList(devoirs, seuil) {
-    if (!devoirs.length) return '';
-    return devoirs.map(({ card: d, urg }) => {
-      const m = mat(d.mat);
-      const done = d._morceauxFaits || 0;
-      const total = d._morceauxTotal || 1;
-      const pct = Math.round(done / total * 100);
-      const isForce = urg.total >= seuil;
-      const jr = urg.joursRestants;
-      const jrLabel = jr == null ? '—' : (jr <= 0 ? `Retard J${jr}` : `J+${jr}`);
-      return `
-        <div class="anki-devoir-row" style="${isForce ? 'border-left:3px solid var(--red);' : ''}">
-          ${cardTypeBadge(d)}
-          <span class="anki-q-mat" style="background:${m.color};">${window.iconHtml('file-text', 12)}</span>
-          <div class="anki-devoir-body">
-            <div class="anki-devoir-title">${esc(d.titre || d.question)} ${isForce ? '<span style="color:var(--red);font-size:11px;">· FORCÉ ce soir</span>' : ''}</div>
-            <div class="anki-devoir-meta">${d.id} · ${window.iconHtml('calendar', 12)} ${d.dateLimite || '—'} · ${jrLabel} · urg ${urg.total.toFixed(0)} · bout ${Math.min(done + 1, total)}/${total} · reste ~${d._tempsRestantMin != null ? d._tempsRestantMin : Math.round((d._dureeTotaleMin || (d.tempsCible || 0) / 60))} min · ${window.iconHtml('timer', 12)} ${window.AnkiAlgoV2.fmtDur(window.AnkiAlgoV2.cardDuration(d))}/bout · min ${d._sessionMinMin || '—'} min</div>
-            <div class="anki-progress"><div class="anki-progress-bar" style="width:${pct}%;background:${m.color};"></div></div>
-          </div>
-          ${window.iconBtn('play', 'Session', `onclick="window.startAnkiV2Single('${d.id}')"`)}
-          ${typeof window.iconEditDeletePair === 'function'
-            ? window.iconEditDeletePair(`window.ankiV2EditExo('${d.id}')`, `window.ankiV2DelExo('${d.id}')`)
-            : (window.iconBtn('pencil', 'Modifier', `onclick="window.ankiV2EditExo('${d.id}')"`) +
-               window.iconBtn('trash-2', 'Supprimer', `style="color:var(--red);border-color:var(--red);" onclick="window.ankiV2DelExo('${d.id}')"`))}
-        </div>
-      `;
-    }).join('');
+  function renderAgendaList() {
+    return '';
   }
 
   window.ankiV2CockpitSearch = function (v) {
@@ -1199,13 +1111,7 @@
         ? `${window.iconHtml('zap', 12)}Y`
         : `${window.iconHtml('brain', 12)}X`;
     const isDevoir = isDevoirCard(c);
-    const dmRef = isDevoir ? resolveDevoirRef(c) : c;
-    // Pour un DM : temps PAR BOUT
-    const tempsAffiche = isDevoir
-      ? Math.round((window.AnkiAlgoV2.cardDuration(c) / 60) * 10) / 10
-      : ((c.tempsCible || 60) / 60).toFixed(1).replace(/\.0$/, '');
-    const boutIdx = c._projSessionIdx || ((dmRef._morceauxFaits || 0) + 1);
-    const sessionInfo = isDevoir ? ` · bout ${boutIdx}/${dmRef._morceauxTotal || 1}` : '';
+    const tempsAffiche = ((c.tempsCible || 60) / 60).toFixed(1).replace(/\.0$/, '');
     return `
       <div class="anki-q-row ${isDevoir ? 'devoir' : ''}" draggable="true" data-id="${c.id}" data-idx="${i}">
         <span class="anki-q-handle" title="Glisser">⋮⋮</span>
@@ -1213,7 +1119,7 @@
         ${cardTypeBadge(c)}
         <div class="anki-q-mat" style="background:${m.color};">${isDevoir ? window.iconHtml('file-text', 12) : esc(m.label)}</div>
         <div class="anki-q-body" onclick="window.startAnkiV2Single('${c.id}')">
-          <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}${sessionInfo}</div>
+          <div class="anki-q-title">${esc(c.titre || (c.question || '').substring(0, 60))}</div>
           <div class="anki-q-meta">${c.id} · ${cardAlgoStatsLine(c)} ${isLate ? '<span style="color:var(--red);">· retard</span>' : ''}</div>
         </div>
         <div class="anki-q-time" onclick="event.stopPropagation();">
@@ -1540,29 +1446,14 @@
     if (!c) return;
     const minVal = parseFloat(valMin) || 1;
     if (isDevoir) {
-      // valMin = minutes par bout dans la file → re-estime le restant et re-découpe
-      const sessMin = c._sessionMinMin || minVal;
-      const boutsRestants = Math.max(1, (c._morceauxTotal || 1) - (c._morceauxFaits || 0));
-      const restantEstime = minVal * boutsRestants;
-      const plan = window.AnkiAlgoV2.planifierDecoupeDevoir(restantEstime, sessMin, c.dateLimite);
-      window.AnkiAlgoV2.applyDecoupeDevoir(c, plan, { tempsProposeMin: c._tempsProposeMin });
-      // Rafraîchir / purger les bouts hors plan (si le nb de bouts a diminué)
-      const maxIdx = (c._morceauxTotal || 1) - 1;
-      if (S.queue && S.queue.length) {
-        S.queue = S.queue
-          .filter(x => !(x && x._devoirChunkOf === c.id && x._devoirChunkIdx > maxIdx))
-          .map(x => {
-            if (!x || x._devoirChunkOf !== c.id) return x;
-            return window.AnkiAlgoV2.makeDevoirChunk(c, x._devoirChunkIdx);
-          });
-      }
-      if (S.current && S.current._devoirChunkOf === c.id) {
-        if (S.current._devoirChunkIdx > maxIdx) {
-          S.current = null;
-        } else {
-          S.current = window.AnkiAlgoV2.makeDevoirChunk(c, S.current._devoirChunkIdx);
-        }
-      }
+      // Devoirs hors Synchrotron : durée estimée simple, plus de découpage
+      c._dureeEstimeeMin = minVal;
+      c.tempsCible = Math.round(minVal * 60);
+      delete c._morceauxTotal;
+      delete c._morceauxFaits;
+      delete c._sessionMinMin;
+      delete c._tempsRestantMin;
+      delete c._dureeTotaleMin;
     } else {
       c.tempsCible = Math.round(minVal * 60);
     }
@@ -2340,7 +2231,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         <h3>Maintenance / Démo</h3>
         <p class="anki-mut" style="font-size:12px;">Si tu utilises les données de démo et que les dates ne sont plus à jour (ex: tu reviens après plusieurs jours), recale-les sur aujourd'hui.</p>
         <button class="bs" onclick="window.ankiV2RecalDates()">${window.iconLabel('calendar', "Recaler toutes les dates sur aujourd'hui")}</button>
-        <button class="bs" onclick="window.ankiV2RebuildPieces()" style="margin-left:6px;">${window.iconLabel('refresh-cw', 'Re-découper les devoirs en morceaux')}</button>
       </div>
 
       <div class="anki-card-block">
@@ -2353,11 +2243,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <label>Charge max / jour (min)</label>
           <input type="number" class="fi" min="15" max="240" value="${st.ankiMaxPerDay || 75}" onchange="window.D.settings.ankiMaxPerDay=parseInt(this.value)||75;window.save();">
         </div>
-        <div class="anki-set-row">
-          <label>Seuil devoir forcé (Agenda) <code class="anki-mut">seuilDevoirForce</code></label>
-          <input type="number" class="fi" min="0" max="100" step="5" value="${st.seuilDevoirForce != null ? st.seuilDevoirForce : 35}" onchange="window.D.settings.seuilDevoirForce=parseInt(this.value)||35;window.save();window.renderAnkiV2();">
-        </div>
-        <p class="anki-mut" style="font-size:11px;">Urgence <b>calendaire</b> des W- uniquement (date limite). Les X- ne passent plus par I_R ni seuil d'urgence.</p>
         <div class="anki-set-row">
           <label>Max cartes rapides Y- en fin de session <code class="anki-mut">ankiMaxAnglaisFill</code></label>
           <input type="number" class="fi" min="0" max="30" value="${st.ankiMaxAnglaisFill != null ? st.ankiMaxAnglaisFill : 5}" onchange="window.D.settings.ankiMaxAnglaisFill=parseInt(this.value)||5;window.save();window.renderAnkiV2();">
@@ -2463,36 +2348,17 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   window.ankiV2RebuildPieces = function () {
     if (typeof window.refuseSecondaryFullMutation === 'function'
-        && window.refuseSecondaryFullMutation('Appareil secondaire : réinitialisation devoirs indisponible.')) {
+        && window.refuseSecondaryFullMutation('Appareil secondaire : nettoyage devoirs indisponible.')) {
       return;
     }
-    // v3.4+ : le système ne découpe PLUS en cartes séparées.
-    // Un DM est UN seul objet avec _morceauxTotal / _morceauxFaits.
-    // Cette fonction nettoie les anciens morceaux résiduels (éventuelles données d'avant v3.4)
-    // et réinitialise la progression de tous les devoirs actifs.
-    const exos = window.D.exercices || [];
-    const before = exos.length;
-    // Supprime les éventuels morceaux résiduels des versions précédentes
-    window.D.exercices = exos.filter(c => c.type !== 'devoir-morceau');
-    window.D.devoirs = (window.D.devoirs || []).filter(c => c.type !== 'devoir-morceau');
-    const removed = before - (window.D.exercices || []).length;
-    const today = window.AnkiAlgoV2.todayISO();
-    const devoirs = (window.D.devoirs || []).filter(c => c.statut === 'actif');
-    devoirs.forEach(parent => {
-      parent._morceauxFaits = 0;
-      parent.dateProchaineRevision = today;
-      if (!parent._morceauxTotal || parent._morceauxTotal < 1) parent._morceauxTotal = 1;
-      // Restaure le tempsCible depuis _dureeTotaleMin si disponible
-      if (parent._dureeTotaleMin) parent.tempsCible = parent._dureeTotaleMin * 60;
-      delete parent._morceauIndex;
-      delete parent._isMorceauParent;
+    // Compat : le découpage a été retiré — purge legacy uniquement.
+    if (typeof window.migrateDevoirsLegacy === 'function') window.migrateDevoirsLegacy();
+    Promise.resolve(window.save()).then(function () {
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Découpage retiré : les devoirs se gèrent dans l’onglet Agenda (liste simple).', 'Agenda');
+      }
+      if (typeof window.showTab === 'function') window.showTab('agenda');
     });
-    window.save();
-    window.sysAlert(
-      `${removed ? removed + ' ancien(s) morceau(x) résiduel(s) supprimé(s).<br>' : ''}${devoirs.length} devoir(s) réinitialisé(s) (progression remise à zéro, dû aujourd'hui).`,
-      "Réinitialisation devoirs"
-    );
-    window.renderAnkiV2();
   };
 
   function sessionRemainingCount() {
@@ -2590,12 +2456,15 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (S.queue && S.queue.length && !hasCurrent) return;
 
     if (!S.queue || !S.queue.length) {
-      S.queue = (sec.queueIds || []).map(id => rehydrateQueueCard(id)).filter(Boolean);
+      S.queue = (sec.queueIds || []).map(id => rehydrateQueueCard(id)).filter(Boolean)
+        .filter(c => !isDevoirCard(c));
       // Si tout a disparu (cartes supprimées), nettoyer la session zombie
       if (!S.queue.length && !rehydrateQueueCard(sec.currentId)) {
         delete window.D.sessionEnCoursV2;
         return;
       }
+    } else {
+      S.queue = S.queue.filter(c => c && !isDevoirCard(c));
     }
     S.stats        = Object.assign({ ok: 0, mid: 0, bad: 0, total: 0 }, sec.stats || {});
     S.mode         = sec.mode || "normal";
@@ -2610,9 +2479,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     if (hasCurrent) {
       const cur = rehydrateQueueCard(sec.currentId);
-      if (cur) {
+      if (cur && !isDevoirCard(cur)) {
         S.current = cur;
         S.queue = S.queue.filter(c => c.id !== cur.id);
+      } else if (cur && isDevoirCard(cur)) {
+        S.current = null;
       }
     }
     S.showAnswer = !!sec.showAnswer;
@@ -2717,7 +2588,14 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     }
     const c = rehydrateQueueCard(id) || ankFind(id);
     if (!c) return;
-    const parent = resolveDevoirRef(c) || c;
+    if (isDevoirCard(c)) {
+      if (typeof window.showTab === 'function') window.showTab('agenda');
+      else if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Les devoirs se gèrent dans l’onglet Agenda (plus dans le Synchrotron).', 'Agenda');
+      }
+      return;
+    }
+    const parent = c;
     if (parent.statut !== "actif") {
       parent.statut = "actif";
       if (!parent.dateProchaineRevision) parent.dateProchaineRevision = window.AnkiAlgoV2.todayISO();
@@ -2815,7 +2693,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     const advance = () => {
       S._evalBusy = false;
-      if (skipCurrent) S.queue.push(skipCurrent);
+      if (skipCurrent && !isDevoirCard(skipCurrent)) S.queue.push(skipCurrent);
+      // Purge éventuels devoirs legacy encore en file
+      S.queue = (S.queue || []).filter(c => c && !isDevoirCard(c));
       if (!S.queue.length) return endSession();
       S.current = S.queue.shift();
       applyNextCardState();
@@ -3079,11 +2959,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const hasReponse = c.reponse && c.reponse.trim().length;
     const showSlider = (window.D.settings && window.D.settings.ankiShowSlider !== false);
     const isDevoir = isDevoirCard(c);
-    const dmRef = isDevoir ? resolveDevoirRef(c) : c;
-    const sessionMin = isDevoir
-      ? Math.round(window.AnkiAlgoV2.cardDuration(c) / 60)
-      : ((c.tempsCible || 60) / 60);
-    const boutIdx = c._projSessionIdx || ((dmRef._morceauxFaits || 0) + 1);
 
     const isNewDeckCard = S._deckLastCardId !== c.id;
     S._deckLastCardId = c.id;
@@ -3100,26 +2975,14 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
             ${cardTypeBadge(c)}
             <span class="uid-badge">${c.id}</span>
             <span class="anki-tag" style="background:${m.color}20;color:${m.color};border:1px solid ${m.color};">${esc(m.label)}</span>
-            ${isDevoir ? `<span class="anki-tag" style="background:#b06af720;color:#b06af7;border:1px solid #b06af7;">${window.iconLabel('file-text', `DM bout ${boutIdx}/${dmRef._morceauxTotal || 1}`)}</span>` : `<span class="anki-tag">${stars(c)}</span>`}
+            <span class="anki-tag">${stars(c)}</span>
           </div>
           <div class="anki-sess-chrono-col">
             ${renderChronoBlock(false)}
             <p class="anki-chrono-hint anki-mut" id="ankiChronoHint">${S.chronoRunning ? "Chrono en cours" : "Lance le chrono quand tu es prêt(e)"}</p>
           </div>
         </div>
-        ${isDevoir ? `
-          <div class="anki-devoir-bandeau">
-            <div class="anki-mut" style="font-size:11px;">Temps prévu pour ce bout :</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
-              <div class="anki-session-min-wrap">
-                <span data-icon="timer" data-icon-size="14"></span>
-                <input type="number" class="fc-number" id="ankiDevoirTemps" min="1" max="240" step="5" value="${sessionMin}" aria-label="Durée du bout DM en minutes">
-                <span class="anki-mut">min</span>
-              </div>
-              <span class="anki-mut">Reste après : <b>${Math.max(0, (dmRef._morceauxTotal || 1) - (dmRef._morceauxFaits || 0) - 1)} bout(s)</b>${dmRef._tempsRestantMin != null ? ' · ~' + Math.max(0, dmRef._tempsRestantMin - sessionMin) + ' min' : ''}</span>
-            </div>
-          </div>
-        ` : `<div class="anki-sess-meta">${window.iconHtml('timer', 12)} Cible ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>`}
+        <div class="anki-sess-meta">${window.iconHtml('timer', 12)} Cible ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>
         ${showTitre ? `<div class="anki-sess-titre">${esc(c.titre)}</div>` : ''}
         <div class="anki-sess-q">${formatSessFace(c.question || '')}</div>
         ${renderSourcesBox(c, false)}
@@ -3142,14 +3005,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
               <span class="anki-mut anki-temps-hint">${fmtSec(S.chronoElapsed)}</span>
             </div>
           </div>
-          ${isDevoir ? `
-            <div class="anki-evals anki-evals-compact">
-              <button class="anki-eval bad" data-testid="eval-dm-bad" onclick="window.evalCardV2(2)" title="Pas avancé"><span class="eval-bad">${window.iconHtml('circle-x', 22, 'icon-lg')}</span><small>À refaire</small></button>
-              <button class="anki-eval mid" data-testid="eval-dm-mid" onclick="window.evalCardV2(6)" title="Partiel"><span class="eval-mid">${window.iconHtml('circle-minus', 22, 'icon-lg')}</span><small>Partiel</small></button>
-              <button class="anki-eval good" data-testid="eval-dm-good" onclick="window.evalCardV2(9)" title="Fait"><span class="eval-good">${window.iconHtml('check', 22, 'icon-lg')}</span><small>Fait</small></button>
-            </div>
-          ` : `
-            <div class="anki-evals anki-evals-compact">
+          <div class="anki-evals anki-evals-compact">
               <button class="anki-eval bad" data-testid="eval-bad" onclick="window.evalCardV2(2)"><span class="eval-bad">${window.iconHtml('circle-x', 22, 'icon-lg')}</span><small>Blocage</small></button>
               <button class="anki-eval mid" data-testid="eval-mid" onclick="window.evalCardV2(6)"><span class="eval-mid">${window.iconHtml('circle-minus', 22, 'icon-lg')}</span><small>Étourderie</small></button>
               <button class="anki-eval good" data-testid="eval-good" onclick="window.evalCardV2(9)"><span class="eval-good">${window.iconHtml('check', 22, 'icon-lg')}</span><small>Parfait</small></button>
@@ -3163,9 +3019,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
                 <button class="bp anki-slider-btn" data-testid="btn-eval-slider" onclick="window.evalCardV2(parseInt(document.getElementById('ankiSlider').value))">Valider</button>
               </div>
             ` : ''}
-          `}
           </div>
-        ` : `<button class="bp anki-reveal" data-testid="btn-reveal" onclick="window.revealAnkiV2()">${isDevoir ? "J'ai fini cette session" : (hasReponse ? 'Afficher la réponse' : "J'ai fini · m'auto-évaluer")}</button>`}
+        ` : `<button class="bp anki-reveal" data-testid="btn-reveal" onclick="window.revealAnkiV2()">${hasReponse ? 'Afficher la réponse' : "J'ai fini · m'auto-évaluer"}</button>`}
         <div class="anki-sess-foot">
           <span class="anki-mut anki-sess-foot-stats">Reste : ${S.queue.length} · ${sessStatsHtml(S.stats.ok, S.stats.mid, S.stats.bad)}</span>
           <div class="anki-sess-foot-actions">
@@ -3302,115 +3157,35 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     const isDevoir = isDevoirCard(S.current);
 
-    // v4: SNAPSHOT AVANT modification (pour Undo) — parent réel + bouts frères en file
-    const snapSource = isDevoir ? resolveDevoirRef(S.current) : S.current;
-    const siblingChunkIds = isDevoir && snapSource
-      ? S.queue.filter(x => x && (x._devoirChunkOf === snapSource.id || x.id === snapSource.id)).map(x => x.id)
-      : [];
+    // Les devoirs ne sont plus évalués dans le Synchrotron (onglet Agenda).
+    if (isDevoir) {
+      const dmId = (resolveDevoirRef(S.current) || S.current).id;
+      S.queue = (S.queue || []).filter(x => !(x && (x._devoirChunkOf === dmId || x.id === dmId || (x.id && String(x.id).indexOf(dmId + '#') === 0))));
+      S.current = null;
+      Promise.resolve(persistSession()).then(function () {
+        S._evalBusy = false;
+        nextCard(true);
+      }).catch(function () {
+        S._evalBusy = false;
+        nextCard(true);
+      });
+      return;
+    }
+
+    // v4: SNAPSHOT AVANT modification (pour Undo)
+    const snapSource = S.current;
     const snapshot = {
       card: cloneCard(snapSource),
-      chunkId: S.current && S.current._devoirChunkOf ? S.current.id : null,
-      siblingChunkIds,
+      chunkId: null,
+      siblingChunkIds: [],
       tps,
       qScore,
-      isDevoir,
-      statBucket: null,    // rempli ci-dessous
+      isDevoir: false,
+      statBucket: null,
       timestamp: new Date().toISOString()
     };
 
-    if (isDevoir) {
-      // DM : progression par bouts (_morceauxTotal / _morceauxFaits), sans ease/intervalle
-      const dmCard = resolveDevoirRef(S.current) || S.current;
-      const failDm = qScore <= 3;
-      const boutPrevSec = S.current.tempsCible || window.AnkiAlgoV2.cardDuration(dmCard);
-      // Temps consommé : manuel → chrono réel → bandeau prévu → durée théorique
-      // (évite de décompter le bandeau alors que le chrono dit autre chose)
-      const devoirTempsEl = document.getElementById('ankiDevoirTemps');
-      let usedMin;
-      if (inputManuel && inputManuel.value !== '' && !isNaN(parseFloat(inputManuel.value))) {
-        usedMin = Math.max(1, Math.round(parseFloat(inputManuel.value)));
-        tps = usedMin * 60;
-      } else if (tps > 0) {
-        usedMin = Math.max(1, Math.round(tps / 60));
-      } else if (devoirTempsEl && devoirTempsEl.value !== '' && !isNaN(parseFloat(devoirTempsEl.value))) {
-        usedMin = Math.max(1, Math.round(parseFloat(devoirTempsEl.value)));
-        tps = usedMin * 60;
-      } else {
-        usedMin = Math.max(1, Math.round(boutPrevSec / 60));
-        tps = usedMin * 60;
-      }
-      dmCard.historique = dmCard.historique || [];
-      dmCard.historique.push({
-        date: new Date().toISOString(),
-        qScore,
-        tempsReel: Math.round(tps),
-        pen: 1,
-        mode: S.mode,
-        type: failDm ? 'devoir-retry' : 'devoir-session',
-        chunkIdx: S.current._devoirChunkIdx
-      });
-      if (failDm) {
-        // « À refaire » : ne consomme pas de bout, revient aujourd'hui
-        dmCard.dateProchaineRevision = window.AnkiAlgoV2.todayISO();
-        window.AnkiAlgoV2.log("devoir-retry", {
-          id: dmCard.id,
-          morceaux: (dmCard._morceauxFaits || 0) + "/" + (dmCard._morceauxTotal || 1),
-          tempsReel: window.AnkiAlgoV2.fmtDur(tps)
-        });
-        window.sysAlert(
-          `${window.iconHtml('file-text', 14)} <b>${esc(dmCard.titre || dmCard.id)}</b><br>` +
-          `Bout à refaire — progression inchangée (${dmCard._morceauxFaits || 0}/${dmCard._morceauxTotal || 1}).<br>` +
-          `Prochaine tentative : <b>aujourd'hui</b>`,
-          "DM"
-        );
-      } else {
-        dmCard._morceauxFaits = (dmCard._morceauxFaits || 0) + 1;
-        const prevRest = dmCard._tempsRestantMin != null
-          ? dmCard._tempsRestantMin
-          : (dmCard._dureeTotaleMin != null ? dmCard._dureeTotaleMin : usedMin);
-        dmCard._tempsRestantMin = Math.max(0, prevRest - usedMin);
-        dmCard._dureeTotaleMin = dmCard._tempsRestantMin;
-        const restants = (dmCard._morceauxTotal || 1) - dmCard._morceauxFaits;
-        if (restants <= 0 || dmCard._tempsRestantMin <= 0) {
-          dmCard.statut = 'fini';
-          dmCard.dateProchaineRevision = null;
-          dmCard._tempsRestantMin = 0;
-          dmCard._dureeTotaleMin = 0;
-        } else {
-          dmCard.tempsCible = Math.max(60, Math.round((dmCard._tempsRestantMin / restants) * 60));
-          const moreTonight = S.queue.some(x =>
-            x && ((x._devoirChunkOf || x.id) === dmCard.id || x.id === dmCard.id)
-          );
-          dmCard.dateProchaineRevision = moreTonight
-            ? window.AnkiAlgoV2.todayISO()
-            : window.AnkiAlgoV2.addDays(window.AnkiAlgoV2.todayISO(), 1);
-        }
-        if (dmCard.statut === 'fini') {
-          S.queue = S.queue.filter(x => !(x && (x._devoirChunkOf === dmCard.id || x.id === dmCard.id)));
-        } else {
-          // Rafraîchir les bouts restants (temps/bout à jour, labels stables via index absolu)
-          S.queue = S.queue.map(x => {
-            if (!x || x._devoirChunkOf !== dmCard.id) return x;
-            return window.AnkiAlgoV2.makeDevoirChunk(dmCard, x._devoirChunkIdx);
-          });
-        }
-        window.AnkiAlgoV2.log("devoir-session", {
-          id: dmCard.id,
-          morceaux: dmCard._morceauxFaits + "/" + dmCard._morceauxTotal,
-          restantMin: dmCard._tempsRestantMin,
-          prochaine: dmCard.statut === 'fini' ? "TERMINÉ" : dmCard.dateProchaineRevision,
-          tempsReel: window.AnkiAlgoV2.fmtDur(tps)
-        });
-        const restAff = (dmCard._morceauxTotal || 1) - (dmCard._morceauxFaits || 0);
-        window.sysAlert(
-          `${window.iconHtml('file-text', 14)} <b>${esc(dmCard.titre || dmCard.id)}</b><br>` +
-          `Bout ${dmCard._morceauxFaits}/${dmCard._morceauxTotal} terminé` +
-          (dmCard._tempsRestantMin > 0 ? ` · reste ~${dmCard._tempsRestantMin} min` : '') +
-          `.<br>${restAff > 0 ? 'Suite : <b>' + esc(dmCard.dateProchaineRevision) + '</b> (ou ce soir si encore en file)' : window.iconLabel('check', '<b>DM TERMINÉ</b>')}`,
-          "DM"
-        );
-      }
-    } else {
+    {
       // Carte normale : update ease/intervalle/repetitions + flag blocage
       const easeAvant = S.current.ease || 2.5;
       const intAvant = S.current.intervalle || 0;
@@ -3420,11 +3195,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         S.current.ease = out.ease;
         S.current.repetitions = out.repetitions;
         S.current.dateProchaineRevision = out.dateProchaineRevision;
-        // v4: flags d'état pour l'ease aggressif + traçabilité I_R
         S.current._blocageActif    = out._blocageActif;
         S.current._blocageRevCount = out._blocageRevCount;
         S.current._lastReviewDate  = out._lastReviewDate;
-        // Toujours appliquer (y compris null après échec) — sinon d'anciennes fenêtres ★ bloquent la carte
         S.current._v2WindowOpen = (out._v2WindowOpen != null) ? out._v2WindowOpen : null;
         S.current._v2WindowClose = (out._v2WindowClose != null) ? out._v2WindowClose : null;
         if (out._v2Phase) S.current._v2Phase = out._v2Phase;
@@ -3439,7 +3212,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         next: out.dateProchaineRevision,
         blocage: out._blocageActif ? `actif(${out._blocageRevCount})` : 'levé'
       });
-      // Confirmation visible immédiate après chaque eval (mode single / quick)
       if (S.mode === 'single' || S.queue.length === 0) {
         const deltaEase = out.ease - easeAvant;
         const easeArrow = deltaEase > 0 ? '↑' : deltaEase < 0 ? '↓' : '=';
@@ -3602,26 +3374,20 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     showExoModal(preset);
   };
   window.ankiV2OpenDevoirModal = function (opts) {
-    if (typeof window.refuseSecondaryFullMutation === 'function'
-        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
-      return;
-    }
     opts = opts && typeof opts === 'object' ? opts : {};
-    ensure(); editingExoId = null;
-    const preset = { type: 'devoir', tempsCible: 30 * 60, profil: 'EXO', statut: 'actif' };
-    if (opts.mat) preset.mat = opts.mat;
-    if (opts.coursId) {
-      S.coursLinkSelection = new Set([opts.coursId]);
-      if (!preset.mat) {
-        const co = (window.D.cours || []).find(x => x.uid === opts.coursId);
-        if (co) preset.mat = co.mat;
+    const open = function () {
+      if (typeof window.showTab === 'function') {
+        try { window.showTab('agenda'); } catch (e) { /* ignore */ }
       }
+      if (typeof window.agendaOpenModal === 'function') {
+        window.agendaOpenModal(opts);
+      }
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('agenda').then(open).catch(open);
     } else {
-      S.coursLinkSelection = new Set();
+      open();
     }
-    S.coursLinkQuery = "";
-    const ovE = $("ovExo"); if (ovE) ovE.classList.add("hidden");
-    showDevoirModal(preset);
   };
   window.ankiV2EditExo = function (id) {
     if (typeof window.refuseSecondaryFullMutation === 'function'
@@ -3629,16 +3395,19 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       return;
     }
     const c = ankFind(id); if (!c) return;
+    if (isDevoirCard(c)) {
+      if (typeof window.agendaOpenModal === 'function') {
+        window.agendaOpenModal({ id: c.id });
+      } else if (typeof window.ankiV2OpenDevoirModal === 'function') {
+        window.ankiV2OpenDevoirModal({ id: c.id });
+      }
+      return;
+    }
     editingExoId = id;
     S.coursLinkSelection = new Set(c.coursIds || (c.coursId ? [c.coursId] : []));
     S.coursLinkQuery = "";
-    if (isDevoirCard(c)) {
-      const ovE = $("ovExo"); if (ovE) ovE.classList.add("hidden");
-      showDevoirModal(c);
-    } else {
-      const ovD = $("ovDevoir"); if (ovD) ovD.classList.add("hidden");
-      showExoModal(c);
-    }
+    const ovD = $("ovDevoir"); if (ovD) ovD.classList.add("hidden");
+    showExoModal(c);
   };
   window.ankiV2DelExo = function (id) {
     if (typeof window.refuseSecondaryFullMutation === 'function'
@@ -3861,385 +3630,24 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     bindAutoGrowTextareas(ov);
   }
 
+  /** Ancien modal découpe — redirige vers l’onglet Agenda. */
   function showDevoirModal(c) {
-    ensure();
-    if (!window.D) return window.sysAlert((window.APP_MSG && window.APP_MSG.DATA_NOT_READY) || "Données non chargées — réessaie dans un instant.", (window.APP_MSG && window.APP_MSG.ERROR) || "Erreur");
-    let ov = $("ovDevoir");
-    if (!ov) { ov = document.createElement("div"); ov.id = "ovDevoir"; ov.className = "ov anki-ov-devoir"; document.body.appendChild(ov); }
-    ov.classList.remove("hidden");
-    const matieres = window.D.matieres || [];
-    const defaultMat = c.mat || (matieres[0] && matieres[0].id) || '';
-    const matOpts = (matieres.length
-      ? '<option value="">— Choisir —</option>'
-      : '<option value="">— Aucune matière — crée-en une dans Matières —</option>')
-      + matieres.map(m => `<option value="${m.id}" ${m.id === defaultMat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
-    const morceauxFaits = c._morceauxFaits || 0;
-    const imp0 = cardImportance(c);
-    const propose0 = window.AnkiAlgoV2.proposerTempsDevoir({
-      dateLimite: c.dateLimite || '',
-      importance: imp0,
-      tempsRestantConnu: c._tempsRestantMin != null ? c._tempsRestantMin : (c._dureeTotaleMin != null ? c._dureeTotaleMin : null)
-    });
-    const restant0 = c._tempsRestantMin != null ? c._tempsRestantMin : propose0;
-    const sessionMin0 = c._sessionMinMin != null ? c._sessionMinMin : 25;
-
-    ov.innerHTML = `
-      <div class="modal anki-modal-devoir card-type-surface card-type-devoir">
-        <h2>${editingExoId ? window.iconLabel('pencil', 'Modifier') : window.iconLabel('file-text', 'Nouveau')} ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('devoir') : ''} <span class="anki-mut" style="font-size:13px;font-weight:normal;">Devoir</span></h2>
-        <div class="modal-body-scroll">
-        <div class="anki-devoir-hero">
-          ${window.iconLabel('calendar', '<b>Devoir à rendre</b> — l\'algo propose un temps, tu indiques le restant et la durée mini d\'un bout ; la découpe et l\'intercalage en session se font tout seuls.')}
-        </div>
-        <div id="devoirFormError" class="anki-form-error" role="alert"></div>
-        ${!matieres.length ? `<div class="anki-form-error visible">Aucune matière disponible. Va dans l'onglet <b>Matières</b> pour en créer une avant d'ajouter un devoir.</div>` : ''}
-
-        <div class="fg">
-          <label>Titre du devoir *</label>
-          <input type="text" id="devoirTitre" placeholder="Ex: DM Mécanique n°3, Colle Analyse…" value="${esc(c.titre || '')}">
-        </div>
-
-        <div class="anki-modal-row">
-          <div class="fg"><label>Matière *</label><select id="devoirMat">${matOpts}</select></div>
-          <div class="fg"><label>Date limite *</label><input type="date" id="devoirDateLim" required min="${window.AnkiAlgoV2.todayISO()}" value="${esc(c.dateLimite || '')}"></div>
-        </div>
-
-        <div class="fg fg-importance">
-          <label>Importance</label>
-          <div class="anki-importance-encart">
-            ${window.starPickerHtml('devoirImportance', imp0)}
-          </div>
-        </div>
-
-        <div class="anki-devoir-plan">
-          <div class="anki-devoir-propose">
-            <div class="anki-devoir-propose-lbl">Temps proposé</div>
-            <div class="anki-devoir-propose-val"><span id="devoirTempsPropose">${propose0}</span> <span class="anki-mut">min</span></div>
-            <button type="button" class="bs anki-devoir-propose-btn" id="devoirUsePropose">Utiliser</button>
-          </div>
-          <div class="anki-modal-row">
-            <div class="fg"><label>Temps restant (selon toi) *</label>
-              <input type="number" id="devoirTempsRestant" min="5" max="600" step="5" value="${restant0}">
-              <p class="anki-mut" style="font-size:11px;margin-top:4px;">Ce qu'il te reste vraiment à faire.</p>
-            </div>
-            <div class="fg"><label>Session au moins (min) *</label>
-              <input type="number" id="devoirSessionMin" min="5" max="180" step="5" value="${sessionMin0}">
-              <p class="anki-mut" style="font-size:11px;margin-top:4px;">Taille mini d'un bout de travail.</p>
-            </div>
-          </div>
-          <div class="anki-devoir-plan-preview" id="devoirPlanPreview"></div>
-          ${morceauxFaits > 0 ? `<p class="anki-mut" style="font-size:11px;margin:6px 0 0;">${morceauxFaits} bout(s) déjà fait(s) — la découpe ne concerne que le restant.</p>` : ''}
-        </div>
-
-        <div class="fg">
-          <label>Consignes / objectif *</label>
-          <textarea id="devoirQ" rows="4" placeholder="Quoi faire, quelles questions, contraintes…">${esc(c.question || '')}</textarea>
-        </div>
-
-        ${renderSrcGuidanceBlock(c, 'devoir', window.iconLabel('book-open', '<b>Où est le sujet ?</b> <span class="anki-mut" style="font-weight:normal;">(souvent sur papier pour un DM)</span>'))}
-
-        <div class="fg">
-          <label>Cours liés (optionnel)</label>
-          ${searchField('Titre, matière, classeur, code...', `id="devoirCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value,'devoir')"`)}
-          <div id="devoirCoursSelected" class="anki-link-selected"></div>
-          <div id="devoirCoursResults" class="anki-link-results"></div>
-        </div>
-
-        ${editingExoId ? `<div class="fg"><label>Identifiant W-</label><div class="uidbox">${c.id}</div></div>` : ''}
-        </div>
-
-        <div class="macts">
-          ${typeof window.uiModalActions === 'function'
-            ? window.uiModalActions({ overlayId: 'ovDevoir', saveClick: 'window.ankiV2SaveDevoir()', saveLabel: 'Enregistrer le devoir', saveColor: 'red' })
-            : '<button type="button" class="bs" onclick="window.hideOverlay(\'ovDevoir\')">Annuler</button><button type="button" class="bp" style="background:var(--red);border-color:var(--red);" onclick="window.ankiV2SaveDevoir()">Enregistrer le devoir</button>'}
-        </div>
-      </div>
-    `;
-
-    function refreshDevoirProposeAndPlan() {
-      const dateLim = fieldVal('devoirDateLim');
-      const imp = window.getStarPickerValue('devoirImportance') || imp0;
-      const propose = window.AnkiAlgoV2.proposerTempsDevoir({ dateLimite: dateLim, importance: imp });
-      const proposeEl = $("devoirTempsPropose");
-      if (proposeEl) proposeEl.textContent = String(propose);
-      updateDevoirPlanPreview();
-    }
-    function updateDevoirPlanPreview() {
-      const preview = $("devoirPlanPreview");
-      if (!preview) return;
-      const restant = parseFloat(fieldVal('devoirTempsRestant')) || 30;
-      const sessMin = parseFloat(fieldVal('devoirSessionMin')) || 25;
-      const dateLim = fieldVal('devoirDateLim');
-      const plan = window.AnkiAlgoV2.planifierDecoupeDevoir(restant, sessMin, dateLim);
-      const faitsNote = morceauxFaits > 0 ? ` · + ${morceauxFaits} déjà fait(s)` : '';
-      preview.innerHTML =
-        `<b>Découpe auto</b> : <b>${plan.morceauxTotal}</b> bout${plan.morceauxTotal > 1 ? 's' : ''} · ~<b>${plan.tempsParBoutMin}</b> min chacun` +
-        (plan.joursRestants != null && plan.joursRestants >= 0
-          ? ` · ≈ <b>${plan.boutsParJourEstime}</b>/jour jusqu'à la limite`
-          : '') +
-        `${faitsNote}<br><span class="anki-mut">Les bouts seront intercalés dans tes sessions là où le budget le permet.</span>`;
-    }
-
-    const restantEl = $("devoirTempsRestant");
-    const sessEl = $("devoirSessionMin");
-    const dateEl = $("devoirDateLim");
-    const useBtn = $("devoirUsePropose");
-    if (restantEl) restantEl.addEventListener('input', updateDevoirPlanPreview);
-    if (sessEl) sessEl.addEventListener('input', updateDevoirPlanPreview);
-    if (dateEl) dateEl.addEventListener('change', refreshDevoirProposeAndPlan);
-    if (useBtn) useBtn.addEventListener('click', () => {
-      const proposeEl = $("devoirTempsPropose");
-      const v = proposeEl ? parseInt(proposeEl.textContent, 10) : propose0;
-      if (restantEl) restantEl.value = String(v);
-      updateDevoirPlanPreview();
-    });
-    // Importance : recalculer la proposition quand les étoiles changent
-    ov.addEventListener('click', (e) => {
-      if (e.target && e.target.closest && e.target.closest('#devoirImportance .anki-star-btn')) {
-        setTimeout(refreshDevoirProposeAndPlan, 0);
-      }
-    });
-    updateDevoirPlanPreview();
-    renderCoursLinkUI('devoir');
-    window.hydrateIcons(ov);
-    bindAutoGrowTextareas(ov);
+    var opts = (c && c.id) ? { id: c.id } : {};
+    if (c && c.mat && !opts.id) opts.mat = c.mat;
+    window.ankiV2OpenDevoirModal(opts);
   }
 
-  function coursLinkPrefix(kind) {
-    if (kind === 'devoir') return 'devoir';
-    if (kind === 'quick') return 'quick';
-    return 'exo';
+  function applyDevoirDecoupe() {
+    return null;
   }
-  function renderCoursLinkUI(kind) {
-    const prefix = coursLinkPrefix(kind || S._coursLinkKind || 'exo');
-    S._coursLinkKind = prefix;
-    const sel = $(prefix + "CoursSelected"), res = $(prefix + "CoursResults");
-    if (!sel || !res) return;
-    sel.innerHTML = Array.from(S.coursLinkSelection).map(uid => {
-      const co = (window.D.cours || []).find(x => x.uid === uid);
-      if (!co) return `<span class="anki-link-chip" onclick="window.ankiV2CoursLinkToggle('${uid}','${prefix}')">${uid} ${window.iconHtml('x', 12)}</span>`;
-      const m = mat(co.mat);
-      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${uid}','${prefix}')">${co.uid} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
-    }).join('') || '<span class="anki-mut" style="font-size:11px;">Aucun cours lié.</span>';
-
-    const q = (S.coursLinkQuery || '').toLowerCase().trim();
-    if (!q) { res.innerHTML = ''; return; }
-    const list = (window.D.cours || []).filter(c => {
-      if (S.coursLinkSelection.has(c.uid)) return false;
-      const matObj = mat(c.mat);
-      const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
-      return ((c.uid || '') + ' ' + (c.title || '') + ' ' + (matObj.name || '') + ' ' + (matObj.label || '') + ' ' + (cl.name || '')).toLowerCase().includes(q);
-    }).slice(0, 12);
-    if (!list.length) { res.innerHTML = '<div class="anki-mut" style="padding:8px;font-size:12px;">Aucun cours trouvé.</div>'; return; }
-    res.innerHTML = list.map(c => {
-      const m = mat(c.mat);
-      const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
-      return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${c.uid}','${prefix}')">
-        <span class="anki-link-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
-        <span class="anki-link-id">${esc(c.uid)}</span>
-        <span class="anki-link-title">${esc(c.title)}</span>
-        <span class="anki-mut">${esc(cl.name || '')}</span>
-      </div>`;
-    }).join('');
-  }
-  window.ankiV2CoursLinkSearch = function (v, kind) { S.coursLinkQuery = v; renderCoursLinkUI(kind); };
-  window.ankiV2CoursLinkToggle = function (uid, kind) {
-    if (S.coursLinkSelection.has(uid)) S.coursLinkSelection.delete(uid);
-    else S.coursLinkSelection.add(uid);
-    renderCoursLinkUI(kind);
-  };
-
-  /** Applique la découpe auto (temps restant + session min → bouts). */
-  function applyDevoirDecoupe(card, tempsRestantMin, sessionMinMin, tempsProposeMin, dateLimite) {
-    const plan = window.AnkiAlgoV2.planifierDecoupeDevoir(tempsRestantMin, sessionMinMin, dateLimite);
-    window.AnkiAlgoV2.applyDecoupeDevoir(card, plan, { tempsProposeMin: tempsProposeMin != null ? tempsProposeMin : plan.tempsRestantMin });
-    return plan;
-  }
-
-  window.ankiV2SaveExo = function () {
-    if (typeof window.refuseSecondaryFullMutation === 'function'
-        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
-      return;
-    }
-    showFormError('exoFormError', '');
-    const titre = fieldVal('exoTitre');
-    const q = fieldVal('exoQ');
-    const r = fieldVal('exoR');
-    const matV = fieldVal('exoMat');
-    const profil = fieldVal('exoProf') || 'COURS';
-    const tempsMin = readDurationFromPicker('exoTimeH', 'exoTimeM', null, null, 5, 600);
-    const temps = Math.round(tempsMin * 60);
-    const importance = window.getStarPickerValue('exoImportance');
-    const stat = fieldVal('exoStat') || "reservoir";
-    const coursIds = Array.from(S.coursLinkSelection);
-
-    function readSrc(prefix) {
-      const type = fieldVal('exoSrc' + prefix + 'Type');
-      const nom  = fieldVal('exoSrc' + prefix + 'Nom');
-      const det  = fieldVal('exoSrc' + prefix + 'Det');
-      if (!type && !nom && !det) return null;
-      return { type: type || 'livre', nom, details: det };
-    }
-    const sourceEnonce     = readSrc('Enonce');
-    const sourceCorrection = readSrc('Cor');
-
-    if (!titre || !matV) {
-      showFormError('exoFormError', 'Titre et matière sont obligatoires.');
-      return;
-    }
-
-    if (editingExoId) {
-      const c = ankFind(editingExoId); if (!c || isDevoirCard(c)) return;
-      Object.assign(c, { titre, question: q, reponse: r, mat: matV, profil, tempsCible: temps, importance, statut: stat, coursIds });
-      delete c.priorite;
-      if (sourceEnonce)     c.sourceEnonce     = sourceEnonce;     else delete c.sourceEnonce;
-      if (sourceCorrection) c.sourceCorrection = sourceCorrection; else delete c.sourceCorrection;
-      delete c.type;
-      delete c.dateLimite;
-      delete c._morceauxTotal;
-      delete c._morceauxFaits;
-      delete c._dureeTotaleMin;
-      delete c.coursId;
-      if (stat === 'actif' && !c.dateProchaineRevision) c.dateProchaineRevision = window.AnkiAlgoV2.todayISO();
-    } else {
-      const existing = ankExistingIds();
-      const newId = window.AnkiAlgoV2.genExoUid('X', existing);
-      const card = {
-        id: newId, titre, question: q, reponse: r, mat: matV, profil, tempsCible: temps,
-        importance, statut: stat, coursIds, intervalle: 0,
-        ease: window.AnkiAlgoV2.getProfile(profil).ease,
-        repetitions: 0, dateProchaineRevision: stat === 'actif' ? window.AnkiAlgoV2.todayISO() : null,
-        historique: [], epinglee: false, dateCreation: new Date().toISOString()
-      };
-      if (sourceEnonce)     card.sourceEnonce     = sourceEnonce;
-      if (sourceCorrection) card.sourceCorrection = sourceCorrection;
-      window.D.exercices.unshift(card);
-    }
-    Promise.resolve(window.save()).then(function () {
-      const ov = $("ovExo"); if (ov) ov.classList.add("hidden");
-      window.renderAnkiV2();
-    }).catch(function () {
-      showFormError('exoFormError', 'Enregistrement impossible — la carte n’a pas été sauvegardée.');
-    });
-  };
 
   window.ankiV2SaveDevoir = function () {
-    if (typeof window.refuseSecondaryFullMutation === 'function'
-        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
-      return;
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Utilise l’onglet Agenda pour enregistrer un devoir.', 'Agenda');
     }
-    try {
-      ensure();
-      if (!window.D) {
-        window.sysAlert((window.APP_MSG && window.APP_MSG.DATA_NOT_READY) || "Données non chargées — réessaie dans un instant.", (window.APP_MSG && window.APP_MSG.ERROR) || "Erreur");
-        return;
-      }
-      showFormError('devoirFormError', '');
-
-      const titre = fieldVal('devoirTitre');
-      let q = fieldVal('devoirQ');
-      let matV = fieldVal('devoirMat');
-      const tempsRestant = parseFloat(fieldVal('devoirTempsRestant')) || 30;
-      const sessionMin = parseFloat(fieldVal('devoirSessionMin')) || 25;
-      const tempsPropose = parseInt(($("devoirTempsPropose") && $("devoirTempsPropose").textContent) || tempsRestant, 10) || tempsRestant;
-      const importance = window.getStarPickerValue('devoirImportance');
-      const dateLim = fieldVal('devoirDateLim');
-      const coursIds = Array.from(S.coursLinkSelection);
-
-      if (!matV && (window.D.matieres || []).length === 1) matV = window.D.matieres[0].id;
-      if (!q && titre) q = titre;
-
-      function readDevoirSrc(prefix) {
-        const type = fieldVal('devoirSrc' + prefix + 'Type');
-        const nom  = fieldVal('devoirSrc' + prefix + 'Nom');
-        const det  = fieldVal('devoirSrc' + prefix + 'Det');
-        if (!type && !nom && !det) return null;
-        return { type: type || 'livre', nom, details: det };
-      }
-      const sourceEnonce     = readDevoirSrc('Enonce');
-      const sourceCorrection = readDevoirSrc('Cor');
-
-      if (!(window.D.matieres || []).length) {
-        showFormError('devoirFormError', 'Crée d\'abord une matière (onglet Matières), puis réouvre ce formulaire.');
-        return;
-      }
-      if (!matV) {
-        showFormError('devoirFormError', 'Choisis une matière dans la liste.');
-        return;
-      }
-      if (!q) {
-        showFormError('devoirFormError', 'Remplis les consignes (ou au minimum le titre du devoir).');
-        return;
-      }
-    if (!dateLim) {
-      showFormError('devoirFormError', 'Indique une date limite pour planifier le devoir dans l\'Agenda.');
-      return;
-    }
-    if (dateLim < window.AnkiAlgoV2.todayISO()) {
-      showFormError('devoirFormError', 'La date limite ne peut pas être dans le passé.');
-      return;
-    }
-    if (tempsRestant < 5) {
-      showFormError('devoirFormError', 'Indique un temps restant d\'au moins 5 minutes.');
-      return;
-    }
-    if (sessionMin < 5) {
-      showFormError('devoirFormError', 'La session minimale doit faire au moins 5 minutes.');
-      return;
-    }
-
-      const profil = 'EXO';
-      const stat = 'actif';
-      const today = window.AnkiAlgoV2.todayISO();
-      let planInfo = null;
-
-      if (editingExoId) {
-        const c = ankFind(editingExoId); if (!c) return;
-        window.D.exercices = (window.D.exercices || []).filter(x => x.id !== editingExoId);
-        Object.assign(c, {
-          titre, question: q, mat: matV, profil, importance, statut: stat, coursIds,
-          type: 'devoir', dateLimite: dateLim
-        });
-        delete c.priorite;
-        delete c.reponse;
-        if (sourceEnonce)     c.sourceEnonce     = sourceEnonce;     else delete c.sourceEnonce;
-        if (sourceCorrection) c.sourceCorrection = sourceCorrection; else delete c.sourceCorrection;
-        planInfo = applyDevoirDecoupe(c, tempsRestant, sessionMin, tempsPropose, dateLim);
-        delete c.coursId;
-        if (!c.dateProchaineRevision) c.dateProchaineRevision = today;
-        if (!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
-        if (!(window.D.devoirs || []).some(x => x.id === c.id)) window.D.devoirs.unshift(c);
-      } else {
-        if (!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
-        const existing = ankExistingIds();
-        const newId = window.AnkiAlgoV2.genExoUid('W', existing);
-        const card = {
-          id: newId, titre, question: q, mat: matV, profil, importance, statut: stat, coursIds,
-          type: 'devoir', dateLimite: dateLim, intervalle: 0,
-          ease: window.AnkiAlgoV2.getProfile(profil).ease,
-          repetitions: 0, dateProchaineRevision: today,
-          historique: [], epinglee: false, dateCreation: new Date().toISOString()
-        };
-        if (sourceEnonce)     card.sourceEnonce     = sourceEnonce;
-        if (sourceCorrection) card.sourceCorrection = sourceCorrection;
-        planInfo = applyDevoirDecoupe(card, tempsRestant, sessionMin, tempsPropose, dateLim);
-        window.D.devoirs.unshift(card);
-      }
-      Promise.resolve(window.save()).then(function () {
-        editingExoId = null;
-        const ov = $("ovDevoir"); if (ov) ov.classList.add("hidden");
-        S.view = 'agenda';
-        window.renderAnkiV2();
-        const planTxt = planInfo
-          ? `<br>${planInfo.morceauxTotal} bout${planInfo.morceauxTotal > 1 ? 's' : ''} · ~${planInfo.tempsParBoutMin} min · intercalés en session`
-          : '';
-        window.sysAlert(`${window.iconLabel('check', 'Devoir enregistré')}<br><b>${esc(titre || q)}</b> — visible dans l'Agenda.${planTxt}`, "Devoir W-");
-      }).catch(function () {
-        showFormError('devoirFormError', 'Enregistrement impossible — le devoir n’a pas été sauvegardé.');
-      });
-    } catch (e) {
-      console.error('saveDevoir', e);
-      showFormError('devoirFormError', 'Erreur à l\'enregistrement : ' + (e.message || e));
-    }
+    var ov = document.getElementById('ovDevoir');
+    if (ov) ov.classList.add('hidden');
+    if (typeof window.showTab === 'function') window.showTab('agenda');
   };
 
   window.ankiV2PlayChapter = function (coursId) {

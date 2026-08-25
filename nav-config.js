@@ -9,12 +9,15 @@ window.APP_TAB_REGISTRY = {
   cours:       { pane: 'paneCours',       label: 'Base Doc',     icon: 'clipboard-list', needsData: true,  onShow: 'cours' },
   notes:       { pane: 'paneNotes',       label: 'Notes',         icon: 'trending-up',    needsData: true,  onShow: 'notes' },
   flashcards:  { pane: 'paneFlashcards',  label: 'Rapide',        icon: 'zap',            needsData: true,  onShow: 'flashcards' },
+  agenda:      { pane: 'paneAgenda',      label: 'Agenda',        icon: 'clipboard-list', needsData: true,  onShow: 'agenda' },
   anki:        { label: 'Synchrotron v1', nav: false, archived: true, archivedRedirect: 'ankiV2' },
   ankiV2:      { pane: 'paneAnkiV2',      label: 'Synchrotron',   icon: 'dna',            needsData: true,  onShow: 'ankiV2',      className: 'tab-anki' },
   ankiViz:     { label: 'Carte mentale v1', nav: false, archived: true, archivedRedirect: 'ankiVizV2' },
   ankiCompare: { label: 'v1 vs V2',      nav: false, archived: true, archivedRedirect: 'ankiV2' },
   ankiVizV2:   { pane: 'paneAnkiVizV2',   label: 'Carte mentale', icon: 'map',            needsData: true,  onShow: 'ankiVizV2',    className: 'tab-viz' },
+  programme:     { pane: 'paneProgramme', label: 'Programme', icon: 'book-open', needsData: true, onShow: 'programme' },
   print:       { pane: 'panePrint',       label: 'Impression',    icon: 'printer',        needsData: true,  onShow: 'print' },
+  programmeSearchTest: { pane: 'paneProgrammeSearchTest', label: 'Recherche Programme', icon: 'search', needsData: true, onShow: 'programmeSearchTest', className: 'tab-prog-search' },
   classeurs:   { pane: 'paneClasseurs',   label: 'Classeurs',     icon: 'folders',        needsData: true,  onShow: 'classeurs' },
   matieres:    { pane: 'paneMatieres',    label: 'Matières',      icon: 'tag',            needsData: true,  onShow: 'matieres' },
   orphelins:   { pane: 'paneOrphelins',   label: 'À ranger',      icon: 'inbox',          needsData: true,  onShow: 'orphelins' },
@@ -29,7 +32,7 @@ window.APP_TAB_REGISTRY = {
 window.APP_NAV_GROUPS = [
   {
     label: 'Navigation',
-    tabs: ['home', 'cours', 'notes', 'flashcards']
+    tabs: ['home', 'cours', 'notes', 'flashcards', 'agenda']
   },
   {
     id: 'Sync',
@@ -39,12 +42,12 @@ window.APP_NAV_GROUPS = [
   },
   {
     label: 'Organisation',
-    tabs: ['print', 'classeurs', 'matieres', 'orphelins']
+    tabs: ['print', 'classeurs', 'matieres', 'programme', 'orphelins']
   },
   {
     label: 'Système',
     className: 'nav-group-tools',
-    tabs: ['logs', 'test', 'latexTest']
+    tabs: ['logs', 'test', 'latexTest', 'programmeSearchTest']
   }
 ];
 
