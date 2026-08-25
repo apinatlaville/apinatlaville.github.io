@@ -1,17 +1,14 @@
 /**
- * programme-search-test.js — Labo UX : 4 variantes de navigation Programme / Base Doc
+ * programme-search-test.js — Navigation Programme par Fil d’Ariane
+ * Accueil → Matière → Année → Chapitres (ordre manuel respecté)
  */
 (function () {
   'use strict';
 
   var _crumbMat = '';
   var _crumbAnnee = '';
-  var _colMat = '';
-  var _colAnnee = '';
-  var _fltMat = '';
-  var _fltAnnee = '';
-  var _fltText = '';
-  var _treeOpen = {};
+  var _query = '';
+  var _orphansOpen = false;
 
   function $(id) { return document.getElementById(id); }
 
@@ -23,220 +20,255 @@
       });
   }
 
+  function jsStr(s) {
+    return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
   function matObj(id) {
     return (window.D && window.D.matieres || []).find(function (m) { return m.id === id; })
       || { name: id || '?', color: '#666' };
   }
 
-  function chapitreRows(list) {
-    if (!list.length) return '<div class="prog-lab-empty">Aucun chapitre</div>';
-    return list.map(function (ch) {
-      return (
-        '<div class="prog-lab-item">' +
-          (typeof window.formatChapitreLabel === 'function'
-            ? window.formatChapitreLabel(ch, true)
-            : esc(ch.title)) +
-          ' <span class="prog-lab-id mono">' + esc(ch.id) + '</span>' +
-        '</div>'
-      );
-    }).join('');
+  function clObj(id) {
+    return (window.D && window.D.classeurs || []).find(function (c) { return c.id === id; })
+      || { name: id || '?' };
   }
 
-  function orphanBlock() {
-    var docs = typeof window.getUnattachedCoursDocs === 'function'
-      ? window.getUnattachedCoursDocs()
-      : (window.D.cours || []);
-    var rows = docs.slice(0, 12).map(function (c) {
-      return '<div class="prog-lab-item prog-lab-orphan">' +
-        esc(c.uid) + ' · ' + esc(c.title || '') +
-        '</div>';
-    }).join('');
-    var more = docs.length > 12 ? '<div class="prog-lab-more">+' + (docs.length - 12) + ' autres…</div>' : '';
+  function interLabel(clId, inter) {
+    if (typeof window.formatInterLabel === 'function') {
+      return window.formatInterLabel(clId, inter);
+    }
+    var cl = clObj(clId);
+    var ns = String(inter || '').padStart(2, '0');
+    var n = cl.interNames && cl.interNames[ns];
+    return n ? (ns + ' — ' + n) : ns;
+  }
+
+  function userMatieres() {
+    return (window.D.matieres || []).filter(function (m) {
+      return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
+    });
+  }
+
+  function countChapitres(mat, annee) {
+    if (typeof window.listChapitres !== 'function') return 0;
+    return window.listChapitres({
+      mat: mat || undefined,
+      annee: annee != null && annee !== '' ? annee : undefined
+    }).length;
+  }
+
+  function anneeLabel(a) {
+    var n = parseInt(a, 10);
+    return n + (n === 1 ? 'ère' : 'ème') + ' année';
+  }
+
+  function renderBreadcrumb() {
+    var chevron = window.iconHtml ? window.iconHtml('chevron-right', 14) : '›';
+    var parts = [];
+
+    parts.push(
+      '<button type="button" class="prog-bc-crumb' + (!_crumbMat ? ' is-current' : '') +
+        '" onclick="window.progSearchBcReset()">' +
+        (window.iconHtml ? window.iconHtml('home', 14) : '') +
+        ' Programme' +
+      '</button>'
+    );
+
+    if (_crumbMat) {
+      parts.push('<span class="prog-bc-sep" aria-hidden="true">' + chevron + '</span>');
+      parts.push(
+        '<button type="button" class="prog-bc-crumb' + (!_crumbAnnee ? ' is-current' : '') +
+          '" onclick="window.progSearchBcMat(\'' + jsStr(_crumbMat) + '\')">' +
+          esc(matObj(_crumbMat).name) +
+        '</button>'
+      );
+    }
+
+    if (_crumbAnnee) {
+      parts.push('<span class="prog-bc-sep" aria-hidden="true">' + chevron + '</span>');
+      parts.push('<span class="prog-bc-crumb is-current">' + esc(anneeLabel(_crumbAnnee)) + '</span>');
+    }
+
+    return '<nav class="prog-bc-bar" aria-label="Fil d’Ariane">' + parts.join('') + '</nav>';
+  }
+
+  function renderMatGrid() {
+    var mats = userMatieres();
+    if (!mats.length) {
+      return '<div class="prog-bc-empty">Aucune matière. Créez-en dans Organisation → Matières.</div>';
+    }
     return (
-      '<div class="prog-lab-bucket">' +
-        '<h4>Non rattachés (Base Doc)</h4>' +
-        '<p class="anki-mut">' + docs.length + ' document(s) sans chapitreId</p>' +
-        rows + more +
+      '<div class="prog-bc-level-head">' +
+        '<h3 class="prog-bc-level-title">Choisir une matière</h3>' +
+        '<p class="prog-bc-level-sub anki-mut">Puis l’année, puis les chapitres.</p>' +
+      '</div>' +
+      '<div class="prog-bc-grid">' +
+        mats.map(function (m) {
+          var n = countChapitres(m.id);
+          return (
+            '<button type="button" class="prog-bc-tile" style="--mat-color:' + esc(m.color) + '" ' +
+              'onclick="window.progSearchBcMat(\'' + jsStr(m.id) + '\')">' +
+              '<span class="prog-bc-tile-name">' + esc(m.name) + '</span>' +
+              '<span class="prog-bc-tile-meta">' + n + ' chapitre' + (n === 1 ? '' : 's') + '</span>' +
+            '</button>'
+          );
+        }).join('') +
       '</div>'
     );
   }
 
-  function renderTree() {
-    var groups = typeof window.listChapitresGrouped === 'function'
-      ? window.listChapitresGrouped()
-      : [];
-    var html = '<div class="prog-lab-tree">';
-    groups.forEach(function (g, gi) {
-      var key = g.mat + '|' + g.annee;
-      var open = _treeOpen[key] !== false;
-      html += '<div class="prog-lab-tree-mat">' +
-        '<button type="button" class="prog-lab-tree-toggle" onclick="window.progSearchToggleTree(\'' +
-        esc(g.mat).replace(/'/g, "\\'") + '\',' + g.annee + ')">' +
-        (open ? '▾' : '▸') + ' ' + esc(g.matName) + ' · ' + g.annee + (g.annee === 1 ? 'ère' : 'ème') +
-        '</button>';
-      if (open) {
-        html += '<div class="prog-lab-tree-children">' + chapitreRows(g.items) + '</div>';
-      }
-      html += '</div>';
-    });
-    if (!groups.length) html += '<div class="prog-lab-empty">Aucune donnée</div>';
-    html += '</div>' + orphanBlock();
-    return html;
-  }
-
-  function renderBreadcrumb() {
-    var mats = (window.D.matieres || []).filter(function (m) {
-      return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
-    });
-    var bc = '<div class="prog-lab-bc">';
-    bc += '<button type="button" class="prog-lab-bc-link' + (!_crumbMat ? ' on' : '') +
-      '" onclick="window.progSearchBcReset()">Accueil</button>';
-    if (_crumbMat) {
-      bc += ' › <button type="button" class="prog-lab-bc-link' + (!_crumbAnnee ? ' on' : '') +
-        '" onclick="window.progSearchBcMat(\'' + esc(_crumbMat) + '\')">' +
-        esc(matObj(_crumbMat).name) + '</button>';
-    }
-    if (_crumbAnnee) {
-      bc += ' › <span class="prog-lab-bc-cur">' + _crumbAnnee + (parseInt(_crumbAnnee, 10) === 1 ? 'ère' : 'ème') + ' année</span>';
-    }
-    bc += '</div>';
-
-    var body = '';
-    if (!_crumbMat) {
-      body = '<div class="prog-lab-grid">' +
-        mats.map(function (m) {
-          return '<button type="button" class="bs prog-lab-tile" onclick="window.progSearchBcMat(\'' + esc(m.id) + '\')">' +
-            esc(m.name) + '</button>';
-        }).join('') +
-        '</div>';
-    } else if (!_crumbAnnee) {
-      body = '<div class="prog-lab-grid">' +
-        ['1', '2'].map(function (a) {
-          return '<button type="button" class="bs prog-lab-tile" onclick="window.progSearchBcAnnee(\'' + a + '\')">' +
-            a + (a === '1' ? 'ère' : 'ème') + ' année</button>';
-        }).join('') +
-        '</div>';
-    } else {
-      var list = window.listChapitres({
-        mat: _crumbMat,
-        annee: _crumbAnnee
-      });
-      body = chapitreRows(list);
-    }
-    return bc + body + orphanBlock();
-  }
-
-  function renderColumns() {
-    var mats = (window.D.matieres || []).filter(function (m) {
-      return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
-    });
-    var col1 = mats.map(function (m) {
-      var on = _colMat === m.id ? ' on' : '';
-      return '<button type="button" class="prog-lab-col-item' + on + '" onclick="window.progSearchColMat(\'' +
-        esc(m.id) + '\')">' + esc(m.name) + '</button>';
-    }).join('');
-
-    var col2 = ['1', '2'].map(function (a) {
-      var on = _colAnnee === a ? ' on' : '';
-      var dis = _colMat ? '' : ' disabled';
-      return '<button type="button" class="prog-lab-col-item' + on + '"' + dis +
-        ' onclick="window.progSearchColAnnee(\'' + a + '\')">' +
-        a + (a === '1' ? 'ère' : 'ème') + '</button>';
-    }).join('');
-
-    var col3 = '';
-    if (_colMat && _colAnnee) {
-      col3 = chapitreRows(window.listChapitres({ mat: _colMat, annee: _colAnnee }));
-    } else {
-      col3 = '<div class="prog-lab-empty">Sélectionnez matière et année</div>';
-    }
-
+  function renderAnneeGrid() {
+    var m = matObj(_crumbMat);
     return (
-      '<div class="prog-lab-columns">' +
-        '<div class="prog-lab-col"><h4>Matière</h4>' + col1 + '</div>' +
-        '<div class="prog-lab-col"><h4>Année</h4>' + col2 + '</div>' +
-        '<div class="prog-lab-col"><h4>Chapitres</h4>' + col3 + '</div>' +
+      '<div class="prog-bc-level-head">' +
+        '<h3 class="prog-bc-level-title">Année — ' + esc(m.name) + '</h3>' +
+        '<p class="prog-bc-level-sub anki-mut">Les chapitres sont rangés par année (figée à la création).</p>' +
       '</div>' +
-      orphanBlock()
+      '<div class="prog-bc-grid prog-bc-grid-2">' +
+        ['1', '2'].map(function (a) {
+          var n = countChapitres(_crumbMat, a);
+          return (
+            '<button type="button" class="prog-bc-tile" style="--mat-color:' + esc(m.color) + '" ' +
+              'onclick="window.progSearchBcAnnee(\'' + a + '\')">' +
+              '<span class="prog-bc-tile-name">' + esc(anneeLabel(a)) + '</span>' +
+              '<span class="prog-bc-tile-meta">' + n + ' chapitre' + (n === 1 ? '' : 's') + '</span>' +
+            '</button>'
+          );
+        }).join('') +
+      '</div>'
     );
   }
 
-  function renderFiltered() {
-    var list = window.listChapitres({
-      mat: _fltMat || undefined,
-      annee: _fltAnnee !== '' ? _fltAnnee : undefined
-    });
-    if (_fltText) {
-      var q = _fltText.toLowerCase();
+  function renderChapitreList() {
+    var list = typeof window.listChapitres === 'function'
+      ? window.listChapitres({ mat: _crumbMat, annee: _crumbAnnee })
+      : [];
+    var q = String(_query || '').trim().toLowerCase();
+    if (q) {
       list = list.filter(function (ch) {
         return String(ch.title || '').toLowerCase().indexOf(q) !== -1
-          || String(ch.id || '').toLowerCase().indexOf(q) !== -1;
+          || String(ch.id || '').toLowerCase().indexOf(q) !== -1
+          || String(ch.notes || '').toLowerCase().indexOf(q) !== -1;
       });
     }
+
+    var rows = list.length
+      ? list.map(function (ch, i) {
+        var loc = ch.cl
+          ? esc(clObj(ch.cl).name) + ' · ' + esc(interLabel(ch.cl, ch.inter))
+          : '—';
+        var label = typeof window.formatChapitreLabel === 'function'
+          ? window.formatChapitreLabel(ch, true)
+          : esc(ch.title);
+        return (
+          '<article class="prog-bc-chap" style="--mat-color:' + esc(matObj(ch.mat).color) + '">' +
+            '<div class="prog-bc-chap-ord" title="Ordre">' + (i + 1) + '</div>' +
+            '<div class="prog-bc-chap-main">' +
+              '<div class="prog-bc-chap-title">' + label + '</div>' +
+              '<div class="prog-bc-chap-meta">' +
+                '<span class="prog-bc-pill mono">' + esc(ch.id) + '</span>' +
+                '<span class="prog-bc-pill prog-bc-pill-mut">' + loc + '</span>' +
+              '</div>' +
+              (ch.notes ? '<div class="prog-bc-chap-notes">' + esc(ch.notes) + '</div>' : '') +
+            '</div>' +
+          '</article>'
+        );
+      }).join('')
+      : '<div class="prog-bc-empty">' +
+          (q ? 'Aucun chapitre pour « ' + esc(_query) + ' ».' : 'Aucun chapitre dans cette année. Créez-en dans Organisation → Programme.') +
+        '</div>';
+
     return (
-      '<div class="prog-lab-filters">' +
-        '<label>Matière <select id="progLabFltMat" onchange="window.progSearchSetFlt(\'mat\', this.value)">' +
-          '<option value="">Toutes</option>' +
-          (window.D.matieres || []).filter(function (m) {
-            return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
-          }).map(function (m) {
-            return '<option value="' + esc(m.id) + '"' + (_fltMat === m.id ? ' selected' : '') + '>' +
-              esc(m.name) + '</option>';
-          }).join('') +
-        '</select></label>' +
-        '<label>Année <select id="progLabFltAnnee" onchange="window.progSearchSetFlt(\'annee\', this.value)">' +
-          '<option value="">Toutes</option>' +
-          '<option value="1"' + (_fltAnnee === '1' ? ' selected' : '') + '>1ère</option>' +
-          '<option value="2"' + (_fltAnnee === '2' ? ' selected' : '') + '>2ème</option>' +
-        '</select></label>' +
-        '<label>Texte <input type="search" id="progLabFltText" value="' + esc(_fltText) +
-          '" placeholder="Titre ou id…" oninput="window.progSearchSetFlt(\'text\', this.value)"></label>' +
+      '<div class="prog-bc-level-head prog-bc-level-head-row">' +
+        '<div>' +
+          '<h3 class="prog-bc-level-title">Chapitres</h3>' +
+          '<p class="prog-bc-level-sub anki-mut">' + list.length + ' affiché' + (list.length === 1 ? '' : 's') +
+            ' · ordre Programme</p>' +
+        '</div>' +
+        '<label class="prog-bc-search">' +
+          (window.iconHtml ? window.iconHtml('search', 14) : '') +
+          '<input type="search" id="progBcQuery" value="' + esc(_query) +
+            '" placeholder="Filtrer titre, id…" oninput="window.progSearchSetQuery(this.value)">' +
+        '</label>' +
       '</div>' +
-      '<p class="anki-mut">' + list.length + ' résultat(s)</p>' +
-      chapitreRows(list) +
-      orphanBlock()
+      '<div class="prog-bc-chap-list">' + rows + '</div>'
     );
   }
 
-  window.progSearchToggleTree = function (mat, annee) {
-    var key = mat + '|' + annee;
-    _treeOpen[key] = _treeOpen[key] === false;
-    window.renderProgrammeSearchTest();
-  };
+  function renderOrphans() {
+    var docs = typeof window.getUnattachedCoursDocs === 'function'
+      ? window.getUnattachedCoursDocs()
+      : (window.D.cours || []).filter(function (c) { return c && !c.chapitreId; });
+    var open = _orphansOpen;
+    var rows = open
+      ? docs.slice(0, 20).map(function (c) {
+        return (
+          '<div class="prog-bc-orphan-row">' +
+            '<span class="mono">' + esc(c.uid) + '</span>' +
+            '<span>' + esc(c.title || '') + '</span>' +
+          '</div>'
+        );
+      }).join('') +
+        (docs.length > 20
+          ? '<div class="prog-bc-orphan-more">+' + (docs.length - 20) + ' autres…</div>'
+          : '')
+      : '';
+
+    return (
+      '<section class="prog-bc-orphans">' +
+        '<button type="button" class="prog-bc-orphans-toggle" onclick="window.progSearchToggleOrphans()">' +
+          '<span>' + (open ? '▾' : '▸') + ' Non rattachés (Base Doc)</span>' +
+          '<span class="prog-bc-orphans-count">' + docs.length + '</span>' +
+        '</button>' +
+        (open
+          ? '<p class="anki-mut prog-bc-orphans-hint">Documents papier sans chapitreId — rattachement en phase 2.</p>' + rows
+          : '') +
+      '</section>'
+    );
+  }
+
+  function renderBody() {
+    if (!_crumbMat) return renderMatGrid();
+    if (!_crumbAnnee) return renderAnneeGrid();
+    return renderChapitreList();
+  }
 
   window.progSearchBcReset = function () {
     _crumbMat = '';
     _crumbAnnee = '';
+    _query = '';
     window.renderProgrammeSearchTest();
   };
 
   window.progSearchBcMat = function (matId) {
     _crumbMat = matId;
     _crumbAnnee = '';
+    _query = '';
     window.renderProgrammeSearchTest();
   };
 
   window.progSearchBcAnnee = function (a) {
-    _crumbAnnee = a;
+    _crumbAnnee = String(a);
+    _query = '';
     window.renderProgrammeSearchTest();
   };
 
-  window.progSearchColMat = function (matId) {
-    _colMat = matId;
-    _colAnnee = '';
+  window.progSearchSetQuery = function (val) {
+    _query = val || '';
     window.renderProgrammeSearchTest();
+    var input = $('progBcQuery');
+    if (input) {
+      input.focus();
+      try {
+        var len = input.value.length;
+        input.setSelectionRange(len, len);
+      } catch (e) { /* ignore */ }
+    }
   };
 
-  window.progSearchColAnnee = function (a) {
-    if (!_colMat) return;
-    _colAnnee = a;
-    window.renderProgrammeSearchTest();
-  };
-
-  window.progSearchSetFlt = function (key, val) {
-    if (key === 'mat') _fltMat = val || '';
-    if (key === 'annee') _fltAnnee = val || '';
-    if (key === 'text') _fltText = val || '';
+  window.progSearchToggleOrphans = function () {
+    _orphansOpen = !_orphansOpen;
     window.renderProgrammeSearchTest();
   };
 
@@ -244,18 +276,16 @@
     var pane = $('paneProgrammeSearchTest');
     if (!pane) return;
     if (typeof window.ensureChapitresArray === 'function') window.ensureChapitresArray();
+    if (typeof window.ensureChapitreOrders === 'function') window.ensureChapitreOrders();
 
     pane.innerHTML =
-      '<div class="prog-lab-page">' +
+      '<div class="prog-bc-page">' +
         (typeof window.uiSection === 'function'
-          ? window.uiSection('Recherche Programme', 'Comparez 4 UX de navigation — mêmes données.', 'search')
-          : '<h2>Recherche Programme (labo)</h2>') +
-        '<div class="prog-lab-grid-4">' +
-          '<section class="prog-lab-panel"><h3>A — Arbre</h3>' + renderTree() + '</section>' +
-          '<section class="prog-lab-panel"><h3>B — Fil d’Ariane</h3>' + renderBreadcrumb() + '</section>' +
-          '<section class="prog-lab-panel"><h3>C — Colonnes Finder</h3>' + renderColumns() + '</section>' +
-          '<section class="prog-lab-panel"><h3>D — Filtres</h3>' + renderFiltered() + '</section>' +
-        '</div>' +
+          ? window.uiSection('Fil d’Ariane', 'Parcourir les chapitres : matière → année → liste (ordre Programme).', 'search')
+          : '<h2>Fil d’Ariane</h2>') +
+        renderBreadcrumb() +
+        '<div class="prog-bc-body">' + renderBody() + '</div>' +
+        renderOrphans() +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(pane);

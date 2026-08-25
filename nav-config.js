@@ -17,7 +17,7 @@ window.APP_TAB_REGISTRY = {
   ankiVizV2:   { pane: 'paneAnkiVizV2',   label: 'Carte mentale', icon: 'map',            needsData: true,  onShow: 'ankiVizV2',    className: 'tab-viz' },
   programme:     { pane: 'paneProgramme', label: 'Programme', icon: 'book-open', needsData: true, onShow: 'programme' },
   print:       { pane: 'panePrint',       label: 'Impression',    icon: 'printer',        needsData: true,  onShow: 'print' },
-  programmeSearchTest: { pane: 'paneProgrammeSearchTest', label: 'Recherche Programme', icon: 'search', needsData: true, onShow: 'programmeSearchTest', className: 'tab-prog-search' },
+  programmeSearchTest: { pane: 'paneProgrammeSearchTest', label: 'Fil d’Ariane', icon: 'search', needsData: true, onShow: 'programmeSearchTest', className: 'tab-prog-search' },
   classeurs:   { pane: 'paneClasseurs',   label: 'Classeurs',     icon: 'folders',        needsData: true,  onShow: 'classeurs' },
   matieres:    { pane: 'paneMatieres',    label: 'Matières',      icon: 'tag',            needsData: true,  onShow: 'matieres' },
   orphelins:   { pane: 'paneOrphelins',   label: 'À ranger',      icon: 'inbox',          needsData: true,  onShow: 'orphelins' },
@@ -42,12 +42,12 @@ window.APP_NAV_GROUPS = [
   },
   {
     label: 'Organisation',
-    tabs: ['print', 'classeurs', 'matieres', 'programme', 'orphelins']
+    tabs: ['print', 'classeurs', 'matieres', 'programme', 'programmeSearchTest', 'orphelins']
   },
   {
     label: 'Système',
     className: 'nav-group-tools',
-    tabs: ['logs', 'test', 'latexTest', 'programmeSearchTest']
+    tabs: ['logs', 'test', 'latexTest']
   }
 ];
 
