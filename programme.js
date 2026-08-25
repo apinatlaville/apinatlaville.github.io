@@ -489,9 +489,7 @@
           }).join('') +
           (bulkCands.length ? '' : '<p class="anki-empty">Aucun intercalaire nommé.</p>') +
         '</div>' +
-        '<div class="fg programme-wiz-disabled">' +
-          '<label><input type="checkbox" disabled> Créer aussi un cours unité du même nom <span class="anki-mut">(phase 2)</span></label>' +
-        '</div>' +
+        '<p class="programme-phase2-hint anki-mut">Phase 2 — créer aussi un cours unité du même nom (bientôt)</p>' +
         '<div class="programme-wiz-footer">' +
           '<button type="button" class="bs" onclick="window.programmeWizBack()">Retour</button>' +
           '<button type="button" class="bp" onclick="window.programmeWizConfirmBulk()"' +
@@ -517,9 +515,7 @@
           '<label>Notes (optionnel)</label>' +
           '<textarea id="progWizNotes" rows="3" placeholder="Sections, remarques…"></textarea>' +
         '</div>' +
-        '<div class="fg programme-wiz-disabled">' +
-          '<label><input type="checkbox" disabled> Créer aussi un cours unité du même nom <span class="anki-mut">(phase 2)</span></label>' +
-        '</div>' +
+        '<p class="programme-phase2-hint anki-mut">Phase 2 — créer aussi un cours unité du même nom (bientôt)</p>' +
         '<div class="programme-wiz-footer">' +
           '<button type="button" class="bs" onclick="window.programmeWizBack()">Retour</button>' +
           '<button type="button" class="bp" onclick="window.programmeWizConfirmSingle()">Créer</button>' +
@@ -592,7 +588,14 @@
   window.programmeWizToggleInter = function (inter, on) {
     if (on && WIZ.selectedInters.indexOf(inter) === -1) WIZ.selectedInters.push(inter);
     if (!on) WIZ.selectedInters = WIZ.selectedInters.filter(function (i) { return i !== inter; });
-    window.programmeRenderWizard();
+    var footer = document.querySelector('#progWizardBody .programme-wiz-footer');
+    if (footer) {
+      var btn = footer.querySelector('.bp');
+      if (btn) {
+        btn.disabled = !WIZ.selectedInters.length;
+        btn.textContent = 'Créer ' + WIZ.selectedInters.length + ' chapitre(s)';
+      }
+    }
   };
 
   window.programmeWizPreviewTitle = function (val) {
