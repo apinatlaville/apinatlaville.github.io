@@ -2875,6 +2875,139 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .agenda-row-done { opacity: 0.72; }
 .agenda-modal .modal-body-scroll { max-height: min(60vh, 420px); overflow: auto; }
 
+/* Programme — chapitres logiques */
+.chap-prefix {
+  color: var(--mut);
+  font-weight: 600;
+  font-size: 0.92em;
+  user-select: none;
+}
+.programme-page { padding: 0 0 24px; }
+.programme-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.programme-filters { display: flex; flex-wrap: wrap; gap: 12px; }
+.programme-filters label { font-size: 12px; color: var(--mut); display: flex; flex-direction: column; gap: 4px; }
+.programme-count { margin: 0 0 12px; font-size: 12px; }
+.programme-group { margin-bottom: 20px; }
+.programme-group-title { font-size: 15px; margin: 0 0 8px; }
+.programme-group-sub { color: var(--mut); font-weight: 500; font-size: 13px; }
+.programme-list { display: flex; flex-direction: column; gap: 8px; }
+.programme-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--mat-color, var(--acc));
+}
+.programme-row-title { font-weight: 600; margin-bottom: 6px; }
+.programme-row-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.programme-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--bd);
+}
+.programme-badge-muted { color: var(--mut); }
+.programme-row-notes { font-size: 12px; color: var(--mut); margin-top: 6px; }
+.programme-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.programme-wiz-modal { max-width: 520px; width: min(520px, 94vw); }
+.programme-wiz-sub { font-size: 13px; color: var(--mut); margin: 0 0 12px; line-height: 1.45; }
+.programme-wiz-choices { display: flex; flex-direction: column; gap: 8px; }
+.programme-wiz-choice { width: 100%; justify-content: flex-start; }
+.programme-wiz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.programme-wiz-tile { text-align: left; padding: 10px 12px; }
+.programme-wiz-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; }
+.programme-wiz-disabled { opacity: 0.55; }
+.programme-bulk-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow: auto; margin-bottom: 10px; }
+.programme-bulk-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.programme-bulk-slot { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--mut); }
+.programme-title-preview { margin-bottom: 8px; font-weight: 600; }
+.programme-edit-modal { max-width: 440px; }
+.programme-edit-meta { margin-bottom: 12px; font-size: 13px; }
+
+/* Labo recherche programme */
+.prog-lab-page { padding: 0 0 24px; }
+.prog-lab-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.prog-lab-panel {
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--s2);
+  min-height: 280px;
+  max-height: 520px;
+  overflow: auto;
+}
+.prog-lab-panel h3 { font-size: 13px; margin: 0 0 8px; color: var(--acc); }
+.prog-lab-item { font-size: 12px; padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.prog-lab-orphan { color: var(--mut); }
+.prog-lab-id { font-size: 10px; color: var(--mut); }
+.prog-lab-empty { font-size: 12px; color: var(--mut); padding: 8px 0; }
+.prog-lab-bucket { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--bd); }
+.prog-lab-bucket h4 { font-size: 11px; margin: 0 0 4px; color: var(--mut); }
+.prog-lab-more { font-size: 11px; color: var(--mut); }
+.prog-lab-tree-toggle {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 6px 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.prog-lab-tree-children { padding-left: 12px; }
+.prog-lab-bc { font-size: 12px; margin-bottom: 8px; }
+.prog-lab-bc-link {
+  background: none;
+  border: none;
+  color: var(--acc);
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: inherit;
+}
+.prog-lab-bc-link.on { font-weight: 700; text-decoration: underline; }
+.prog-lab-bc-cur { color: var(--mut); }
+.prog-lab-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.prog-lab-tile { font-size: 12px; padding: 8px; }
+.prog-lab-columns { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 6px; min-height: 160px; }
+.prog-lab-col h4 { font-size: 10px; color: var(--mut); margin: 0 0 4px; }
+.prog-lab-col-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 11px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--bd);
+  background: var(--bg);
+  cursor: pointer;
+}
+.prog-lab-col-item.on { border-color: var(--acc); background: rgba(91,141,247,0.12); }
+.prog-lab-col-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.prog-lab-filters { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.prog-lab-filters label { font-size: 11px; color: var(--mut); display: flex; flex-direction: column; gap: 3px; }
+
 /* Calendrier jour par jour */
 .anki-cal-list { display: flex; flex-direction: column; gap: 8px; }
 .anki-cal-day {

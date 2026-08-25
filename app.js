@@ -730,6 +730,8 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'agenda': if (typeof window.renderAgenda === 'function') window.renderAgenda(); break;
     case 'ankiV2': if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2(); break;
     case 'ankiVizV2': if (typeof window.renderAnkiVizV2 === 'function') window.renderAnkiVizV2(); break;
+    case 'programme': if (typeof window.renderProgramme === 'function') window.renderProgramme(); break;
+    case 'programmeSearchTest': if (typeof window.renderProgrammeSearchTest === 'function') window.renderProgrammeSearchTest(); break;
     case 'print': if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid(); break;
     case 'classeurs':
       window.isEditingCl = false;
@@ -1931,6 +1933,7 @@ async function initApp(user) {
     window._activeProfileId = window.ProfilesIO.getSessionProfileId();
   }
   if(!window.D.cours) window.D.cours = [];
+  if(!Array.isArray(window.D.chapitres)) window.D.chapitres = [];
   if(!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if(!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
   if (window.AnkiAlgo && typeof window.AnkiAlgo.migrateData === 'function') {

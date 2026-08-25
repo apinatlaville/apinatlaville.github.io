@@ -1425,6 +1425,7 @@
     if (all || set.structure) {
       out.matieres = deepClone(D.matieres || []);
       out.classeurs = deepClone(D.classeurs || []);
+      out.chapitres = deepClone(D.chapitres || []);
     }
     if (all || set.cours) {
       out.cours = deepClone(D.cours || []);
@@ -1660,6 +1661,7 @@
       if (want.indexOf('structure') === -1) {
         target.matieres = deepClone(window.D.matieres || []);
         target.classeurs = deepClone(window.D.classeurs || []);
+        target.chapitres = deepClone(window.D.chapitres || []);
       }
     }
 
@@ -1695,6 +1697,7 @@
     if (want.indexOf('structure') !== -1) {
       upsertList('matieres', src.matieres, 'id', 'matieres');
       upsertList('classeurs', src.classeurs, 'id', 'classeurs');
+      upsertList('chapitres', src.chapitres, 'id', 'chapitres');
     }
 
     if (want.indexOf('cours') !== -1) {

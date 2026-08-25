@@ -29,7 +29,8 @@
     ankiV2: ['anki-app-v2.js', 'anki-card-ui.js'],
     ankiVizV2: ['anki-viz-v2.js'],
     print: ['scanner.js'],
-    test: ['scanner.js'],
+    programme: ['programme.js'],
+    programmeSearchTest: ['programme.js', 'programme-search-test.js'],
     latexTest: ['latex-test.js'],
     quickLatex: ['latex-test.js', 'anki-quick-latex.js']
   };
