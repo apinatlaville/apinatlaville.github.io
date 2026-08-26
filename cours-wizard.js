@@ -1171,7 +1171,7 @@ body.theme-light .cours-create-item:focus-visible {
       existing.innerHTML =
         '<div class="notes-metric-toggle cours-browse-toggle" role="group" aria-label="Affichage Base Doc">' +
           '<button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>' +
-          '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>' +
+          '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="ariane">Fil d’Ariane</button>' +
         '</div>' +
         '<div class="cours-create-menu" id="coursCreateMenu">' +
           '<button type="button" class="cours-create-trigger" id="btnCoursCreateMenu" aria-expanded="false" aria-haspopup="true" title="Créer un document">' +
@@ -1196,7 +1196,7 @@ body.theme-light .cours-create-item:focus-visible {
       toggleWrap.setAttribute('aria-label', 'Affichage Base Doc');
       toggleWrap.innerHTML =
         '<button type="button" class="notes-metric-btn is-active" id="btnCoursBrowseTree" data-browse="tree">Arbre</button>' +
-        '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="mat">Matières</button>';
+        '<button type="button" class="notes-metric-btn" id="btnCoursBrowseMat" data-browse="ariane">Fil d’Ariane</button>';
       existing.insertBefore(toggleWrap, existing.firstChild);
     }
 
@@ -1211,7 +1211,7 @@ body.theme-light .cours-create-item:focus-visible {
     if (btnMat && !btnMat._coursBrowseBound) {
       btnMat._coursBrowseBound = true;
       btnMat.addEventListener('click', function () {
-        if (typeof window.setCoursBrowseMode === 'function') window.setCoursBrowseMode('mat');
+        if (typeof window.setCoursBrowseMode === 'function') window.setCoursBrowseMode('ariane');
       });
     }
 

@@ -222,6 +222,7 @@ window.resetFilters = function() {
 
 window.coursBrowseMode = 'tree';
 window.coursExpanded = Object.create(null);
+window.coursAriane = { mat: '', cl: '', inter: '' };
 
 /** Escape pour chaînes dans onclick="fn('...')". */
 window.escapeJsStr = function(s) {
@@ -233,11 +234,39 @@ window.escapeJsStr = function(s) {
 };
 
 window.setCoursBrowseMode = function(mode) {
-  window.coursBrowseMode = mode === 'mat' ? 'mat' : 'tree';
+  /* 'mat' conservé en alias pour d’anciens appels / tests → Fil d’Ariane */
+  if (mode === 'mat' || mode === 'ariane' || mode === 'bc') {
+    window.coursBrowseMode = 'ariane';
+  } else {
+    window.coursBrowseMode = 'tree';
+  }
   const btnTree = window.$('btnCoursBrowseTree');
   const btnMat = window.$('btnCoursBrowseMat');
   if (btnTree) btnTree.classList.toggle('is-active', window.coursBrowseMode === 'tree');
-  if (btnMat) btnMat.classList.toggle('is-active', window.coursBrowseMode === 'mat');
+  if (btnMat) btnMat.classList.toggle('is-active', window.coursBrowseMode === 'ariane');
+  window.renderCours();
+};
+
+window.coursArianeReset = function() {
+  window.coursAriane = { mat: '', cl: '', inter: '' };
+  window.renderCours();
+};
+
+window.coursArianePickMat = function(matId) {
+  window.coursAriane = { mat: String(matId || ''), cl: '', inter: '' };
+  window.renderCours();
+};
+
+window.coursArianePickCl = function(clId) {
+  if (!window.coursAriane) window.coursAriane = { mat: '', cl: '', inter: '' };
+  window.coursAriane.cl = String(clId || '');
+  window.coursAriane.inter = '';
+  window.renderCours();
+};
+
+window.coursArianePickInter = function(interId) {
+  if (!window.coursAriane) window.coursAriane = { mat: '', cl: '', inter: '' };
+  window.coursAriane.inter = String(interId || '');
   window.renderCours();
 };
 
@@ -379,11 +408,143 @@ window.renderCoursCardsGrid = function(coursList) {
   return `<div class="cgrid cours-tree-cards">${(coursList || []).map(c => window.renderCoursCardHtml(c)).join('')}</div>`;
 };
 
+window.renderCoursArianeHtml = function(list) {
+  const mats = (window.D && Array.isArray(window.D.matieres)) ? window.D.matieres : [];
+  const cls = (window.D && Array.isArray(window.D.classeurs)) ? window.D.classeurs : [];
+  const tree = window.buildCoursBrowseTree(list);
+  const nav = window.coursAriane || { mat: '', cl: '', inter: '' };
+  const esc = window.escHtml;
+  const js = window.escapeJsStr;
+  const chev = window.iconHtml ? window.iconHtml('chevron-right', 14) : '›';
+
+  const matNode = nav.mat ? tree.find(m => m.id === nav.mat) : null;
+  const clNode = matNode && nav.cl ? matNode.classeurs.find(c => c.id === nav.cl) : null;
+  const interNode = clNode && nav.inter ? clNode.inters.find(i => i.id === nav.inter) : null;
+
+  // Si filtres ont invalidé le chemin, remonter
+  if (nav.mat && !matNode) {
+    window.coursAriane = { mat: '', cl: '', inter: '' };
+    return window.renderCoursArianeHtml(list);
+  }
+  if (nav.cl && !clNode) {
+    window.coursAriane = { mat: nav.mat, cl: '', inter: '' };
+    return window.renderCoursArianeHtml(list);
+  }
+  if (nav.inter && !interNode) {
+    window.coursAriane = { mat: nav.mat, cl: nav.cl, inter: '' };
+    return window.renderCoursArianeHtml(list);
+  }
+
+  const mo = matNode
+    ? (mats.find(x => x.id === matNode.id) || { name: matNode.id, color: '#6a6a88' })
+    : null;
+  const co = clNode
+    ? (cls.find(x => x.id === clNode.id) || { name: clNode.id, color: '#5b8df7', interNames: {} })
+    : null;
+
+  let crumbs = '';
+  crumbs += `<button type="button" class="cours-bc-crumb${!nav.mat ? ' is-current' : ''}" onclick="window.coursArianeReset()">${window.iconHtml ? window.iconHtml('home', 14) : ''} Base Doc</button>`;
+  if (nav.mat && mo) {
+    crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
+    crumbs += `<button type="button" class="cours-bc-crumb${!nav.cl ? ' is-current' : ''}" onclick="window.coursArianePickMat('${js(nav.mat)}')">${esc(mo.name)}</button>`;
+  }
+  if (nav.cl && co) {
+    crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
+    crumbs += `<button type="button" class="cours-bc-crumb${!nav.inter ? ' is-current' : ''}" onclick="window.coursArianePickCl('${js(nav.cl)}')">${esc(co.name)}</button>`;
+  }
+  if (nav.inter && interNode) {
+    const interLabel = typeof window.getInterName === 'function'
+      ? window.getInterName(co, interNode.id)
+      : interNode.id;
+    crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
+    crumbs += `<span class="cours-bc-crumb is-current">${esc(interLabel)}</span>`;
+  }
+
+  let body = '';
+  if (!nav.mat) {
+    if (!tree.length) {
+      body = '<div class="cours-bc-empty">Aucun document pour ces filtres.</div>';
+    } else {
+      body =
+        '<div class="cours-bc-level-head"><h3 class="cours-bc-level-title">Choisir une matière</h3>' +
+        '<p class="cours-bc-level-sub anki-mut">Puis classeur → intercalaire → documents.</p></div>' +
+        '<div class="cours-bc-grid">' +
+        tree.map(m => {
+          const mat = mats.find(x => x.id === m.id) || { name: m.id, color: '#6a6a88' };
+          return (
+            `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(mat.color)}" onclick="window.coursArianePickMat('${js(m.id)}')">` +
+              `<span class="cours-bc-tile-name">${esc(mat.name)}</span>` +
+              `<span class="cours-bc-tile-meta">${m.count} doc${m.count > 1 ? 's' : ''}</span>` +
+            `</button>`
+          );
+        }).join('') +
+        '</div>';
+    }
+  } else if (!nav.cl) {
+    body =
+      `<div class="cours-bc-level-head"><h3 class="cours-bc-level-title">Classeur — ${esc(mo.name)}</h3>` +
+      `<p class="cours-bc-level-sub anki-mut">${matNode.count} document${matNode.count > 1 ? 's' : ''}</p></div>`;
+    if (!matNode.classeurs.length) {
+      body += '<div class="cours-bc-empty">Aucun classeur pour cette matière.</div>';
+    } else {
+      body += '<div class="cours-bc-grid">' +
+        matNode.classeurs.map(c => {
+          const cl = cls.find(x => x.id === c.id) || { name: c.id, color: mo.color };
+          return (
+            `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(cl.color || mo.color)}" onclick="window.coursArianePickCl('${js(c.id)}')">` +
+              `<span class="cours-bc-tile-name">${esc(cl.name)}</span>` +
+              `<span class="cours-bc-tile-meta">${c.count} doc${c.count > 1 ? 's' : ''}</span>` +
+            `</button>`
+          );
+        }).join('') +
+        '</div>';
+    }
+  } else if (!nav.inter) {
+    body =
+      `<div class="cours-bc-level-head"><h3 class="cours-bc-level-title">Intercalaire — ${esc(co.name)}</h3>` +
+      `<p class="cours-bc-level-sub anki-mut">${clNode.count} document${clNode.count > 1 ? 's' : ''}</p></div>`;
+    if (!clNode.inters.length) {
+      body += '<div class="cours-bc-empty">Aucun intercalaire.</div>';
+    } else {
+      body += '<div class="cours-bc-grid">' +
+        clNode.inters.map(i => {
+          const label = typeof window.getInterName === 'function'
+            ? window.getInterName(co, i.id)
+            : i.id;
+          return (
+            `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(mo.color)}" onclick="window.coursArianePickInter('${js(i.id)}')">` +
+              `<span class="cours-bc-tile-name">${esc(label)}</span>` +
+              `<span class="cours-bc-tile-meta">${i.count} doc${i.count > 1 ? 's' : ''}</span>` +
+            `</button>`
+          );
+        }).join('') +
+        '</div>';
+    }
+  } else {
+    body =
+      `<div class="cours-bc-level-head"><h3 class="cours-bc-level-title">Documents</h3>` +
+      `<p class="cours-bc-level-sub anki-mut">${interNode.count} document${interNode.count > 1 ? 's' : ''}</p></div>` +
+      window.renderCoursCardsGrid(interNode.cours);
+  }
+
+  return (
+    `<div class="cours-bc-page">` +
+      `<nav class="cours-bc-bar" aria-label="Fil d’Ariane Base Doc">${crumbs}</nav>` +
+      `<div class="cours-bc-body">${body}</div>` +
+    `</div>`
+  );
+};
+
 window.renderCoursBrowseHtml = function(list, mode) {
   const mats = (window.D && Array.isArray(window.D.matieres)) ? window.D.matieres : [];
   const cls = (window.D && Array.isArray(window.D.classeurs)) ? window.D.classeurs : [];
   const tree = window.buildCoursBrowseTree(list);
-  const browseMode = mode === 'mat' ? 'mat' : 'tree';
+  const browseMode = (mode === 'mat' || mode === 'ariane' || mode === 'bc') ? 'ariane' : 'tree';
+
+  if (browseMode === 'ariane') {
+    return window.renderCoursArianeHtml(list);
+  }
+
   let html = '<div class="cours-tree">';
 
   tree.forEach(matNode => {
@@ -403,51 +564,45 @@ window.renderCoursBrowseHtml = function(list, mode) {
 
     if (matOpen) {
       html += '<div class="cours-tree-body is-open">';
-      if (browseMode === 'mat') {
-        const flat = [];
-        matNode.classeurs.forEach(cl => cl.inters.forEach(inter => inter.cours.forEach(c => flat.push(c))));
-        html += window.renderCoursCardsGrid(flat);
-      } else {
-        matNode.classeurs.forEach(clNode => {
-          const co = cls.find(x => x.id === clNode.id) || { name: clNode.id, icon: 'book-blue', color: '#5b8df7' };
-          const clKey = 'c:' + matNode.id + '|' + clNode.id;
-          const clOpen = window.isCoursTreeExpanded(clKey);
-          html += '<div class="cours-tree-section cours-tree-section--cl">';
-          html += window.renderCoursTreeHdr({
-            key: clKey,
-            level: 'cl',
-            open: clOpen,
-            color: co.color || mo.color,
-            iconHtml: window.renderClasseurIcon(co.icon, 16, co.color || mo.color),
-            labelHtml: window.escHtml(co.name),
-            count: clNode.count
-          });
-          if (clOpen) {
-            html += '<div class="cours-tree-body is-open">';
-            clNode.inters.forEach(interNode => {
-              const interKey = 'i:' + matNode.id + '|' + clNode.id + '|' + interNode.id;
-              const interOpen = window.isCoursTreeExpanded(interKey);
-              const interLabel = window.getInterName(co, interNode.id);
-              html += '<div class="cours-tree-section cours-tree-section--inter">';
-              html += window.renderCoursTreeHdr({
-                key: interKey,
-                level: 'inter',
-                open: interOpen,
-                color: mo.color,
-                iconHtml: window.iconHtml('bookmark', 14, 'icon-sm'),
-                labelHtml: window.escHtml(interLabel),
-                count: interNode.count
-              });
-              if (interOpen) {
-                html += '<div class="cours-tree-body is-open">' + window.renderCoursCardsGrid(interNode.cours) + '</div>';
-              }
-              html += '</div>';
-            });
-            html += '</div>';
-          }
-          html += '</div>';
+      matNode.classeurs.forEach(clNode => {
+        const co = cls.find(x => x.id === clNode.id) || { name: clNode.id, icon: 'book-blue', color: '#5b8df7' };
+        const clKey = 'c:' + matNode.id + '|' + clNode.id;
+        const clOpen = window.isCoursTreeExpanded(clKey);
+        html += '<div class="cours-tree-section cours-tree-section--cl">';
+        html += window.renderCoursTreeHdr({
+          key: clKey,
+          level: 'cl',
+          open: clOpen,
+          color: co.color || mo.color,
+          iconHtml: window.renderClasseurIcon(co.icon, 16, co.color || mo.color),
+          labelHtml: window.escHtml(co.name),
+          count: clNode.count
         });
-      }
+        if (clOpen) {
+          html += '<div class="cours-tree-body is-open">';
+          clNode.inters.forEach(interNode => {
+            const interKey = 'i:' + matNode.id + '|' + clNode.id + '|' + interNode.id;
+            const interOpen = window.isCoursTreeExpanded(interKey);
+            const interLabel = window.getInterName(co, interNode.id);
+            html += '<div class="cours-tree-section cours-tree-section--inter">';
+            html += window.renderCoursTreeHdr({
+              key: interKey,
+              level: 'inter',
+              open: interOpen,
+              color: mo.color,
+              iconHtml: window.iconHtml('bookmark', 14, 'icon-sm'),
+              labelHtml: window.escHtml(interLabel),
+              count: interNode.count
+            });
+            if (interOpen) {
+              html += '<div class="cours-tree-body is-open">' + window.renderCoursCardsGrid(interNode.cours) + '</div>';
+            }
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
       html += '</div>';
     }
     html += '</div>';
@@ -487,17 +642,24 @@ window.renderCours = function() {
     }
     
     if(window.$('matChips')) {
-      window.$('matChips').innerHTML = '<button class="chip' + (window.chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
-        window.D.matieres.map(m => `
-          <button class="chip${window.chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${window.chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${window.escHtml(m.label)}</button>
-        `).join('');
-        
-      window.$('matChips').querySelectorAll('.chip').forEach(btn => {
-        btn.addEventListener('click', () => {
-          window.chipFilter = btn.dataset.chip==='null' ? null : btn.dataset.chip;
-          window.renderCours();
+      const browseMode = window.coursBrowseMode === 'ariane' ? 'ariane' : 'tree';
+      if (browseMode === 'ariane') {
+        window.$('matChips').style.display = 'none';
+        window.$('matChips').innerHTML = '';
+      } else {
+        window.$('matChips').style.display = '';
+        window.$('matChips').innerHTML = '<button class="chip' + (window.chipFilter===null?' on':'') + '" data-chip="null">Tous</button>' +
+          window.D.matieres.map(m => `
+            <button class="chip${window.chipFilter===m.id?' on':''}" data-chip="${m.id}" style="${window.chipFilter===m.id ? 'background:'+m.color+';border-color:'+m.color : 'border-color:'+m.color+'60;color:'+m.color}">${window.escHtml(m.label)}</button>
+          `).join('');
+
+        window.$('matChips').querySelectorAll('.chip').forEach(btn => {
+          btn.addEventListener('click', () => {
+            window.chipFilter = btn.dataset.chip==='null' ? null : btn.dataset.chip;
+            window.renderCours();
+          });
         });
-      });
+      }
     }
 
     const qText = window.$('mainSearchText') ? window.$('mainSearchText').value.trim() : '';
@@ -563,9 +725,9 @@ window.renderCours = function() {
 
     const btnTree = window.$('btnCoursBrowseTree');
     const btnMat = window.$('btnCoursBrowseMat');
-    const browseMode = window.coursBrowseMode === 'mat' ? 'mat' : 'tree';
+    const browseMode = window.coursBrowseMode === 'ariane' ? 'ariane' : 'tree';
     if (btnTree) btnTree.classList.toggle('is-active', browseMode === 'tree');
-    if (btnMat) btnMat.classList.toggle('is-active', browseMode === 'mat');
+    if (btnMat) btnMat.classList.toggle('is-active', browseMode === 'ariane');
 
     const grid = window.$('coursGrid');
     if(grid) {
@@ -581,8 +743,9 @@ window.renderCours = function() {
         grid.className = 'cgrid';
         grid.innerHTML = list.map(c => window.renderCoursCardHtml(c)).join('');
       } else {
-        grid.className = 'cours-tree-root';
+        grid.className = browseMode === 'ariane' ? 'cours-bc-root' : 'cours-tree-root';
         grid.innerHTML = window.renderCoursBrowseHtml(list, browseMode);
+        if (typeof window.hydrateIcons === 'function') window.hydrateIcons(grid);
       }
     }
     window.renderStats();

@@ -215,7 +215,7 @@ assert(/ankiV2AbandonActiveSession[\s\S]*S\._evalBusy = false/.test(ankiSrc), 'a
 console.log('[9] Gardes + cache');
 assert(/String\(a\.inter \|\| ''\)\.localeCompare/.test(dataSrc), 'tri inter null-safe');
 assert(/String\(c\.title \|\| ''\)\.substring/.test(scannerSrc), 'title impression safe');
-assert(/__BOOT_CACHE_V\s*=\s*'20260826j'/.test(indexSrc), 'cache 20260826j');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826k'/.test(indexSrc), 'cache 20260826k');
 
 console.log('\n=== Résultat re-vérif audit ===');
 console.log(`passed=${passed} failed=${failed}`);
