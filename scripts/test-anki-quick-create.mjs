@@ -27,13 +27,18 @@ const navSrc = fs.readFileSync(path.join(root, 'nav-config.js'), 'utf8');
 console.log('=== Carte rapide : LaTeX + chapitre − durée ===\n');
 
 assert(!/id="qkTemps"/.test(quickSrc), 'form Rapide : pas de champ durée');
+assert(!/id="qkQ"/.test(quickSrc), 'plus de formulaire inline Question/recto');
+assert(!/class="quick-create"/.test(quickSrc), 'plus de bloc création inline');
+assert(/btnQuickCreateMenu|quickCreateMenu/.test(quickSrc), 'bouton Créer type Base Doc');
+assert(/btnQuickCreateSingle/.test(quickSrc) && /btnQuickCreateBatch/.test(quickSrc), 'menu Créer une / à la suite');
 assert(!/id="quickTempsMin"/.test(appSrc), 'modal : pas de champ durée');
-assert(/qkCours|quickCoursSelected/.test(quickSrc + appSrc), 'lien chapitre présent');
+assert(/quickCoursSelected/.test(appSrc), 'lien chapitre dans le modal');
 assert(/quickOpenLatex|ankiV2QuickOpenLatex|openQuickLatexCard/.test(quickSrc + appSrc + latexSrc), 'entrée LaTeX');
 assert(/ovQuickLatex|restoreOverlay|mountLatexEasyEditor/.test(latexSrc), 'popup LaTeX Easy (pas navigation onglet)');
 assert(/restoreOverlay:\s*'ovQuickCreate'/.test(appSrc), 'FAB Rapide restaure ovQuickCreate');
 assert(/mountLatexEasyEditor/.test(fs.readFileSync(path.join(root, 'latex-test.js'), 'utf8')), 'API mountLatexEasyEditor lab');
 assert(/paneQuickLatex/.test(indexSrc) && /quickLatex/.test(navSrc), 'bundle quickLatex toujours enregistré');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826l'/.test(indexSrc), 'cache 20260826l');
 
 const cardUiSrc = fs.readFileSync(path.join(root, 'anki-card-ui.js'), 'utf8');
 assert(/openCardTypePicker\(\)/.test(cardUiSrc), 'FAB ouvre le type picker');
@@ -47,6 +52,10 @@ assert(!/intercalaire/.test(cardUiSrc), 'pas d’intercalaire dans le menu carte
 assert(/ankiV2CloseQuickModal|Créer la suivante|Terminer/.test(appSrc), 'batch : Terminer / suivante');
 assert(/QUICK_DEFAULT_SEC\s*=\s*30/.test(algoSrc), 'durée packing Y- = 30s');
 assert(/cardKind\(c\) === 'quick'/.test(algoSrc), 'cardDuration branche quick');
+assert(/ankiV2OpenQuickModal/.test(quickSrc) && /ensureAnkiUi/.test(quickSrc), 'Créer charge Anki UI puis ouvre le modal');
+assert(/openQuickCardCreate/.test(quickSrc), 'fallback openQuickCardCreate');
+assert(/function renderCoursLinkUI/.test(appSrc), 'renderCoursLinkUI défini (lien chapitre modal)');
+assert(/ankiV2CoursLinkSearch/.test(appSrc) && /ankiV2CoursLinkToggle/.test(appSrc), 'API recherche/toggle cours liés');
 
 const sandbox = {
   window: { D: { settings: {}, exercices: [], matieres: [], cours: [] }, escHtml: (s) => String(s) },

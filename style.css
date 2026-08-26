@@ -2651,17 +2651,27 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 /* =====================================================
  🃏 ATELIER DE CARTES RAPIDES (paneFlashcards)
  ===================================================== */
-.quick-head h2 { font-family: 'Inter'; margin-bottom: 4px; }
-.quick-head p { color: var(--mut); font-size: 13px; margin-bottom: 18px; }
-.quick-mut { color: var(--mut); font-size: 11px; margin-top: 6px; }
-.quick-create {
- background: var(--s2);
- border: 1px solid var(--bd);
- border-left: 4px solid var(--acc);
- border-radius: 12px;
- padding: 14px;
+.quick-pane-toolbar {
+ display: flex;
+ align-items: flex-start;
+ justify-content: space-between;
+ gap: 12px 16px;
  margin-bottom: 14px;
+ flex-wrap: wrap;
+ position: relative;
+ z-index: 20;
 }
+.quick-pane-toolbar .quick-head {
+ flex: 1 1 220px;
+ min-width: 0;
+}
+.quick-pane-toolbar .cours-create-menu {
+ margin-left: auto;
+ align-self: flex-start;
+}
+.quick-head h2 { font-family: 'Inter'; margin-bottom: 4px; }
+.quick-head p { color: var(--mut); font-size: 13px; margin-bottom: 0; }
+.quick-mut { color: var(--mut); font-size: 11px; margin-top: 6px; }
 .quick-create-row {
  display: flex;
  gap: 8px;

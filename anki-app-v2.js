@@ -3668,6 +3668,63 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     nextCard();
   };
 
+  function renderCoursLinkUI(kind) {
+    const prefix = kind === 'quick' ? 'quick' : 'exo';
+    const sel = $(prefix + 'CoursSelected');
+    const res = $(prefix + 'CoursResults');
+    if (!sel || !res) return;
+    if (!S.coursLinkSelection) S.coursLinkSelection = new Set();
+
+    sel.innerHTML = Array.from(S.coursLinkSelection).map(uid => {
+      const co = (window.D.cours || []).find(x => x.uid === uid);
+      const safeUid = String(uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      if (!co) {
+        return `<span class="anki-link-chip" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">${esc(uid)} ${window.iconHtml('x', 12)}</span>`;
+      }
+      const m = mat(co.mat);
+      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">${esc(co.uid)} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
+    }).join('') || '<span class="anki-mut" style="font-size:11px;">Aucun cours lié.</span>';
+
+    const q = (S.coursLinkQuery || '').toLowerCase().trim();
+    if (!q) { res.innerHTML = ''; return; }
+    const list = (window.D.cours || []).filter(c => {
+      if (S.coursLinkSelection.has(c.uid)) return false;
+      const matObj = mat(c.mat);
+      const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
+      return ((c.uid || '') + ' ' + (c.title || '') + ' ' + (matObj.name || '') + ' ' + (matObj.label || '') + ' ' + (cl.name || '')).toLowerCase().includes(q);
+    }).slice(0, 12);
+    if (!list.length) {
+      res.innerHTML = '<div class="anki-mut" style="padding:8px;font-size:12px;">Aucun cours trouvé.</div>';
+      return;
+    }
+    res.innerHTML = list.map(c => {
+      const m = mat(c.mat);
+      const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
+      const safeUid = String(c.uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">
+        <span class="anki-link-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
+        <span class="anki-link-id">${esc(c.uid)}</span>
+        <span class="anki-link-title">${esc(c.title)}</span>
+        <span class="anki-mut">${esc(cl.name || '')}</span>
+      </div>`;
+    }).join('');
+  }
+
+  window.ankiV2CoursLinkSearch = function (v, kind) {
+    S.coursLinkQuery = v || '';
+    renderCoursLinkUI(kind === 'quick' ? 'quick' : 'exo');
+  };
+
+  window.ankiV2CoursLinkToggle = function (uid, kind) {
+    if (!S.coursLinkSelection) S.coursLinkSelection = new Set();
+    if (S.coursLinkSelection.has(uid)) S.coursLinkSelection.delete(uid);
+    else S.coursLinkSelection.add(uid);
+    const k = kind === 'quick' || kind === 'exo'
+      ? kind
+      : (document.getElementById('quickCoursSelected') ? 'quick' : 'exo');
+    renderCoursLinkUI(k);
+  };
+
   window.ankiV2OpenQuickModal = function (opts) {
     if (typeof window.refuseSecondaryFullMutation === 'function'
         && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
