@@ -4673,13 +4673,13 @@ body.nav-sidebar-left #paneLatexTest.on {
   overflow: hidden;
 }
 .latex-lab-compose {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   grid-template-areas: "editor preview";
   gap: 8px;
-  min-height: 0;
-  max-height: min(46vh, 380px);
+  min-height: 260px;
+  max-height: none;
 }
 .latex-lab-panel-editor { grid-area: editor; }
 .latex-lab-panel-preview { grid-area: preview; }
@@ -4694,6 +4694,16 @@ body.nav-sidebar-left #paneLatexTest.on {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+}
+/* L’éditeur garde sa barre d’outils (␣ / \text{} / Espace auto) toujours visible */
+.latex-lab-panel-editor {
+  overflow: visible;
+  min-height: 240px;
+}
+.latex-lab-panel-editor .latex-lab-field-wrap {
+  flex: 1 1 auto;
+  min-height: 64px;
+  max-height: 160px;
 }
 .latex-lab-panel-label {
   font-size: 10px;
@@ -4788,33 +4798,45 @@ body.nav-sidebar-left #paneLatexTest.on {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 2;
+  margin-top: 4px;
+  padding: 8px 8px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  background: var(--s2);
 }
 .latex-lab-quick {
   font-family: 'DM Mono', ui-monospace, monospace;
-  font-size: 11px;
-  min-height: 30px;
-  padding: 4px 8px;
-  border-radius: 7px;
-  border: 1px solid var(--bd);
-  background: var(--s2);
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--bd) 70%, var(--acc, #5b9aff) 30%);
+  background: var(--s1);
   color: var(--txt);
   cursor: pointer;
+  opacity: 1;
 }
 .latex-lab-quick:hover {
   border-color: var(--acc, #5b9aff);
-  background: var(--s3);
+  background: color-mix(in srgb, var(--acc, #5b9aff) 14%, var(--s1));
 }
 .latex-lab-space-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--mut);
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--txt);
   margin-left: auto;
   user-select: none;
   cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 8px;
 }
 .latex-lab-space-toggle input { accent-color: var(--acc, #5b9aff); }
 .latex-lab-palette {
@@ -5034,14 +5056,15 @@ body.nav-sidebar-left #paneLatexTest.on {
 }
 .latex-lab-snip {
   font-family: 'DM Mono', ui-monospace, monospace;
-  font-size: 11px;
-  min-height: 40px;
-  min-width: 44px;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 42px;
+  min-width: 46px;
   aspect-ratio: 1;
   padding: 4px 2px;
   border-radius: 8px;
-  border: 1px solid var(--bd);
-  background: var(--s2);
+  border: 1px solid color-mix(in srgb, var(--bd) 75%, #fff 12%);
+  background: color-mix(in srgb, var(--s2) 88%, #fff 6%);
   color: var(--txt);
   cursor: pointer;
   transition: background .12s, border-color .12s, transform .08s;
@@ -5052,6 +5075,8 @@ body.nav-sidebar-left #paneLatexTest.on {
   text-align: center;
   word-break: break-word;
   overflow: hidden;
+  opacity: 1;
+  -webkit-font-smoothing: antialiased;
 }
 .latex-lab-snip:hover {
   background: var(--s3);
@@ -5107,7 +5132,12 @@ body.nav-sidebar-left #paneLatexTest.on {
     grid-template-columns: 1fr;
     grid-template-areas: "preview" "editor";
     max-height: none;
+    min-height: 0;
     flex: 0 0 auto;
+  }
+  .latex-lab-panel-editor {
+    overflow: visible;
+    min-height: 0;
   }
   .latex-lab-panel-preview .latex-lab-preview-wrap {
     min-height: 72px;
@@ -5118,11 +5148,15 @@ body.nav-sidebar-left #paneLatexTest.on {
     min-height: 56px;
     max-height: 22vh;
   }
+  .latex-lab-quickbar {
+    position: relative;
+    z-index: 3;
+  }
   .latex-lab-palette { min-height: 140px; }
   .latex-lab-snip-grid {
     grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
   }
-  .latex-lab-snip { min-height: 38px; font-size: 10px; }
+  .latex-lab-snip { min-height: 38px; font-size: 11px; }
   .latex-lab-head-actions { width: 100%; justify-content: flex-start; }
   .latex-lab-search { max-width: none; flex: 1 1 100%; }
   .latex-lab-panel-label .anki-mut { display: none; }
