@@ -34,7 +34,7 @@ assert(/__BOOT_CACHE_V\s*=\s*'2026082[0-9][a-z]'/.test(index), 'cache version dÃ
 
 console.log('\n=== Programme / chapitres ===\n');
 assert(/paneProgramme|renderProgramme/.test(read('programme.js')), 'module programme.js');
-assert(/programmeSearchTest|renderProgrammeSearchTest/.test(read('programme-search-test.js')), 'labo recherche programme');
+assert(/programmeSearchTest|renderProgrammeSearchTest|prog-bc-bar/.test(read('programme-search-test.js')), 'Fil dâ€™Ariane programme');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'D.chapitres dans emptyData');
 assert(/loginOverlay|activeProfileChip|deviceSessionPanel/.test(index), 'UI auth / profil / device');
 assert(/ovCoursWizard|ovAnkiSession|ovQuickCreate|ovQuickLatex/.test(index)
