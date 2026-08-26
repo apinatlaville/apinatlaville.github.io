@@ -54,6 +54,8 @@ assert(/QUICK_DEFAULT_SEC\s*=\s*30/.test(algoSrc), 'durée packing Y- = 30s');
 assert(/cardKind\(c\) === 'quick'/.test(algoSrc), 'cardDuration branche quick');
 assert(/ankiV2OpenQuickModal/.test(quickSrc) && /ensureAnkiUi/.test(quickSrc), 'Créer charge Anki UI puis ouvre le modal');
 assert(/openQuickCardCreate/.test(quickSrc), 'fallback openQuickCardCreate');
+assert(/function renderCoursLinkUI/.test(appSrc), 'renderCoursLinkUI défini (lien chapitre modal)');
+assert(/ankiV2CoursLinkSearch/.test(appSrc) && /ankiV2CoursLinkToggle/.test(appSrc), 'API recherche/toggle cours liés');
 
 const sandbox = {
   window: { D: { settings: {}, exercices: [], matieres: [], cours: [] }, escHtml: (s) => String(s) },
