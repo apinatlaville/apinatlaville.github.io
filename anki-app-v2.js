@@ -3829,12 +3829,20 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const qEl = $("quickQ");
     const rEl = $("quickR");
     if (rEl) {
-      rEl.addEventListener('keydown', function (e) {
+      rEl.onkeydown = function (e) {
         if (e.key === 'Enter' && !e.isComposing && !e.repeat) {
           e.preventDefault();
           window.ankiV2SaveQuick();
         }
-      });
+      };
+    }
+    if (qEl) {
+      qEl.onkeydown = function (e) {
+        if (e.key === 'Enter' && !e.isComposing && !e.repeat) {
+          e.preventDefault();
+          if (rEl) rEl.focus();
+        }
+      };
     }
     if (qEl) qEl.focus();
   }

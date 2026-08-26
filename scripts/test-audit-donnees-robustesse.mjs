@@ -91,7 +91,7 @@ assert(/evalCardV2 save:[\s\S]*nextCard\(true\)/.test(ankiSrc),
   'evalCardV2 : avance quand même si save échoue (anti double-notation)');
 assert(/switchToSecondary:[\s\S]*getStatus\(\)/.test(dsSrc),
   'switchToSecondary catch : ne bloque pas l’UI');
-assert(/r\.onkeydown =/.test(quickSrc), 'bindEnter : onkeydown (pas de stack listeners)');
+assert(/rEl\.onkeydown =/.test(ankiSrc), 'bindEnter : onkeydown (pas de stack listeners)');
 assert(/coursWizardDeleteCreated[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(wizSrc),
   'wizard delete catch save errors');
 assert(/__BOOT_CACHE_V\s*=\s*'20260826n'/.test(indexSrc), 'cache 20260826n');

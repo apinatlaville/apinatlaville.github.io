@@ -175,7 +175,7 @@ console.log('\n=== Correctifs audit — encore en place ===\n');
     || /ankiV2SetQuickQueue[\s\S]*refuseSecondaryFullMutation[\s\S]*sessionIsLive/.test(anki),
     'quick queue secondaire avant conflit');
   assert(/evalCardV2 save:[\s\S]*nextCard\(true\)/.test(anki), 'eval anti double-notation');
-  assert(/r\.onkeydown =/.test(quick), 'bindEnter onkeydown');
+  assert(/rEl\.onkeydown =/.test(anki), 'bindEnter onkeydown');
 }
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
