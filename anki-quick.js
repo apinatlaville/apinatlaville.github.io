@@ -141,29 +141,42 @@
     ensure();
     const m = mode === 'batch' ? 'batch' : 'single';
     const go = function () {
-      /* Depuis l’onglet Rapide : pas de contexte « carte liée » résiduel */
       window._cardCreateOpts = Q.mat ? { mat: Q.mat } : {};
-      if (typeof window.openQuickCardCreate === 'function') {
-        window.openQuickCardCreate(m);
+      window._quickCreateMode = m;
+      window._quickCreateCount = 0;
+      if (typeof window.closeQuickCreateMenu === 'function') window.closeQuickCreateMenu();
+      if (typeof window.ankiV2OpenQuickModal === 'function') {
+        window.ankiV2OpenQuickModal({ mode: m, mat: Q.mat || undefined });
         return;
       }
-      if (typeof window.ankiV2OpenQuickModal === 'function') {
-        window._quickCreateMode = m;
-        window._quickCreateCount = 0;
-        window.ankiV2OpenQuickModal({ mode: m, mat: Q.mat || undefined });
+      if (typeof window.openQuickCardCreate === 'function') {
+        window.openQuickCardCreate(m);
         return;
       }
       if (typeof window.sysAlert === 'function') {
         window.sysAlert('Module Anki non chargé.', 'Erreur');
       }
     };
-    if (typeof window.ensureScriptsForTab === 'function') {
-      window.ensureScriptsForTab('ankiV2').then(go).catch(function () {
-        if (typeof window.sysAlert === 'function') {
-          window.sysAlert('Module Anki non chargé.', 'Erreur');
-        }
-      });
-    } else go();
+    const load = typeof window.ensureAnkiUi === 'function'
+      ? window.ensureAnkiUi()
+      : (typeof window.ensureScriptsForTab === 'function'
+        ? window.ensureScriptsForTab('ankiV2')
+        : Promise.resolve());
+    Promise.resolve(load).then(function () {
+      /* ensureAnkiUi peut résoudre sans succès : re-tenter le bundle ankiV2 */
+      if (typeof window.ankiV2OpenQuickModal === 'function') {
+        go();
+        return;
+      }
+      if (typeof window.ensureScriptsForTab === 'function') {
+        return window.ensureScriptsForTab('ankiV2').then(go);
+      }
+      go();
+    }).catch(function () {
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Module Anki non chargé.', 'Erreur');
+      }
+    });
   };
 
   /** Alias : ouvre le modal puis l’éditeur LaTeX (rétrocompat). */
