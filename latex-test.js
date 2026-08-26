@@ -930,14 +930,18 @@
     }
     _mathLivePromise = new Promise(function (resolve, reject) {
       loadStylesheet(CDN + '/mathlive-static.css');
-      loadStylesheet(CDN + '/mathlive-fonts.css');
+      // Fonts self-hostées : le CDN MathLive utilise font-display:"swap" (invalide CSS)
+      // → @font-face ignorés → glyphes Size3/4 absents → parenthèses de matrices « cassées ».
+      var fontsCss = 'vendor/mathlive/mathlive-fonts.css?v=' +
+        encodeURIComponent(window.__BOOT_CACHE_V || window.__bootCacheV || '1');
+      loadStylesheet(fontsCss);
       var s = document.createElement('script');
       s.src = CDN + '/mathlive.min.js';
       s.async = true;
       s.onload = function () {
         try {
           if (window.MathfieldElement) {
-            window.MathfieldElement.fontsDirectory = CDN + '/fonts';
+            window.MathfieldElement.fontsDirectory = 'vendor/mathlive/fonts';
           }
         } catch (e) { /* ignore */ }
         resolve();
@@ -947,6 +951,9 @@
         reject(new Error('Impossible de charger MathLive (réseau / CDN).'));
       };
       document.head.appendChild(s);
+    }).catch(function (err) {
+      _mathLivePromise = null;
+      throw err;
     });
     return _mathLivePromise;
   }
