@@ -74,16 +74,6 @@
     return (window.D.matieres || []).find(m => m.id === id) || { color: '#666', label: id || '?', name: id || '?' };
   }
 
-  function coursOptsForMat(matId, selected) {
-    const list = (window.D.cours || []).filter(c => !matId || c.mat === matId);
-    if (!list.length) {
-      return '<option value="">— Aucun chapitre pour cette matière —</option>';
-    }
-    return '<option value="">— Chapitre (optionnel) —</option>' + list.map(c =>
-      `<option value="${esc(c.uid)}"${c.uid === selected ? ' selected' : ''}>${esc(c.uid)} · ${esc(c.title)}</option>`
-    ).join('');
-  }
-
   function formatFace(str) {
     if (typeof window.formatCardFaceHtml === 'function') return window.formatCardFaceHtml(str);
     if (typeof window.formatQuickCardHtml === 'function') return window.formatQuickCardHtml(str);
@@ -91,46 +81,147 @@
     return esc(str);
   }
 
+  window.closeQuickCreateMenu = function () {
+    const menu = document.getElementById('quickCreateMenu');
+    const trigger = document.getElementById('btnQuickCreateMenu');
+    if (menu) menu.classList.remove('open');
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  };
+
+  window.toggleQuickCreateMenu = function () {
+    const menu = document.getElementById('quickCreateMenu');
+    const trigger = document.getElementById('btnQuickCreateMenu');
+    if (!menu || !trigger) return;
+    const open = !menu.classList.contains('open');
+    menu.classList.toggle('open', open);
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  function bindQuickCreateMenu() {
+    const trigger = document.getElementById('btnQuickCreateMenu');
+    const btnSingle = document.getElementById('btnQuickCreateSingle');
+    const btnBatch = document.getElementById('btnQuickCreateBatch');
+    if (trigger && trigger.dataset.bound !== '1') {
+      trigger.dataset.bound = '1';
+      trigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        window.toggleQuickCreateMenu();
+      });
+    }
+    if (btnSingle && btnSingle.dataset.bound !== '1') {
+      btnSingle.dataset.bound = '1';
+      btnSingle.addEventListener('click', function () {
+        window.closeQuickCreateMenu();
+        window.quickAdd('single');
+      });
+    }
+    if (btnBatch && btnBatch.dataset.bound !== '1') {
+      btnBatch.dataset.bound = '1';
+      btnBatch.addEventListener('click', function () {
+        window.closeQuickCreateMenu();
+        window.quickAdd('batch');
+      });
+    }
+    if (!window._quickCreateMenuDocBound) {
+      window._quickCreateMenuDocBound = true;
+      document.addEventListener('click', function (e) {
+        const menu = document.getElementById('quickCreateMenu');
+        if (!menu || !menu.classList.contains('open')) return;
+        if (menu.contains(e.target)) return;
+        window.closeQuickCreateMenu();
+      });
+    }
+  }
+
+  /**
+   * Ouvre le modal de création Rapide (même flux que Synchrotron / FAB).
+   * @param {'single'|'batch'} [mode]
+   */
+  window.quickAdd = function (mode) {
+    ensure();
+    const m = mode === 'batch' ? 'batch' : 'single';
+    const go = function () {
+      if (typeof window.openQuickCardCreate === 'function') {
+        window.openQuickCardCreate(m);
+        return;
+      }
+      if (typeof window.ankiV2OpenQuickModal === 'function') {
+        window._quickCreateMode = m;
+        window._quickCreateCount = 0;
+        window.ankiV2OpenQuickModal({ mode: m, mat: Q.mat || undefined });
+        return;
+      }
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Module Anki non chargé.', 'Erreur');
+      }
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('ankiV2').then(go).catch(function () {
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Module Anki non chargé.', 'Erreur');
+        }
+      });
+    } else go();
+  };
+
+  /** Alias : ouvre le modal puis l’éditeur LaTeX (rétrocompat). */
+  window.quickOpenLatex = function (side) {
+    ensure();
+    const go = function () {
+      if (typeof window.openQuickCardCreate === 'function') {
+        window.openQuickCardCreate('single');
+      } else if (typeof window.ankiV2OpenQuickModal === 'function') {
+        window.ankiV2OpenQuickModal({ mat: Q.mat || undefined });
+      }
+      const openLatex = function () {
+        if (typeof window.ankiV2QuickOpenLatex === 'function') {
+          window.ankiV2QuickOpenLatex(side || 'both');
+        }
+      };
+      setTimeout(openLatex, 0);
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('ankiV2').then(go).catch(function () {
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Module Anki non chargé.', 'Erreur');
+        }
+      });
+    } else go();
+  };
+
   window.renderFlashcards = function () {
     ensure();
     const root = $("paneFlashcards");
     if (!root) return;
 
-    const matOpts = (window.D.matieres || []).map(m =>
-      `<option value="${m.id}" ${Q.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`
-    ).join('');
     const filterMatOpts = '<option value="">Toutes</option>' + (window.D.matieres || []).map(m =>
       `<option value="${m.id}" ${Q.filterMat === m.id ? 'selected' : ''}>${esc(m.label)}</option>`
     ).join('');
 
     root.innerHTML = `
-      <div class="quick-head">
-        <h2>${window.iconLabel('zap', 'Rapide — cartes Y-')}</h2>
-        <p>Cartes courtes par matière · lien chapitre · option LaTeX. Nouvelle carte → <b>active directement</b>.</p>
-      </div>
-
-      <div class="quick-create">
-        <div class="quick-create-row quick-create-faces">
-          <div class="quick-face-field">
-            <input type="text" id="qkQ" placeholder="Question / recto">
-            <button type="button" class="bs quick-latex-btn" title="Éditeur LaTeX recto"
-              onclick="window.quickOpenLatex('recto')">${window.iconLabel('sigma', 'LaTeX')}</button>
-          </div>
-          <div class="quick-face-field">
-            <input type="text" id="qkR" placeholder="Réponse / verso (facultatif)">
-            <button type="button" class="bs quick-latex-btn" title="Éditeur LaTeX verso"
-              onclick="window.quickOpenLatex('verso')">${window.iconLabel('sigma', 'LaTeX')}</button>
-          </div>
+      <div class="quick-pane-toolbar">
+        <div class="quick-head">
+          <h2>${window.iconLabel('zap', 'Rapide — cartes Y-')}</h2>
+          <p>Cartes courtes par matière · lien chapitre · option LaTeX. Nouvelle carte → <b>active directement</b>.</p>
         </div>
-        <div class="quick-create-row">
-          <select id="qkMat" onchange="window.quickMatChanged(this.value)">${matOpts}</select>
-          <select id="qkCours">${coursOptsForMat(Q.mat, Q.coursId)}</select>
-          <button type="button" class="bs" onclick="window.quickOpenLatex('both')" title="Recto et verso en LaTeX">
-            ${window.iconLabel('sigma', 'Carte LaTeX')}
+        <div class="cours-create-menu" id="quickCreateMenu">
+          <button type="button" class="cours-create-trigger" id="btnQuickCreateMenu"
+            aria-expanded="false" aria-haspopup="true" title="Créer une carte rapide">
+            <span data-icon="plus" data-icon-size="14"></span>
+            Créer
+            <span class="cours-create-chevron" data-icon="chevron-down" data-icon-size="12"></span>
           </button>
-          <button class="bp" onclick="window.quickAdd()">${window.iconLabel('plus', 'Créer (active)')}</button>
+          <div class="cours-create-dropdown" role="menu">
+            <button type="button" class="cours-create-item" id="btnQuickCreateSingle" role="menuitem">
+              <strong><span data-icon="zap" data-icon-size="14"></span> Créer une</strong>
+              <span class="hint">1 carte rapide — ferme après création</span>
+            </button>
+            <button type="button" class="cours-create-item" id="btnQuickCreateBatch" role="menuitem">
+              <strong><span data-icon="layers" data-icon-size="14"></span> Créer à la suite</strong>
+              <span class="hint">Enchaîne plusieurs cartes (même matière / chapitre)</span>
+            </button>
+          </div>
         </div>
-        <div class="quick-mut">${window.iconLabel('lightbulb', 'LaTeX ouvre l’éditeur Easy (popup). Entrée = créer (texte simple).')}</div>
       </div>
 
       <div class="quick-filters">
@@ -145,125 +236,8 @@
       <div id="qkSections"></div>
     `;
     renderSections();
-    bindEnter();
+    bindQuickCreateMenu();
     if (window.hydrateIcons) window.hydrateIcons(root);
-  };
-
-  window.quickMatChanged = function (matId) {
-    Q.mat = matId;
-    Q.coursId = '';
-    const sel = $('qkCours');
-    if (sel) sel.innerHTML = coursOptsForMat(matId, '');
-  };
-
-  window.quickOpenLatex = function (side) {
-    ensure();
-    const mat = ($('qkMat') && $('qkMat').value) || Q.mat;
-    const coursId = ($('qkCours') && $('qkCours').value) || '';
-    const q = ($('qkQ') && $('qkQ').value) || '';
-    const r = ($('qkR') && $('qkR').value) || '';
-    const latexRecto = side === 'recto' || side === 'both';
-    const latexVerso = side === 'verso' || side === 'both';
-    const go = function () {
-      if (typeof window.openQuickLatexCard !== 'function') {
-        window.sysAlert('Éditeur LaTeX non chargé.', 'Erreur');
-        return;
-      }
-      window.openQuickLatexCard({
-        latexRecto,
-        latexVerso: latexVerso || (side === 'verso'),
-        focusSide: side === 'verso' ? 'verso' : 'recto',
-        mat,
-        coursIds: coursId ? [coursId] : [],
-        question: q,
-        reponse: r,
-        restoreOverlay: null,
-        fieldQ: 'qkQ',
-        fieldR: 'qkR'
-      });
-    };
-    if (typeof window.ensureScriptsForTab === 'function') {
-      window.ensureScriptsForTab('quickLatex').then(go).catch(function () {
-        window.sysAlert('Impossible de charger l’éditeur LaTeX.', 'Erreur');
-      });
-    } else {
-      go();
-    }
-  };
-
-  function bindEnter() {
-    const r = $("qkR"); const q = $("qkQ");
-    if (r) {
-      r.onkeydown = function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); window.quickAdd(); }
-      };
-    }
-    if (q) {
-      q.onkeydown = function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); if (r) r.focus(); }
-      };
-    }
-  }
-
-  window.quickAdd = function () {
-    if (window._quickAddInFlight) return;
-    const qEl = $("qkQ");
-    const rEl = $("qkR");
-    const matEl = $("qkMat");
-    if (!qEl || !matEl) return;
-    const q = (qEl.value || '').trim();
-    if (!q) { qEl.focus(); return; }
-    const r = rEl ? (rEl.value || '').trim() : '';
-    const mat = matEl.value;
-    const coursId = ($("qkCours") && $("qkCours").value) || '';
-    Q.mat = mat;
-    Q.coursId = coursId;
-    if (!window.quickAddAnkiCard) { window.sysAlert("Module Anki non chargé.", "Erreur"); return; }
-    window._quickAddInFlight = true;
-    const createBtn = document.querySelector('.quick-create .bp');
-    if (createBtn) {
-      createBtn.disabled = true;
-      createBtn.setAttribute('aria-busy', 'true');
-    }
-    const doAdd = function () {
-      if (typeof window.quickAddAnkiCard !== 'function') {
-        window.sysAlert("Module Anki non chargé.", "Erreur");
-        return Promise.reject(new Error('NO_ANKI'));
-      }
-      return Promise.resolve(window.quickAddAnkiCard({
-        question: q,
-        reponse: r,
-        mat,
-        profil: QUICK_PROFIL,
-        tempsCible: QUICK_DEFAULT_SEC,
-        statut: "actif",
-        importance: 3,
-        coursIds: coursId ? [coursId] : []
-      })).then(function (card) {
-        if (!card) return;
-        qEl.value = '';
-        if (rEl) rEl.value = '';
-        qEl.focus();
-        renderSections();
-        if (typeof window.showToast === 'function') {
-          window.showToast('Carte ' + card.id + ' créée.');
-        }
-      });
-    };
-    const finish = function () {
-      window._quickAddInFlight = false;
-      if (createBtn) {
-        createBtn.disabled = false;
-        createBtn.removeAttribute('aria-busy');
-      }
-    };
-    if (typeof window.ensureScriptsForTab === 'function') {
-      window.ensureScriptsForTab('ankiV2').then(doAdd).catch(function () {
-        window.sysAlert("Module Anki non chargé.", "Erreur");
-      }).finally(finish);
-    } else {
-      Promise.resolve(doAdd()).finally(finish);
-    }
   };
 
   window.quickFilter = function () { renderSections(); };
@@ -363,7 +337,7 @@
     if (!host) return;
     const list = getFiltered();
     if (!list.length) {
-      host.innerHTML = '<div class="anki-empty">' + window.iconLabel('mouse-pointer-click', 'Aucune carte Y-. Crée la première ci-dessus') + '</div>';
+      host.innerHTML = '<div class="anki-empty">' + window.iconLabel('mouse-pointer-click', 'Aucune carte Y-. Utilise Créer pour en ajouter une') + '</div>';
       return;
     }
 

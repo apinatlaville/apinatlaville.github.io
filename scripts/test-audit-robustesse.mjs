@@ -98,7 +98,7 @@ const oqBody = oqEnd > 0 ? oq.slice(0, oqEnd) : oq.slice(0, 800);
 assert(!/openCardTypePicker\(window\._cardCreateOpts/.test(oqBody),
   'openQuickCardCreate ne reboucle plus sur le type picker');
 assert(/consultation \(pas de création/.test(indexSrc), 'hint Base Doc secondaire clarifié');
-assert(/__BOOT_CACHE_V\s*=\s*'20260825b'/.test(indexSrc), 'cache 20260825b');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826c'/.test(indexSrc), 'cache 20260826c');
 assert(/throw err/.test(latexSrc) && /MathLive indisponible/.test(latexSrc),
   'échec MathLive propage ready (anti-wipe Appliquer)');
 
