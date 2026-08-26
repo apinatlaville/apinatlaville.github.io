@@ -98,9 +98,16 @@ const oqBody = oqEnd > 0 ? oq.slice(0, oqEnd) : oq.slice(0, 800);
 assert(!/openCardTypePicker\(window\._cardCreateOpts/.test(oqBody),
   'openQuickCardCreate ne reboucle plus sur le type picker');
 assert(/consultation \(pas de création/.test(indexSrc), 'hint Base Doc secondaire clarifié');
-assert(/__BOOT_CACHE_V\s*=\s*'20260825b'/.test(indexSrc), 'cache 20260825b');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826a'/.test(indexSrc), 'cache 20260826a');
 assert(/throw err/.test(latexSrc) && /MathLive indisponible/.test(latexSrc),
   'échec MathLive propage ready (anti-wipe Appliquer)');
+
+const styleSrc = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+assert(!/\.latex-lab-preview-math\s+\.ML__base\s*\{[^}]*vertical-align:\s*middle/.test(styleSrc),
+  'pas de vertical-align:middle sur .ML__base (casse pmatrix)');
+assert(/latex-lab-field-wrap[\s\S]{0,280}display:\s*block/.test(styleSrc),
+  'math-field wrap en block (pas flex center)');
+assert(/ML__stretchy svg/.test(styleSrc), 'protection fill SVG délimiteurs');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

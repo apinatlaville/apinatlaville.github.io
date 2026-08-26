@@ -4724,11 +4724,11 @@ body.nav-sidebar-left #paneLatexTest.on {
   background: var(--s2);
   border: 1px solid var(--bd);
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   min-height: 72px;
   flex: 1 1 auto;
-  display: flex;
-  align-items: center;
+  /* Pas de flex+align-items:center : ça casse les délimiteurs étirés (pmatrix). */
+  display: block;
   overflow: auto;
 }
 .latex-lab-preview-wrap {
@@ -4739,7 +4739,7 @@ body.nav-sidebar-left #paneLatexTest.on {
   align-items: baseline;
   justify-content: center;
   gap: 0.35em 0.5em;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: 10px;
   border: 1px solid var(--bd);
   overflow: auto;
@@ -4759,19 +4759,31 @@ body.nav-sidebar-left #paneLatexTest.on {
 }
 .latex-lab-preview-math {
   display: inline-block;
-  vertical-align: middle;
-  line-height: 1.15;
+  /* Alignement texte+formule via baseline du wrap — ne pas toucher .ML__base. */
+  vertical-align: baseline;
   font-size: 1.45rem;
+  line-height: normal;
 }
-.latex-lab-preview-math .ML__latex,
-.latex-lab-preview-math .ML__base {
-  vertical-align: middle;
-}
+/* Cartes / Rapide : léger décalage optique sans écraser le layout MathLive interne */
 .qk-q .latex-lab-preview-math,
 .qk-r .latex-lab-preview-math,
 .anki-card-q .latex-lab-preview-math,
 .anki-card-a .latex-lab-preview-math {
   vertical-align: -0.12em;
+}
+/* Délimiteurs étirés : protéger fill/stroke (évite parenthèses « hérissées ») */
+.latex-lab .ML__stretchy svg,
+.latex-lab-preview-math .ML__stretchy svg,
+.latex-lab math-field .ML__stretchy svg {
+  fill: currentColor !important;
+  fill-opacity: 1 !important;
+  stroke: currentColor;
+  stroke-width: 1px;
+}
+/* Assemblage multi-glyphes (Size1–4) : moins de coutures visibles */
+.latex-lab .ML__delim-mult > span,
+.latex-lab-preview-math .ML__delim-mult > span {
+  line-height: 0;
 }
 .latex-lab-fallback-math {
   font-family: 'DM Mono', ui-monospace, monospace;
