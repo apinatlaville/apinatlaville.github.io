@@ -17,6 +17,7 @@
 
   var _filterMat = '';
   var _filterAnnee = '';
+  var _reorderMode = false;
 
   function $(id) { return document.getElementById(id); }
 
@@ -171,6 +172,27 @@
     ch.order = other.order;
     other.order = tmp;
     return { ok: true, chapitre: ch };
+  };
+
+  /** Réordonne les chapitres d’un groupe matière+année selon la liste d’ids DnD. */
+  window.reorderChapitresInGroup = function (mat, annee, orderedIds) {
+    window.ensureChapitreOrders();
+    if (!mat || !Array.isArray(orderedIds) || !orderedIds.length) {
+      return { ok: false, error: 'Paramètres invalides.' };
+    }
+    var a = window.normalizeAnnee(annee);
+    var byId = {};
+    (window.D.chapitres || []).forEach(function (c) {
+      if (c.mat === mat && window.normalizeAnnee(c.annee) === a) byId[c.id] = c;
+    });
+    var applied = 0;
+    orderedIds.forEach(function (id, i) {
+      var ch = byId[id];
+      if (!ch) return;
+      ch.order = i;
+      applied++;
+    });
+    return { ok: applied > 0, count: applied };
   };
 
   window.listChapitres = function (opts) {
@@ -366,20 +388,29 @@
     var loc = ch.cl
       ? esc(clObj(ch.cl).name) + ' · ' + esc(interLabel(ch.cl, ch.inter))
       : '—';
-    var atTop = idx <= 0;
-    var atBottom = idx >= count - 1;
+    var dragAttrs = _reorderMode
+      ? ' draggable="true" class="programme-row card programme-row-draggable" data-id="' + esc(ch.id) + '"'
+      : ' class="programme-row card"';
+    var grip = _reorderMode
+      ? '<div class="programme-row-grip" title="Glisser pour réordonner" aria-hidden="true">' +
+          (window.iconHtml ? window.iconHtml('move-vertical', 16) : '⋮⋮') +
+        '</div>'
+      : '';
+    var actions = _reorderMode
+      ? ''
+      : (
+        '<div class="programme-row-actions">' +
+          '<button type="button" class="bs" title="Modifier" onclick="window.programmeOpenEdit(\'' + jsStr(ch.id) + '\')">' +
+            (window.iconHtml ? window.iconHtml('pencil', 16) : '✎') +
+          '</button>' +
+          '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);" title="Supprimer" onclick="window.programmeDelete(\'' + jsStr(ch.id) + '\')">' +
+            (window.iconHtml ? window.iconHtml('trash-2', 16) : '×') +
+          '</button>' +
+        '</div>'
+      );
     return (
-      '<div class="programme-row card" style="--mat-color:' + esc(m.color) + '">' +
-        '<div class="programme-row-order">' +
-          '<button type="button" class="bs programme-order-btn" title="Monter"' +
-            (atTop ? ' disabled' : '') + ' onclick="window.programmeMoveChapitre(\'' + jsStr(ch.id) + '\', -1)">' +
-            (window.iconHtml ? window.iconHtml('chevron-up', 14) : '↑') +
-          '</button>' +
-          '<button type="button" class="bs programme-order-btn" title="Descendre"' +
-            (atBottom ? ' disabled' : '') + ' onclick="window.programmeMoveChapitre(\'' + jsStr(ch.id) + '\', 1)">' +
-            (window.iconHtml ? window.iconHtml('chevron-down', 14) : '↓') +
-          '</button>' +
-        '</div>' +
+      '<div' + dragAttrs + ' style="--mat-color:' + esc(m.color) + '">' +
+        grip +
         '<div class="programme-row-main">' +
           '<div class="programme-row-title">' + window.formatChapitreLabel(ch, true) + '</div>' +
           '<div class="programme-row-meta">' +
@@ -390,16 +421,60 @@
           '</div>' +
           (ch.notes ? '<div class="programme-row-notes">' + esc(ch.notes) + '</div>' : '') +
         '</div>' +
-        '<div class="programme-row-actions">' +
-          '<button type="button" class="bs" title="Modifier" onclick="window.programmeOpenEdit(\'' + jsStr(ch.id) + '\')">' +
-            (window.iconHtml ? window.iconHtml('pencil', 16) : '✎') +
-          '</button>' +
-          '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);" title="Supprimer" onclick="window.programmeDelete(\'' + jsStr(ch.id) + '\')">' +
-            (window.iconHtml ? window.iconHtml('trash-2', 16) : '×') +
-          '</button>' +
-        '</div>' +
+        actions +
       '</div>'
     );
+  }
+
+  function bindProgrammeDragDrop(pane) {
+    if (!_reorderMode || !pane) return;
+
+    function persistListOrder(box) {
+      if (!box) return;
+      var mat = box.getAttribute('data-mat');
+      var annee = box.getAttribute('data-annee');
+      var ids = Array.prototype.map.call(
+        box.querySelectorAll('.programme-row-draggable'),
+        function (r) { return r.dataset.id; }
+      ).filter(Boolean);
+      if (!ids.length) return;
+      window.reorderChapitresInGroup(mat, annee, ids);
+      if (typeof window.save === 'function') {
+        var p = window.save();
+        if (p && typeof p.then === 'function') p.catch(function () {});
+      }
+    }
+
+    pane.querySelectorAll('.programme-list[data-mat]').forEach(function (box) {
+      box.querySelectorAll('.programme-row-draggable').forEach(function (row) {
+        row.addEventListener('dragstart', function (e) {
+          row.classList.add('dragging');
+          try {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.dataset.id || '');
+          } catch (err) { /* ignore */ }
+        });
+        row.addEventListener('dragend', function () {
+          row.classList.remove('dragging');
+          persistListOrder(box);
+          // Rafraîchir sans quitter le mode réorganiser
+          window.renderProgramme();
+        });
+        row.addEventListener('dragover', function (e) {
+          e.preventDefault();
+          try { e.dataTransfer.dropEffect = 'move'; } catch (err2) { /* ignore */ }
+          var dragging = box.querySelector('.dragging');
+          if (!dragging || dragging === row) return;
+          var rect = row.getBoundingClientRect();
+          var after = (e.clientY - rect.top) > rect.height / 2;
+          box.insertBefore(dragging, after ? row.nextSibling : row);
+        });
+        row.addEventListener('drop', function (e) {
+          e.preventDefault();
+          persistListOrder(box);
+        });
+      });
+    });
   }
 
   window.renderProgramme = function () {
@@ -429,10 +504,10 @@
     var body = groups.length
       ? groups.map(function (g) {
         return (
-          '<section class="programme-group">' +
+          '<section class="programme-group' + (_reorderMode ? ' programme-group-reorder' : '') + '">' +
             '<h3 class="programme-group-title">' + esc(g.matName) +
               ' <span class="programme-group-sub">· ' + g.annee + (g.annee === 1 ? 'ère' : 'ème') + ' année</span></h3>' +
-            '<div class="programme-list">' +
+            '<div class="programme-list" data-mat="' + esc(g.mat) + '" data-annee="' + g.annee + '">' +
               g.items.map(function (ch, i) { return renderChapitreRow(ch, i, g.items.length); }).join('') +
             '</div>' +
           '</section>'
@@ -440,25 +515,69 @@
       }).join('')
       : '<div class="anki-empty">Aucun chapitre. Créez-en un ou importez depuis les intercalaires d’un classeur.</div>';
 
+    var canReorder = groups.some(function (g) { return g.items.length >= 2; });
+    var reorderBtn = _reorderMode
+      ? '<button type="button" class="bp" onclick="window.programmeToggleReorder()">' +
+          iconLabel('check', 'Terminer') +
+        '</button>'
+      : '<button type="button" class="bs" onclick="window.programmeToggleReorder()"' +
+          (canReorder ? '' : ' disabled title="Au moins 2 chapitres dans un même groupe"') + '>' +
+          iconLabel('move-vertical', 'Réorganiser') +
+        '</button>';
+
     pane.innerHTML =
-      '<div class="programme-page">' +
+      '<div class="programme-page' + (_reorderMode ? ' programme-page-reorder' : '') + '">' +
         (typeof window.uiSection === 'function'
           ? window.uiSection('Programme', 'Chapitres logiques (plan de cours). Les documents papier restent dans Base Doc.', 'book-open')
           : '<h2>Programme</h2><p class="anki-mut">Chapitres logiques — documents papier dans Base Doc.</p>') +
         '<div class="programme-toolbar">' +
           '<div class="programme-filters">' +
-            '<label>Matière <select id="progFltMat" onchange="window.programmeSetFilter(\'mat\', this.value)">' + matOpts + '</select></label>' +
-            '<label>Année <select id="progFltAnnee" onchange="window.programmeSetFilter(\'annee\', this.value)">' + anOpts + '</select></label>' +
+            '<label>Matière <select id="progFltMat" onchange="window.programmeSetFilter(\'mat\', this.value)"' +
+              (_reorderMode ? ' disabled' : '') + '>' + matOpts + '</select></label>' +
+            '<label>Année <select id="progFltAnnee" onchange="window.programmeSetFilter(\'annee\', this.value)"' +
+              (_reorderMode ? ' disabled' : '') + '>' + anOpts + '</select></label>' +
           '</div>' +
-          '<button type="button" class="bp" onclick="window.programmeOpenWizard()">' +
-            iconLabel('plus', 'Créer un chapitre') +
-          '</button>' +
+          '<div class="programme-toolbar-actions">' +
+            reorderBtn +
+            (_reorderMode
+              ? ''
+              : '<button type="button" class="bp" onclick="window.programmeOpenWizard()">' +
+                  iconLabel('plus', 'Créer un chapitre') +
+                '</button>') +
+          '</div>' +
         '</div>' +
-        '<p class="programme-count anki-mut">' + total + ' chapitre(s)</p>' +
+        (_reorderMode
+          ? '<p class="programme-reorder-hint">Glissez-déposez les chapitres dans chaque groupe (matière · année). L’ordre est enregistré automatiquement.</p>'
+          : '<p class="programme-count anki-mut">' + total + ' chapitre(s) · triés par matière et année</p>') +
         body +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(pane);
+    bindProgrammeDragDrop(pane);
+  };
+
+  window.programmeToggleReorder = function () {
+    if (_reorderMode) {
+      // Sécurité : persister l’ordre DOM avant de quitter le mode
+      var pane = $('paneProgramme');
+      if (pane) {
+        pane.querySelectorAll('.programme-list[data-mat]').forEach(function (box) {
+          var mat = box.getAttribute('data-mat');
+          var annee = box.getAttribute('data-annee');
+          var ids = Array.prototype.map.call(
+            box.querySelectorAll('.programme-row-draggable'),
+            function (r) { return r.dataset.id; }
+          ).filter(Boolean);
+          if (ids.length) window.reorderChapitresInGroup(mat, annee, ids);
+        });
+        if (typeof window.save === 'function') {
+          var p = window.save();
+          if (p && typeof p.then === 'function') p.catch(function () {});
+        }
+      }
+    }
+    _reorderMode = !_reorderMode;
+    window.renderProgramme();
   };
 
   window.programmeSetFilter = function (key, val) {
@@ -789,12 +908,6 @@
     window.deleteChapitre(id);
     saveAndRefresh();
     if (typeof window.showToast === 'function') window.showToast('Chapitre supprimé.');
-  };
-
-  window.programmeMoveChapitre = function (id, delta) {
-    var res = window.moveChapitre(id, delta);
-    if (!res.ok) return;
-    saveAndRefresh();
   };
 
 })();

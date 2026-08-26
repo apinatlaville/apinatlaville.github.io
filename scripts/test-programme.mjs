@@ -49,10 +49,11 @@ assert(/chap-prefix/.test(read('style.css')), 'styles Chap. prefix');
 assert(/programme-wiz-body|programme-wiz-modal\.card-type-surface/.test(read('style.css')), 'modal wizard scrollable');
 assert(/programme-phase2-hint/.test(read('style.css')), 'hint phase 2 sans checkbox');
 assert(/window\.moveChapitre\s*=/.test(progSrc), 'API moveChapitre');
-assert(/programmeMoveChapitre/.test(progSrc), 'UI reorder chapitres');
-assert(/programme-row-order/.test(read('style.css')), 'styles boutons ordre');
+assert(/window\.reorderChapitresInGroup\s*=/.test(progSrc), 'API reorderChapitresInGroup');
+assert(/programmeToggleReorder|programme-row-draggable/.test(progSrc), 'UI réorganiser DnD');
+assert(/programme-row-grip/.test(read('style.css')), 'styles grip DnD');
 assert(/prog-bc-bar/.test(read('style.css')), 'styles Fil d’Ariane');
-assert(/__BOOT_CACHE_V\s*=\s*'20260825e'/.test(indexSrc), 'cache 20260825e');
+assert(/__BOOT_CACHE_V\s*=\s*'20260825f'/.test(indexSrc), 'cache 20260825f');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
@@ -142,6 +143,11 @@ function loadProgramme() {
   assert(phys1[1].title === 'Méca renommée', 'ordre après descente');
   var blocked = w.moveChapitre(phys1[1].id, 1);
   assert(!blocked.ok, 'moveChapitre bloqué en bas');
+
+  var dnd = w.reorderChapitresInGroup('PHYS', 1, [phys1[1].id, phys1[0].id]);
+  assert(dnd.ok, 'reorderChapitresInGroup ok');
+  phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
+  assert(phys1[0].title === 'Méca renommée', 'ordre après DnD');
 }
 
 console.log('\n=== demo-data ===\n');
