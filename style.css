@@ -2801,13 +2801,36 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .quick-grid {
  display: grid;
- grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
- gap: 10px;
+ grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+ gap: 12px;
 }
 .qk-card {
  perspective: 1000px;
  height: 170px;
  cursor: pointer;
+}
+.qk-card.qk-card--math {
+ height: auto;
+ min-height: 220px;
+}
+.qk-card.qk-card--math .qk-inner {
+ min-height: 220px;
+ height: auto;
+}
+.qk-card.qk-card--math .qk-front,
+.qk-card.qk-card--math .qk-back {
+ position: relative;
+ height: auto;
+ min-height: 220px;
+}
+.qk-card.qk-card--math.flipped .qk-front {
+ display: none;
+}
+.qk-card.qk-card--math.flipped .qk-back {
+ transform: none;
+}
+.qk-card.qk-card--math:not(.flipped) .qk-back {
+ display: none;
 }
 .qk-inner {
  position: relative;
@@ -2817,6 +2840,7 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  transition: transform 0.6s;
 }
 .qk-card.flipped .qk-inner { transform: rotateY(180deg); }
+.qk-card.qk-card--math.flipped .qk-inner { transform: none; }
 .qk-front, .qk-back {
  position: absolute;
  width: 100%;
@@ -2829,14 +2853,74 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  background: var(--s2);
  display: flex;
  flex-direction: column;
+ box-sizing: border-box;
 }
 .qk-back { transform: rotateY(180deg); background: var(--s3); justify-content: center; }
-.qk-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.qk-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 6px; flex-wrap: wrap; }
 .qk-mat { font-family: 'DM Mono', monospace; font-size: 10px; color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 700; }
 .qk-id { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--mut); }
-.qk-q { font-size: 15px; color: var(--txt); flex: 1; overflow: hidden; line-height: 1.35; }
-.qk-r { font-size: 14px; color: var(--txt); text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; padding: 6px; line-height: 1.4; }
-.qk-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 6px; }
+.qk-q {
+ font-size: 15px;
+ color: var(--txt);
+ flex: 1;
+ overflow: auto;
+ line-height: 1.45;
+ max-height: 100%;
+}
+.qk-card--math .qk-q {
+ font-size: 18px;
+ padding: 10px 4px 12px;
+ overflow-x: auto;
+ overflow-y: auto;
+ display: flex;
+ align-items: center;
+ min-height: 72px;
+}
+.qk-card--math .qk-q .latex-lab-preview-math,
+.qk-card--math .qk-r .latex-lab-preview-math {
+ display: block;
+ width: 100%;
+ overflow-x: auto;
+ color: var(--txt);
+ font-size: 1.15em;
+ line-height: 1.6;
+}
+.qk-card--math .qk-q .ML__latex,
+.qk-card--math .qk-r .ML__latex {
+ color: var(--txt) !important;
+}
+.qk-card--math .qk-q .latex-lab-fallback-math,
+.qk-card--math .qk-r .latex-lab-fallback-math {
+ color: var(--mut);
+ font-size: 12px;
+ white-space: pre-wrap;
+ word-break: break-word;
+}
+.qk-math-pending {
+ display: inline-block;
+ color: var(--mut);
+ font-size: 12px;
+ font-style: italic;
+}
+.qk-r { font-size: 14px; color: var(--txt); text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; padding: 6px; line-height: 1.4; overflow: auto; }
+.qk-card--math .qk-r {
+ justify-content: center;
+ text-align: center;
+ font-size: 18px;
+ min-height: 72px;
+}
+.qk-card--math .qk-stats {
+ font-size: 9px;
+ opacity: 0.55;
+ margin-top: 2px;
+ letter-spacing: 0.01em;
+}
+.qk-card--math .qk-foot {
+ margin-top: 8px;
+ padding-top: 6px;
+ border-top: 1px solid color-mix(in srgb, var(--bd) 70%, transparent);
+}
+.qk-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 6px; flex-shrink: 0; }
 .qk-actions { display: flex; gap: 4px; }
 
 /* =====================================================

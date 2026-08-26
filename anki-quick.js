@@ -28,42 +28,97 @@
     return s.indexOf('\\(') >= 0 || /\\[a-zA-Z[{]/.test(s);
   }
 
-  /** Re-rendu des faces LaTeX une fois MathLive / formatCardFaceHtml chargés */
+  function mathLiveReady() {
+    try {
+      if (window.MathfieldElement && typeof window.MathfieldElement.convertLatexToMarkup === 'function') return true;
+      if (window.MathLive && typeof window.MathLive.convertLatexToMarkup === 'function') return true;
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+
+  /** Placeholder lisible tant que MathLive n’a pas rendu la formule. */
+  function formatFacePlaceholder() {
+    return '<span class="qk-math-pending" aria-busy="true">Formule en cours de rendu…</span>';
+  }
+
+  function applyCardFaceHtml(el, raw, side, opts) {
+    if (!el) return;
+    opts = opts || {};
+    if (side === 'r' && !(raw || '').trim()) {
+      el.innerHTML = '<em style="color:var(--mut);">Pas de réponse — auto-évaluation libre</em>';
+      return;
+    }
+    if (!raw) {
+      el.innerHTML = '';
+      return;
+    }
+    if (faceNeedsMath(raw) && !mathLiveReady() && !opts.allowFallback) {
+      el.innerHTML = formatFacePlaceholder();
+      return;
+    }
+    if (typeof window.formatCardFaceHtml === 'function') {
+      el.innerHTML = window.formatCardFaceHtml(raw);
+    } else {
+      el.innerHTML = esc(raw);
+    }
+  }
+
+  /** Re-rendu des faces LaTeX une fois MathLive + formatCardFaceHtml prêts */
   window.hydrateQuickCardFaces = function (root) {
     var host = root || document.getElementById('qkSections') || document;
-    var nodes = host.querySelectorAll('[data-card-face-id]');
-    if (!nodes.length) return Promise.resolve();
-    var needs = false;
-    nodes.forEach(function (el) {
-      var id = el.getAttribute('data-card-face-id');
-      var side = el.getAttribute('data-card-face-side') || 'q';
-      var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
-      if (!c) return;
-      var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
-      if (faceNeedsMath(raw)) needs = true;
-    });
-    if (!needs) return Promise.resolve();
-    var load = Promise.resolve();
-    if (typeof window.ensureScriptsForTab === 'function') {
-      load = window.ensureScriptsForTab('quickLatex');
-    } else if (typeof window.ensureMathLive === 'function') {
-      load = window.ensureMathLive();
+    if (!host) return Promise.resolve();
+
+    function collectMathNodes() {
+      return host.querySelectorAll('[data-card-face-id]');
     }
-    return load.then(function () {
+
+    function anyFaceNeedsMath(nodes) {
+      var needs = false;
       nodes.forEach(function (el) {
         var id = el.getAttribute('data-card-face-id');
         var side = el.getAttribute('data-card-face-side') || 'q';
         var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
-        if (!c || typeof window.formatCardFaceHtml !== 'function') return;
+        if (!c) return;
         var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
-        if (!raw) return;
-        if (side === 'r' && !raw.trim()) {
-          el.innerHTML = '<em style="color:var(--mut);">Pas de réponse — auto-évaluation libre</em>';
-        } else {
-          el.innerHTML = window.formatCardFaceHtml(raw);
-        }
+        if (faceNeedsMath(raw)) needs = true;
       });
-    }).catch(function () { /* garde le fallback texte */ });
+      return needs;
+    }
+
+    function paintFaces(allowFallback) {
+      /* Re-query : le DOM a pu être re-rendu pendant le chargement async */
+      var nodes = collectMathNodes();
+      nodes.forEach(function (el) {
+        var id = el.getAttribute('data-card-face-id');
+        var side = el.getAttribute('data-card-face-side') || 'q';
+        var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
+        if (!c) return;
+        var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
+        applyCardFaceHtml(el, raw, side, { allowFallback: !!allowFallback });
+        var card = el.closest('.qk-card');
+        if (card && faceNeedsMath(raw)) card.classList.add('qk-card--math');
+      });
+    }
+
+    var initial = collectMathNodes();
+    if (!initial.length || !anyFaceNeedsMath(initial)) return Promise.resolve();
+
+    var loadScripts = Promise.resolve();
+    if (typeof window.ensureScriptsForTab === 'function') {
+      loadScripts = window.ensureScriptsForTab('quickLatex');
+    }
+    return loadScripts.then(function () {
+      if (typeof window.ensureMathLive === 'function') return window.ensureMathLive();
+    }).then(function () {
+      paintFaces(false);
+      /* Si MathLive a échoué silencieusement, éviter le placeholder éternel */
+      if (!mathLiveReady()) paintFaces(true);
+    }).catch(function (err) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Rapide] hydrate LaTeX', err);
+      }
+      paintFaces(true);
+    });
   };
 
   function isQuickCard(c) {
@@ -75,6 +130,9 @@
   }
 
   function formatFace(str) {
+    if (faceNeedsMath(str) && !mathLiveReady()) {
+      return formatFacePlaceholder();
+    }
     if (typeof window.formatCardFaceHtml === 'function') return window.formatCardFaceHtml(str);
     if (typeof window.formatQuickCardHtml === 'function') return window.formatQuickCardHtml(str);
     // Fallback sûr si latex-test pas encore chargé : texte échappé uniquement
@@ -329,8 +387,9 @@
     const inRes = window.AnkiAlgo.isReservoir(c);
     const typeCls = window.cardTypeSurfaceClass ? window.cardTypeSurfaceClass('quick') : '';
     const typeBadge = window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('quick') : '';
+    const isMath = faceNeedsMath(c.question) || faceNeedsMath(c.reponse);
     return `
-      <div class="qk-card ${typeCls}${inRes ? ' qk-reservoir' : ''}" onclick="this.classList.toggle('flipped')">
+      <div class="qk-card ${typeCls}${inRes ? ' qk-reservoir' : ''}${isMath ? ' qk-card--math' : ''}" onclick="this.classList.toggle('flipped')">
         <div class="qk-inner">
           <div class="qk-front">
             <div class="qk-top">
