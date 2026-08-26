@@ -38,6 +38,12 @@ assert(/latexBuildInline\(getTextBefore/.test(latexSrc) || /buildFullExport[\s\S
   'buildFullExport réutilise latexBuildInline');
 assert(!/latexToMarkup\(tex\)/.test(quickSrc),
   'anki-quick ne ré-implémente plus le replace XSS');
+assert(/ensureMathLive/.test(quickSrc) && /hydrateQuickCardFaces/.test(quickSrc),
+  'hydrate Rapide attend MathLive avant rendu formules');
+assert(/qk-math-pending|Formule en cours/.test(quickSrc),
+  'placeholder lisible tant que MathLive pas prêt');
+assert(/qk-card--math/.test(quickSrc) && /qk-card--math/.test(fs.readFileSync(path.join(root, 'style.css'), 'utf8')),
+  'cartes math : classe + styles dédiés');
 assert(/formatSessFace|formatCardFaceHtml/.test(appV2Src), 'session/dock utilisent format face LaTeX');
 assert(/_editorsReady/.test(quickLatexSrc) && /disabled/.test(quickLatexSrc),
   'Appliquer désactivé tant que MathLive pas prêt');
@@ -98,7 +104,7 @@ const oqBody = oqEnd > 0 ? oq.slice(0, oqEnd) : oq.slice(0, 800);
 assert(!/openCardTypePicker\(window\._cardCreateOpts/.test(oqBody),
   'openQuickCardCreate ne reboucle plus sur le type picker');
 assert(/consultation \(pas de création/.test(indexSrc), 'hint Base Doc secondaire clarifié');
-assert(/__BOOT_CACHE_V\s*=\s*'20260825b'/.test(indexSrc), 'cache 20260825b');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826e'/.test(indexSrc), 'cache 20260826e');
 assert(/throw err/.test(latexSrc) && /MathLive indisponible/.test(latexSrc),
   'échec MathLive propage ready (anti-wipe Appliquer)');
 

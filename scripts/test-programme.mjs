@@ -45,7 +45,7 @@ assert(/window\.renderProgrammeSearchTest\s*=/.test(labSrc), 'API renderProgramm
 assert(/chap-prefix/.test(read('style.css')), 'styles Chap. prefix');
 assert(/programme-wiz-body|programme-wiz-modal\.card-type-surface/.test(read('style.css')), 'modal wizard scrollable');
 assert(/programme-phase2-hint/.test(read('style.css')), 'hint phase 2 sans checkbox');
-assert(/__BOOT_CACHE_V\s*=\s*'20260825b'/.test(indexSrc), 'cache 20260825b');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826e'/.test(indexSrc), 'cache 20260826e');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
