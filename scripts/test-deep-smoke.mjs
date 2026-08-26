@@ -341,12 +341,19 @@ console.log('\n[5] Arbre Base Doc — collapse, mode, carte');
   html = W._els.coursGrid.innerHTML;
   assert(html.includes('Cinématique'), 'carte après expand cl→inter');
   assert(html.includes("doLocate('P1')"), 'onclick carte JS-safe');
-  W.setCoursBrowseMode('mat');
+  W.setCoursBrowseMode('ariane');
   W.coursExpanded = Object.create(null);
+  W.coursAriane = { mat: '', cl: '', inter: '' };
   W.renderCours();
   html = W._els.coursGrid.innerHTML;
-  assert(html.includes('Cinématique') && html.includes('Optique'), 'mode matières : docs sous matière');
-  assert(!html.includes('cours-tree-hdr--cl'), 'mode matières : pas de headers classeur');
+  assert(html.includes('cours-bc-bar') && html.includes('Physique'), 'Fil d’Ariane : barre + tuiles matières');
+  assert(!html.includes('Cinématique'), 'Fil d’Ariane niveau 0 : pas encore de cartes');
+  assert(!html.includes('cours-tree-hdr--cl'), 'Fil d’Ariane : pas de headers classeur arbre');
+  W.coursArianePickMat('PHYS');
+  W.coursArianePickCl('A');
+  W.coursArianePickInter('01');
+  html = W._els.coursGrid.innerHTML;
+  assert(html.includes('Cinématique'), 'Fil d’Ariane niveau inter : carte visible');
 }
 
 console.log('\n[6] Browse toggle : un seul binding wizard (pas app.js)');
@@ -364,7 +371,7 @@ console.log('\n[7] Cache bump + boot-loader');
   const boot = fs.readFileSync(path.join(root, 'boot-loader.js'), 'utf8');
   assert(/__BOOT_CACHE_V\s*=\s*'20260[78]\d{2}[a-z]'/.test(index), 'cache version bumpée');
   assert(boot.includes('cours-wizard.js'), 'boot charge cours-wizard.js');
-  assert(index.includes('btnCoursBrowseTree') && index.includes('btnCoursBrowseMat'), 'toggle Arbre/Matières dans HTML');
+  assert(index.includes('btnCoursBrowseTree') && index.includes('btnCoursBrowseMat'), "toggle Arbre/Fil d'Ariane dans HTML");
 }
 
 console.log('\n=== Résultat deep smoke ===');

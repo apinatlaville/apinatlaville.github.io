@@ -1,5 +1,5 @@
 /**
- * Tests Base Doc : arbre matière → classeur → intercalaire + collapse.
+ * Tests Base Doc : arbre matière → classeur → intercalaire + Fil d’Ariane.
  * Usage: node scripts/test-cours-browse-tree.mjs
  */
 import fs from 'fs';
@@ -51,6 +51,11 @@ function loadDataJs() {
     colorWithAlpha: (c) => c,
     intensifyColor: (c) => c,
     recordAppError: () => {},
+    getInterName: (cl, inter) => {
+      const ns = String(inter || '').padStart(2, '0');
+      const n = cl && cl.interNames && cl.interNames[ns];
+      return n ? (ns + ' — ' + n) : ns;
+    },
     $: (id) => document.getElementById(id)
   };
   window.window = window;
@@ -86,6 +91,7 @@ w.D = {
 assert(typeof w.buildCoursBrowseTree === 'function', 'buildCoursBrowseTree exposé');
 assert(typeof w.setCoursBrowseMode === 'function', 'setCoursBrowseMode exposé');
 assert(typeof w.toggleCoursTreeNode === 'function', 'toggleCoursTreeNode exposé');
+assert(typeof w.renderCoursArianeHtml === 'function', 'renderCoursArianeHtml exposé');
 assert(w.coursBrowseMode === 'tree', 'mode par défaut = tree');
 assert(Object.keys(w.coursExpanded || {}).length === 0, 'classeurs/inter repliés par défaut');
 assert(w.isCoursTreeExpanded('m:PHYS') === true, 'matières toujours considérées ouvertes');
@@ -126,8 +132,10 @@ assert(w.isCoursTreeExpanded('c:PHYS|A') === true, 'déplier classeur A');
 w.toggleCoursTreeNode('c:PHYS|A');
 assert(w.isCoursTreeExpanded('c:PHYS|A') === false, 'replier classeur A');
 
+w.setCoursBrowseMode('ariane');
+assert(w.coursBrowseMode === 'ariane', 'bascule mode Fil d’Ariane');
 w.setCoursBrowseMode('mat');
-assert(w.coursBrowseMode === 'mat', 'bascule mode matières');
+assert(w.coursBrowseMode === 'ariane', 'alias mat → ariane');
 w.setCoursBrowseMode('tree');
 assert(w.coursBrowseMode === 'tree', 'retour mode arbre');
 
@@ -142,10 +150,39 @@ const htmlOpen = w.renderCoursBrowseHtml(w.D.cours, 'tree');
 assert(htmlOpen.includes('Cinématique'), 'après expand cl→inter : carte visible');
 assert(htmlOpen.includes('Classeur A'), 'en-tête classeur visible');
 
+console.log('\n=== Fil d’Ariane Base Doc ===\n');
 w.coursExpanded = Object.create(null);
-const htmlMatOnly = w.renderCoursBrowseHtml(w.D.cours, 'mat');
-assert(htmlMatOnly.includes('Cinématique') && htmlMatOnly.includes('Optique'), 'mode matières : cartes sous matière ouverte');
-assert(!htmlMatOnly.includes('cours-tree-hdr--cl'), 'mode matières : pas d’en-têtes classeur');
+w.coursAriane = { mat: '', cl: '', inter: '' };
+const htmlBc0 = w.renderCoursBrowseHtml(w.D.cours, 'ariane');
+assert(htmlBc0.includes('cours-bc-bar') && htmlBc0.includes('Base Doc'), 'niveau 0 : barre Fil d’Ariane');
+assert(htmlBc0.includes('Physique') && htmlBc0.includes('Mathématiques'), 'niveau 0 : tuiles matières');
+assert(!htmlBc0.includes('Cinématique'), 'niveau 0 : pas encore de cartes docs');
+assert(!htmlBc0.includes('cours-tree-hdr--cl'), 'Fil d’Ariane : pas d’en-têtes arbre classeur');
+
+w.coursArianePickMat('PHYS');
+assert(w.coursAriane.mat === 'PHYS' && !w.coursAriane.cl, 'pick matière PHYS');
+const htmlBc1 = w.renderCoursArianeHtml(w.D.cours);
+assert(htmlBc1.includes('Classeur A') && htmlBc1.includes('Classeur Partagé'), 'niveau 1 : classeurs Physique');
+assert(htmlBc1.includes('coursArianePickCl'), 'niveau 1 : actions classeur');
+
+w.coursArianePickCl('A');
+const htmlBc2 = w.renderCoursArianeHtml(w.D.cours);
+assert(htmlBc2.includes('coursArianePickInter'), 'niveau 2 : intercalaires');
+assert(htmlBc2.includes('01') || htmlBc2.includes('Meca'), 'niveau 2 : inter 01');
+
+w.coursArianePickInter('01');
+const htmlBc3 = w.renderCoursArianeHtml(w.D.cours);
+assert(htmlBc3.includes('Cinématique'), 'niveau 3 : carte document');
+assert(htmlBc3.includes('uid-badge') || htmlBc3.includes('P1'), 'niveau 3 : uid visible');
+
+w.coursArianeReset();
+assert(!w.coursAriane.mat && !w.coursAriane.cl && !w.coursAriane.inter, 'reset Fil d’Ariane');
+
+const indexSrc = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+assert(/data-browse="ariane"/.test(indexSrc) && /Fil d.Ariane/.test(indexSrc), 'toggle Fil d’Ariane dans HTML');
+assert(/btnCoursBrowseTree/.test(indexSrc) && /Arbre/.test(indexSrc), 'toggle Arbre conservé');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826b'/.test(indexSrc), 'cache 20260826b');
+assert(/cours-bc-bar/.test(fs.readFileSync(path.join(root, 'style.css'), 'utf8')), 'styles Fil d’Ariane Base Doc');
 
 console.log('\n=== Résultat ===');
 console.log(`passed=${passed} failed=${failed}`);
