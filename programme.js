@@ -428,9 +428,24 @@
 
   function bindProgrammeDragDrop(pane) {
     if (!_reorderMode || !pane) return;
-    pane.querySelectorAll('.programme-list[data-mat]').forEach(function (box) {
+
+    function persistListOrder(box) {
+      if (!box) return;
       var mat = box.getAttribute('data-mat');
       var annee = box.getAttribute('data-annee');
+      var ids = Array.prototype.map.call(
+        box.querySelectorAll('.programme-row-draggable'),
+        function (r) { return r.dataset.id; }
+      ).filter(Boolean);
+      if (!ids.length) return;
+      window.reorderChapitresInGroup(mat, annee, ids);
+      if (typeof window.save === 'function') {
+        var p = window.save();
+        if (p && typeof p.then === 'function') p.catch(function () {});
+      }
+    }
+
+    pane.querySelectorAll('.programme-list[data-mat]').forEach(function (box) {
       box.querySelectorAll('.programme-row-draggable').forEach(function (row) {
         row.addEventListener('dragstart', function (e) {
           row.classList.add('dragging');
@@ -441,9 +456,13 @@
         });
         row.addEventListener('dragend', function () {
           row.classList.remove('dragging');
+          persistListOrder(box);
+          // Rafraîchir sans quitter le mode réorganiser
+          window.renderProgramme();
         });
         row.addEventListener('dragover', function (e) {
           e.preventDefault();
+          try { e.dataTransfer.dropEffect = 'move'; } catch (err2) { /* ignore */ }
           var dragging = box.querySelector('.dragging');
           if (!dragging || dragging === row) return;
           var rect = row.getBoundingClientRect();
@@ -452,12 +471,7 @@
         });
         row.addEventListener('drop', function (e) {
           e.preventDefault();
-          var ids = Array.prototype.map.call(
-            box.querySelectorAll('.programme-row-draggable'),
-            function (r) { return r.dataset.id; }
-          );
-          window.reorderChapitresInGroup(mat, annee, ids);
-          saveAndRefresh();
+          persistListOrder(box);
         });
       });
     });
@@ -543,6 +557,25 @@
   };
 
   window.programmeToggleReorder = function () {
+    if (_reorderMode) {
+      // Sécurité : persister l’ordre DOM avant de quitter le mode
+      var pane = $('paneProgramme');
+      if (pane) {
+        pane.querySelectorAll('.programme-list[data-mat]').forEach(function (box) {
+          var mat = box.getAttribute('data-mat');
+          var annee = box.getAttribute('data-annee');
+          var ids = Array.prototype.map.call(
+            box.querySelectorAll('.programme-row-draggable'),
+            function (r) { return r.dataset.id; }
+          ).filter(Boolean);
+          if (ids.length) window.reorderChapitresInGroup(mat, annee, ids);
+        });
+        if (typeof window.save === 'function') {
+          var p = window.save();
+          if (p && typeof p.then === 'function') p.catch(function () {});
+        }
+      }
+    }
     _reorderMode = !_reorderMode;
     window.renderProgramme();
   };
