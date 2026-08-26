@@ -17,6 +17,7 @@
 
   var _filterMat = '';
   var _filterAnnee = '';
+  var _reorderMode = false;
 
   function $(id) { return document.getElementById(id); }
 
@@ -84,27 +85,119 @@
     return 'Chap. ' + title;
   };
 
-  function matSlug(matId) {
-    var m = matObj(matId);
-    var s = (m.label || matId || 'XX').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    return s.slice(0, 4) || 'CH';
+  /** Même format que les documents Base Doc : PH-A1B, MA-7Z3, CH-W2N… */
+  window.generateChapitreId = function (mat) {
+    window.ensureChapitresArray();
+    if (typeof window.genUid === 'function') {
+      return window.genUid(String(mat || ''));
+    }
+    var prefix = String(mat || 'XX').substring(0, 2).toUpperCase();
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    for (var attempt = 0; attempt < 500; attempt++) {
+      var suffix = '';
+      for (var i = 0; i < 3; i++) suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      var id = prefix + '-' + suffix;
+      var taken = (window.D.cours || []).some(function (c) { return c.uid === id; })
+        || (window.D.exercices || []).some(function (e) { return e.id === id; })
+        || (window.D.devoirs || []).some(function (d) { return d.id === id; })
+        || (window.D.chapitres || []).some(function (c) { return c.id === id; });
+      if (!taken) return id;
+    }
+    return prefix + '-' + Date.now().toString(36).slice(-3).toUpperCase();
+  };
+
+  window.isChapitreIdTaken = function (id) {
+    if (!id) return true;
+    return (window.D.cours || []).some(function (c) { return c.uid === id; })
+      || (window.D.exercices || []).some(function (e) { return e.id === id; })
+      || (window.D.devoirs || []).some(function (d) { return d.id === id; })
+      || (window.D.chapitres || []).some(function (c) { return c.id === id; });
+  };
+
+  function chapitreScopeKey(ch) {
+    return String(ch.mat || '') + '|' + window.normalizeAnnee(ch.annee);
   }
 
-  window.generateChapitreId = function (mat, inter) {
+  function chapitreFallbackCompare(a, b) {
+    var ia = parseInt(a.inter, 10) || 0;
+    var ib = parseInt(b.inter, 10) || 0;
+    if (ia !== ib) return ia - ib;
+    var t = String(a.title || '').localeCompare(String(b.title || ''), 'fr');
+    if (t) return t;
+    return String(a.created || '').localeCompare(String(b.created || ''));
+  }
+
+  /** Remplit order manquant par groupe matière+année (inter, titre, date). */
+  window.ensureChapitreOrders = function () {
     window.ensureChapitresArray();
-    var prefix = 'CH-' + matSlug(mat) + (inter ? '-' + String(inter).replace(/[^0-9A-Za-z]/g, '') : '');
-    var existing = {};
-    (window.D.chapitres || []).forEach(function (c) { if (c && c.id) existing[c.id] = true; });
-    if (!existing[prefix]) return prefix;
-    for (var n = 2; n < 200; n++) {
-      var id = prefix + '-' + n;
-      if (!existing[id]) return id;
+    var groups = {};
+    (window.D.chapitres || []).forEach(function (ch) {
+      var key = chapitreScopeKey(ch);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(ch);
+    });
+    Object.keys(groups).forEach(function (key) {
+      var items = groups[key];
+      if (!items.some(function (c) { return c.order == null; })) return;
+      items.sort(chapitreFallbackCompare);
+      items.forEach(function (c, i) { c.order = i; });
+    });
+  };
+
+  window.nextChapitreOrder = function (mat, annee) {
+    window.ensureChapitreOrders();
+    var key = String(mat || '') + '|' + window.normalizeAnnee(annee);
+    var max = -1;
+    (window.D.chapitres || []).forEach(function (c) {
+      if (chapitreScopeKey(c) !== key) return;
+      if (typeof c.order === 'number' && c.order > max) max = c.order;
+    });
+    return max + 1;
+  };
+
+  window.moveChapitre = function (id, delta) {
+    window.ensureChapitreOrders();
+    var ch = (window.D.chapitres || []).find(function (c) { return c.id === id; });
+    if (!ch) return { ok: false, error: 'Chapitre introuvable.' };
+    delta = delta < 0 ? -1 : delta > 0 ? 1 : 0;
+    if (!delta) return { ok: false, error: 'Delta invalide.' };
+    var siblings = window.listChapitres({ mat: ch.mat, annee: ch.annee });
+    var idx = siblings.findIndex(function (c) { return c.id === id; });
+    var swapIdx = idx + delta;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= siblings.length) {
+      return { ok: false, error: 'Limite atteinte.' };
     }
-    return prefix + '-' + Date.now();
+    var other = siblings[swapIdx];
+    var tmp = ch.order;
+    ch.order = other.order;
+    other.order = tmp;
+    return { ok: true, chapitre: ch };
+  };
+
+  /** Réordonne les chapitres d’un groupe matière+année selon la liste d’ids DnD. */
+  window.reorderChapitresInGroup = function (mat, annee, orderedIds) {
+    window.ensureChapitreOrders();
+    if (!mat || !Array.isArray(orderedIds) || !orderedIds.length) {
+      return { ok: false, error: 'Paramètres invalides.' };
+    }
+    var a = window.normalizeAnnee(annee);
+    var byId = {};
+    (window.D.chapitres || []).forEach(function (c) {
+      if (c.mat === mat && window.normalizeAnnee(c.annee) === a) byId[c.id] = c;
+    });
+    var applied = 0;
+    orderedIds.forEach(function (id, i) {
+      var ch = byId[id];
+      if (!ch) return;
+      ch.order = i;
+      applied++;
+    });
+    return { ok: applied > 0, count: applied };
   };
 
   window.listChapitres = function (opts) {
     window.ensureChapitresArray();
+    window.ensureChapitreOrders();
     opts = opts || {};
     var list = (window.D.chapitres || []).slice();
     if (opts.mat) list = list.filter(function (c) { return c.mat === opts.mat; });
@@ -116,7 +209,10 @@
       var ma = matObj(a.mat).name.localeCompare(matObj(b.mat).name, 'fr');
       if (ma) return ma;
       if (a.annee !== b.annee) return a.annee - b.annee;
-      return String(a.title || '').localeCompare(String(b.title || ''), 'fr');
+      var oa = typeof a.order === 'number' ? a.order : 0;
+      var ob = typeof b.order === 'number' ? b.order : 0;
+      if (oa !== ob) return oa - ob;
+      return chapitreFallbackCompare(a, b);
     });
     return list;
   };
@@ -167,8 +263,8 @@
     if (/^Chap\.\s/i.test(title)) title = title.replace(/^Chap\.\s/i, '').trim();
     var annee = window.normalizeAnnee(payload.annee);
     var inter = payload.inter != null ? String(payload.inter) : '';
-    var id = payload.id || window.generateChapitreId(payload.mat, inter || null);
-    if ((window.D.chapitres || []).some(function (c) { return c.id === id; })) {
+    var id = payload.id || window.generateChapitreId(payload.mat);
+    if (window.isChapitreIdTaken(id)) {
       return { ok: false, error: 'Id chapitre déjà utilisé : ' + id };
     }
     var ch = {
@@ -178,6 +274,7 @@
       cl: payload.cl || '',
       inter: inter,
       title: title,
+      order: typeof payload.order === 'number' ? payload.order : window.nextChapitreOrder(payload.mat, annee),
       created: payload.created || todayISO(),
       notes: payload.notes ? String(payload.notes) : ''
     };
@@ -242,7 +339,7 @@
         inter: slot,
         annee: annee,
         title: label,
-        id: window.generateChapitreId(mat, slot)
+        id: window.generateChapitreId(mat)
       });
       if (res.ok) created.push(res.chapitre);
       else if (res.error) errors.push(res.error);
@@ -286,13 +383,34 @@
     else done();
   }
 
-  function renderChapitreRow(ch) {
+  function renderChapitreRow(ch, idx, count) {
     var m = matObj(ch.mat);
     var loc = ch.cl
       ? esc(clObj(ch.cl).name) + ' · ' + esc(interLabel(ch.cl, ch.inter))
       : '—';
+    var dragAttrs = _reorderMode
+      ? ' draggable="true" class="programme-row card programme-row-draggable" data-id="' + esc(ch.id) + '"'
+      : ' class="programme-row card"';
+    var grip = _reorderMode
+      ? '<div class="programme-row-grip" title="Glisser pour réordonner" aria-hidden="true">' +
+          (window.iconHtml ? window.iconHtml('move-vertical', 16) : '⋮⋮') +
+        '</div>'
+      : '';
+    var actions = _reorderMode
+      ? ''
+      : (
+        '<div class="programme-row-actions">' +
+          '<button type="button" class="bs" title="Modifier" onclick="window.programmeOpenEdit(\'' + jsStr(ch.id) + '\')">' +
+            (window.iconHtml ? window.iconHtml('pencil', 16) : '✎') +
+          '</button>' +
+          '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);" title="Supprimer" onclick="window.programmeDelete(\'' + jsStr(ch.id) + '\')">' +
+            (window.iconHtml ? window.iconHtml('trash-2', 16) : '×') +
+          '</button>' +
+        '</div>'
+      );
     return (
-      '<div class="programme-row card" style="--mat-color:' + esc(m.color) + '">' +
+      '<div' + dragAttrs + ' style="--mat-color:' + esc(m.color) + '">' +
+        grip +
         '<div class="programme-row-main">' +
           '<div class="programme-row-title">' + window.formatChapitreLabel(ch, true) + '</div>' +
           '<div class="programme-row-meta">' +
@@ -303,16 +421,60 @@
           '</div>' +
           (ch.notes ? '<div class="programme-row-notes">' + esc(ch.notes) + '</div>' : '') +
         '</div>' +
-        '<div class="programme-row-actions">' +
-          '<button type="button" class="bs" title="Modifier" onclick="window.programmeOpenEdit(\'' + jsStr(ch.id) + '\')">' +
-            (window.iconHtml ? window.iconHtml('pencil', 16) : '✎') +
-          '</button>' +
-          '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);" title="Supprimer" onclick="window.programmeDelete(\'' + jsStr(ch.id) + '\')">' +
-            (window.iconHtml ? window.iconHtml('trash-2', 16) : '×') +
-          '</button>' +
-        '</div>' +
+        actions +
       '</div>'
     );
+  }
+
+  function bindProgrammeDragDrop(pane) {
+    if (!_reorderMode || !pane) return;
+
+    function persistListOrder(box) {
+      if (!box) return;
+      var mat = box.getAttribute('data-mat');
+      var annee = box.getAttribute('data-annee');
+      var ids = Array.prototype.map.call(
+        box.querySelectorAll('.programme-row-draggable'),
+        function (r) { return r.dataset.id; }
+      ).filter(Boolean);
+      if (!ids.length) return;
+      window.reorderChapitresInGroup(mat, annee, ids);
+      if (typeof window.save === 'function') {
+        var p = window.save();
+        if (p && typeof p.then === 'function') p.catch(function () {});
+      }
+    }
+
+    pane.querySelectorAll('.programme-list[data-mat]').forEach(function (box) {
+      box.querySelectorAll('.programme-row-draggable').forEach(function (row) {
+        row.addEventListener('dragstart', function (e) {
+          row.classList.add('dragging');
+          try {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.dataset.id || '');
+          } catch (err) { /* ignore */ }
+        });
+        row.addEventListener('dragend', function () {
+          row.classList.remove('dragging');
+          persistListOrder(box);
+          // Rafraîchir sans quitter le mode réorganiser
+          window.renderProgramme();
+        });
+        row.addEventListener('dragover', function (e) {
+          e.preventDefault();
+          try { e.dataTransfer.dropEffect = 'move'; } catch (err2) { /* ignore */ }
+          var dragging = box.querySelector('.dragging');
+          if (!dragging || dragging === row) return;
+          var rect = row.getBoundingClientRect();
+          var after = (e.clientY - rect.top) > rect.height / 2;
+          box.insertBefore(dragging, after ? row.nextSibling : row);
+        });
+        row.addEventListener('drop', function (e) {
+          e.preventDefault();
+          persistListOrder(box);
+        });
+      });
+    });
   }
 
   window.renderProgramme = function () {
@@ -342,34 +504,80 @@
     var body = groups.length
       ? groups.map(function (g) {
         return (
-          '<section class="programme-group">' +
+          '<section class="programme-group' + (_reorderMode ? ' programme-group-reorder' : '') + '">' +
             '<h3 class="programme-group-title">' + esc(g.matName) +
               ' <span class="programme-group-sub">· ' + g.annee + (g.annee === 1 ? 'ère' : 'ème') + ' année</span></h3>' +
-            '<div class="programme-list">' + g.items.map(renderChapitreRow).join('') + '</div>' +
+            '<div class="programme-list" data-mat="' + esc(g.mat) + '" data-annee="' + g.annee + '">' +
+              g.items.map(function (ch, i) { return renderChapitreRow(ch, i, g.items.length); }).join('') +
+            '</div>' +
           '</section>'
         );
       }).join('')
       : '<div class="anki-empty">Aucun chapitre. Créez-en un ou importez depuis les intercalaires d’un classeur.</div>';
 
+    var canReorder = groups.some(function (g) { return g.items.length >= 2; });
+    var reorderBtn = _reorderMode
+      ? '<button type="button" class="bp" onclick="window.programmeToggleReorder()">' +
+          iconLabel('check', 'Terminer') +
+        '</button>'
+      : '<button type="button" class="bs" onclick="window.programmeToggleReorder()"' +
+          (canReorder ? '' : ' disabled title="Au moins 2 chapitres dans un même groupe"') + '>' +
+          iconLabel('move-vertical', 'Réorganiser') +
+        '</button>';
+
     pane.innerHTML =
-      '<div class="programme-page">' +
+      '<div class="programme-page' + (_reorderMode ? ' programme-page-reorder' : '') + '">' +
         (typeof window.uiSection === 'function'
           ? window.uiSection('Programme', 'Chapitres logiques (plan de cours). Les documents papier restent dans Base Doc.', 'book-open')
           : '<h2>Programme</h2><p class="anki-mut">Chapitres logiques — documents papier dans Base Doc.</p>') +
         '<div class="programme-toolbar">' +
           '<div class="programme-filters">' +
-            '<label>Matière <select id="progFltMat" onchange="window.programmeSetFilter(\'mat\', this.value)">' + matOpts + '</select></label>' +
-            '<label>Année <select id="progFltAnnee" onchange="window.programmeSetFilter(\'annee\', this.value)">' + anOpts + '</select></label>' +
+            '<label>Matière <select id="progFltMat" onchange="window.programmeSetFilter(\'mat\', this.value)"' +
+              (_reorderMode ? ' disabled' : '') + '>' + matOpts + '</select></label>' +
+            '<label>Année <select id="progFltAnnee" onchange="window.programmeSetFilter(\'annee\', this.value)"' +
+              (_reorderMode ? ' disabled' : '') + '>' + anOpts + '</select></label>' +
           '</div>' +
-          '<button type="button" class="bp" onclick="window.programmeOpenWizard()">' +
-            iconLabel('plus', 'Créer un chapitre') +
-          '</button>' +
+          '<div class="programme-toolbar-actions">' +
+            reorderBtn +
+            (_reorderMode
+              ? ''
+              : '<button type="button" class="bp" onclick="window.programmeOpenWizard()">' +
+                  iconLabel('plus', 'Créer un chapitre') +
+                '</button>') +
+          '</div>' +
         '</div>' +
-        '<p class="programme-count anki-mut">' + total + ' chapitre(s)</p>' +
+        (_reorderMode
+          ? '<p class="programme-reorder-hint">Glissez-déposez les chapitres dans chaque groupe (matière · année). L’ordre est enregistré automatiquement.</p>'
+          : '<p class="programme-count anki-mut">' + total + ' chapitre(s) · triés par matière et année</p>') +
         body +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(pane);
+    bindProgrammeDragDrop(pane);
+  };
+
+  window.programmeToggleReorder = function () {
+    if (_reorderMode) {
+      // Sécurité : persister l’ordre DOM avant de quitter le mode
+      var pane = $('paneProgramme');
+      if (pane) {
+        pane.querySelectorAll('.programme-list[data-mat]').forEach(function (box) {
+          var mat = box.getAttribute('data-mat');
+          var annee = box.getAttribute('data-annee');
+          var ids = Array.prototype.map.call(
+            box.querySelectorAll('.programme-row-draggable'),
+            function (r) { return r.dataset.id; }
+          ).filter(Boolean);
+          if (ids.length) window.reorderChapitresInGroup(mat, annee, ids);
+        });
+        if (typeof window.save === 'function') {
+          var p = window.save();
+          if (p && typeof p.then === 'function') p.catch(function () {});
+        }
+      }
+    }
+    _reorderMode = !_reorderMode;
+    window.renderProgramme();
   };
 
   window.programmeSetFilter = function (key, val) {

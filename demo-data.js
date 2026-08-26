@@ -15,12 +15,12 @@ window.demoData = {
     {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, defaultAnnee: 2, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
   ],
   chapitres: [
-    { id: 'CH-PHYS-01', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', title: 'Mécanique', created: '2026-08-01', notes: '' },
-    { id: 'CH-PHYS-02', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', title: 'Thermodynamique', created: '2026-08-01', notes: '' },
-    { id: 'CH-PHYS-03', mat: 'PHYS', annee: 1, cl: 'A', inter: '03', title: 'Électromagnétisme', created: '2026-08-01', notes: '' },
-    { id: 'CH-MATH-01', mat: 'MATH', annee: 1, cl: 'B', inter: '01', title: 'Algèbre linéaire', created: '2026-08-01', notes: '' },
-    { id: 'CH-MATH-02', mat: 'MATH', annee: 1, cl: 'B', inter: '02', title: 'Analyse', created: '2026-08-01', notes: '' },
-    { id: 'CH-PHYS-03-2', mat: 'PHYS', annee: 2, cl: 'A', inter: '03', title: 'Électrostatique (L2)', created: '2026-08-10', notes: 'Exemple 2ème année' }
+    { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '' },
+    { id: 'PH-T9Y', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', order: 1, title: 'Thermodynamique', created: '2026-08-01', notes: '' },
+    { id: 'PH-E7L', mat: 'PHYS', annee: 1, cl: 'A', inter: '03', order: 2, title: 'Électromagnétisme', created: '2026-08-01', notes: '' },
+    { id: 'MA-A1G', mat: 'MATH', annee: 1, cl: 'B', inter: '01', order: 0, title: 'Algèbre linéaire', created: '2026-08-01', notes: '' },
+    { id: 'MA-N2P', mat: 'MATH', annee: 1, cl: 'B', inter: '02', order: 1, title: 'Analyse', created: '2026-08-01', notes: '' },
+    { id: 'PH-S4Q', mat: 'PHYS', annee: 2, cl: 'A', inter: '03', order: 0, title: 'Électrostatique (L2)', created: '2026-08-10', notes: 'Exemple 2ème année' }
   ],
   cours: (function () {
     const _d = new Date(); _d.setHours(0, 0, 0, 0);

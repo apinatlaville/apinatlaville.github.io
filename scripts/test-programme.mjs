@@ -31,21 +31,24 @@ const labSrc = read('programme-search-test.js');
 
 assert(/programme:\s*\{[^}]*pane:\s*'paneProgramme'/.test(navSrc), 'nav-config enregistre programme');
 assert(/tabs:\s*\[[^\]]*['\"]programme['\"]/.test(navSrc), 'Programme dans groupe Organisation');
-assert(/programmeSearchTest/.test(navSrc), 'labo recherche enregistré');
+assert(/programmeSearchTest/.test(navSrc), 'Fil d’Ariane enregistré');
+assert(/label:\s*'Organisation'[\s\S]*?programmeSearchTest/.test(navSrc), 'Fil d’Ariane dans Organisation');
 assert(/id="paneProgramme"/.test(indexSrc), 'paneProgramme dans index.html');
-assert(/id="paneProgrammeSearchTest"/.test(indexSrc), 'pane labo dans index.html');
+assert(/id="paneProgrammeSearchTest"/.test(indexSrc), 'pane Fil d’Ariane dans index.html');
 assert(/programme:\s*\[['\"]programme\.js['\"]\]/.test(bootSrc), 'bundle programme.js');
-assert(/programmeSearchTest:\s*\[['\"]programme\.js['\"],\s*['\"]programme-search-test\.js['\"]\]/.test(bootSrc), 'bundle labo');
+assert(/programmeSearchTest:\s*\[['\"]programme\.js['\"],\s*['\"]programme-search-test\.js['\"]\]/.test(bootSrc), 'bundle Fil d’Ariane');
 assert(/case 'programme'/.test(appSrc), 'app.js onShow programme');
-assert(/case 'programmeSearchTest'/.test(appSrc), 'app.js onShow labo');
+assert(/case 'programmeSearchTest'/.test(appSrc), 'app.js onShow Fil d’Ariane');
 assert(/window\.renderProgramme\s*=/.test(progSrc), 'API renderProgramme');
 assert(/window\.createChapitre\s*=/.test(progSrc), 'API createChapitre');
 assert(/window\.bulkCreateChapitresFromIntercalaires\s*=/.test(progSrc), 'API bulk inter');
 assert(/window\.renderProgrammeSearchTest\s*=/.test(labSrc), 'API renderProgrammeSearchTest');
+assert(/progSearchBcMat|prog-bc-bar/.test(labSrc), 'navigation Fil d’Ariane');
+assert(!/renderTree|renderColumns|renderFiltered|A — Arbre|C — Colonnes|D — Filtres/.test(labSrc), 'variantes labo retirées');
 assert(/chap-prefix/.test(read('style.css')), 'styles Chap. prefix');
 assert(/programme-wiz-body|programme-wiz-modal\.card-type-surface/.test(read('style.css')), 'modal wizard scrollable');
 assert(/programme-phase2-hint/.test(read('style.css')), 'hint phase 2 sans checkbox');
-assert(/__BOOT_CACHE_V\s*=\s*'20260826a'/.test(indexSrc), 'cache 20260826a');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826j'/.test(indexSrc), 'cache 20260826j');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
@@ -66,7 +69,7 @@ function loadProgramme() {
         chapitres: [],
         cours: [
           { uid: 'PH-1', title: 'Doc 1', mat: 'PHYS', cl: 'A', inter: '01' },
-          { uid: 'PH-2', title: 'Doc 2', mat: 'PHYS', cl: 'A', inter: '02', chapitreId: 'CH-X' }
+          { uid: 'PH-2', title: 'Doc 2', mat: 'PHYS', cl: 'A', inter: '02', chapitreId: 'PH-Z9X' }
         ]
       },
       escHtml: (s) => String(s),
@@ -93,6 +96,10 @@ function loadProgramme() {
   const r1 = w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '01', annee: 1, title: 'Mécanique' });
   assert(r1.ok && r1.chapitre.annee === 1, 'createChapitre ok');
   assert(r1.chapitre.title === 'Mécanique', 'titre sans préfixe Chap.');
+  assert(/^[A-Z]{2}-[A-Z0-9]{3}$/.test(r1.chapitre.id), 'id même format que Base Doc (PH-A1B)');
+  assert(!/^CH-/.test(r1.chapitre.id) || r1.chapitre.id.indexOf('CH-') === 0 && r1.chapitre.mat === 'CHIM',
+    'pas de préfixe CH- chapitre (sauf matière CHIM)');
+  assert(r1.chapitre.mat === 'PHYS' ? /^PH-/.test(r1.chapitre.id) : true, 'préfixe matière PHYS = PH');
 
   const bad = w.updateChapitre(r1.chapitre.id, { annee: 2 });
   assert(!bad.ok, 'annee immuable après création');
@@ -119,7 +126,23 @@ function loadProgramme() {
   const stub = w.proposeChapitreLink('PH-1');
   assert(stub.stub && !stub.ok, 'proposeChapitreLink stub phase 1');
 
-  assert(!w.D.cours.some(c => c.chapitreId && c.chapitreId !== 'CH-X'), 'pas de migration auto cours');
+  assert(!w.D.cours.some(c => c.chapitreId && c.chapitreId !== 'PH-Z9X'), 'pas de migration auto cours');
+
+  w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '04', annee: 1, title: 'Optique' });
+  var phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
+  assert(phys1.length === 2, '2 chapitres PHYS 1ère');
+  assert(phys1[0].title === 'Méca renommée', 'ordre initial : premier créé');
+  var moved = w.moveChapitre(phys1[0].id, 1);
+  assert(moved.ok, 'moveChapitre ok');
+  phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
+  assert(phys1[1].title === 'Méca renommée', 'ordre après descente');
+  var blocked = w.moveChapitre(phys1[1].id, 1);
+  assert(!blocked.ok, 'moveChapitre bloqué en bas');
+
+  var dnd = w.reorderChapitresInGroup('PHYS', 1, [phys1[1].id, phys1[0].id]);
+  assert(dnd.ok, 'reorderChapitresInGroup ok');
+  phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
+  assert(phys1[0].title === 'Méca renommée', 'ordre après DnD');
 }
 
 console.log('\n=== demo-data ===\n');
