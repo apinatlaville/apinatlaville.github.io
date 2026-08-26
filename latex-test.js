@@ -929,21 +929,34 @@
       return _mathLivePromise;
     }
     _mathLivePromise = new Promise(function (resolve, reject) {
-      loadStylesheet(CDN + '/mathlive-static.css');
-      // Fonts self-hostées : le CDN MathLive utilise font-display:"swap" (invalide CSS)
-      // → @font-face ignorés → glyphes Size3/4 absents → parenthèses de matrices « cassées ».
       var fontsCss = 'vendor/mathlive/mathlive-fonts.css?v=' +
         encodeURIComponent(window.__BOOT_CACHE_V || window.__bootCacheV || '1');
+      var fontsDir = 'vendor/mathlive/fonts';
+
+      function pinLocalFonts() {
+        // MathLive peut réinjecter un mathlive-fonts.css CDN (font-display:"swap" invalide).
+        document.querySelectorAll('link[href*="mathlive-fonts"]').forEach(function (l) {
+          if (/cdn\.jsdelivr|unpkg|jsdelivr\.net|esm\.sh/i.test(l.href)) {
+            try { l.remove(); } catch (e) { /* ignore */ }
+          }
+        });
+        loadStylesheet(fontsCss);
+        try {
+          if (window.MathfieldElement) {
+            window.MathfieldElement.fontsDirectory = fontsDir;
+          }
+        } catch (e2) { /* ignore */ }
+      }
+
+      loadStylesheet(CDN + '/mathlive-static.css');
       loadStylesheet(fontsCss);
       var s = document.createElement('script');
       s.src = CDN + '/mathlive.min.js';
       s.async = true;
       s.onload = function () {
-        try {
-          if (window.MathfieldElement) {
-            window.MathfieldElement.fontsDirectory = 'vendor/mathlive/fonts';
-          }
-        } catch (e) { /* ignore */ }
+        pinLocalFonts();
+        // Second passage après init éventuelle du custom element
+        setTimeout(pinLocalFonts, 0);
         resolve();
       };
       s.onerror = function () {

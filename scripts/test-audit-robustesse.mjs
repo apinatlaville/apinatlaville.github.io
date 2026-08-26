@@ -107,6 +107,7 @@ assert(!/\.latex-lab-preview-math\s+\.ML__base\s*\{[^}]*vertical-align:\s*middle
   'pas de vertical-align:middle sur .ML__base (casse pmatrix)');
 assert(/latex-lab-field-wrap[\s\S]{0,280}display:\s*block/.test(styleSrc),
   'math-field wrap en block (pas flex center)');
+assert(/ML__stretchy svg/.test(styleSrc), 'protection fill SVG délimiteurs');
 assert(/vendor\/mathlive\/mathlive-fonts\.css/.test(latexSrc), 'fonts KaTeX self-hostées');
 assert(!/loadStylesheet\(CDN \+ '\/mathlive-fonts\.css'\)/.test(latexSrc), 'plus de fonts CDN MathLive');
 assert(/fontsDirectory\s*=\s*'vendor\/mathlive\/fonts'/.test(latexSrc), 'fontsDirectory local');
