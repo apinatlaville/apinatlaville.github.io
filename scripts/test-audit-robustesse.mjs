@@ -110,7 +110,8 @@ assert(/latex-lab-field-wrap[\s\S]{0,280}display:\s*block/.test(styleSrc),
 assert(/ML__stretchy svg/.test(styleSrc), 'protection fill SVG délimiteurs');
 assert(/vendor\/mathlive\/mathlive-fonts\.css/.test(latexSrc), 'fonts KaTeX self-hostées');
 assert(!/loadStylesheet\(CDN \+ '\/mathlive-fonts\.css'\)/.test(latexSrc), 'plus de fonts CDN MathLive');
-assert(/fontsDirectory\s*=\s*'vendor\/mathlive\/fonts'/.test(latexSrc), 'fontsDirectory local');
+assert(/fontsDirectory\s*=\s*fontsDir|fontsDirectory\s*=\s*'vendor\/mathlive\/fonts'/.test(latexSrc), 'fontsDirectory local');
+assert(/pinLocalFonts|mathlive-fonts.*cdn\.jsdelivr/.test(latexSrc), 'garde anti-réinjection CDN fonts');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

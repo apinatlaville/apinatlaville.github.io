@@ -924,30 +924,32 @@
 
   function ensureMathLive() {
     if (_mathLivePromise) return _mathLivePromise;
+
+    var fontsCss = 'vendor/mathlive/mathlive-fonts.css?v=' +
+      encodeURIComponent(window.__BOOT_CACHE_V || window.__bootCacheV || '1');
+    var fontsDir = 'vendor/mathlive/fonts';
+
+    function pinLocalFonts() {
+      // MathLive peut réinjecter un mathlive-fonts.css CDN (font-display:"swap" invalide).
+      document.querySelectorAll('link[href*="mathlive-fonts"]').forEach(function (l) {
+        if (/cdn\.jsdelivr|unpkg|jsdelivr\.net|esm\.sh/i.test(l.href)) {
+          try { l.remove(); } catch (e) { /* ignore */ }
+        }
+      });
+      loadStylesheet(fontsCss);
+      try {
+        if (window.MathfieldElement) {
+          window.MathfieldElement.fontsDirectory = fontsDir;
+        }
+      } catch (e2) { /* ignore */ }
+    }
+
     if (window.MathfieldElement || customElements.get('math-field')) {
+      pinLocalFonts();
       _mathLivePromise = Promise.resolve();
       return _mathLivePromise;
     }
     _mathLivePromise = new Promise(function (resolve, reject) {
-      var fontsCss = 'vendor/mathlive/mathlive-fonts.css?v=' +
-        encodeURIComponent(window.__BOOT_CACHE_V || window.__bootCacheV || '1');
-      var fontsDir = 'vendor/mathlive/fonts';
-
-      function pinLocalFonts() {
-        // MathLive peut réinjecter un mathlive-fonts.css CDN (font-display:"swap" invalide).
-        document.querySelectorAll('link[href*="mathlive-fonts"]').forEach(function (l) {
-          if (/cdn\.jsdelivr|unpkg|jsdelivr\.net|esm\.sh/i.test(l.href)) {
-            try { l.remove(); } catch (e) { /* ignore */ }
-          }
-        });
-        loadStylesheet(fontsCss);
-        try {
-          if (window.MathfieldElement) {
-            window.MathfieldElement.fontsDirectory = fontsDir;
-          }
-        } catch (e2) { /* ignore */ }
-      }
-
       loadStylesheet(CDN + '/mathlive-static.css');
       loadStylesheet(fontsCss);
       var s = document.createElement('script');
