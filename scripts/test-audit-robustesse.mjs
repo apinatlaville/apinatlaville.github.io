@@ -98,6 +98,11 @@ const oqBody = oqEnd > 0 ? oq.slice(0, oqEnd) : oq.slice(0, 800);
 assert(!/openCardTypePicker\(window\._cardCreateOpts/.test(oqBody),
   'openQuickCardCreate ne reboucle plus sur le type picker');
 assert(/consultation \(pas de création/.test(indexSrc), 'hint Base Doc secondaire clarifié');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826i'/.test(indexSrc), 'cache 20260826i');
+assert(/latex-lab-panel-editor[\s\S]*?overflow:\s*visible/.test(fs.readFileSync(path.join(root, 'style.css'), 'utf8')),
+  'éditeur LaTeX : overflow visible pour barre outils');
+assert(!/max-height:\s*min\(46vh/.test(fs.readFileSync(path.join(root, 'style.css'), 'utf8')),
+  'compose LaTeX : plus de max-height 46vh qui coupait les boutons');
 
 assert(/throw err/.test(latexSrc) && /MathLive indisponible/.test(latexSrc),
   'échec MathLive propage ready (anti-wipe Appliquer)');
