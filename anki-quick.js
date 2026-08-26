@@ -163,17 +163,29 @@
         ? window.ensureScriptsForTab('ankiV2')
         : Promise.resolve());
     Promise.resolve(load).then(function () {
-      /* ensureAnkiUi peut résoudre sans succès : re-tenter le bundle ankiV2 */
       if (typeof window.ankiV2OpenQuickModal === 'function') {
         go();
         return;
       }
       if (typeof window.ensureScriptsForTab === 'function') {
-        return window.ensureScriptsForTab('ankiV2').then(go);
+        return window.ensureScriptsForTab('ankiV2').then(function () {
+          if (typeof window.ankiV2OpenQuickModal === 'function') go();
+          else if (typeof window.openQuickCardCreate === 'function') window.openQuickCardCreate(m);
+          else if (typeof window.sysAlert === 'function') {
+            window.sysAlert('Module Anki non chargé.', 'Erreur');
+          }
+        });
       }
-      go();
-    }).catch(function () {
-      if (typeof window.sysAlert === 'function') {
+      if (typeof window.openQuickCardCreate === 'function') window.openQuickCardCreate(m);
+      else if (typeof window.sysAlert === 'function') {
+        window.sysAlert('Module Anki non chargé.', 'Erreur');
+      }
+    }).catch(function (err) {
+      if (typeof console !== 'undefined' && console.error) {
+        console.error('[Rapide] quickAdd', err);
+      }
+      if (typeof window.ankiV2OpenQuickModal !== 'function'
+          && typeof window.sysAlert === 'function') {
         window.sysAlert('Module Anki non chargé.', 'Erreur');
       }
     });
