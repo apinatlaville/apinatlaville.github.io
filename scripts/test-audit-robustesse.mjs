@@ -42,6 +42,10 @@ assert(/ensureMathLive/.test(quickSrc) && /hydrateQuickCardFaces/.test(quickSrc)
   'hydrate Rapide attend MathLive avant rendu formules');
 assert(/qk-math-pending|Formule en cours/.test(quickSrc),
   'placeholder lisible tant que MathLive pas prêt');
+assert(/allowFallback|paintFaces\(true\)/.test(quickSrc),
+  'hydrate : fallback si MathLive échoue (pas de placeholder éternel)');
+assert(/collectMathNodes|querySelectorAll\('\[data-card-face-id\]'\)/.test(quickSrc),
+  'hydrate re-query DOM après chargement async');
 assert(/qk-card--math/.test(quickSrc) && /qk-card--math/.test(fs.readFileSync(path.join(root, 'style.css'), 'utf8')),
   'cartes math : classe + styles dédiés');
 assert(/formatSessFace|formatCardFaceHtml/.test(appV2Src), 'session/dock utilisent format face LaTeX');
@@ -104,7 +108,7 @@ const oqBody = oqEnd > 0 ? oq.slice(0, oqEnd) : oq.slice(0, 800);
 assert(!/openCardTypePicker\(window\._cardCreateOpts/.test(oqBody),
   'openQuickCardCreate ne reboucle plus sur le type picker');
 assert(/consultation \(pas de création/.test(indexSrc), 'hint Base Doc secondaire clarifié');
-assert(/__BOOT_CACHE_V\s*=\s*'20260826g'/.test(indexSrc), 'cache 20260826g');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826h'/.test(indexSrc), 'cache 20260826h');
 assert(/throw err/.test(latexSrc) && /MathLive indisponible/.test(latexSrc),
   'échec MathLive propage ready (anti-wipe Appliquer)');
 

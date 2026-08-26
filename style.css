@@ -2722,7 +2722,7 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .qk-card.qk-card--math .qk-inner {
  min-height: 220px;
- height: 100%;
+ height: auto;
 }
 .qk-card.qk-card--math .qk-front,
 .qk-card.qk-card--math .qk-back {

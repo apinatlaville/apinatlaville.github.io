@@ -37,12 +37,13 @@
   }
 
   /** Placeholder lisible tant que MathLive n’a pas rendu la formule. */
-  function formatFacePlaceholder(str) {
+  function formatFacePlaceholder() {
     return '<span class="qk-math-pending" aria-busy="true">Formule en cours de rendu…</span>';
   }
 
-  function applyCardFaceHtml(el, raw, side) {
+  function applyCardFaceHtml(el, raw, side, opts) {
     if (!el) return;
+    opts = opts || {};
     if (side === 'r' && !(raw || '').trim()) {
       el.innerHTML = '<em style="color:var(--mut);">Pas de réponse — auto-évaluation libre</em>';
       return;
@@ -51,8 +52,8 @@
       el.innerHTML = '';
       return;
     }
-    if (faceNeedsMath(raw) && !mathLiveReady()) {
-      el.innerHTML = formatFacePlaceholder(raw);
+    if (faceNeedsMath(raw) && !mathLiveReady() && !opts.allowFallback) {
+      el.innerHTML = formatFacePlaceholder();
       return;
     }
     if (typeof window.formatCardFaceHtml === 'function') {
@@ -65,18 +66,42 @@
   /** Re-rendu des faces LaTeX une fois MathLive + formatCardFaceHtml prêts */
   window.hydrateQuickCardFaces = function (root) {
     var host = root || document.getElementById('qkSections') || document;
-    var nodes = host.querySelectorAll('[data-card-face-id]');
-    if (!nodes.length) return Promise.resolve();
-    var needs = false;
-    nodes.forEach(function (el) {
-      var id = el.getAttribute('data-card-face-id');
-      var side = el.getAttribute('data-card-face-side') || 'q';
-      var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
-      if (!c) return;
-      var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
-      if (faceNeedsMath(raw)) needs = true;
-    });
-    if (!needs) return Promise.resolve();
+    if (!host) return Promise.resolve();
+
+    function collectMathNodes() {
+      return host.querySelectorAll('[data-card-face-id]');
+    }
+
+    function anyFaceNeedsMath(nodes) {
+      var needs = false;
+      nodes.forEach(function (el) {
+        var id = el.getAttribute('data-card-face-id');
+        var side = el.getAttribute('data-card-face-side') || 'q';
+        var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
+        if (!c) return;
+        var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
+        if (faceNeedsMath(raw)) needs = true;
+      });
+      return needs;
+    }
+
+    function paintFaces(allowFallback) {
+      /* Re-query : le DOM a pu être re-rendu pendant le chargement async */
+      var nodes = collectMathNodes();
+      nodes.forEach(function (el) {
+        var id = el.getAttribute('data-card-face-id');
+        var side = el.getAttribute('data-card-face-side') || 'q';
+        var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
+        if (!c) return;
+        var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
+        applyCardFaceHtml(el, raw, side, { allowFallback: !!allowFallback });
+        var card = el.closest('.qk-card');
+        if (card && faceNeedsMath(raw)) card.classList.add('qk-card--math');
+      });
+    }
+
+    var initial = collectMathNodes();
+    if (!initial.length || !anyFaceNeedsMath(initial)) return Promise.resolve();
 
     var loadScripts = Promise.resolve();
     if (typeof window.ensureScriptsForTab === 'function') {
@@ -85,21 +110,14 @@
     return loadScripts.then(function () {
       if (typeof window.ensureMathLive === 'function') return window.ensureMathLive();
     }).then(function () {
-      nodes.forEach(function (el) {
-        var id = el.getAttribute('data-card-face-id');
-        var side = el.getAttribute('data-card-face-side') || 'q';
-        var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
-        if (!c) return;
-        var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
-        applyCardFaceHtml(el, raw, side);
-        var card = el.closest('.qk-card');
-        if (card && faceNeedsMath(raw)) card.classList.add('qk-card--math');
-      });
+      paintFaces(false);
+      /* Si MathLive a échoué silencieusement, éviter le placeholder éternel */
+      if (!mathLiveReady()) paintFaces(true);
     }).catch(function (err) {
       if (typeof console !== 'undefined' && console.warn) {
         console.warn('[Rapide] hydrate LaTeX', err);
       }
-      /* garde le placeholder / texte — pas le fallback monospace brut si possible */
+      paintFaces(true);
     });
   };
 
@@ -123,7 +141,7 @@
 
   function formatFace(str) {
     if (faceNeedsMath(str) && !mathLiveReady()) {
-      return formatFacePlaceholder(str);
+      return formatFacePlaceholder();
     }
     if (typeof window.formatCardFaceHtml === 'function') return window.formatCardFaceHtml(str);
     if (typeof window.formatQuickCardHtml === 'function') return window.formatQuickCardHtml(str);
