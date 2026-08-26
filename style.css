@@ -2906,19 +2906,44 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   padding: 12px 14px;
   border-left: 3px solid var(--mat-color, var(--acc));
 }
-.programme-row-order {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.programme-toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.programme-reorder-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--acc);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--bd);
+  background: rgba(255, 255, 255, 0.03);
+}
+.programme-page-reorder .programme-row-draggable {
+  cursor: grab;
+  user-select: none;
+}
+.programme-page-reorder .programme-row-draggable.dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+.programme-row-grip {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
   padding-top: 2px;
+  color: var(--mut);
+  cursor: grab;
 }
-.programme-order-btn {
-  min-width: 28px;
-  padding: 2px 4px;
-  line-height: 1;
+.programme-group-reorder .programme-list {
+  gap: 6px;
+  min-height: 12px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px dashed transparent;
 }
-.programme-order-btn:disabled { opacity: 0.35; cursor: default; }
+.programme-group-reorder:hover .programme-list {
+  border-color: var(--bd);
+}
 .programme-row-title { font-weight: 600; margin-bottom: 6px; }
 .programme-row-meta { display: flex; flex-wrap: wrap; gap: 6px; }
 .programme-badge {
