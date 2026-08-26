@@ -141,6 +141,8 @@
     ensure();
     const m = mode === 'batch' ? 'batch' : 'single';
     const go = function () {
+      /* Depuis l’onglet Rapide : pas de contexte « carte liée » résiduel */
+      window._cardCreateOpts = Q.mat ? { mat: Q.mat } : {};
       if (typeof window.openQuickCardCreate === 'function') {
         window.openQuickCardCreate(m);
         return;
