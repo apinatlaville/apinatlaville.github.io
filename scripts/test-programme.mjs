@@ -57,7 +57,7 @@ assert(/programme-unite-opt/.test(read('style.css')), 'option cours unité wizar
 assert(/progWizSkipInter|Sans intercalaire|optionnel/.test(progSrc), 'wizard : intercalaire optionnel');
 assert(/programmeWizFormSetCl/.test(progSrc), 'wizard form set classeur optionnel');
 assert(/prev\.chapitreId|chapitreId/.test(dataSrc) && /updateChapitreDropdown/.test(dataSrc), 'saveCours / dropdown chapitre');
-assert(/__BOOT_CACHE_V\s*=\s*'20260827a'/.test(indexSrc), 'cache 20260827a');
+assert(/__BOOT_CACHE_V\s*=\s*'20260827b'/.test(indexSrc), 'cache 20260827b');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');

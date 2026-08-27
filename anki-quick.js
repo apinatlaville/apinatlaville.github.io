@@ -1,5 +1,5 @@
 /**
- * anki-quick.js — Onglet Rapide : cartes Y- par matière / groupe + lien chapitre + LaTeX
+ * anki-quick.js — Onglet Rapide : cartes Y- par fil d’Ariane (groupes) + LaTeX
  */
 (function () {
   const $ = id => document.getElementById(id);
@@ -10,11 +10,7 @@
 
   const Q = {
     mat: "",
-    filterMat: "",
-    filterGroup: "",
-    viewBy: "mat",
-    openMat: new Set(),
-    openGroup: new Set(),
+    nav: { group: "" },
     coursId: ""
   };
 
@@ -38,6 +34,31 @@
   function groupInfo(id) {
     if (!id) return null;
     return (window.D.quickGroups || []).find(g => g.id === id) || null;
+  }
+
+  function groupNavMeta(groupKey) {
+    if (groupKey === UNGROUPED) {
+      return { id: UNGROUPED, name: 'Sans groupe', color: '#6a7088' };
+    }
+    return groupInfo(groupKey) || { id: groupKey, name: groupKey || 'Groupe', color: '#6a7088' };
+  }
+
+  function jsStr(s) {
+    return typeof window.escapeJsStr === 'function'
+      ? window.escapeJsStr(s)
+      : String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
+  function allQuickCards() {
+    return (window.D.exercices || []).filter(isQuickCard);
+  }
+
+  function countGroupCards(groupKey) {
+    const cards = groupKey === UNGROUPED
+      ? allQuickCards().filter(c => !c.groupId)
+      : allQuickCards().filter(c => c.groupId === groupKey);
+    const split = splitActiveReservoir(cards);
+    return { total: cards.length, active: split.active.length, reservoir: split.reservoir.length };
   }
 
   function genGroupId() {
@@ -270,8 +291,7 @@
     const go = function () {
       const opts = {};
       if (Q.mat) opts.mat = Q.mat;
-      if (Q.filterMat) opts.mat = Q.filterMat;
-      if (Q.filterGroup && Q.filterGroup !== UNGROUPED) opts.groupId = Q.filterGroup;
+      if (Q.nav.group && Q.nav.group !== UNGROUPED) opts.groupId = Q.nav.group;
       window._cardCreateOpts = opts;
       window._quickCreateMode = m;
       window._quickCreateCount = 0;
@@ -351,23 +371,16 @@
     ensure();
     const root = $("paneFlashcards");
     if (!root) return;
-
-    const filterMatOpts = '<option value="">Toutes</option>' + (window.D.matieres || []).map(m =>
-      `<option value="${m.id}" ${Q.filterMat === m.id ? 'selected' : ''}>${esc(m.label)}</option>`
-    ).join('');
-    const filterGroupOpts = groupSelectOptions(Q.filterGroup, { allLabel: 'Tous les groupes', noneLabel: 'Sans groupe' });
-    const byMat = Q.viewBy !== 'group';
+    const inGroup = !!Q.nav.group;
+    const navGroup = groupNavMeta(Q.nav.group);
 
     root.innerHTML = `
       <div class="quick-pane-toolbar">
         <div class="quick-head">
           <h2>${window.iconLabel('zap', 'Rapide — cartes Y-')}</h2>
-          <p>Cartes courtes par matière ou groupe · lien chapitre · option LaTeX. Nouvelle carte → <b>active directement</b>.</p>
+          <p>Choisis un <b>groupe</b> dans le fil d’Ariane, puis révise ou crée des cartes. Nouvelle carte → <b>active directement</b>.</p>
         </div>
         <div class="quick-toolbar-actions">
-          <button type="button" class="bs" onclick="window.quickOpenGroupsModal()" title="Gérer les groupes de cartes">
-            ${window.iconLabel('folder', 'Groupes')}
-          </button>
           <div class="cours-create-menu" id="quickCreateMenu">
             <button type="button" class="cours-create-trigger" id="btnQuickCreateMenu"
               aria-expanded="false" aria-haspopup="true" title="Créer une carte rapide">
@@ -382,66 +395,43 @@
               </button>
               <button type="button" class="cours-create-item" id="btnQuickCreateBatch" role="menuitem">
                 <strong><span data-icon="layers" data-icon-size="14"></span> Créer à la suite</strong>
-                <span class="hint">Enchaîne plusieurs cartes (même matière / groupe)</span>
+                <span class="hint">Enchaîne plusieurs cartes (même groupe)</span>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="quick-filters">
+      ${inGroup ? `
+      <div class="quick-filters quick-filters--in-group">
         <div class="search-field">
           ${window.iconHtml('search', 14, 'icon-sm')}
-          <input type="text" id="qkSearch" placeholder="Filtrer..." oninput="window.quickFilter()">
+          <input type="text" id="qkSearch" placeholder="Filtrer dans ${esc(navGroup.name)}..." oninput="window.quickFilter()">
         </div>
-        <select id="qkFltMat" onchange="window.quickFilterMat(this.value)" title="Matière">${filterMatOpts}</select>
-        <select id="qkFltGroup" onchange="window.quickFilterGroup(this.value)" title="Groupe">${filterGroupOpts}</select>
-        <div class="quick-view-toggle" role="group" aria-label="Classement">
-          <button type="button" class="bs${byMat ? ' is-active' : ''}" onclick="window.quickSetViewBy('mat')">Par matière</button>
-          <button type="button" class="bs${!byMat ? ' is-active' : ''}" onclick="window.quickSetViewBy('group')">Par groupe</button>
-        </div>
-        <button class="bs" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser le lot filtré (actives)')}</button>
-      </div>
+        <button class="bs" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe (actives)')}</button>
+      </div>` : ''}
 
-      <div id="qkSections"></div>
+      <div id="qkSections" class="quick-bc-root"></div>
     `;
-    renderSections();
+    renderQuickAriane();
     bindQuickCreateMenu();
     if (window.hydrateIcons) window.hydrateIcons(root);
   };
 
-  window.quickFilter = function () { renderSections(); };
-  window.quickFilterMat = function (v) { Q.filterMat = v; renderSections(); };
-  window.quickFilterGroup = function (v) { Q.filterGroup = v || ''; renderSections(); };
-  window.quickSetViewBy = function (mode) {
-    Q.viewBy = mode === 'group' ? 'group' : 'mat';
+  window.quickFilter = function () { renderQuickAriane(); };
+
+  window.quickArianeReset = function () {
+    Q.nav.group = '';
     window.renderFlashcards();
   };
 
-  window.quickToggleMat = function (matId) {
-    if (Q.openMat.has(matId)) Q.openMat.delete(matId);
-    else Q.openMat.add(matId);
-    renderSections();
+  window.quickArianePickGroup = function (groupKey) {
+    Q.nav.group = groupKey || '';
+    window.renderFlashcards();
   };
 
-  window.quickToggleGroup = function (groupKey) {
-    if (Q.openGroup.has(groupKey)) Q.openGroup.delete(groupKey);
-    else Q.openGroup.add(groupKey);
-    renderSections();
-  };
-
-  window.quickSetCardGroup = function (cardId, groupId) {
-    if (typeof window.refuseSecondaryFullMutation === 'function'
-        && window.refuseSecondaryFullMutation('Appareil secondaire : classement de carte indisponible.')) {
-      return;
-    }
-    const c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, cardId);
-    if (!c || !isQuickCard(c)) return;
-    const gid = (groupId || '').trim();
-    if (!gid) delete c.groupId;
-    else c.groupId = gid;
-    window.save();
-    renderSections();
+  window.quickArianeManageGroups = function () {
+    window.quickOpenGroupsModal();
   };
 
   window.quickActivate = function (id) {
@@ -453,7 +443,7 @@
     if (!c || !window.AnkiAlgo.isReservoir(c)) return;
     window.AnkiAlgo.activateFromReservoir(c);
     window.save();
-    renderSections();
+    renderQuickAriane();
   };
 
   window.quickActivateMat = function (matId) {
@@ -465,22 +455,20 @@
       window.AnkiAlgo.activateFromReservoir(c);
     });
     window.save();
-    renderSections();
+    renderQuickAriane();
   };
 
   function getFiltered() {
+    if (!Q.nav.group) return [];
     const q = ($("qkSearch") && $("qkSearch").value || '').toLowerCase().trim();
-    let list = (window.D.exercices || []).filter(isQuickCard);
-    if (Q.filterMat) list = list.filter(c => c.mat === Q.filterMat);
-    if (Q.filterGroup === UNGROUPED) list = list.filter(c => !c.groupId);
-    else if (Q.filterGroup) list = list.filter(c => c.groupId === Q.filterGroup);
+    let list = allQuickCards();
+    if (Q.nav.group === UNGROUPED) list = list.filter(c => !c.groupId);
+    else list = list.filter(c => c.groupId === Q.nav.group);
     if (q) {
-      list = list.filter(c => {
-        const g = groupInfo(c.groupId);
-        const gName = g ? g.name : '';
-        return (c.question + ' ' + (c.reponse || '') + ' ' + (c.titre || '') + ' ' + c.id + ' ' + gName)
-          .toLowerCase().includes(q);
-      });
+      list = list.filter(c =>
+        (c.question + ' ' + (c.reponse || '') + ' ' + (c.titre || '') + ' ' + c.id)
+          .toLowerCase().includes(q)
+      );
     }
     list.sort((a, b) => (b.dateCreation || '').localeCompare(a.dateCreation || ''));
     return list;
@@ -501,17 +489,6 @@
     return `<span class="anki-tag qk-cours-chip" title="Chapitre(s) lié(s)">${esc(labels.join(', '))}</span>`;
   }
 
-  function groupChip(c) {
-    const g = groupInfo(c.groupId);
-    if (!g) return '';
-    return `<span class="anki-tag qk-group-chip" style="background:${g.color}22;color:${g.color};border:1px solid ${g.color}55;" title="Groupe">${esc(g.name)}</span>`;
-  }
-
-  function groupAssignControl(c) {
-    const opts = groupSelectOptions(c.groupId || '', { noneLabel: 'Sans groupe' });
-    return `<select class="qk-group-assign" title="Groupe" onclick="event.stopPropagation();" onchange="event.stopPropagation();window.quickSetCardGroup('${esc(c.id)}', this.value)">${opts}</select>`;
-  }
-
   function renderCard(c) {
     const m = matInfo(c.mat);
     const inRes = window.AnkiAlgo.isReservoir(c);
@@ -526,7 +503,6 @@
               ${typeBadge}
               <span class="qk-mat" style="background:${m.color};">${esc(m.label)}</span>
               <span class="qk-id">${c.id}</span>
-              ${groupChip(c)}
               ${coursChip(c)}
               ${inRes ? `<span class="anki-tag" style="background:rgba(255,170,51,.15);color:var(--gold);">Ancien réservoir</span>` : ''}
             </div>
@@ -534,7 +510,6 @@
             <div class="qk-foot">
               <span class="anki-mut">${window.iconLabel('zap', 'Rapide')}</span>
               <span class="qk-actions" onclick="event.stopPropagation();">
-                ${groupAssignControl(c)}
                 ${inRes ? `<button class="bs" onclick="window.quickActivate('${c.id}')">${window.iconLabel('zap', 'Activer')}</button>` : window.iconBtn('play', 'Réviser', `onclick="window.startAnkiSingle('${c.id}')"`)}
                 ${typeof window.iconEditBtn === 'function' ? window.iconEditBtn(`window.editExo('${c.id}')`) : window.iconBtn('pencil', 'Modifier', `onclick="window.editExo('${c.id}')"`)}
                 ${typeof window.iconDeleteBtn === 'function' ? window.iconDeleteBtn(`window.delExo('${c.id}')`) : `<button class="cbt icon-only-btn" aria-label="Supprimer" title="Supprimer" style="color:var(--red);border-color:var(--red);" onclick="window.delExo('${c.id}')">${window.iconHtml('trash-2', 16, 'icon-sm')}</button>`}
@@ -560,93 +535,127 @@
     return { active, reservoir };
   }
 
-  function renderBucketBody(g, activateMatId) {
+  function renderBucketBody(split, activateMatId) {
+    if (!split.active.length && !split.reservoir.length) {
+      return '<div class="cours-bc-empty">Aucune carte dans ce groupe.</div>';
+    }
     return `
-      ${g.reservoir.length ? `
+      ${split.reservoir.length ? `
         <div class="quick-reservoir-block">
           <div class="quick-reservoir-hdr">
             <span>${window.iconLabel('hourglass', 'Réservoir Y-')}</span>
             ${activateMatId ? `<button class="bs" onclick="event.stopPropagation();window.quickActivateMat('${esc(activateMatId)}')">${window.iconLabel('zap', 'Activer toute la matière')}</button>` : ''}
           </div>
-          <div class="quick-grid">${g.reservoir.map(renderCard).join('')}</div>
+          <div class="quick-grid">${split.reservoir.map(renderCard).join('')}</div>
         </div>` : ''}
-      ${g.active.length ? `
+      ${split.active.length ? `
         <div class="quick-active-block">
           <p class="anki-mut" style="font-size:11px;margin:8px 0;">${window.iconLabel('play', 'Actives')}</p>
-          <div class="quick-grid">${g.active.map(renderCard).join('')}</div>
+          <div class="quick-grid">${split.active.map(renderCard).join('')}</div>
         </div>` : ''}
     `;
   }
 
-  function renderSectionsByMat(list) {
-    const byMat = {};
-    list.forEach(c => {
-      const k = c.mat || '?';
-      if (!byMat[k]) byMat[k] = [];
-      byMat[k].push(c);
-    });
-    const matOrder = (window.D.matieres || []).map(m => m.id).filter(id => byMat[id]);
-    Object.keys(byMat).forEach(id => { if (!matOrder.includes(id)) matOrder.push(id); });
-
-    return matOrder.map(matId => {
-      const m = matInfo(matId);
-      const split = splitActiveReservoir(byMat[matId]);
-      const open = Q.openMat.has(matId) || !!Q.filterMat;
-      return `
-        <div class="anki-lib-mat quick-mat${open ? ' open' : ''}">
-          <div class="anki-lib-mat-hdr" style="border-left:4px solid ${m.color};" onclick="window.quickToggleMat('${esc(matId)}')" role="button" tabindex="0">
-            <span class="anki-lib-chevron">${open ? '▼' : '▶'}</span>
-            <span class="anki-lib-grp-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
-            <span class="anki-lib-mat-name">${esc(m.name || matId)}</span>
-            <span class="anki-mut" style="margin-left:auto;">${split.active.length} actives · ${split.reservoir.length} réservoir</span>
-          </div>
-          ${open ? `<div class="anki-lib-mat-body">${renderBucketBody(split, matId)}</div>` : ''}
-        </div>
-      `;
-    }).join('');
+  function renderQuickArianeBreadcrumb() {
+    const chev = window.iconHtml ? window.iconHtml('chevron-right', 14) : '›';
+    const nav = Q.nav;
+    let crumbs = `<button type="button" class="cours-bc-crumb${!nav.group ? ' is-current' : ''}" onclick="window.quickArianeReset()">${window.iconLabel('zap', 'Rapide')}</button>`;
+    if (nav.group) {
+      const g = groupNavMeta(nav.group);
+      crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
+      crumbs += `<span class="cours-bc-crumb is-current">${esc(g.name)}</span>`;
+    }
+    return `<nav class="cours-bc-bar" aria-label="Fil d’Ariane Rapide">${crumbs}</nav>`;
   }
 
-  function renderSectionsByGroup(list) {
-    const byGroup = {};
-    list.forEach(c => {
-      const k = c.groupId || UNGROUPED;
-      if (!byGroup[k]) byGroup[k] = [];
-      byGroup[k].push(c);
-    });
-    const order = sortedGroups().map(g => g.id).filter(id => byGroup[id]);
-    if (byGroup[UNGROUPED]) order.push(UNGROUPED);
-    Object.keys(byGroup).forEach(id => { if (!order.includes(id)) order.push(id); });
-
-    return order.map(groupKey => {
-      const gMeta = groupKey === UNGROUPED
-        ? { id: UNGROUPED, name: 'Sans groupe', color: '#6a7088' }
-        : (groupInfo(groupKey) || { id: groupKey, name: groupKey, color: '#6a7088' });
-      const split = splitActiveReservoir(byGroup[groupKey]);
-      const open = Q.openGroup.has(groupKey) || !!Q.filterGroup || order.length <= 2;
-      return `
-        <div class="anki-lib-mat quick-mat quick-group-section${open ? ' open' : ''}">
-          <div class="anki-lib-mat-hdr" style="border-left:4px solid ${gMeta.color};" onclick="window.quickToggleGroup('${esc(groupKey)}')" role="button" tabindex="0">
-            <span class="anki-lib-chevron">${open ? '▼' : '▶'}</span>
-            <span class="anki-lib-grp-mat" style="background:${gMeta.color}20;color:${gMeta.color};">${esc(gMeta.name)}</span>
-            <span class="anki-mut" style="margin-left:auto;">${split.active.length} actives · ${split.reservoir.length} réservoir</span>
-          </div>
-          ${open ? `<div class="anki-lib-mat-body">${renderBucketBody(split, null)}</div>` : ''}
-        </div>
-      `;
+  function renderQuickArianeRoot() {
+    const groups = sortedGroups();
+    const noneStats = countGroupCards(UNGROUPED);
+    let tiles = groups.map(g => {
+      const stats = countGroupCards(g.id);
+      return (
+        `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(g.color)}" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
+          `<span class="cours-bc-tile-name">${esc(g.name)}</span>` +
+          `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
+            (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
+          `</span>` +
+        `</button>`
+      );
     }).join('');
+
+    if (noneStats.total) {
+      tiles += (
+        `<button type="button" class="cours-bc-tile" style="--mat-color:#6a7088" onclick="window.quickArianePickGroup('${jsStr(UNGROUPED)}')">` +
+          `<span class="cours-bc-tile-name">Sans groupe</span>` +
+          `<span class="cours-bc-tile-meta">${noneStats.active} active${noneStats.active > 1 ? 's' : ''}` +
+            (noneStats.reservoir ? ` · ${noneStats.reservoir} réservoir` : '') +
+          `</span>` +
+        `</button>`
+      );
+    }
+
+    tiles += (
+      `<button type="button" class="cours-bc-tile cours-bc-tile--manage" onclick="window.quickArianeManageGroups()">` +
+        `<span class="cours-bc-tile-name">${window.iconLabel('folder', 'Gérer les groupes')}</span>` +
+        `<span class="cours-bc-tile-meta">Créer, renommer, couleurs</span>` +
+      `</button>`
+    );
+
+    const empty = !groups.length && !noneStats.total;
+    const body = empty
+      ? '<div class="cours-bc-empty">Aucune carte Y- pour l’instant. Utilise <b>Créer</b> puis classe tes cartes via <b>Gérer les groupes</b>.</div>'
+      : (
+        '<div class="cours-bc-level-head">' +
+          '<h3 class="cours-bc-level-title">Choisir un groupe</h3>' +
+          '<p class="cours-bc-level-sub anki-mut">Puis révise ou ajoute des cartes dans ce groupe.</p>' +
+        '</div>' +
+        '<div class="cours-bc-grid">' + tiles + '</div>'
+      );
+
+    return body;
   }
 
-  function renderSections() {
+  function renderQuickArianeGroupBody() {
+    const g = groupNavMeta(Q.nav.group);
+    const list = getFiltered();
+    const split = splitActiveReservoir(list);
+    const allInGroup = Q.nav.group === UNGROUPED
+      ? allQuickCards().filter(c => !c.groupId)
+      : allQuickCards().filter(c => c.groupId === Q.nav.group);
+    const totalSplit = splitActiveReservoir(allInGroup);
+
+    return (
+      '<div class="cours-bc-level-head">' +
+        `<h3 class="cours-bc-level-title">${esc(g.name)}</h3>` +
+        `<p class="cours-bc-level-sub anki-mut">${totalSplit.active.length} active${totalSplit.active.length > 1 ? 's' : ''}` +
+          (totalSplit.reservoir ? ` · ${totalSplit.reservoir} réservoir` : '') +
+        '</p>' +
+      '</div>' +
+      renderBucketBody(split, null)
+    );
+  }
+
+  function renderQuickAriane() {
     const host = $("qkSections");
     if (!host) return;
-    const list = getFiltered();
-    if (!list.length) {
-      host.innerHTML = '<div class="anki-empty">' + window.iconLabel('mouse-pointer-click', 'Aucune carte Y-. Utilise Créer pour en ajouter une') + '</div>';
-      return;
+
+    if (Q.nav.group) {
+      const g = groupInfo(Q.nav.group);
+      if (Q.nav.group !== UNGROUPED && !g) {
+        Q.nav.group = '';
+        return renderQuickAriane();
+      }
     }
-    host.innerHTML = Q.viewBy === 'group' ? renderSectionsByGroup(list) : renderSectionsByMat(list);
+
+    const body = Q.nav.group ? renderQuickArianeGroupBody() : renderQuickArianeRoot();
+    host.innerHTML =
+      '<div class="cours-bc-page quick-bc-page">' +
+        renderQuickArianeBreadcrumb() +
+        '<div class="cours-bc-body">' + body + '</div>' +
+      '</div>';
+
     if (window.hydrateIcons) window.hydrateIcons(host);
-    if (typeof window.hydrateQuickCardFaces === 'function') {
+    if (Q.nav.group && typeof window.hydrateQuickCardFaces === 'function') {
       window.hydrateQuickCardFaces(host);
     }
   }
@@ -770,6 +779,7 @@
         if (c && c.groupId === id) delete c.groupId;
       });
       window.D.quickGroups.forEach((x, i) => { x.order = i; });
+      if (Q.nav.group === id) Q.nav.group = '';
       const body = $('qkGroupsBody');
       if (body) body.innerHTML = renderGroupsModalBody();
       if (window.hydrateIcons) window.hydrateIcons(body || document);

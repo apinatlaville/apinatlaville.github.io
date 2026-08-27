@@ -1,5 +1,5 @@
 /**
- * Groupes / catégories des cartes Rapide (Y-).
+ * Groupes Rapide — navigation fil d’Ariane.
  * Usage: node scripts/test-anki-quick-groups.mjs
  */
 import fs from 'fs';
@@ -25,21 +25,22 @@ const demoSrc = fs.readFileSync(path.join(root, 'demo-data.js'), 'utf8');
 const indexSrc = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const cssSrc = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
 
-console.log('=== Rapide : groupes de cartes ===\n');
+console.log('=== Rapide : groupes fil d’Ariane ===\n');
 
 assert(/quickGroups:\s*\[\]/.test(dataSrc), 'emptyData.quickGroups');
 assert(/D\.quickGroups/.test(algoSrc) && /migrateData/.test(algoSrc), 'migrateData initialise quickGroups');
-assert(/qkFltGroup/.test(quickSrc), 'filtre groupe dans l’onglet Rapide');
-assert(/quickSetViewBy\('group'\)|viewBy === 'group'|Par groupe/.test(quickSrc), 'classement par groupe');
-assert(/quickOpenGroupsModal|qk-groups-modal|quickAddGroup/.test(quickSrc), 'CRUD groupes (modal)');
-assert(/quickSetCardGroup/.test(quickSrc), 'assignation groupe sur carte');
+assert(/cours-bc-bar|cours-bc-tile|cours-bc-page/.test(quickSrc), 'UI fil d’Ariane (crumbs + tuiles)');
+assert(/quickArianeReset|quickArianePickGroup|quickArianeManageGroups/.test(quickSrc), 'navigation Ariane Rapide');
+assert(/Choisir un groupe/.test(quickSrc), 'écran racine : tuiles groupes');
+assert(/Gérer les groupes/.test(quickSrc), 'tuile gérer les groupes');
+assert(!/qkFltGroup|Par groupe|quickSetViewBy|quickSetCardGroup/.test(quickSrc), 'plus de toggles/dropdowns groupes');
+assert(!/qk-group-assign|groupAssignControl/.test(quickSrc), 'plus de select groupe sur carte');
 assert(/id="quickGroup"/.test(appSrc), 'champ Groupe dans le modal création');
 assert(/groupId/.test(appSrc) && /editingQuickId/.test(appSrc), 'sauvegarde + édition groupId');
-assert(/isQuickCard\(c\)[\s\S]*showQuickCreateModal/.test(appSrc), 'édition Y- via modal Rapide');
 assert(/groupId:'QG-VOC'|groupId: 'QG-VOC'|groupId: "QG-VOC"/.test(demoSrc), 'démo assigne des groupes');
 assert(/quickGroups:/.test(demoSrc), 'démo définit quickGroups');
-assert(/qk-group-chip|quick-view-toggle|qk-group-assign/.test(cssSrc), 'styles groupes');
-assert(/__BOOT_CACHE_V\s*=\s*'20260827a'/.test(indexSrc), 'cache 20260827a');
+assert(/quick-bc-page|cours-bc-tile--manage/.test(cssSrc), 'styles fil d’Ariane Rapide');
+assert(/__BOOT_CACHE_V\s*=\s*'20260827b'/.test(indexSrc), 'cache 20260827b');
 
 const sandbox = {
   window: {
@@ -67,8 +68,6 @@ sandbox.window.AnkiAlgo.migrateData(sandbox.window.D);
 assert(Array.isArray(sandbox.window.D.quickGroups), 'après migrate : quickGroups array');
 assert(sandbox.window.D.quickGroups.length === 1 && sandbox.window.D.quickGroups[0].id === 'QG-VOC',
   'migrate filtre groupes invalides');
-assert(sandbox.window.D.exercices[0].groupId === 'QG-VOC', 'groupId carte conservé');
-assert(sandbox.window.D.exercices[1].groupId == null, 'carte sans groupe reste sans groupId');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

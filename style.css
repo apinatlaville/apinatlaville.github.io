@@ -2806,30 +2806,16 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  border-radius: 8px;
  font-size: 12px;
 }
-.quick-view-toggle {
- display: inline-flex;
- gap: 4px;
- flex: 0 0 auto;
+.quick-bc-page { max-width: 960px; }
+.quick-bc-page .cours-bc-bar { margin-bottom: 16px; }
+.quick-filters--in-group { margin-bottom: 12px; }
+.cours-bc-tile--manage {
+ border-style: dashed;
+ opacity: 0.95;
 }
-.quick-view-toggle .bs.is-active {
+.cours-bc-tile--manage:hover {
  border-color: var(--acc);
- color: var(--acc);
- background: color-mix(in srgb, var(--acc) 12%, transparent);
-}
-.qk-group-chip {
- font-size: 10px;
- font-weight: 600;
- padding: 2px 7px;
- border-radius: 4px;
-}
-.qk-group-assign {
- max-width: 120px;
- font-size: 11px;
- padding: 3px 6px;
- background: var(--bg);
- border: 1px solid var(--bd);
- color: var(--txt);
- border-radius: 6px;
+ background: color-mix(in srgb, var(--acc) 8%, var(--s2));
 }
 .qk-groups-modal .qk-groups-list {
  display: flex;
