@@ -161,6 +161,11 @@
         var label = typeof window.formatChapitreLabel === 'function'
           ? window.formatChapitreLabel(ch, true)
           : esc(ch.title);
+        var uniteUid = ch.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
+          ? window.resolveChapitreCoursUid(ch.id) : '');
+        var linkedDocs = (window.D.cours || []).filter(function (c) {
+          return c && c.chapitreId === ch.id && !(c.role === 'unite' || c.isUnite);
+        }).length;
         return (
           '<article class="prog-bc-chap" style="--mat-color:' + esc(matObj(ch.mat).color) + '">' +
             '<div class="prog-bc-chap-ord" title="Ordre">' + (i + 1) + '</div>' +
@@ -169,6 +174,12 @@
               '<div class="prog-bc-chap-meta">' +
                 '<span class="prog-bc-pill mono">' + esc(ch.id) + '</span>' +
                 '<span class="prog-bc-pill prog-bc-pill-mut">' + loc + '</span>' +
+                (uniteUid
+                  ? '<span class="prog-bc-pill prog-bc-pill-unite" title="Cours unité Anki">Unité · ' + esc(uniteUid) + '</span>'
+                  : '') +
+                (linkedDocs
+                  ? '<span class="prog-bc-pill prog-bc-pill-mut">' + linkedDocs + ' doc' + (linkedDocs > 1 ? 's' : '') + '</span>'
+                  : '') +
               '</div>' +
               (ch.notes ? '<div class="prog-bc-chap-notes">' + esc(ch.notes) + '</div>' : '') +
             '</div>' +
@@ -199,14 +210,30 @@
   function renderOrphans() {
     var docs = typeof window.getUnattachedCoursDocs === 'function'
       ? window.getUnattachedCoursDocs()
-      : (window.D.cours || []).filter(function (c) { return c && !c.chapitreId; });
+      : (window.D.cours || []).filter(function (c) { return c && !c.chapitreId && !(c.role === 'unite'); });
+    var chapitres = typeof window.listChapitres === 'function'
+      ? window.listChapitres({})
+      : (window.D.chapitres || []);
     var open = _orphansOpen;
     var rows = open
       ? docs.slice(0, 20).map(function (c) {
+        var opts = chapitres
+          .filter(function (ch) { return !c.mat || ch.mat === c.mat; })
+          .map(function (ch) {
+            var label = typeof window.formatChapitreLabel === 'function'
+              ? String(ch.title || ch.id)
+              : (ch.title || ch.id);
+            return '<option value="' + esc(ch.id) + '">' + esc(label) + ' · ' + esc(ch.id) + '</option>';
+          }).join('');
         return (
           '<div class="prog-bc-orphan-row">' +
             '<span class="mono">' + esc(c.uid) + '</span>' +
-            '<span>' + esc(c.title || '') + '</span>' +
+            '<span class="prog-bc-orphan-title">' + esc(c.title || '') + '</span>' +
+            '<select class="prog-bc-orphan-select" id="orphanChap-' + esc(c.uid) + '" aria-label="Chapitre">' +
+              '<option value="">— Chapitre —</option>' + opts +
+            '</select>' +
+            '<button type="button" class="bs prog-bc-orphan-attach" onclick="window.progSearchAttachOrphan(\'' +
+              jsStr(c.uid) + '\')">Rattacher</button>' +
           '</div>'
         );
       }).join('') +
@@ -222,7 +249,8 @@
           '<span class="prog-bc-orphans-count">' + docs.length + '</span>' +
         '</button>' +
         (open
-          ? '<p class="anki-mut prog-bc-orphans-hint">Documents papier sans chapitreId — rattachement en phase 2.</p>' + rows
+          ? '<p class="anki-mut prog-bc-orphans-hint">Lie chaque document papier à un chapitre logique.</p>' +
+            (docs.length ? rows : '<div class="prog-bc-empty">Tous les documents papier sont rattachés.</div>')
           : '') +
       '</section>'
     );
@@ -270,6 +298,31 @@
   window.progSearchToggleOrphans = function () {
     _orphansOpen = !_orphansOpen;
     window.renderProgrammeSearchTest();
+  };
+
+  window.progSearchAttachOrphan = function (coursUid) {
+    var sel = $('orphanChap-' + coursUid);
+    var chapitreId = sel ? String(sel.value || '') : '';
+    if (!chapitreId) {
+      if (typeof window.showToast === 'function') window.showToast('Choisis un chapitre.');
+      else if (typeof window.sysAlert === 'function') window.sysAlert('Choisis un chapitre.', 'Rattachement');
+      return;
+    }
+    if (typeof window.proposeChapitreLink !== 'function') return;
+    var res = window.proposeChapitreLink(coursUid, chapitreId);
+    if (!res.ok) {
+      if (typeof window.showToast === 'function') window.showToast(res.error || 'Échec rattachement');
+      else if (typeof window.sysAlert === 'function') window.sysAlert(res.error || 'Échec', 'Rattachement');
+      return;
+    }
+    var saveP = typeof window.save === 'function' ? window.save() : null;
+    var done = function () {
+      _orphansOpen = true;
+      window.renderProgrammeSearchTest();
+      if (typeof window.showToast === 'function') window.showToast('Document rattaché.');
+    };
+    if (saveP && typeof saveP.then === 'function') saveP.then(done).catch(done);
+    else done();
   };
 
   window.renderProgrammeSearchTest = function () {

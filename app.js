@@ -883,7 +883,10 @@ window.renderDashboard = function() {
     }
   }
 
-  const todos = window.D.cours.filter(c => c.stat === 'pending' || c.stat === 'printed')
+  const todos = window.D.cours.filter(c => {
+    if (typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : (c.role === 'unite' || c.isUnite)) return false;
+    return c.stat === 'pending' || c.stat === 'printed';
+  })
                        .sort((a,b) => {
                           if(a.stat === 'pending' && b.stat !== 'pending') return -1;
                           if(a.stat !== 'pending' && b.stat === 'pending') return 1;
@@ -1519,7 +1522,10 @@ bindInput('mainSearchCode', (e) => {
 bindClick('btnCancelCours', () => window.closeModalCours());
 bindChange('fType', () => window.toggleNoteField());
 
-bindChange('fMat', () => { if(typeof window.updateUidPrefix === 'function') window.updateUidPrefix(); });
+bindChange('fMat', () => {
+  if (typeof window.updateUidPrefix === 'function') window.updateUidPrefix();
+  if (typeof window.updateChapitreDropdown === 'function') window.updateChapitreDropdown();
+});
 
 bindChange('fMoveCl', () => { if(typeof window.updateMoveIntercalairesDropdown === 'function') window.updateMoveIntercalairesDropdown(); });
 bindChange('fOrphanCl', () => { if (typeof window.updateOrphanInterDropdown === 'function') window.updateOrphanInterDropdown(); });

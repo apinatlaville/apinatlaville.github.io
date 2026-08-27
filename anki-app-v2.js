@@ -3682,7 +3682,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         return `<span class="anki-link-chip" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">${esc(uid)} ${window.iconHtml('x', 12)}</span>`;
       }
       const m = mat(co.mat);
-      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">${esc(co.uid)} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
+      const unite = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(co) : !!(co.role === 'unite');
+      const badge = unite ? ' · Unité' : '';
+      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">${esc(co.uid)}${badge} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
     }).join('') || '<span class="anki-mut" style="font-size:11px;">Aucun cours lié.</span>';
 
     const q = (S.coursLinkQuery || '').toLowerCase().trim();
@@ -3691,7 +3693,14 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       if (S.coursLinkSelection.has(c.uid)) return false;
       const matObj = mat(c.mat);
       const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
-      return ((c.uid || '') + ' ' + (c.title || '') + ' ' + (matObj.name || '') + ' ' + (matObj.label || '') + ' ' + (cl.name || '')).toLowerCase().includes(q);
+      const unite = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : !!(c.role === 'unite');
+      const hay = ((c.uid || '') + ' ' + (c.title || '') + ' ' + (matObj.name || '') + ' ' + (matObj.label || '') + ' ' + (cl.name || '') + (unite ? ' unite unité chapitre' : '')).toLowerCase();
+      return hay.includes(q);
+    }).sort((a, b) => {
+      const ua = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(a) : !!(a.role === 'unite');
+      const ub = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(b) : !!(b.role === 'unite');
+      if (ua !== ub) return ua ? -1 : 1;
+      return String(a.title || '').localeCompare(String(b.title || ''), 'fr');
     }).slice(0, 12);
     if (!list.length) {
       res.innerHTML = '<div class="anki-mut" style="padding:8px;font-size:12px;">Aucun cours trouvé.</div>';
@@ -3701,9 +3710,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const m = mat(c.mat);
       const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
       const safeUid = String(c.uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const unite = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : !!(c.role === 'unite');
       return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">
         <span class="anki-link-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
-        <span class="anki-link-id">${esc(c.uid)}</span>
+        <span class="anki-link-id">${esc(c.uid)}${unite ? ' · Unité' : ''}</span>
         <span class="anki-link-title">${esc(c.title)}</span>
         <span class="anki-mut">${esc(cl.name || '')}</span>
       </div>`;

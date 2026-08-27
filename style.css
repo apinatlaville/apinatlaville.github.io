@@ -3157,14 +3157,49 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .programme-wiz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
 .programme-wiz-tile { text-align: left; padding: 10px 12px; }
 .programme-wiz-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; }
-.programme-phase2-hint {
+.programme-phase2-hint,
+.programme-unite-opt {
   font-size: 11px;
   margin: 0 0 8px;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px dashed var(--bd);
   background: rgba(255, 255, 255, 0.03);
-  text-align: center;
+  text-align: left;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.programme-unite-opt input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--acc);
+  flex-shrink: 0;
+}
+.programme-unite-opt strong { color: var(--txt); font-weight: 600; }
+.prog-bc-pill-unite {
+  background: color-mix(in srgb, var(--acc) 18%, transparent);
+  color: var(--acc);
+  border: 1px solid color-mix(in srgb, var(--acc) 35%, transparent);
+}
+.prog-bc-orphan-row {
+  display: grid;
+  grid-template-columns: auto 1fr minmax(120px, 1.2fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.prog-bc-orphan-select {
+  font-size: 12px;
+  min-width: 0;
+}
+.prog-bc-orphan-attach { white-space: nowrap; }
+@media (max-width: 720px) {
+  .prog-bc-orphan-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .prog-bc-orphan-title { grid-column: 1 / -1; }
 }
 .programme-bulk-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .programme-bulk-row {
