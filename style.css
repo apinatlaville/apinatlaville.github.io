@@ -3078,10 +3078,14 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .programme-row {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: 12px 14px;
   border-left: 3px solid var(--mat-color, var(--acc));
+}
+.programme-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .programme-toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .programme-reorder-hint {
@@ -3113,13 +3117,19 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .programme-group-reorder .programme-list {
   gap: 6px;
-  min-height: 12px;
+  min-height: 0;
   padding: 4px;
   border-radius: 10px;
   border: 1px dashed transparent;
 }
 .programme-group-reorder:hover .programme-list {
   border-color: var(--bd);
+}
+.programme-row-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .programme-row-title { font-weight: 600; margin-bottom: 6px; }
 .programme-row-meta { display: flex; flex-wrap: wrap; gap: 6px; }
