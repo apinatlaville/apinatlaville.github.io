@@ -15,12 +15,12 @@ window.demoData = {
     {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, defaultAnnee: 2, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
   ],
   chapitres: [
-    { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '' },
-    { id: 'PH-T9Y', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', order: 1, title: 'Thermodynamique', created: '2026-08-01', notes: '' },
-    { id: 'PH-E7L', mat: 'PHYS', annee: 1, cl: 'A', inter: '03', order: 2, title: 'Électromagnétisme', created: '2026-08-01', notes: '' },
-    { id: 'MA-A1G', mat: 'MATH', annee: 1, cl: 'B', inter: '01', order: 0, title: 'Algèbre linéaire', created: '2026-08-01', notes: '' },
-    { id: 'MA-N2P', mat: 'MATH', annee: 1, cl: 'B', inter: '02', order: 1, title: 'Analyse', created: '2026-08-01', notes: '' },
-    { id: 'PH-S4Q', mat: 'PHYS', annee: 2, cl: 'A', inter: '03', order: 0, title: 'Électrostatique (L2)', created: '2026-08-10', notes: 'Exemple 2ème année' }
+    { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U1M' },
+    { id: 'PH-T9Y', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', order: 1, title: 'Thermodynamique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U2T' },
+    { id: 'PH-E7L', mat: 'PHYS', annee: 1, cl: 'A', inter: '03', order: 2, title: 'Électromagnétisme', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U3E' },
+    { id: 'MA-A1G', mat: 'MATH', annee: 1, cl: 'B', inter: '01', order: 0, title: 'Algèbre linéaire', created: '2026-08-01', notes: '', coursUniteUid: 'MA-U1A' },
+    { id: 'MA-N2P', mat: 'MATH', annee: 1, cl: 'B', inter: '02', order: 1, title: 'Analyse', created: '2026-08-01', notes: '', coursUniteUid: 'MA-U2N' },
+    { id: 'PH-S4Q', mat: 'PHYS', annee: 2, cl: 'A', inter: '03', order: 0, title: 'Électrostatique (L2)', created: '2026-08-10', notes: 'Exemple 2ème année', coursUniteUid: 'PH-U4S' }
   ],
   cours: (function () {
     const _d = new Date(); _d.setHours(0, 0, 0, 0);
@@ -30,11 +30,19 @@ window.demoData = {
       return window.localDateISO(d);
     };
     return [
-      { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-40) },
-      { uid: 'PH-X9Y', title: 'Thermodynamique', type: 'FICHE', rev: 'orange', mat: 'PHYS', cl: 'A', inter: '02', stat: 'printed', date: _shift(-35) },
-      { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-28) },
-      { uid: 'MA-7Z3', title: 'Espaces Vectoriels', type: 'COURS', rev: 'red', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-38) },
-      { uid: 'MA-P4L', title: 'Séries Entières', type: 'TD', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'pending', date: _shift(-22) },
+      /* Cours unités (cibles Anki, hors browse papier) */
+      { uid: 'PH-U1M', title: 'Mécanique', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-40), chapitreId: 'PH-M3K', role: 'unite', isUnite: true },
+      { uid: 'PH-U2T', title: 'Thermodynamique', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '02', stat: 'active', date: _shift(-40), chapitreId: 'PH-T9Y', role: 'unite', isUnite: true },
+      { uid: 'PH-U3E', title: 'Électromagnétisme', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-40), chapitreId: 'PH-E7L', role: 'unite', isUnite: true },
+      { uid: 'MA-U1A', title: 'Algèbre linéaire', type: 'COURS', rev: 'green', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-40), chapitreId: 'MA-A1G', role: 'unite', isUnite: true },
+      { uid: 'MA-U2N', title: 'Analyse', type: 'COURS', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: _shift(-40), chapitreId: 'MA-N2P', role: 'unite', isUnite: true },
+      { uid: 'PH-U4S', title: 'Électrostatique (L2)', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-10), chapitreId: 'PH-S4Q', role: 'unite', isUnite: true },
+      /* Documents papier (certains rattachés) */
+      { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-40), chapitreId: 'PH-M3K' },
+      { uid: 'PH-X9Y', title: 'Thermodynamique', type: 'FICHE', rev: 'orange', mat: 'PHYS', cl: 'A', inter: '02', stat: 'printed', date: _shift(-35), chapitreId: 'PH-T9Y' },
+      { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-28), chapitreId: 'PH-E7L' },
+      { uid: 'MA-7Z3', title: 'Espaces Vectoriels', type: 'COURS', rev: 'red', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-38), chapitreId: 'MA-A1G' },
+      { uid: 'MA-P4L', title: 'Séries Entières', type: 'TD', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'pending', date: _shift(-22), chapitreId: 'MA-N2P' },
       { uid: 'CH-W2N', title: 'Cristallographie', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: _shift(-36) },
       { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-30) },
       { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: _shift(-18) },

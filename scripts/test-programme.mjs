@@ -1,5 +1,5 @@
 /**
- * Tests Programme — chapitres logiques phase 1
+ * Tests Programme — chapitres logiques phase 1 + phase 2
  * Usage: node scripts/test-programme.mjs
  */
 import fs from 'fs';
@@ -28,6 +28,7 @@ const bootSrc = read('boot-loader.js');
 const appSrc = read('app.js');
 const progSrc = read('programme.js');
 const labSrc = read('programme-search-test.js');
+const dataSrc = read('data.js');
 
 assert(/programme:\s*\{[^}]*pane:\s*'paneProgramme'/.test(navSrc), 'nav-config enregistre programme');
 assert(/tabs:\s*\[[^\]]*['\"]programme['\"]/.test(navSrc), 'Programme dans groupe Organisation');
@@ -35,6 +36,7 @@ assert(/programmeSearchTest/.test(navSrc), 'Fil d’Ariane enregistré');
 assert(/label:\s*'Organisation'[\s\S]*?programmeSearchTest/.test(navSrc), 'Fil d’Ariane dans Organisation');
 assert(/id="paneProgramme"/.test(indexSrc), 'paneProgramme dans index.html');
 assert(/id="paneProgrammeSearchTest"/.test(indexSrc), 'pane Fil d’Ariane dans index.html');
+assert(/id="fChapitre"/.test(indexSrc), 'select chapitre dans modal document');
 assert(/programme:\s*\[['\"]programme\.js['\"]\]/.test(bootSrc), 'bundle programme.js');
 assert(/programmeSearchTest:\s*\[['\"]programme\.js['\"],\s*['\"]programme-search-test\.js['\"]\]/.test(bootSrc), 'bundle Fil d’Ariane');
 assert(/case 'programme'/.test(appSrc), 'app.js onShow programme');
@@ -42,19 +44,26 @@ assert(/case 'programmeSearchTest'/.test(appSrc), 'app.js onShow Fil d’Ariane'
 assert(/window\.renderProgramme\s*=/.test(progSrc), 'API renderProgramme');
 assert(/window\.createChapitre\s*=/.test(progSrc), 'API createChapitre');
 assert(/window\.bulkCreateChapitresFromIntercalaires\s*=/.test(progSrc), 'API bulk inter');
+assert(/window\.createCoursUniteForChapitre\s*=/.test(progSrc), 'API createCoursUniteForChapitre');
+assert(/window\.proposeChapitreLink\s*=/.test(progSrc), 'API proposeChapitreLink');
+assert(/window\.unlinkCoursFromChapitre\s*=/.test(progSrc), 'API unlinkCoursFromChapitre');
+assert(/window\.resolveChapitreCoursUid\s*=/.test(progSrc), 'API resolveChapitreCoursUid');
 assert(/window\.renderProgrammeSearchTest\s*=/.test(labSrc), 'API renderProgrammeSearchTest');
-assert(/progSearchBcMat|prog-bc-bar/.test(labSrc), 'navigation Fil d’Ariane');
+assert(/progSearchAttachOrphan|progSearchBcMat|prog-bc-bar/.test(labSrc), 'navigation Fil d’Ariane + attach');
 assert(!/renderTree|renderColumns|renderFiltered|A — Arbre|C — Colonnes|D — Filtres/.test(labSrc), 'variantes labo retirées');
 assert(/chap-prefix/.test(read('style.css')), 'styles Chap. prefix');
 assert(/programme-wiz-body|programme-wiz-modal\.card-type-surface/.test(read('style.css')), 'modal wizard scrollable');
-assert(/programme-phase2-hint/.test(read('style.css')), 'hint phase 2 sans checkbox');
-assert(/__BOOT_CACHE_V\s*=\s*'20260826n'/.test(indexSrc), 'cache 20260826n');
+assert(/programme-unite-opt/.test(read('style.css')), 'option cours unité wizard');
+assert(/prev\.chapitreId|chapitreId/.test(dataSrc) && /updateChapitreDropdown/.test(dataSrc), 'saveCours / dropdown chapitre');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826p'/.test(indexSrc), 'cache 20260826p');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
 assert(/defaultAnnee/.test(read('data.js')), 'defaultAnnee sur classeurs emptyData');
 
+let _uidSeq = 0;
 function loadProgramme() {
+  _uidSeq = 0;
   const sandbox = {
     window: {
       D: {
@@ -70,36 +79,45 @@ function loadProgramme() {
         cours: [
           { uid: 'PH-1', title: 'Doc 1', mat: 'PHYS', cl: 'A', inter: '01' },
           { uid: 'PH-2', title: 'Doc 2', mat: 'PHYS', cl: 'A', inter: '02', chapitreId: 'PH-Z9X' }
-        ]
+        ],
+        exercices: [],
+        devoirs: []
       },
       escHtml: (s) => String(s),
       iconLabel: (_, t) => t,
       iconHtml: () => '',
       localDateISO: () => '2026-08-25',
       isSystemMatiere: () => false,
-      isSystemClasseur: () => false
+      isSystemClasseur: () => false,
+      genUid: function (mat) {
+        _uidSeq += 1;
+        const pref = String(mat || 'XX').substring(0, 2).toUpperCase();
+        return pref + '-U' + String(_uidSeq).padStart(2, '0');
+      }
     },
-    document: { getElementById: () => null },
-    console
+    console, Date, JSON, Object, Array, Math, String, Number, Boolean, Set, Map, Promise
   };
-  sandbox.window = sandbox.window;
   vm.createContext(sandbox);
-  vm.runInContext(progSrc, sandbox);
+  /* generateChapitreId / genUid live in programme + app — stub generate via programme after load */
+  vm.runInContext(fs.readFileSync(path.join(root, 'programme.js'), 'utf8'), sandbox);
   return sandbox.window;
 }
 
 {
   const w = loadProgramme();
-  assert(w.getClasseurDefaultAnnee('A') === 1, 'defaultAnnee classeur A = 1');
-  assert(w.getClasseurDefaultAnnee('B') === 2, 'defaultAnnee classeur B = 2');
+  assert(w.D.classeurs[0].defaultAnnee === 1, 'defaultAnnee classeur A = 1');
+  assert(w.D.classeurs[1].defaultAnnee === 2, 'defaultAnnee classeur B = 2');
 
-  const r1 = w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '01', annee: 1, title: 'Mécanique' });
-  assert(r1.ok && r1.chapitre.annee === 1, 'createChapitre ok');
-  assert(r1.chapitre.title === 'Mécanique', 'titre sans préfixe Chap.');
+  const r1 = w.createChapitre({
+    mat: 'PHYS', cl: 'A', inter: '01', annee: 1, title: 'Méca', createUnite: false
+  });
+  assert(r1.ok, 'createChapitre ok');
+  assert(r1.chapitre.title === 'Méca', 'titre sans préfixe Chap.');
   assert(/^[A-Z]{2}-[A-Z0-9]{3}$/.test(r1.chapitre.id), 'id même format que Base Doc (PH-A1B)');
   assert(!/^CH-/.test(r1.chapitre.id) || r1.chapitre.id.indexOf('CH-') === 0 && r1.chapitre.mat === 'CHIM',
     'pas de préfixe CH- chapitre (sauf matière CHIM)');
   assert(r1.chapitre.mat === 'PHYS' ? /^PH-/.test(r1.chapitre.id) : true, 'préfixe matière PHYS = PH');
+  assert(!r1.unite, 'sans createUnite : pas de cours unité');
 
   const bad = w.updateChapitre(r1.chapitre.id, { annee: 2 });
   assert(!bad.ok, 'annee immuable après création');
@@ -111,7 +129,7 @@ function loadProgramme() {
 
   w.D.classeurs[0].interNames['01'] = 'NOM MODIFIÉ';
   const bulk = w.bulkCreateChapitresFromIntercalaires({
-    mat: 'MATH', cl: 'B', annee: 2, inters: ['01']
+    mat: 'MATH', cl: 'B', annee: 2, inters: ['01'], createUnite: false
   });
   assert(bulk.created.length === 1, 'bulk 1 chapitre');
   assert(bulk.created[0].title === 'Algèbre', 'nom copié à la création depuis inter');
@@ -123,12 +141,10 @@ function loadProgramme() {
   const orphans = w.getUnattachedCoursDocs();
   assert(orphans.length === 1 && orphans[0].uid === 'PH-1', 'non rattachés sans chapitreId');
 
-  const stub = w.proposeChapitreLink('PH-1');
-  assert(stub.stub && !stub.ok, 'proposeChapitreLink stub phase 1');
+  assert(!w.D.cours.some(c => c.chapitreId && c.chapitreId !== 'PH-Z9X' && c.uid !== 'PH-2'),
+    'pas de migration auto cours');
 
-  assert(!w.D.cours.some(c => c.chapitreId && c.chapitreId !== 'PH-Z9X'), 'pas de migration auto cours');
-
-  w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '04', annee: 1, title: 'Optique' });
+  w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '04', annee: 1, title: 'Optique', createUnite: false });
   var phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
   assert(phys1.length === 2, '2 chapitres PHYS 1ère');
   assert(phys1[0].title === 'Méca renommée', 'ordre initial : premier créé');
@@ -145,11 +161,68 @@ function loadProgramme() {
   assert(phys1[0].title === 'Méca renommée', 'ordre après DnD');
 }
 
+console.log('\n=== Phase 2 — unité + rattachement ===\n');
+{
+  const w = loadProgramme();
+  const withU = w.createChapitre({
+    mat: 'PHYS', cl: 'A', inter: '01', annee: 1, title: 'Méca', createUnite: true
+  });
+  assert(withU.ok && withU.unite, 'createChapitre + unité');
+  assert(withU.unite.title === 'Méca', 'unité même titre');
+  assert(withU.unite.chapitreId === withU.chapitre.id, 'unité.chapitreId');
+  assert(withU.unite.role === 'unite' && withU.unite.isUnite, 'unité role');
+  assert(withU.unite.uid !== withU.chapitre.id, 'uid unité ≠ id chapitre');
+  assert(withU.chapitre.coursUniteUid === withU.unite.uid, 'coursUniteUid sur chapitre');
+  assert(w.resolveChapitreCoursUid(withU.chapitre.id) === withU.unite.uid, 'resolveChapitreCoursUid');
+
+  const again = w.createCoursUniteForChapitre(withU.chapitre);
+  assert(again.ok && again.already && again.cours.uid === withU.unite.uid, 'unité idempotente');
+
+  const noU = w.createChapitre({
+    mat: 'PHYS', cl: 'A', inter: '02', annee: 1, title: 'Thermo', createUnite: false
+  });
+  assert(noU.ok && !noU.unite, 'createUnite false → pas d’unité');
+  assert(!w.D.cours.some(c => c.chapitreId === noU.chapitre.id && w.isCoursUnite(c)),
+    'pas d’unité pour Thermo');
+
+  const bulkU = w.bulkCreateChapitresFromIntercalaires({
+    mat: 'MATH', cl: 'B', annee: 2, inters: ['01'], createUnite: true
+  });
+  assert(bulkU.created.length === 1, 'bulk + unité : 1 chapitre');
+  assert(!!bulkU.created[0].coursUniteUid, 'bulk chapitre a coursUniteUid');
+  assert(w.D.cours.filter(c => w.isCoursUnite(c)).length === 2, '2 unités au total (Méca + Algèbre)');
+
+  const link = w.proposeChapitreLink('PH-1', withU.chapitre.id);
+  assert(link.ok && link.cours.chapitreId === withU.chapitre.id, 'proposeChapitreLink ok');
+  assert(w.getUnattachedCoursDocs().length === 0, 'plus d’orphelins après rattache');
+
+  const badChap = w.proposeChapitreLink('PH-1', 'NOPE');
+  assert(!badChap.ok, 'chapitre inexistant → échec');
+
+  const badMat = w.proposeChapitreLink('PH-2', bulkU.created[0].id);
+  /* PH-2 is PHYS, bulk chap is MATH */
+  assert(!badMat.ok, 'matière incompatible → échec');
+
+  const unlink = w.unlinkCoursFromChapitre('PH-1');
+  assert(unlink.ok && !unlink.cours.chapitreId, 'unlink ok');
+  assert(w.getUnattachedCoursDocs().some(c => c.uid === 'PH-1'), 'PH-1 redevient orphelin');
+
+  w.proposeChapitreLink('PH-1', withU.chapitre.id);
+  const del = w.deleteChapitre(withU.chapitre.id);
+  assert(del.ok, 'deleteChapitre ok');
+  assert(del.removedUniteUid === withU.unite.uid, 'delete retire l’unité');
+  assert(!w.D.cours.some(c => c.uid === withU.unite.uid), 'unité absente après delete');
+  const ph1 = w.D.cours.find(c => c.uid === 'PH-1');
+  assert(ph1 && !ph1.chapitreId, 'papier détaché après delete chapitre');
+}
+
 console.log('\n=== demo-data ===\n');
 const demoSrc = read('demo-data.js');
 assert(/chapitres:\s*\[/.test(demoSrc), 'demo chapitres présents');
 assert(/defaultAnnee:\s*1/.test(demoSrc), 'demo defaultAnnee');
-assert(!/chapitreId:/.test(demoSrc.split('cours:')[1]?.split('exercices:')[0] || ''), 'demo cours sans chapitreId forcé');
+assert(/role:\s*'unite'|isUnite:\s*true/.test(demoSrc), 'demo cours unités');
+assert(/coursUniteUid:/.test(demoSrc), 'demo chapitres → coursUniteUid');
+assert(/chapitreId:\s*'PH-M3K'/.test(demoSrc), 'demo docs papier rattachés');
 
 console.log('\n=== ' + passed + ' passed, ' + failed + ' failed ===');
 process.exit(failed ? 1 : 0);

@@ -129,8 +129,8 @@ window.renderPrintGrid = function() {
     </div>
   `;
 
-  const pendingHtml = window.D.cours.filter(c => c.stat === 'pending').map(drawCard).join('');
-  const historyHtml = window.D.cours.filter(c => c.stat !== 'pending').map(drawCard).join('');
+  const pendingHtml = window.D.cours.filter(c => c.stat === 'pending' && !(c.role === 'unite' || c.isUnite)).map(drawCard).join('');
+  const historyHtml = window.D.cours.filter(c => c.stat !== 'pending' && !(c.role === 'unite' || c.isUnite)).map(drawCard).join('');
   
   gridPending.innerHTML = pendingHtml || '<div style="grid-column:1/-1; color:var(--mut); font-size:12px; text-align:center; padding:10px;">' + window.iconLabel('sparkles', 'Tout est imprimé !') + '</div>';
   gridHistory.innerHTML = historyHtml || '<div style="grid-column:1/-1; color:var(--mut); font-size:12px; text-align:center; padding:10px;">Aucun historique.</div>';
@@ -150,7 +150,7 @@ window.toggleSel = function(uid) {
 
 window.selPending = function() {
   if (!window.D || !Array.isArray(window.D.cours)) return;
-  window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending').map(c=>c.uid));
+  window.printSel = new Set(window.D.cours.filter(c=>c.stat==='pending' && !(c.role === 'unite' || c.isUnite)).map(c=>c.uid));
   window.renderPrintGrid();
 };
 window.selAll = function() {

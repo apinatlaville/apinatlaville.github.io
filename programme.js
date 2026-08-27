@@ -1,6 +1,7 @@
 /**
  * programme.js — Onglet Programme : chapitres logiques (hors documents Base Doc)
  * Phase 1 : CRUD chapitres, année figée à la création, bulk depuis intercalaires.
+ * Phase 2 : cours unité à la création, rattachement Base Doc ↔ chapitre (chapitreId).
  */
 (function () {
   'use strict';
@@ -12,7 +13,8 @@
     cl: null,
     inter: null,
     annee: 1,
-    selectedInters: []
+    selectedInters: [],
+    createUnite: true
   };
 
   var _filterMat = '';
@@ -253,6 +255,46 @@
     return out;
   };
 
+  /** Document logique Anki associé à un chapitre (pas un papier Base Doc). */
+  window.isCoursUnite = function (c) {
+    return !!(c && (c.role === 'unite' || c.isUnite === true));
+  };
+
+  window.createCoursUniteForChapitre = function (ch) {
+    if (!ch || !ch.id || !ch.mat) return { ok: false, error: 'Chapitre invalide.' };
+    if (!window.D) return { ok: false, error: 'Données absentes.' };
+    if (!Array.isArray(window.D.cours)) window.D.cours = [];
+    var existing = window.D.cours.find(function (c) {
+      return c && c.chapitreId === ch.id && window.isCoursUnite(c);
+    });
+    if (existing) {
+      ch.coursUniteUid = existing.uid;
+      return { ok: true, cours: existing, already: true };
+    }
+    if (typeof window.genUid !== 'function') {
+      return { ok: false, error: 'genUid indisponible.' };
+    }
+    var uid = window.genUid(ch.mat);
+    var unit = {
+      uid: uid,
+      title: ch.title,
+      type: 'COURS',
+      mat: ch.mat,
+      cl: ch.cl || '',
+      inter: ch.inter || '',
+      stat: 'active',
+      rev: 'green',
+      date: todayISO(),
+      desc: '',
+      chapitreId: ch.id,
+      role: 'unite',
+      isUnite: true
+    };
+    window.D.cours.push(unit);
+    ch.coursUniteUid = uid;
+    return { ok: true, cours: unit };
+  };
+
   window.createChapitre = function (payload) {
     window.ensureChapitresArray();
     if (!payload || !payload.mat || !payload.title) {
@@ -276,10 +318,18 @@
       title: title,
       order: typeof payload.order === 'number' ? payload.order : window.nextChapitreOrder(payload.mat, annee),
       created: payload.created || todayISO(),
-      notes: payload.notes ? String(payload.notes) : ''
+      notes: payload.notes ? String(payload.notes) : '',
+      coursUniteUid: ''
     };
     window.D.chapitres.push(ch);
-    return { ok: true, chapitre: ch };
+    var createUnite = payload.createUnite === true;
+    var unite = null;
+    if (createUnite) {
+      var uRes = window.createCoursUniteForChapitre(ch);
+      if (uRes.ok) unite = uRes.cours;
+      else return { ok: false, error: uRes.error || 'Échec cours unité.', chapitre: ch };
+    }
+    return { ok: true, chapitre: ch, unite: unite };
   };
 
   window.updateChapitre = function (id, patch) {
@@ -302,9 +352,27 @@
 
   window.deleteChapitre = function (id) {
     window.ensureChapitresArray();
+    var ch = (window.D.chapitres || []).find(function (c) { return c.id === id; });
+    if (!ch) return { ok: false };
     var before = window.D.chapitres.length;
     window.D.chapitres = window.D.chapitres.filter(function (c) { return c.id !== id; });
-    return { ok: window.D.chapitres.length < before };
+    if (window.D.chapitres.length >= before) return { ok: false };
+
+    var removedUniteUid = '';
+    if (Array.isArray(window.D.cours)) {
+      window.D.cours = window.D.cours.filter(function (c) {
+        if (!c) return false;
+        if (c.chapitreId === id && window.isCoursUnite(c)) {
+          removedUniteUid = c.uid;
+          return false;
+        }
+        if (c.chapitreId === id) {
+          delete c.chapitreId;
+        }
+        return true;
+      });
+    }
+    return { ok: true, removedUniteUid: removedUniteUid };
   };
 
   window.bulkCreateChapitresFromIntercalaires = function (opts) {
@@ -313,6 +381,7 @@
     var cl = opts.cl;
     var annee = window.normalizeAnnee(opts.annee);
     var inters = opts.inters || [];
+    var createUnite = opts.createUnite === true;
     if (!mat || !cl) return { ok: false, error: 'Matière et classeur requis.', created: [] };
     var candidates = window.getIntercalaireCandidates(cl);
     var byInter = {};
@@ -339,7 +408,8 @@
         inter: slot,
         annee: annee,
         title: label,
-        id: window.generateChapitreId(mat)
+        id: window.generateChapitreId(mat),
+        createUnite: createUnite
       });
       if (res.ok) created.push(res.chapitre);
       else if (res.error) errors.push(res.error);
@@ -347,21 +417,53 @@
     return { ok: created.length > 0 || errors.length === 0, created: created, errors: errors };
   };
 
-  /** Documents Base Doc sans lien chapitre (phase 1 : tous). */
+  /** Documents papier Base Doc sans lien chapitre (hors cours unités). */
   window.getUnattachedCoursDocs = function () {
     return (window.D && window.D.cours || []).filter(function (c) {
-      return c && !c.chapitreId;
+      return c && !c.chapitreId && !window.isCoursUnite(c);
     });
   };
 
-  /** Stub phase 1 — rattachement manuel futur. */
-  window.proposeChapitreLink = function (coursUid) {
-    return {
-      ok: false,
-      stub: true,
-      message: 'Rattachement document → chapitre : disponible en phase 2.',
-      coursUid: coursUid
-    };
+  /** Rattache un document Base Doc à un chapitre logique. */
+  window.proposeChapitreLink = function (coursUid, chapitreId) {
+    if (!coursUid) return { ok: false, error: 'Document requis.' };
+    if (!chapitreId) {
+      return { ok: false, error: 'Choisissez un chapitre.', coursUid: coursUid };
+    }
+    window.ensureChapitresArray();
+    var cours = (window.D.cours || []).find(function (c) { return c && c.uid === coursUid; });
+    if (!cours) return { ok: false, error: 'Document introuvable.', coursUid: coursUid };
+    if (window.isCoursUnite(cours)) {
+      return { ok: false, error: 'Un cours unité est déjà lié à son chapitre.', coursUid: coursUid };
+    }
+    var ch = (window.D.chapitres || []).find(function (c) { return c.id === chapitreId; });
+    if (!ch) return { ok: false, error: 'Chapitre introuvable.', coursUid: coursUid };
+    if (cours.mat && ch.mat && cours.mat !== ch.mat) {
+      return { ok: false, error: 'Matière du document ≠ matière du chapitre.', coursUid: coursUid };
+    }
+    cours.chapitreId = chapitreId;
+    return { ok: true, cours: cours, chapitre: ch };
+  };
+
+  window.unlinkCoursFromChapitre = function (coursUid) {
+    var cours = (window.D.cours || []).find(function (c) { return c && c.uid === coursUid; });
+    if (!cours) return { ok: false, error: 'Document introuvable.' };
+    if (window.isCoursUnite(cours)) {
+      return { ok: false, error: 'Détachez via suppression du chapitre (cours unité).' };
+    }
+    delete cours.chapitreId;
+    return { ok: true, cours: cours };
+  };
+
+  /** Uid Anki préféré pour un chapitre (cours unité si présent). */
+  window.resolveChapitreCoursUid = function (chapitreId) {
+    var ch = (window.D.chapitres || []).find(function (c) { return c.id === chapitreId; });
+    if (!ch) return '';
+    if (ch.coursUniteUid) return ch.coursUniteUid;
+    var unit = (window.D.cours || []).find(function (c) {
+      return c && c.chapitreId === chapitreId && window.isCoursUnite(c);
+    });
+    return unit ? unit.uid : '';
   };
 
   function interLabel(clId, inter) {
@@ -594,6 +696,7 @@
     WIZ.inter = null;
     WIZ.annee = 1;
     WIZ.selectedInters = [];
+    WIZ.createUnite = true;
   }
 
   function wizardBody() {
@@ -697,7 +800,11 @@
           }).join('') +
           (bulkCands.length ? '' : '<p class="anki-empty">Aucun intercalaire nommé.</p>') +
         '</div>' +
-        '<p class="programme-phase2-hint anki-mut">Phase 2 — créer aussi un cours unité du même nom (bientôt)</p>' +
+        '<label class="programme-unite-opt">' +
+          '<input type="checkbox" id="progWizCreateUnite"' + (WIZ.createUnite ? ' checked' : '') +
+          ' onchange="window.programmeWizSetCreateUnite(this.checked)">' +
+          '<span>Créer aussi un <strong>cours unité</strong> du même nom (cible Anki)</span>' +
+        '</label>' +
         '<div class="programme-wiz-footer">' +
           '<button type="button" class="bs" onclick="window.programmeWizBack()">Retour</button>' +
           '<button type="button" class="bp" onclick="window.programmeWizConfirmBulk()"' +
@@ -723,7 +830,11 @@
           '<label>Notes (optionnel)</label>' +
           '<textarea id="progWizNotes" rows="3" placeholder="Sections, remarques…"></textarea>' +
         '</div>' +
-        '<p class="programme-phase2-hint anki-mut">Phase 2 — créer aussi un cours unité du même nom (bientôt)</p>' +
+        '<label class="programme-unite-opt">' +
+          '<input type="checkbox" id="progWizCreateUnite"' + (WIZ.createUnite ? ' checked' : '') +
+          ' onchange="window.programmeWizSetCreateUnite(this.checked)">' +
+          '<span>Créer aussi un <strong>cours unité</strong> du même nom (cible Anki)</span>' +
+        '</label>' +
         '<div class="programme-wiz-footer">' +
           '<button type="button" class="bs" onclick="window.programmeWizBack()">Retour</button>' +
           '<button type="button" class="bp" onclick="window.programmeWizConfirmSingle()">Créer</button>' +
@@ -806,6 +917,10 @@
     }
   };
 
+  window.programmeWizSetCreateUnite = function (on) {
+    WIZ.createUnite = !!on;
+  };
+
   window.programmeWizPreviewTitle = function (val) {
     var el = document.querySelector('.programme-title-preview');
     if (el) el.innerHTML = window.formatChapitreLabel({ title: val || '…' }, true);
@@ -829,13 +944,16 @@
       return;
     }
     if (err) err.textContent = '';
+    var uniteEl = $('progWizCreateUnite');
+    if (uniteEl) WIZ.createUnite = !!uniteEl.checked;
     var res = window.createChapitre({
       mat: WIZ.mat,
       cl: WIZ.cl,
       inter: WIZ.inter,
       annee: WIZ.annee,
       title: title,
-      notes: notes
+      notes: notes,
+      createUnite: !!WIZ.createUnite
     });
     if (!res.ok) {
       if (err) err.textContent = res.error || 'Erreur';
@@ -843,20 +961,26 @@
     }
     window.programmeCloseWizard();
     saveAndRefresh();
-    if (typeof window.showToast === 'function') window.showToast('Chapitre créé.');
+    if (typeof window.showToast === 'function') {
+      window.showToast(res.unite ? 'Chapitre + cours unité créés.' : 'Chapitre créé.');
+    }
   };
 
   window.programmeWizConfirmBulk = function () {
     if (!WIZ.selectedInters.length) return;
+    var uniteEl = $('progWizCreateUnite');
+    if (uniteEl) WIZ.createUnite = !!uniteEl.checked;
     var res = window.bulkCreateChapitresFromIntercalaires({
       mat: WIZ.mat,
       cl: WIZ.cl,
       annee: WIZ.annee,
-      inters: WIZ.selectedInters.slice()
+      inters: WIZ.selectedInters.slice(),
+      createUnite: !!WIZ.createUnite
     });
     window.programmeCloseWizard();
     saveAndRefresh();
     var msg = res.created.length + ' chapitre(s) créé(s).';
+    if (WIZ.createUnite && res.created.length) msg += ' Cours unités associés.';
     if (res.errors && res.errors.length) msg += ' (' + res.errors.length + ' ignoré(s))';
     if (typeof window.showToast === 'function') window.showToast(msg);
   };

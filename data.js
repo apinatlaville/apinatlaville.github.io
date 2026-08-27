@@ -293,6 +293,7 @@ window.buildCoursBrowseTree = function(list) {
   const matMap = new Map();
   (list || []).forEach(c => {
     if (!c) return;
+    if (typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : (c.role === 'unite' || c.isUnite)) return;
     const matId = c.mat || '';
     const clId = c.cl || '';
     const inter = c.inter || '00';
@@ -1105,6 +1106,27 @@ window.updateIntercalairesDropdown = function() {
   }
 };
 
+/** Options chapitre Programme filtrées par matière (modal document). */
+window.updateChapitreDropdown = function(selectedId) {
+  const sel = window.$('fChapitre');
+  if (!sel) return;
+  const mat = window.$('fMat') ? window.$('fMat').value : '';
+  const list = typeof window.listChapitres === 'function'
+    ? window.listChapitres(mat ? { mat: mat } : {})
+    : ((window.D && window.D.chapitres) || []).filter(ch => !mat || ch.mat === mat);
+  const html = '<option value="">— Aucun —</option>' + list.map(ch => {
+    const label = typeof window.formatChapitreLabel === 'function'
+      ? String(ch.title || ch.id)
+      : (ch.title || ch.id);
+    return `<option value="${window.escHtml(ch.id)}">${window.escHtml(label)} · ${window.escHtml(ch.id)}</option>`;
+  }).join('');
+  if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(sel, html);
+  else sel.innerHTML = html;
+  const want = selectedId || '';
+  if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(sel, want);
+  else sel.value = want;
+};
+
 window.openModalCours = function(opts) {
   const o = (opts && typeof opts === 'object') ? opts : {};
   if (!window.D) return;
@@ -1146,7 +1168,9 @@ window.openModalCours = function(opts) {
   if(window.$('fRang')) window.$('fRang').value = '';
   if(window.$('fEffectif')) window.$('fEffectif').value = '';
   window.toggleNoteField();
+  window.updateChapitreDropdown(o.chapitreId || '');
   
+  if(window.$('fgChapitre')) window.$('fgChapitre').style.display = '';
   if(window.$('fManualUidToggle')) {
     window.$('fManualUidToggle').checked = false;
     if (window.$('lblManualUid')) window.$('lblManualUid').style.display = 'flex';
@@ -1166,6 +1190,7 @@ window.openModalCours = function(opts) {
     if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fMat'), o.mat);
     else window.$('fMat').value = o.mat;
     window.updateUidPrefix();
+    window.updateChapitreDropdown(o.chapitreId || '');
   }
   if (o.cl && window.$('fCl')) {
     if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fCl'), o.cl);
@@ -1242,6 +1267,13 @@ window.editCours = function(uid, opts) {
     else if (window.$('fType')._choices) window.$('fType')._choices.setChoiceByValue(c.type || 'COURS');
   }
   window.toggleNoteField();
+  window.updateChapitreDropdown(c.chapitreId || '');
+
+  /* Cours unité : pas de changement de rattachement via ce formulaire */
+  if (window.$('fgChapitre')) {
+    const isUnite = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : !!(c.role === 'unite' || c.isUnite);
+    window.$('fgChapitre').style.display = isUnite ? 'none' : '';
+  }
   
   if(window.$('lblManualUid')) window.$('lblManualUid').style.display = 'none';
   if(window.$('manualUidContainer')) window.$('manualUidContainer').style.display = 'none';
@@ -1308,6 +1340,9 @@ window.saveCours = function() {
     effectif: effectifVal,
     desc: window.$('fDesc')?window.$('fDesc').value.trim():''
   };
+
+  const chapSel = window.$('fChapitre') ? String(window.$('fChapitre').value || '').trim() : '';
+  if (chapSel) obj.chapitreId = chapSel;
   
   if (obj.type !== 'DS' && obj.type !== 'KHOLLE') {
     obj.note = '';
@@ -1330,6 +1365,18 @@ window.saveCours = function() {
       obj.rev = prev.rev || 'green';
       if(prev.date) obj.date = prev.date;
       if(prev.duree != null) obj.duree = prev.duree;
+      const isUnite = typeof window.isCoursUnite === 'function'
+        ? window.isCoursUnite(prev)
+        : !!(prev.role === 'unite' || prev.isUnite);
+      if (isUnite) {
+        if (prev.chapitreId) obj.chapitreId = prev.chapitreId;
+        if (prev.role) obj.role = prev.role;
+        if (prev.isUnite) obj.isUnite = prev.isUnite;
+      } else if (chapSel) {
+        obj.chapitreId = chapSel;
+      } else {
+        delete obj.chapitreId;
+      }
       window.D.cours[idx] = obj;
     }
   } else {
