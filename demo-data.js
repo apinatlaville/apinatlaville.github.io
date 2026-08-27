@@ -731,7 +731,7 @@ window.demoDataPCStar = (function () {
       id: id,
       mat: "ANGL",
       profil: "ANGLAIS",
-      groupId: q.indexOf(' ') >= 0 ? 'QG-EXP' : 'QG-VOC',
+      groupId: q.split(/\s+/).filter(Boolean).length >= 3 ? 'QG-EXP' : 'QG-VOC',
       imp: i % 9 === 0 ? 2 : 3,
       q: q,
       a: a,
