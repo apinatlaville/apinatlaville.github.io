@@ -709,7 +709,7 @@
 
     if (WIZ.step === 'entry') {
       return (
-        '<p class="programme-wiz-sub">Les chapitres portent le préfixe <span class="chap-prefix">Chap.</span> en affichage. L’année est fixée à la création.</p>' +
+        '<p class="programme-wiz-sub">Les chapitres portent le préfixe <span class="chap-prefix">Chap.</span> en affichage. L’année est fixée à la création. Le lien classeur / intercalaire est <b>optionnel</b>.</p>' +
         '<div class="programme-wiz-choices">' +
           '<button type="button" class="bp programme-wiz-choice" onclick="window.programmeWizPickMode(\'single\')">' +
             iconLabel('file-plus', 'Un chapitre (titre libre)') +
@@ -729,6 +729,9 @@
             return '<button type="button" class="bs programme-wiz-tile" onclick="window.programmeWizPickMat(\'' + jsStr(m.id) + '\')">' +
               esc(m.name) + '</button>';
           }).join('') +
+        '</div>' +
+        '<div class="programme-wiz-footer">' +
+          '<button type="button" class="bs" onclick="window.programmeWizBack()">Retour</button>' +
         '</div>'
       );
     }
@@ -741,6 +744,9 @@
             return '<button type="button" class="bs programme-wiz-tile" onclick="window.programmeWizPickCl(\'' + jsStr(c.id) + '\')">' +
               esc(c.name) + '</button>';
           }).join('') +
+        '</div>' +
+        '<div class="programme-wiz-footer">' +
+          '<button type="button" class="bs" onclick="window.programmeWizBack()">Retour</button>' +
         '</div>'
       );
     }
@@ -775,6 +781,7 @@
         '</div>' +
         '<div class="programme-wiz-footer">' +
           '<button type="button" class="bs" onclick="window.programmeWizBack()">Retour</button>' +
+          '<button type="button" class="bs" onclick="window.programmeWizSkipInter()">Passer sans intercalaire</button>' +
         '</div>'
       );
     }
@@ -815,9 +822,19 @@
 
     if (WIZ.step === 'form') {
       var pref = '';
-      if (WIZ.inter) {
+      if (WIZ.inter && WIZ.cl) {
         var cand = window.getIntercalaireCandidates(WIZ.cl).find(function (c) { return c.inter === WIZ.inter; });
         if (cand) pref = cand.label;
+      }
+      var clOpts = '<option value="">— Aucun (optionnel) —</option>' + cls.map(function (c) {
+        return '<option value="' + esc(c.id) + '"' + (WIZ.cl === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+      }).join('');
+      var interOpts = '<option value="">— Aucun (optionnel) —</option>';
+      if (WIZ.cl) {
+        interOpts += window.getIntercalaireCandidates(WIZ.cl).map(function (c) {
+          return '<option value="' + esc(c.inter) + '"' + (WIZ.inter === c.inter ? ' selected' : '') + '>' +
+            esc(c.inter) + ' — ' + esc(c.label) + '</option>';
+        }).join('');
       }
       return (
         '<div id="progWizError" class="anki-form-error" role="alert"></div>' +
@@ -829,6 +846,15 @@
         '<div class="fg">' +
           '<label>Notes (optionnel)</label>' +
           '<textarea id="progWizNotes" rows="3" placeholder="Sections, remarques…"></textarea>' +
+        '</div>' +
+        '<div class="fg">' +
+          '<label>Classeur <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label>' +
+          '<select id="progWizCl" onchange="window.programmeWizFormSetCl(this.value)">' + clOpts + '</select>' +
+        '</div>' +
+        '<div class="fg">' +
+          '<label>Intercalaire <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label>' +
+          '<select id="progWizInter" onchange="window.programmeWizFormSetInter(this.value)"' +
+            (WIZ.cl ? '' : ' disabled') + '>' + interOpts + '</select>' +
         '</div>' +
         '<label class="programme-unite-opt">' +
           '<input type="checkbox" id="progWizCreateUnite"' + (WIZ.createUnite ? ' checked' : '') +
@@ -872,7 +898,13 @@
 
   window.programmeWizPickMat = function (matId) {
     WIZ.mat = matId;
-    WIZ.step = 'cl';
+    if (WIZ.mode === 'single') {
+      WIZ.cl = null;
+      WIZ.inter = null;
+      WIZ.step = 'annee';
+    } else {
+      WIZ.step = 'cl';
+    }
     window.programmeRenderWizard();
   };
 
@@ -893,7 +925,8 @@
       WIZ.step = 'bulk';
       WIZ.selectedInters = window.getIntercalaireCandidates(WIZ.cl).map(function (c) { return c.inter; });
     } else {
-      WIZ.step = 'inter';
+      /* Chapitre libre : pas d’intercalaire obligatoire */
+      WIZ.step = 'form';
     }
     window.programmeRenderWizard();
   };
@@ -902,6 +935,30 @@
     WIZ.inter = inter;
     WIZ.step = 'form';
     window.programmeRenderWizard();
+  };
+
+  window.programmeWizSkipInter = function () {
+    WIZ.inter = null;
+    WIZ.step = 'form';
+    window.programmeRenderWizard();
+  };
+
+  window.programmeWizFormSetCl = function (clId) {
+    WIZ.cl = clId || null;
+    WIZ.inter = null;
+    window.programmeRenderWizard();
+    var titleEl = $('progWizTitle');
+    if (titleEl) {
+      try {
+        var len = titleEl.value.length;
+        titleEl.focus();
+        titleEl.setSelectionRange(len, len);
+      } catch (e) { /* ignore */ }
+    }
+  };
+
+  window.programmeWizFormSetInter = function (inter) {
+    WIZ.inter = inter || null;
   };
 
   window.programmeWizToggleInter = function (inter, on) {
@@ -927,11 +984,17 @@
   };
 
   window.programmeWizBack = function () {
-    if (WIZ.step === 'form') WIZ.step = 'inter';
-    else if (WIZ.step === 'inter' || WIZ.step === 'bulk') WIZ.step = 'annee';
-    else if (WIZ.step === 'annee') WIZ.step = 'cl';
-    else if (WIZ.step === 'cl') WIZ.step = 'mat';
-    else if (WIZ.step === 'mat') WIZ.step = 'entry';
+    if (WIZ.step === 'form') {
+      WIZ.step = (WIZ.mode === 'single') ? 'annee' : 'inter';
+    } else if (WIZ.step === 'inter' || WIZ.step === 'bulk') {
+      WIZ.step = 'annee';
+    } else if (WIZ.step === 'annee') {
+      WIZ.step = (WIZ.mode === 'single') ? 'mat' : 'cl';
+    } else if (WIZ.step === 'cl') {
+      WIZ.step = 'mat';
+    } else if (WIZ.step === 'mat') {
+      WIZ.step = 'entry';
+    }
     window.programmeRenderWizard();
   };
 
@@ -946,10 +1009,14 @@
     if (err) err.textContent = '';
     var uniteEl = $('progWizCreateUnite');
     if (uniteEl) WIZ.createUnite = !!uniteEl.checked;
+    var clEl = $('progWizCl');
+    var interEl = $('progWizInter');
+    if (clEl) WIZ.cl = clEl.value || null;
+    if (interEl) WIZ.inter = (WIZ.cl && interEl.value) ? interEl.value : null;
     var res = window.createChapitre({
       mat: WIZ.mat,
-      cl: WIZ.cl,
-      inter: WIZ.inter,
+      cl: WIZ.cl || '',
+      inter: WIZ.inter || '',
       annee: WIZ.annee,
       title: title,
       notes: notes,
@@ -995,11 +1062,14 @@
     $('progEditNotes').value = ch.notes || '';
     var meta = $('progEditMeta');
     if (meta) {
+      var locEdit = ch.cl
+        ? esc(clObj(ch.cl).name) + ' / ' + esc(interLabel(ch.cl, ch.inter))
+        : 'Sans classeur / intercalaire';
       meta.innerHTML =
         window.formatChapitreLabel(ch, true) + '<br>' +
         '<span class="anki-mut">' + esc(matObj(ch.mat).name) + ' · ' +
         ch.annee + (ch.annee === 1 ? 'ère' : 'ème') + ' année · ' +
-        esc(clObj(ch.cl).name) + ' / ' + esc(interLabel(ch.cl, ch.inter)) +
+        locEdit +
         ' (figé à la création)</span>';
     }
     ov.classList.remove('hidden');

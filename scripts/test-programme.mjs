@@ -54,8 +54,10 @@ assert(!/renderTree|renderColumns|renderFiltered|A — Arbre|C — Colonnes|D �
 assert(/chap-prefix/.test(read('style.css')), 'styles Chap. prefix');
 assert(/programme-wiz-body|programme-wiz-modal\.card-type-surface/.test(read('style.css')), 'modal wizard scrollable');
 assert(/programme-unite-opt/.test(read('style.css')), 'option cours unité wizard');
+assert(/progWizSkipInter|Sans intercalaire|optionnel/.test(progSrc), 'wizard : intercalaire optionnel');
+assert(/programmeWizFormSetCl/.test(progSrc), 'wizard form set classeur optionnel');
 assert(/prev\.chapitreId|chapitreId/.test(dataSrc) && /updateChapitreDropdown/.test(dataSrc), 'saveCours / dropdown chapitre');
-assert(/__BOOT_CACHE_V\s*=\s*'20260826q'/.test(indexSrc), 'cache 20260826q');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826r'/.test(indexSrc), 'cache 20260826r');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
@@ -119,6 +121,12 @@ function loadProgramme() {
   assert(r1.chapitre.mat === 'PHYS' ? /^PH-/.test(r1.chapitre.id) : true, 'préfixe matière PHYS = PH');
   assert(!r1.unite, 'sans createUnite : pas de cours unité');
 
+  const free = w.createChapitre({
+    mat: 'PHYS', annee: 1, title: 'Sans lien', createUnite: false
+  });
+  assert(free.ok && free.chapitre.title === 'Sans lien', 'createChapitre sans cl/inter');
+  assert(!free.chapitre.cl && !free.chapitre.inter, 'cl/inter vides si non fournis');
+
   const bad = w.updateChapitre(r1.chapitre.id, { annee: 2 });
   assert(!bad.ok, 'annee immuable après création');
 
@@ -146,16 +154,16 @@ function loadProgramme() {
 
   w.createChapitre({ mat: 'PHYS', cl: 'A', inter: '04', annee: 1, title: 'Optique', createUnite: false });
   var phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
-  assert(phys1.length === 2, '2 chapitres PHYS 1ère');
+  assert(phys1.length === 3, '3 chapitres PHYS 1ère');
   assert(phys1[0].title === 'Méca renommée', 'ordre initial : premier créé');
   var moved = w.moveChapitre(phys1[0].id, 1);
   assert(moved.ok, 'moveChapitre ok');
   phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
   assert(phys1[1].title === 'Méca renommée', 'ordre après descente');
-  var blocked = w.moveChapitre(phys1[1].id, 1);
+  var blocked = w.moveChapitre(phys1[phys1.length - 1].id, 1);
   assert(!blocked.ok, 'moveChapitre bloqué en bas');
 
-  var dnd = w.reorderChapitresInGroup('PHYS', 1, [phys1[1].id, phys1[0].id]);
+  var dnd = w.reorderChapitresInGroup('PHYS', 1, [phys1[1].id, phys1[0].id, phys1[2].id]);
   assert(dnd.ok, 'reorderChapitresInGroup ok');
   phys1 = w.listChapitres({ mat: 'PHYS', annee: 1 });
   assert(phys1[0].title === 'Méca renommée', 'ordre après DnD');
