@@ -1978,6 +1978,7 @@ async function initApp(user) {
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
+  if(!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
 
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(window.D.settings.showHeaderClock === undefined) window.D.settings.showHeaderClock = false;

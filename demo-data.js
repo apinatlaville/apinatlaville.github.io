@@ -14,6 +14,10 @@ window.demoData = {
     {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter: 12, defaultAnnee: 1, interNames: {'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools'}},
     {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, defaultAnnee: 2, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
   ],
+  quickGroups: [
+    { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0 },
+    { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1 },
+  ],
   chapitres: [
     { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U1M' },
     { id: 'PH-T9Y', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', order: 1, title: 'Thermodynamique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U2T' },
@@ -102,9 +106,9 @@ window.demoData = {
       // ===========================================================
       // 🇬🇧 ANGLAIS (max 3 — juste pour combler les trous)
       // ===========================================================
-      { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter (une réaction)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé / l'écart", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-VOC', question:"to elicit", reponse:"provoquer / susciter (une réaction)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-EXP', question:"to bridge the gap", reponse:"combler le fossé / l'écart", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-VOC', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:30, priorite:2, statut:'actif', intervalle:0, ease:2.3, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
 
 
     ];
@@ -149,6 +153,10 @@ window.demoDataXP = (function() {
       {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter:12, interNames:{'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools','04':'Atomistique'}},
       {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter:6, interNames:{'01':'Vocabulaire scientifique','02':'Expressions'}}
     ],
+    quickGroups: [
+      { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0 },
+      { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1 },
+    ],
     cours: [
       { uid:'PH-A1B', title:'Mécanique de Newton', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-21) },
       { uid:'PH-X9Y', title:'Thermodynamique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-18) },
@@ -183,10 +191,10 @@ window.demoDataXP = (function() {
       { id:'X-V4N', titre:"Rayon convergence (Hadamard)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R ?", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:50, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-2) },
       { id:'X-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov.", reponse:"H+ sur le C le + hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-1) },
       // Anglais (matière dédiée) — vocab + historique
-      { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to elicit", reponse:"provoquer / susciter", tempsCible:20, priorite:2, statut:'actif', intervalle:4, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([7,8,7],[18,15,14]), dateCreation:_dateTime(-12) },
-      { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
-      { id:'Y-C9D', titre:"a breakthrough", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"a breakthrough", reponse:"une percée majeure", tempsCible:20, priorite:2, statut:'actif', intervalle:2, ease:2.2, repetitions:2, dateProchaineRevision:_today, historique:histo([6,7],[22,18]), dateCreation:_dateTime(-8) },
-      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:20, priorite:2, statut:'actif', intervalle:15, ease:2.65, repetitions:5, dateProchaineRevision:_shift(8), historique:histo([8,9,10,9,10],[20,18,15,13,12]), dateCreation:_dateTime(-20) }
+      { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-VOC', question:"to elicit", reponse:"provoquer / susciter", tempsCible:20, priorite:2, statut:'actif', intervalle:4, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([7,8,7],[18,15,14]), dateCreation:_dateTime(-12) },
+      { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-EXP', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
+      { id:'Y-C9D', titre:"a breakthrough", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-VOC', question:"a breakthrough", reponse:"une percée majeure", tempsCible:20, priorite:2, statut:'actif', intervalle:2, ease:2.2, repetitions:2, dateProchaineRevision:_today, historique:histo([6,7],[22,18]), dateCreation:_dateTime(-8) },
+      { id:'Y-F4P', titre:"to overcome", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-VOC', question:"to overcome (an obstacle)", reponse:"surmonter (un obstacle)", tempsCible:20, priorite:2, statut:'actif', intervalle:15, ease:2.65, repetitions:5, dateProchaineRevision:_shift(8), historique:histo([8,9,10,9,10],[20,18,15,13,12]), dateCreation:_dateTime(-20) }
     ],
     devoirs: [
       { id:'W-DMX', titre:"DM Réduction d'endomorphismes", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', type:'devoir', question:"DM à rendre : 4 exercices de réduction.", tempsCible:1800, importance:5, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, dateLimite:_shift(5), historique:[], _morceauxTotal:3, _morceauxFaits:1, _dureeTotaleMin:90, _tempsProposeMin:90, _tempsRestantMin:60, _sessionMinMin:25, dateCreation:_dateTime(-1) }
@@ -287,6 +295,7 @@ window.demoDataPCStar = (function () {
       c._blocageActif = true;
       c._blocageRevCount = o.blocageCount || 2;
     }
+    if (o.groupId) c.groupId = o.groupId;
     return c;
   }
 
@@ -722,6 +731,7 @@ window.demoDataPCStar = (function () {
       id: id,
       mat: "ANGL",
       profil: "ANGLAIS",
+      groupId: q.indexOf(' ') >= 0 ? 'QG-EXP' : 'QG-VOC',
       imp: i % 9 === 0 ? 2 : 3,
       q: q,
       a: a,
@@ -771,6 +781,10 @@ window.demoDataPCStar = (function () {
       { id: "B", name: "Classeur Maths B", icon: "book-orange", color: "#f0c060", maxInter: 12, interNames: { "01": "Algèbre", "02": "Analyse", "03": "Réduction", "04": "Probas" } },
       { id: "C", name: "Classeur Chim C", icon: "book-green", color: "#50d890", maxInter: 12, interNames: { "01": "Cristallo", "02": "Cinétique", "03": "Orga", "04": "Atomistique" } },
       { id: "E", name: "Classeur Anglais", icon: "languages", color: "#e07ab3", maxInter: 6, interNames: { "01": "Vocab scientifique", "02": "Expressions" } }
+    ],
+    quickGroups: [
+      { id: "QG-VOC", name: "Vocabulaire", color: "#e07ab3", order: 0 },
+      { id: "QG-EXP", name: "Expressions", color: "#a855f7", order: 1 }
     ],
     cours: cours,
     exercices: allExercices,

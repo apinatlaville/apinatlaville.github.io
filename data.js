@@ -25,7 +25,9 @@ window.emptyData = {
   chapitres: [],
   cours: [],
   exercices: [],
-  devoirs: []
+  devoirs: [],
+  /** Groupes / catégories des cartes Rapide (Y-). Cartes : champ optionnel groupId. */
+  quickGroups: []
 };
 
 /** Matière système pour documents sans matière valide (créée / supprimée automatiquement). */

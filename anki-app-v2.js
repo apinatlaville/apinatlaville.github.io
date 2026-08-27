@@ -3350,6 +3350,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   // ====== CRUD ======
   let editingExoId = null;
+  let editingQuickId = null;
 
   window.ankiV2OpenExoModal = function (opts) {
     if (typeof window.refuseSecondaryFullMutation === 'function'
@@ -3403,7 +3404,17 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       }
       return;
     }
+    if (isQuickCard(c)) {
+      editingQuickId = id;
+      editingExoId = null;
+      S.coursLinkSelection = new Set(c.coursIds || (c.coursId ? [c.coursId] : []));
+      S.coursLinkQuery = "";
+      window._quickCreateMode = 'single';
+      showQuickCreateModal(c);
+      return;
+    }
     editingExoId = id;
+    editingQuickId = null;
     S.coursLinkSelection = new Set(c.coursIds || (c.coursId ? [c.coursId] : []));
     S.coursLinkQuery = "";
     const ovD = $("ovDevoir"); if (ovD) ovD.classList.add("hidden");
@@ -3743,6 +3754,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     opts = opts && typeof opts === 'object' ? opts : {};
     ensure();
     editingExoId = null;
+    editingQuickId = null;
     if (opts.mode === 'batch' || opts.mode === 'single') {
       window._quickCreateMode = opts.mode;
     } else if (!window._quickCreateMode) {
@@ -3753,6 +3765,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     }
     const preset = { profil: 'ANGLAIS', statut: 'actif', tempsCible: 30 };
     if (opts.mat) preset.mat = opts.mat;
+    if (opts.groupId) preset.groupId = opts.groupId;
     if (opts.question) preset.question = opts.question;
     if (opts.reponse) preset.reponse = opts.reponse;
     if (opts.coursId) {
@@ -3771,6 +3784,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   window.ankiV2CloseQuickModal = function () {
     window._quickCreateMode = 'single';
     window._quickCreateCount = 0;
+    editingQuickId = null;
     const ov = $("ovQuickCreate");
     if (ov) ov.classList.add('hidden');
   };
@@ -3779,22 +3793,34 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     let ov = $("ovQuickCreate");
     if (!ov) { ov = document.createElement("div"); ov.id = "ovQuickCreate"; ov.className = "ov"; document.body.appendChild(ov); }
     ov.classList.remove("hidden");
-    const batch = window._quickCreateMode === 'batch';
+    const batch = !editingQuickId && window._quickCreateMode === 'batch';
     const count = Number(window._quickCreateCount) || 0;
     const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const groupOpts = typeof window.quickGroupOptionsHtml === 'function'
+      ? window.quickGroupOptionsHtml(c.groupId || '', { noneLabel: 'Sans groupe' })
+      : '<option value="">Sans groupe</option>' + ((window.D.quickGroups || []).map(g =>
+          `<option value="${esc(g.id)}" ${c.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`
+        ).join(''));
     const modePill = batch
       ? `<span class="anki-quick-mode-pill is-batch">${window.iconLabel('layers', 'À la suite')}${count ? ' · ' + count + ' créée' + (count > 1 ? 's' : '') : ''}</span>`
       : '';
-    const sub = batch
-      ? 'Après chaque création, le formulaire reste ouvert (matière / chapitre conservés). Termine quand tu as fini.'
-      : 'Active directement · matière + chapitre · LaTeX optionnel';
+    const sub = editingQuickId
+      ? 'Modifie la carte rapide · matière + groupe + chapitre · LaTeX optionnel'
+      : (batch
+        ? 'Après chaque création, le formulaire reste ouvert (matière / groupe / chapitre conservés). Termine quand tu as fini.'
+        : 'Active directement · matière + groupe + chapitre · LaTeX optionnel');
     const cancelLabel = batch ? 'Terminer' : ((window.APP_MSG && window.APP_MSG.CANCEL) || 'Annuler');
-    const saveLabel = batch
-      ? (count ? 'Créer la suivante' : 'Créer')
-      : ((window.APP_MSG && window.APP_MSG.CREATE) || 'Créer');
+    const saveLabel = editingQuickId
+      ? ((window.APP_MSG && window.APP_MSG.SAVE) || 'Enregistrer')
+      : (batch
+        ? (count ? 'Créer la suivante' : 'Créer')
+        : ((window.APP_MSG && window.APP_MSG.CREATE) || 'Créer'));
+    const title = editingQuickId
+      ? window.iconLabel('pencil', 'Modifier la carte')
+      : window.iconLabel('zap', 'Nouvelle carte');
     ov.innerHTML = `
       <div class="modal card-type-surface card-type-quick">
-        <h2>${window.iconLabel('zap', 'Nouvelle carte')} ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('quick') : ''} <span class="anki-mut" style="font-size:13px;font-weight:normal;">Rapide</span> ${modePill}</h2>
+        <h2>${title} ${window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('quick') : ''} <span class="anki-mut" style="font-size:13px;font-weight:normal;">Rapide</span> ${modePill}</h2>
         <p class="anki-mut" style="font-size:12px;margin-top:-4px;">${sub}</p>
         <div id="quickFormError" class="anki-form-error" role="alert"></div>
         <div class="fg">
@@ -3813,6 +3839,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         </div>
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="quickMat">${matOpts}</select></div>
+          <div class="fg"><label>Groupe <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label><select id="quickGroup">${groupOpts}</select></div>
         </div>
         <div class="fg">
           <label>Chapitre / cours <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label>
@@ -3820,6 +3847,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div id="quickCoursSelected" class="anki-link-selected"></div>
           <div id="quickCoursResults" class="anki-link-results"></div>
         </div>
+        ${editingQuickId ? `<div class="fg"><label>Identifiant</label><div class="uidbox">${esc(editingQuickId)}</div></div>` : ''}
         <div class="macts">
           <button type="button" class="bs" onclick="window.ankiV2QuickOpenLatex('both')">${window.iconLabel('sigma', 'Carte LaTeX')}</button>
           ${typeof window.uiModalActions === 'function'
@@ -3861,6 +3889,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const mat = fieldVal('quickMat');
     const q = fieldVal('quickQ');
     const r = fieldVal('quickR');
+    const groupId = fieldVal('quickGroup');
     const coursIds = Array.from(S.coursLinkSelection || []);
     const go = function () {
       if (typeof window.openQuickLatexCard !== 'function') {
@@ -3873,6 +3902,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         latexVerso: side === 'verso' || side === 'both',
         focusSide: side === 'verso' ? 'verso' : 'recto',
         mat,
+        groupId,
         coursIds,
         question: q,
         reponse: r,
@@ -3903,29 +3933,21 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const q = fieldVal('quickQ');
     const r = fieldVal('quickR');
     const mat = fieldVal('quickMat');
+    const groupId = fieldVal('quickGroup');
     if (!q) return showFormError('quickFormError', 'La question est obligatoire.');
     if (!mat) return showFormError('quickFormError', 'Choisis une matière.');
     const coursIds = Array.from(S.coursLinkSelection || []);
     window._quickSaveInFlight = true;
     setQuickSaveBusy(true);
-    Promise.resolve(window.quickAddAnkiCard({
-      question: q,
-      reponse: r,
-      mat,
-      profil: 'ANGLAIS',
-      tempsCible: 30,
-      statut: 'actif',
-      importance: 3,
-      coursIds
-    })).then(function (card) {
-      if (!card) return;
-      const batch = window._quickCreateMode === 'batch';
+
+    const finishOk = function (card, isEdit) {
+      const batch = !isEdit && window._quickCreateMode === 'batch';
       window.renderAnkiV2();
       if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
 
       if (batch) {
         window._quickCreateCount = (Number(window._quickCreateCount) || 0) + 1;
-        showQuickCreateModal({ mat, question: '', reponse: '' });
+        showQuickCreateModal({ mat, groupId: groupId || '', question: '', reponse: '' });
         if (typeof window.showToast === 'function') {
           window.showToast('Carte ' + window._quickCreateCount + ' créée — continue ou Termine.');
         }
@@ -3934,13 +3956,55 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
       window._quickCreateMode = 'single';
       window._quickCreateCount = 0;
+      editingQuickId = null;
       const ov = $("ovQuickCreate");
       if (ov) ov.classList.add('hidden');
       if (typeof window.showToast === 'function') {
-        window.showToast('Carte ' + card.id + ' créée et active.');
-      } else {
+        window.showToast(isEdit ? ('Carte ' + card.id + ' mise à jour.') : ('Carte ' + card.id + ' créée et active.'));
+      } else if (!isEdit) {
         window.sysAlert(window.iconLabel('check', 'Carte rapide créée et active.'), 'Rapide Y-');
       }
+    };
+
+    if (editingQuickId) {
+      const card = ankFind(editingQuickId);
+      if (!card) {
+        window._quickSaveInFlight = false;
+        setQuickSaveBusy(false);
+        return showFormError('quickFormError', 'Carte introuvable.');
+      }
+      card.question = q;
+      card.reponse = r;
+      card.mat = mat;
+      card.coursIds = coursIds;
+      if (groupId) card.groupId = groupId;
+      else delete card.groupId;
+      Promise.resolve(window.save()).then(function () {
+        finishOk(card, true);
+      }).catch(function (err) {
+        const msg = String(err && err.message || err || '');
+        if (/SECONDARY_READ_ONLY|NO_DATA/i.test(msg)) return;
+        showFormError('quickFormError', 'Enregistrement impossible.');
+      }).finally(function () {
+        window._quickSaveInFlight = false;
+        setQuickSaveBusy(false);
+      });
+      return;
+    }
+
+    Promise.resolve(window.quickAddAnkiCard({
+      question: q,
+      reponse: r,
+      mat,
+      groupId: groupId || '',
+      profil: 'ANGLAIS',
+      tempsCible: 30,
+      statut: 'actif',
+      importance: 3,
+      coursIds
+    })).then(function (card) {
+      if (!card) return;
+      finishOk(card, false);
     }).catch(function (err) {
       const msg = String(err && err.message || err || '');
       if (/SECONDARY_READ_ONLY|NO_DATA/i.test(msg)) return;
@@ -3969,6 +4033,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       return Promise.reject(new Error('SECONDARY_READ_ONLY'));
     }
     if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
+    if (!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
     const mats = Array.isArray(window.D.matieres) ? window.D.matieres : [];
     const matV = data.mat || ((mats[0] && mats[0].id) || 'XX');
     const existing = ankExistingIds();
@@ -3995,6 +4060,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       epinglee: false,
       dateCreation: new Date().toISOString()
     };
+    if (data.groupId) card.groupId = data.groupId;
     window.D.exercices.unshift(card);
     return Promise.resolve(window.save()).then(function () {
       return card;

@@ -1078,6 +1078,15 @@
     if (!D) return;
     if (!Array.isArray(D.exercices)) D.exercices = [];
     if (!Array.isArray(D.devoirs)) D.devoirs = [];
+    if (!Array.isArray(D.quickGroups)) D.quickGroups = [];
+    D.quickGroups = D.quickGroups
+      .filter(g => g && g.id && String(g.name || '').trim())
+      .map((g, i) => ({
+        id: String(g.id),
+        name: String(g.name).trim(),
+        color: g.color || '#6a7088',
+        order: g.order != null ? Number(g.order) : i
+      }));
     const moved = [];
     D.exercices = D.exercices.filter(c => {
       const isW = c.type === 'devoir' || ALGO.cardKind(c) === 'devoir'
