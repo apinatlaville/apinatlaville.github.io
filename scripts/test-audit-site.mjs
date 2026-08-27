@@ -57,7 +57,7 @@ assert(/deviceUserIdEarly = \(!window\.isLocalMode && user && user\.sub\)/.test(
 console.log('\n=== UX / logique ===\n');
 assert(/total: quickOnly\.length/.test(ankiSrc), 'ankiV2SetQuickQueue : total correct');
 assert(/n’est pas abandonnée|n'est pas abandonnée/.test(ankiSrc), 'session conflict : copy corrigée');
-assert(/__BOOT_CACHE_V\s*=\s*'20260826o'/.test(indexSrc), 'cache 20260826o');
+assert(/__BOOT_CACHE_V\s*=\s*'20260826p'/.test(indexSrc), 'cache 20260826p');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

@@ -944,6 +944,8 @@
       return;
     }
     if (err) err.textContent = '';
+    var uniteEl = $('progWizCreateUnite');
+    if (uniteEl) WIZ.createUnite = !!uniteEl.checked;
     var res = window.createChapitre({
       mat: WIZ.mat,
       cl: WIZ.cl,
@@ -951,7 +953,7 @@
       annee: WIZ.annee,
       title: title,
       notes: notes,
-      createUnite: WIZ.createUnite
+      createUnite: !!WIZ.createUnite
     });
     if (!res.ok) {
       if (err) err.textContent = res.error || 'Erreur';
@@ -966,12 +968,14 @@
 
   window.programmeWizConfirmBulk = function () {
     if (!WIZ.selectedInters.length) return;
+    var uniteEl = $('progWizCreateUnite');
+    if (uniteEl) WIZ.createUnite = !!uniteEl.checked;
     var res = window.bulkCreateChapitresFromIntercalaires({
       mat: WIZ.mat,
       cl: WIZ.cl,
       annee: WIZ.annee,
       inters: WIZ.selectedInters.slice(),
-      createUnite: WIZ.createUnite
+      createUnite: !!WIZ.createUnite
     });
     window.programmeCloseWizard();
     saveAndRefresh();
