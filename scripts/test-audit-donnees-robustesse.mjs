@@ -94,7 +94,7 @@ assert(/switchToSecondary:[\s\S]*getStatus\(\)/.test(dsSrc),
 assert(/rEl\.onkeydown =/.test(ankiSrc), 'bindEnter : onkeydown (pas de stack listeners)');
 assert(/coursWizardDeleteCreated[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(wizSrc),
   'wizard delete catch save errors');
-assert(/__BOOT_CACHE_V\s*=\s*'20260827b'/.test(indexSrc), 'cache 20260827b');
+assert(/__BOOT_CACHE_V\s*=\s*'20260827c'/.test(indexSrc), 'cache 20260827c');
 
 // ── Runtime : includeNew + exclusion W- ──
 console.log('\n=== Runtime includeNew / pas de W- ===\n');

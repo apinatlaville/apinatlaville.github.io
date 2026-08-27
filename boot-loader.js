@@ -26,11 +26,11 @@
     flashcards: ['anki-quick.js'],
     agenda: ['agenda.js'],
     /* app-v2 avant card-ui : le FAB (fin de card-ui) doit trouver les modales déjà définies */
-    ankiV2: ['anki-app-v2.js', 'anki-card-ui.js'],
+    ankiV2: ['programme.js', 'anki-app-v2.js', 'anki-card-ui.js'],
     ankiVizV2: ['anki-viz-v2.js'],
     print: ['scanner.js'],
     programme: ['programme.js'],
-    programmeSearchTest: ['programme.js', 'programme-search-test.js'],
+    programmeBrowse: ['programme-browse.js'],
     latexTest: ['latex-test.js'],
     quickLatex: ['latex-test.js', 'anki-quick-latex.js']
   };
@@ -249,7 +249,7 @@
 
     return loadParallel(['ui-appearance.js', 'ui-components.js'])
       .then(function (rs) { track(rs); })
-      .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js', 'cours-wizard.js']); })
+      .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js', 'cours-wizard.js', 'programme.js']); })
       .then(function (rs) { track(rs); })
       .then(function () { return loadScript('profiles-io.js'); })
       .then(function (r) { track([r]); })

@@ -891,11 +891,8 @@
     const matOpts = (window.D.matieres || []).map(m =>
       `<option value="${m.id}"${S.cockpitFilterMat === m.id ? ' selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`
     ).join('');
-    const coursList = (window.D.cours || []).filter(co =>
-      !S.cockpitFilterMat || co.mat === S.cockpitFilterMat
-    );
-    const coursOpts = coursList.map(co =>
-      `<option value="${co.uid}"${S.cockpitFilterCours === co.uid ? ' selected' : ''}>${esc(co.uid)} · ${esc(co.title)}</option>`
+    const chapterOpts = buildCockpitChapterOptions().map(o =>
+      `<option value="${esc(o.uid)}"${S.cockpitFilterCours === o.uid ? ' selected' : ''}>${esc(o.label)} · ${esc(o.uid)}</option>`
     ).join('');
     return `
       <div class="anki-filters anki-cockpit-filters">
@@ -903,10 +900,26 @@
           <option value="">Toutes matières</option>${matOpts}
         </select>
         <select class="fi" onchange="window.ankiV2CockpitFilter('cours', this.value)">
-          <option value="">Tous chapitres / cours</option>${coursOpts}
+          <option value="">Tous chapitres (ordre Programme)</option>${chapterOpts}
         </select>
         <button type="button" class="bp" ${S.cockpitFilterCours ? '' : 'disabled'} onclick="window.ankiV2PlayChapter('${esc(S.cockpitFilterCours)}')" title="Réviser toutes les cartes actives du chapitre">${window.iconLabel('play', 'Play chapitre')}</button>
       </div>`;
+  }
+
+  function buildCockpitChapterOptions() {
+    if (typeof window.listChapitres === 'function') {
+      const list = window.listChapitres(S.cockpitFilterMat ? { mat: S.cockpitFilterMat } : {});
+      return list.map(ch => {
+        const uid = ch.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
+          ? window.resolveChapitreCoursUid(ch.id) : '');
+        if (!uid) return null;
+        const label = ch.title || ch.id;
+        return { uid, label };
+      }).filter(Boolean);
+    }
+    return (window.D.cours || [])
+      .filter(co => typeof window.isCoursUnite === 'function' && window.isCoursUnite(co))
+      .map(co => ({ uid: co.uid, label: co.title || co.uid }));
   }
 
   // ====== VUE COCKPIT ======

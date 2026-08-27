@@ -3406,6 +3406,37 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
   border-left: 3px solid var(--mat-color, var(--acc));
   background: var(--s2);
 }
+.prog-bc-chap-aside {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+.prog-bc-chap-play { white-space: nowrap; font-size: 12px; padding: 6px 10px; }
+.prog-bc-chap-main { flex: 1; min-width: 0; }
+.prog-bc-chap-docs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.prog-bc-doc-pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--bd);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--txt);
+  cursor: pointer;
+}
+.prog-bc-doc-pill:hover { border-color: var(--acc); color: var(--acc); }
+.cours-chap-badge {
+  font-size: 12px;
+  margin-top: 6px;
+  color: var(--mut);
+}
+.cours-chap-badge .chap-prefix { color: var(--mut); font-weight: 500; }
 .prog-bc-chap-ord {
   flex-shrink: 0;
   width: 26px;

@@ -344,6 +344,15 @@ window.renderCoursCardHtml = function(c) {
   const co = cls.find(x => x.id === c.cl) || { name: c.cl, icon: 'book-blue', color: '#5b8df7' };
   const interNameDisplay = window.getInterName(co, c.inter);
 
+  let chapBadgeHtml = '';
+  if (c.chapitreId && !(c.role === 'unite' || c.isUnite)) {
+    const ch = (window.D.chapitres || []).find(x => x.id === c.chapitreId);
+    const label = ch && typeof window.formatChapitreLabel === 'function'
+      ? window.formatChapitreLabel(ch, true)
+      : ('<span class="chap-prefix">Chap.</span> ' + window.escHtml(c.chapitreId));
+    chapBadgeHtml = `<div class="cours-chap-badge">${label}</div>`;
+  }
+
   let warnHtml = '';
   const showWarn = !(window.D && window.D.settings && window.D.settings.showInitWarn === false);
   if (showWarn && c.stat === 'pending') {
@@ -366,6 +375,7 @@ window.renderCoursCardHtml = function(c) {
       <span class="cloc cloc-a">${window.renderClasseurIcon(co.icon, 14, co.color)} ${window.escHtml(co.name)}</span>
       <span class="cloc cloc-b">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interNameDisplay)}</span>
     </div>
+    ${chapBadgeHtml}
     ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
     ${c.note || c.rang ? `<div class="cnote">${[
       c.note ? `Note : ${window.escHtml(c.note)}/20` : '',

@@ -1,5 +1,5 @@
 /**
- * programme-search-test.js — Navigation Programme par Fil d’Ariane
+ * programme-browse.js — Navigation Programme par Fil d’Ariane
  * Accueil → Matière → Année → Chapitres (ordre manuel respecté)
  */
 (function () {
@@ -61,6 +61,27 @@
   function anneeLabel(a) {
     var n = parseInt(a, 10);
     return n + (n === 1 ? 'ère' : 'ème') + ' année';
+  }
+
+  function docAnneeGuess(c) {
+    if (!c || !c.cl) return null;
+    if (typeof window.getClasseurDefaultAnnee === 'function') {
+      return window.getClasseurDefaultAnnee(c.cl);
+    }
+    var cl = clObj(c.cl);
+    var a = cl && cl.defaultAnnee != null ? parseInt(cl.defaultAnnee, 10) : 1;
+    return a === 2 ? 2 : 1;
+  }
+
+  function chapitresForOrphanDoc(c, chapitres) {
+    var docAnnee = docAnneeGuess(c);
+    return (chapitres || []).filter(function (ch) {
+      if (c.mat && ch.mat !== c.mat) return false;
+      if (docAnnee != null && typeof window.normalizeAnnee === 'function') {
+        return window.normalizeAnnee(ch.annee) === window.normalizeAnnee(docAnnee);
+      }
+      return true;
+    });
   }
 
   function renderBreadcrumb() {
@@ -163,9 +184,22 @@
           : esc(ch.title);
         var uniteUid = ch.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
           ? window.resolveChapitreCoursUid(ch.id) : '');
-        var linkedDocs = (window.D.cours || []).filter(function (c) {
+        var linkedDocItems = (window.D.cours || []).filter(function (c) {
           return c && c.chapitreId === ch.id && !(c.role === 'unite' || c.isUnite);
-        }).length;
+        });
+        var linkedDocs = linkedDocItems.length;
+        var docsHtml = linkedDocItems.length
+          ? '<div class="prog-bc-chap-docs">' + linkedDocItems.map(function (d) {
+            return '<button type="button" class="prog-bc-doc-pill mono" onclick="event.stopPropagation();window.doLocate(\'' +
+              jsStr(d.uid) + '\')" title="' + esc(d.title || d.uid) + '">' + esc(d.uid) + '</button>';
+          }).join('') + '</div>'
+          : '';
+        var playBtn = uniteUid
+          ? '<button type="button" class="bp prog-bc-chap-play" onclick="window.progBrowsePlayChapter(\'' +
+              jsStr(ch.id) + '\')">' +
+              (window.iconLabel ? window.iconLabel('play', 'Réviser') : 'Réviser') +
+            '</button>'
+          : '<button type="button" class="bs prog-bc-chap-play" disabled title="Créez un cours unité dans Programme">Réviser</button>';
         return (
           '<article class="prog-bc-chap" style="--mat-color:' + esc(matObj(ch.mat).color) + '">' +
             '<div class="prog-bc-chap-ord" title="Ordre">' + (i + 1) + '</div>' +
@@ -181,8 +215,10 @@
                   ? '<span class="prog-bc-pill prog-bc-pill-mut">' + linkedDocs + ' doc' + (linkedDocs > 1 ? 's' : '') + '</span>'
                   : '') +
               '</div>' +
+              docsHtml +
               (ch.notes ? '<div class="prog-bc-chap-notes">' + esc(ch.notes) + '</div>' : '') +
             '</div>' +
+            '<div class="prog-bc-chap-aside">' + playBtn + '</div>' +
           '</article>'
         );
       }).join('')
@@ -216,15 +252,14 @@
       : (window.D.chapitres || []);
     var open = _orphansOpen;
     var rows = open
-      ? docs.slice(0, 20).map(function (c) {
-        var opts = chapitres
-          .filter(function (ch) { return !c.mat || ch.mat === c.mat; })
-          .map(function (ch) {
-            var label = typeof window.formatChapitreLabel === 'function'
-              ? String(ch.title || ch.id)
-              : (ch.title || ch.id);
-            return '<option value="' + esc(ch.id) + '">' + esc(label) + ' · ' + esc(ch.id) + '</option>';
-          }).join('');
+      ? docs.map(function (c) {
+        var opts = chapitresForOrphanDoc(c, chapitres).map(function (ch) {
+          var label = typeof window.formatChapitreLabel === 'function'
+            ? String(ch.title || ch.id)
+            : (ch.title || ch.id);
+          var anneeHint = ch.annee ? ' · ' + ch.annee + (ch.annee === 1 ? 'ère' : 'ème') : '';
+          return '<option value="' + esc(ch.id) + '">' + esc(label) + anneeHint + ' · ' + esc(ch.id) + '</option>';
+        }).join('');
         return (
           '<div class="prog-bc-orphan-row">' +
             '<span class="mono">' + esc(c.uid) + '</span>' +
@@ -236,10 +271,7 @@
               jsStr(c.uid) + '\')">Rattacher</button>' +
           '</div>'
         );
-      }).join('') +
-        (docs.length > 20
-          ? '<div class="prog-bc-orphan-more">+' + (docs.length - 20) + ' autres…</div>'
-          : '')
+      }).join('')
       : '';
 
     return (
@@ -249,7 +281,7 @@
           '<span class="prog-bc-orphans-count">' + docs.length + '</span>' +
         '</button>' +
         (open
-          ? '<p class="anki-mut prog-bc-orphans-hint">Lie chaque document papier à un chapitre logique.</p>' +
+          ? '<p class="anki-mut prog-bc-orphans-hint">Documents papier sans chapitre Programme. Différent de <strong>À ranger</strong> (matière ou classeur invalide).</p>' +
             (docs.length ? rows : '<div class="prog-bc-empty">Tous les documents papier sont rattachés.</div>')
           : '') +
       '</section>'
@@ -262,29 +294,48 @@
     return renderChapitreList();
   }
 
+  window.progBrowsePlayChapter = function (chapitreId) {
+    var uid = typeof window.resolveChapitreCoursUid === 'function'
+      ? window.resolveChapitreCoursUid(chapitreId) : '';
+    if (!uid) {
+      if (typeof window.showToast === 'function') window.showToast('Aucun cours unité — créez-en dans Programme.');
+      else if (typeof window.sysAlert === 'function') window.sysAlert('Aucun cours unité — créez-en dans Programme.', 'Révision');
+      return;
+    }
+    var go = function () {
+      if (typeof window.showTab === 'function') window.showTab('ankiV2');
+      if (typeof window.ankiV2PlayChapter === 'function') window.ankiV2PlayChapter(uid);
+    };
+    if (typeof window.ensureAnkiUi === 'function') {
+      var p = window.ensureAnkiUi();
+      if (p && typeof p.then === 'function') p.then(go).catch(go);
+      else go();
+    } else go();
+  };
+
   window.progSearchBcReset = function () {
     _crumbMat = '';
     _crumbAnnee = '';
     _query = '';
-    window.renderProgrammeSearchTest();
+    window.renderProgrammeBrowse();
   };
 
   window.progSearchBcMat = function (matId) {
     _crumbMat = matId;
     _crumbAnnee = '';
     _query = '';
-    window.renderProgrammeSearchTest();
+    window.renderProgrammeBrowse();
   };
 
   window.progSearchBcAnnee = function (a) {
     _crumbAnnee = String(a);
     _query = '';
-    window.renderProgrammeSearchTest();
+    window.renderProgrammeBrowse();
   };
 
   window.progSearchSetQuery = function (val) {
     _query = val || '';
-    window.renderProgrammeSearchTest();
+    window.renderProgrammeBrowse();
     var input = $('progBcQuery');
     if (input) {
       input.focus();
@@ -297,7 +348,7 @@
 
   window.progSearchToggleOrphans = function () {
     _orphansOpen = !_orphansOpen;
-    window.renderProgrammeSearchTest();
+    window.renderProgrammeBrowse();
   };
 
   window.progSearchAttachOrphan = function (coursUid) {
@@ -318,15 +369,15 @@
     var saveP = typeof window.save === 'function' ? window.save() : null;
     var done = function () {
       _orphansOpen = true;
-      window.renderProgrammeSearchTest();
+      window.renderProgrammeBrowse();
       if (typeof window.showToast === 'function') window.showToast('Document rattaché.');
     };
     if (saveP && typeof saveP.then === 'function') saveP.then(done).catch(done);
     else done();
   };
 
-  window.renderProgrammeSearchTest = function () {
-    var pane = $('paneProgrammeSearchTest');
+  window.renderProgrammeBrowse = function () {
+    var pane = $('paneProgrammeBrowse');
     if (!pane) return;
     if (typeof window.ensureChapitresArray === 'function') window.ensureChapitresArray();
     if (typeof window.ensureChapitreOrders === 'function') window.ensureChapitreOrders();
