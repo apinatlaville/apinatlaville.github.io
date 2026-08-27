@@ -3142,7 +3142,6 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .programme-badge-muted { color: var(--mut); }
 .programme-row-notes { font-size: 12px; color: var(--mut); margin-top: 6px; }
-.programme-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .programme-wiz-modal { max-width: 520px; width: min(520px, 94vw); }
 .programme-wiz-modal.card-type-surface {
   display: flex;
