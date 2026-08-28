@@ -463,12 +463,18 @@ window.demoDataPCStar = (function () {
 
   // ——— Documents cours (programme PC* typique S1/S2) ———
   var cours = [
-    { uid: "PH-MEC", title: "Mécanique du point", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "01", stat: "active", date: shift(-95) },
-    { uid: "PH-THD", title: "Thermodynamique", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "02", stat: "active", date: shift(-80) },
-    { uid: "PH-EMG", title: "Électromagnétisme", type: "COURS", rev: "orange", mat: "PHYS", cl: "A", inter: "03", stat: "active", date: shift(-55) },
-    { uid: "PH-OPT", title: "Optique ondulatoire", type: "TD", rev: "orange", mat: "PHYS", cl: "A", inter: "04", stat: "active", date: shift(-30) },
-    { uid: "MA-ALG", title: "Algèbre linéaire", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "01", stat: "active", date: shift(-100) },
-    { uid: "MA-ANL", title: "Analyse (suites & intégrales)", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "02", stat: "active", date: shift(-70) },
+    { uid: "PH-U1M", title: "Mécanique du point", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "01", stat: "active", date: shift(-95), chapitreId: "PH-M3K", role: "unite", isUnite: true },
+    { uid: "PH-U2T", title: "Thermodynamique", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "02", stat: "active", date: shift(-80), chapitreId: "PH-T9Y", role: "unite", isUnite: true },
+    { uid: "PH-U3E", title: "Électromagnétisme", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "03", stat: "active", date: shift(-55), chapitreId: "PH-E7L", role: "unite", isUnite: true },
+    { uid: "PH-U4O", title: "Optique ondulatoire", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "04", stat: "active", date: shift(-30), chapitreId: "PH-O1P", role: "unite", isUnite: true },
+    { uid: "MA-U1A", title: "Algèbre linéaire", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "01", stat: "active", date: shift(-100), chapitreId: "MA-A1G", role: "unite", isUnite: true },
+    { uid: "MA-U2N", title: "Analyse", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "02", stat: "active", date: shift(-70), chapitreId: "MA-N2P", role: "unite", isUnite: true },
+    { uid: "PH-MEC", title: "Mécanique du point", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "01", stat: "active", date: shift(-95), chapitreId: "PH-M3K" },
+    { uid: "PH-THD", title: "Thermodynamique", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "02", stat: "active", date: shift(-80), chapitreId: "PH-T9Y" },
+    { uid: "PH-EMG", title: "Électromagnétisme", type: "COURS", rev: "orange", mat: "PHYS", cl: "A", inter: "03", stat: "active", date: shift(-55), chapitreId: "PH-E7L" },
+    { uid: "PH-OPT", title: "Optique ondulatoire", type: "TD", rev: "orange", mat: "PHYS", cl: "A", inter: "04", stat: "active", date: shift(-30), chapitreId: "PH-O1P" },
+    { uid: "MA-ALG", title: "Algèbre linéaire", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "01", stat: "active", date: shift(-100), chapitreId: "MA-A1G" },
+    { uid: "MA-ANL", title: "Analyse (suites & intégrales)", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "02", stat: "active", date: shift(-70), chapitreId: "MA-N2P" },
     { uid: "MA-RED", title: "Réduction endomorphismes", type: "FICHE", rev: "orange", mat: "MATH", cl: "B", inter: "03", stat: "active", date: shift(-40) },
     { uid: "MA-PRO", title: "Probabilités discrètes", type: "TD", rev: "red", mat: "MATH", cl: "B", inter: "04", stat: "active", date: shift(-20) },
     { uid: "CH-CRU", title: "Cristallographie", type: "COURS", rev: "green", mat: "CHIM", cl: "C", inter: "01", stat: "active", date: shift(-75) },
@@ -777,10 +783,18 @@ window.demoDataPCStar = (function () {
       { id: "ANGL", label: "ANGL", name: "Anglais", color: "#e07ab3" }
     ],
     classeurs: [
-      { id: "A", name: "Classeur Phys A", icon: "book-blue", color: "#5b8df7", maxInter: 12, interNames: { "01": "Mécanique", "02": "Thermo", "03": "Électro", "04": "Optique", "05": "Ondes" } },
-      { id: "B", name: "Classeur Maths B", icon: "book-orange", color: "#f0c060", maxInter: 12, interNames: { "01": "Algèbre", "02": "Analyse", "03": "Réduction", "04": "Probas" } },
-      { id: "C", name: "Classeur Chim C", icon: "book-green", color: "#50d890", maxInter: 12, interNames: { "01": "Cristallo", "02": "Cinétique", "03": "Orga", "04": "Atomistique" } },
-      { id: "E", name: "Classeur Anglais", icon: "languages", color: "#e07ab3", maxInter: 6, interNames: { "01": "Vocab scientifique", "02": "Expressions" } }
+      { id: "A", name: "Classeur Phys A", icon: "book-blue", color: "#5b8df7", maxInter: 12, defaultAnnee: 1, interNames: { "01": "Mécanique", "02": "Thermo", "03": "Électro", "04": "Optique", "05": "Ondes" } },
+      { id: "B", name: "Classeur Maths B", icon: "book-orange", color: "#f0c060", maxInter: 12, defaultAnnee: 1, interNames: { "01": "Algèbre", "02": "Analyse", "03": "Réduction", "04": "Probas" } },
+      { id: "C", name: "Classeur Chim C", icon: "book-green", color: "#50d890", maxInter: 12, defaultAnnee: 1, interNames: { "01": "Cristallo", "02": "Cinétique", "03": "Orga", "04": "Atomistique" } },
+      { id: "E", name: "Classeur Anglais", icon: "languages", color: "#e07ab3", maxInter: 6, defaultAnnee: 2, interNames: { "01": "Vocab scientifique", "02": "Expressions" } }
+    ],
+    chapitres: [
+      { id: "PH-M3K", mat: "PHYS", annee: 1, cl: "A", inter: "01", order: 0, title: "Mécanique", created: "2026-08-01", notes: "", coursUniteUid: "PH-U1M" },
+      { id: "PH-T9Y", mat: "PHYS", annee: 1, cl: "A", inter: "02", order: 1, title: "Thermodynamique", created: "2026-08-01", notes: "", coursUniteUid: "PH-U2T" },
+      { id: "PH-E7L", mat: "PHYS", annee: 1, cl: "A", inter: "03", order: 2, title: "Électromagnétisme", created: "2026-08-01", notes: "", coursUniteUid: "PH-U3E" },
+      { id: "PH-O1P", mat: "PHYS", annee: 1, cl: "A", inter: "04", order: 3, title: "Optique ondulatoire", created: "2026-08-01", notes: "", coursUniteUid: "PH-U4O" },
+      { id: "MA-A1G", mat: "MATH", annee: 1, cl: "B", inter: "01", order: 0, title: "Algèbre linéaire", created: "2026-08-01", notes: "", coursUniteUid: "MA-U1A" },
+      { id: "MA-N2P", mat: "MATH", annee: 1, cl: "B", inter: "02", order: 1, title: "Analyse", created: "2026-08-01", notes: "", coursUniteUid: "MA-U2N" }
     ],
     quickGroups: [
       { id: "QG-VOC", name: "Vocabulaire", color: "#e07ab3", order: 0 },

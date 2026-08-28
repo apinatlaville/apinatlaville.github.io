@@ -236,6 +236,7 @@ assert(/defaultAnnee:\s*1/.test(demoSrc), 'demo defaultAnnee');
 assert(/role:\s*'unite'|isUnite:\s*true/.test(demoSrc), 'demo cours unités');
 assert(/coursUniteUid:/.test(demoSrc), 'demo chapitres → coursUniteUid');
 assert(/chapitreId:\s*'PH-M3K'/.test(demoSrc), 'demo docs papier rattachés');
+assert(/chapitres:\s*\[[\s\S]*PH-M3K/.test(demoSrc), 'demo PC* chapitres');
 
 console.log('\n=== ' + passed + ' passed, ' + failed + ' failed ===');
 process.exit(failed ? 1 : 0);
