@@ -62,7 +62,7 @@ assert(/progWizSkipInter|Sans intercalaire|optionnel/.test(progSrc), 'wizard : i
 assert(/programmeWizFormSetCl/.test(progSrc), 'wizard form set classeur optionnel');
 assert(/prev\.chapitreId|chapitreId/.test(dataSrc) && /updateChapitreDropdown/.test(dataSrc), 'saveCours / dropdown chapitre');
 assert(/cours-chap-badge/.test(dataSrc), 'badge chapitre sur cartes Base Doc');
-assert(/__BOOT_CACHE_V\s*=\s*'20260827c'/.test(indexSrc), 'cache 20260827c');
+assert(/__BOOT_CACHE_V\s*=\s*'20260830e'/.test(indexSrc), 'cache 20260830e');
 
 console.log('\n=== Modèle de données ===\n');
 assert(/chapitres:\s*\[\]/.test(read('data.js')), 'emptyData.chapitres');
