@@ -181,7 +181,7 @@ assert(!w.coursAriane.mat && !w.coursAriane.cl && !w.coursAriane.inter, 'reset F
 const indexSrc = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 assert(/data-browse="ariane"/.test(indexSrc) && /Fil d.Ariane/.test(indexSrc), 'toggle Fil d’Ariane dans HTML');
 assert(/btnCoursBrowseTree/.test(indexSrc) && /Arbre/.test(indexSrc), 'toggle Arbre conservé');
-assert(/__BOOT_CACHE_V\s*=\s*'20260827c'/.test(indexSrc), 'cache 20260827c');
+assert(/__BOOT_CACHE_V\s*=\s*'20260830a'/.test(indexSrc), 'cache 20260830a');
 assert(/cours-bc-bar/.test(fs.readFileSync(path.join(root, 'style.css'), 'utf8')), 'styles Fil d’Ariane Base Doc');
 
 console.log('\n=== Résultat ===');
