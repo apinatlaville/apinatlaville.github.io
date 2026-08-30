@@ -4373,7 +4373,9 @@ body.theme-light .anki-stars-display .anki-star.off {
  color: var(--txt);
 }
 .anki-session-time select.anki-time-h,
-.anki-session-time select.anki-time-m {
+.anki-session-time select.anki-time-m,
+.anki-session-time select.anki-session-time-h,
+.anki-session-time select.anki-session-time-m {
  width: 52px !important;
  padding: 8px 6px !important;
  text-align: center;
