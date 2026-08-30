@@ -1834,6 +1834,10 @@ body.not-logged-in #splashScreen {
 .anki-lib-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .anki-cockpit-filters { margin-top: 8px; margin-bottom: 4px; }
 .anki-cockpit-filters .fi { min-width: 140px; }
+.anki-cockpit-pick-bc { margin-top: 12px; }
+.anki-cockpit-pick-bc .cours-bc-bar { margin-bottom: 12px; }
+.anki-cockpit-pick-hint { margin: 8px 0 6px; font-size: 11px; }
+.anki-cockpit-pick .cours-bc-body { margin-top: 4px; }
 .anki-lib-chip {
  display: inline-flex;
  align-items: center;
