@@ -4610,7 +4610,7 @@ body.nav-sidebar-left .sidebar-footer {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 12px 10px;
+  padding: 8px 12px calc(12px + env(safe-area-inset-bottom, 0px));
   flex-shrink: 0;
   border-top: 0.5px solid rgba(255, 255, 255, 0.08);
   margin-top: auto;
@@ -4884,6 +4884,16 @@ body.nav-sidebar-left .nav-mobile-extras {
   body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer {
     display: flex !important;
     flex-shrink: 0;
+    padding-top: 6px;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .hdr-actions {
+    gap: 6px;
+  }
+
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .hdr-actions-btns {
+    padding-bottom: 2px;
   }
 
   body.nav-sidebar-left .nav-mobile-extras {
