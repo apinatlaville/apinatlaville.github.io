@@ -4851,6 +4851,7 @@ body.nav-sidebar-left .nav-mobile-extras {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     touch-action: pan-y;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 
   body.nav-sidebar-left .sidebar-brand {
@@ -4885,7 +4886,8 @@ body.nav-sidebar-left .nav-mobile-extras {
     display: flex !important;
     flex-shrink: 0;
     padding-top: 6px;
-    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    margin-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
   body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .hdr-actions {
