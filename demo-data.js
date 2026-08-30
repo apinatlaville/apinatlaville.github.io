@@ -15,8 +15,8 @@ window.demoData = {
     {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, defaultAnnee: 2, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
   ],
   quickGroups: [
-    { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0 },
-    { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1 },
+    { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0, mat: 'ANGL' },
+    { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1, mat: 'ANGL' },
   ],
   chapitres: [
     { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U1M' },
@@ -154,8 +154,8 @@ window.demoDataXP = (function() {
       {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter:6, interNames:{'01':'Vocabulaire scientifique','02':'Expressions'}}
     ],
     quickGroups: [
-      { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0 },
-      { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1 },
+      { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0, mat: 'ANGL' },
+      { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1, mat: 'ANGL' },
     ],
     cours: [
       { uid:'PH-A1B', title:'Mécanique de Newton', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-21) },
@@ -797,8 +797,8 @@ window.demoDataPCStar = (function () {
       { id: "MA-N2P", mat: "MATH", annee: 1, cl: "B", inter: "02", order: 1, title: "Analyse", created: "2026-08-01", notes: "", coursUniteUid: "MA-U2N" }
     ],
     quickGroups: [
-      { id: "QG-VOC", name: "Vocabulaire", color: "#e07ab3", order: 0 },
-      { id: "QG-EXP", name: "Expressions", color: "#a855f7", order: 1 }
+      { id: "QG-VOC", name: "Vocabulaire", color: "#e07ab3", order: 0, mat: "ANGL" },
+      { id: "QG-EXP", name: "Expressions", color: "#a855f7", order: 1, mat: "ANGL" }
     ],
     cours: cours,
     exercices: allExercices,

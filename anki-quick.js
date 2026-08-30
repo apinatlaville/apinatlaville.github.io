@@ -11,7 +11,9 @@
   const Q = {
     mat: "",
     nav: { group: "" },
-    coursId: ""
+    coursId: "",
+    groupsModalFocusMat: "",
+    groupsModalFocusAdd: false
   };
 
   function ensure() {
@@ -24,11 +26,84 @@
   function sortedGroups() {
     ensure();
     return (window.D.quickGroups || []).slice().sort((a, b) => {
+      const ma = inferGroupMat(a);
+      const mb = inferGroupMat(b);
+      if (ma !== mb) {
+        const order = matOrderIndex(ma) - matOrderIndex(mb);
+        if (order !== 0) return order;
+        return String(ma).localeCompare(String(mb), 'fr');
+      }
       const oa = a.order != null ? a.order : 0;
       const ob = b.order != null ? b.order : 0;
       if (oa !== ob) return oa - ob;
       return String(a.name || '').localeCompare(String(b.name || ''), 'fr');
     });
+  }
+
+  function matOrderIndex(matId) {
+    const mats = window.D.matieres || [];
+    const idx = mats.findIndex(m => m.id === matId);
+    return idx >= 0 ? idx : 999;
+  }
+
+  function inferGroupMat(g) {
+    if (!g) return '';
+    if (g.mat) return g.mat;
+    const counts = {};
+    allQuickCards().forEach(c => {
+      if (c.groupId !== g.id || !c.mat) return;
+      counts[c.mat] = (counts[c.mat] || 0) + 1;
+    });
+    let best = '';
+    let max = 0;
+    Object.keys(counts).forEach(k => {
+      if (counts[k] > max) { max = counts[k]; best = k; }
+    });
+    return best || (window.D.matieres && window.D.matieres[0] && window.D.matieres[0].id) || '';
+  }
+
+  function groupsByMat() {
+    ensure();
+    const mats = (window.D.matieres || []).slice();
+    const buckets = new Map();
+    mats.forEach(m => buckets.set(m.id, []));
+    const orphanGroups = [];
+    sortedGroups().forEach(g => {
+      const mat = inferGroupMat(g);
+      if (mat && buckets.has(mat)) buckets.get(mat).push(g);
+      else orphanGroups.push(g);
+    });
+    const sections = mats
+      .map(m => ({ mat: m, groups: buckets.get(m.id) || [] }))
+      .filter(sec => sec.groups.length > 0);
+    if (orphanGroups.length) {
+      sections.push({
+        mat: { id: '', label: '?', name: 'Autre', color: '#6a7088' },
+        groups: orphanGroups
+      });
+    }
+    return sections;
+  }
+
+  function groupsForMat(matId) {
+    if (!matId) return sortedGroups();
+    return sortedGroups().filter(g => inferGroupMat(g) === matId);
+  }
+
+  function defaultGroupColor(matId) {
+    const m = matInfo(matId);
+    return (m && m.color) || nextGroupColor();
+  }
+
+  function renderGroupColorDots(gid, currentColor) {
+    return `<div class="qk-color-dots" role="radiogroup" aria-label="Couleur du dossier">` +
+      GROUP_COLORS.map(col =>
+        `<button type="button" class="qk-color-dot${currentColor === col ? ' is-on' : ''}" ` +
+        `style="background:${col}" data-gid="${esc(gid)}" data-color="${col}" ` +
+        `aria-label="Couleur" aria-pressed="${currentColor === col ? 'true' : 'false'}" ` +
+        `onclick="window.quickPickGroupColor('${jsStr(gid)}','${col}')"></button>`
+      ).join('') +
+      `</div>`;
   }
 
   function groupInfo(id) {
@@ -38,7 +113,7 @@
 
   function groupNavMeta(groupKey) {
     if (groupKey === UNGROUPED) {
-      return { id: UNGROUPED, name: 'Sans groupe', color: '#6a7088' };
+      return { id: UNGROUPED, name: 'Sans dossier', color: '#6a7088' };
     }
     return groupInfo(groupKey) || { id: groupKey, name: groupKey || 'Groupe', color: '#6a7088' };
   }
@@ -79,7 +154,7 @@
 
   function groupSelectOptions(selectedId, opts) {
     opts = opts || {};
-    const noneLabel = opts.noneLabel || 'Sans groupe';
+    const noneLabel = opts.noneLabel || 'Sans dossier';
     const allLabel = opts.allLabel;
     let html = '';
     if (allLabel != null) {
@@ -88,7 +163,11 @@
     } else {
       html += `<option value="" ${!selectedId ? 'selected' : ''}>${esc(noneLabel)}</option>`;
     }
-    sortedGroups().forEach(g => {
+    let groups = sortedGroups();
+    if (opts.matFilter) {
+      groups = groups.filter(g => inferGroupMat(g) === opts.matFilter);
+    }
+    groups.forEach(g => {
       html += `<option value="${esc(g.id)}" ${selectedId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`;
     });
     return html;
@@ -102,6 +181,22 @@
   window.quickSortedGroups = function () {
     ensure();
     return sortedGroups();
+  };
+
+  window.quickGroupsByMat = function () {
+    ensure();
+    return groupsByMat();
+  };
+
+  window.quickRefreshGroupSelect = function () {
+    const matSel = document.getElementById('quickMat');
+    const grpSel = document.getElementById('quickGroup');
+    if (!matSel || !grpSel) return;
+    const cur = grpSel.value;
+    const html = groupSelectOptions(cur, { noneLabel: 'Sans dossier', matFilter: matSel.value || '' });
+    if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(grpSel, html);
+    else grpSel.innerHTML = html;
+    if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(grpSel, cur);
   };
 
   const esc = s => window.escHtml(s);
@@ -249,6 +344,8 @@
     const trigger = document.getElementById('btnQuickCreateMenu');
     const btnSingle = document.getElementById('btnQuickCreateSingle');
     const btnBatch = document.getElementById('btnQuickCreateBatch');
+    const btnFolder = document.getElementById('btnQuickCreateFolder');
+    const btnManageFolders = document.getElementById('btnQuickManageFolders');
     if (trigger && trigger.dataset.bound !== '1') {
       trigger.dataset.bound = '1';
       trigger.addEventListener('click', function (e) {
@@ -268,6 +365,20 @@
       btnBatch.addEventListener('click', function () {
         window.closeQuickCreateMenu();
         window.quickAdd('batch');
+      });
+    }
+    if (btnFolder && btnFolder.dataset.bound !== '1') {
+      btnFolder.dataset.bound = '1';
+      btnFolder.addEventListener('click', function () {
+        window.closeQuickCreateMenu();
+        window.quickOpenCreateFolder();
+      });
+    }
+    if (btnManageFolders && btnManageFolders.dataset.bound !== '1') {
+      btnManageFolders.dataset.bound = '1';
+      btnManageFolders.addEventListener('click', function () {
+        window.closeQuickCreateMenu();
+        window.quickOpenGroupsModal();
       });
     }
     if (!window._quickCreateMenuDocBound) {
@@ -378,7 +489,7 @@
       <div class="quick-pane-toolbar">
         <div class="quick-head">
           <h2>${window.iconLabel('zap', 'Rapide — cartes Y-')}</h2>
-          <p>Choisis un <b>groupe</b> dans le fil d’Ariane, puis révise ou crée des cartes. Nouvelle carte → <b>active directement</b>.</p>
+          <p>Choisis un <b>dossier</b> dans le fil d’Ariane, puis révise ou crée des cartes. Nouvelle carte → <b>active directement</b>.</p>
         </div>
         <div class="quick-toolbar-actions">
           <div class="cours-create-menu" id="quickCreateMenu">
@@ -395,7 +506,16 @@
               </button>
               <button type="button" class="cours-create-item" id="btnQuickCreateBatch" role="menuitem">
                 <strong><span data-icon="layers" data-icon-size="14"></span> Créer à la suite</strong>
-                <span class="hint">Enchaîne plusieurs cartes (même groupe)</span>
+                <span class="hint">Enchaîne plusieurs cartes (même dossier)</span>
+              </button>
+              <div class="cours-create-sep" role="separator"></div>
+              <button type="button" class="cours-create-item" id="btnQuickCreateFolder" role="menuitem">
+                <strong><span data-icon="folder" data-icon-size="14"></span> Créer un dossier</strong>
+                <span class="hint">Classer tes cartes Y- par matière</span>
+              </button>
+              <button type="button" class="cours-create-item" id="btnQuickManageFolders" role="menuitem">
+                <strong><span data-icon="folder" data-icon-size="14"></span> Gérer les dossiers</strong>
+                <span class="hint">Renommer, couleurs, ordre</span>
               </button>
             </div>
           </div>
@@ -428,6 +548,10 @@
   window.quickArianePickGroup = function (groupKey) {
     Q.nav.group = groupKey || '';
     window.renderFlashcards();
+  };
+
+  window.quickOpenCreateFolder = function () {
+    window.quickOpenGroupsModal({ focusAdd: true, focusMat: Q.mat || '' });
   };
 
   window.quickArianeManageGroups = function () {
@@ -569,50 +693,78 @@
   }
 
   function renderQuickArianeRoot() {
-    const groups = sortedGroups();
+    const sections = groupsByMat();
     const noneStats = countGroupCards(UNGROUPED);
-    let tiles = groups.map(g => {
-      const stats = countGroupCards(g.id);
-      return (
-        `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(g.color)}" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
-          `<span class="cours-bc-tile-name">${esc(g.name)}</span>` +
-          `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
-            (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
-          `</span>` +
-        `</button>`
+    const hasGroups = sections.some(sec => sec.groups.length > 0);
+
+    let bodyHtml = '';
+    if (hasGroups) {
+      bodyHtml += (
+        '<div class="cours-bc-level-head">' +
+          '<h3 class="cours-bc-level-title">Choisir un dossier</h3>' +
+          '<p class="cours-bc-level-sub anki-mut">Classés par matière · puis révise ou ajoute des cartes.</p>' +
+        '</div>'
       );
-    }).join('');
+      bodyHtml += sections.map(sec => {
+        const m = sec.mat;
+        const tiles = sec.groups.map(g => {
+          const stats = countGroupCards(g.id);
+          return (
+            `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(g.color || m.color)}" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
+              `<span class="cours-bc-tile-name">${esc(g.name)}</span>` +
+              `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
+                (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
+              `</span>` +
+            `</button>`
+          );
+        }).join('');
+        return (
+          `<section class="quick-group-section">` +
+            `<div class="anki-lib-group-hdr" style="border-left:4px solid ${esc(m.color)};">` +
+              `<span class="anki-lib-grp-mat" style="background:${esc(m.color)}20;color:${esc(m.color)};">${esc(m.label || m.id)}</span>` +
+              `<span class="anki-lib-grp-t">${esc(m.name || m.id)}</span>` +
+              `<span class="anki-mut" style="margin-left:auto;">${sec.groups.length} dossier${sec.groups.length > 1 ? 's' : ''}</span>` +
+            `</div>` +
+            `<div class="cours-bc-grid">${tiles}</div>` +
+          `</section>`
+        );
+      }).join('');
+    }
 
     if (noneStats.total) {
-      tiles += (
-        `<button type="button" class="cours-bc-tile" style="--mat-color:#6a7088" onclick="window.quickArianePickGroup('${jsStr(UNGROUPED)}')">` +
-          `<span class="cours-bc-tile-name">Sans groupe</span>` +
-          `<span class="cours-bc-tile-meta">${noneStats.active} active${noneStats.active > 1 ? 's' : ''}` +
-            (noneStats.reservoir ? ` · ${noneStats.reservoir} réservoir` : '') +
-          `</span>` +
-        `</button>`
+      bodyHtml += (
+        `<section class="quick-group-section quick-group-section--orphan">` +
+          `<div class="anki-lib-group-hdr" style="border-left:4px solid #6a7088;">` +
+            `<span class="anki-lib-grp-mat" style="background:#6a708820;color:#9aa3b8;">Sans dossier</span>` +
+          `</div>` +
+          `<div class="cours-bc-grid">` +
+            `<button type="button" class="cours-bc-tile" style="--mat-color:#6a7088" onclick="window.quickArianePickGroup('${jsStr(UNGROUPED)}')">` +
+              `<span class="cours-bc-tile-name">Cartes non classées</span>` +
+              `<span class="cours-bc-tile-meta">${noneStats.active} active${noneStats.active > 1 ? 's' : ''}` +
+                (noneStats.reservoir ? ` · ${noneStats.reservoir} réservoir` : '') +
+              `</span>` +
+            `</button>` +
+          `</div>` +
+        `</section>`
       );
     }
 
-    tiles += (
-      `<button type="button" class="cours-bc-tile cours-bc-tile--manage" onclick="window.quickArianeManageGroups()">` +
-        `<span class="cours-bc-tile-name">${window.iconLabel('folder', 'Gérer les groupes')}</span>` +
-        `<span class="cours-bc-tile-meta">Créer, renommer, couleurs</span>` +
-      `</button>`
-    );
-
-    const empty = !groups.length && !noneStats.total;
-    const body = empty
-      ? '<div class="cours-bc-empty">Aucune carte Y- pour l’instant. Utilise <b>Créer</b> puis classe tes cartes via <b>Gérer les groupes</b>.</div>'
-      : (
-        '<div class="cours-bc-level-head">' +
-          '<h3 class="cours-bc-level-title">Choisir un groupe</h3>' +
-          '<p class="cours-bc-level-sub anki-mut">Puis révise ou ajoute des cartes dans ce groupe.</p>' +
-        '</div>' +
-        '<div class="cours-bc-grid">' + tiles + '</div>'
+    if (!hasGroups && !noneStats.total) {
+      bodyHtml = (
+        '<div class="cours-bc-empty">' +
+          'Aucune carte Y- pour l’instant. Utilise <b>Créer</b> pour ajouter une carte ou un dossier.' +
+        '</div>'
       );
+    } else if (!hasGroups && noneStats.total) {
+      bodyHtml = (
+        '<div class="cours-bc-level-head">' +
+          '<h3 class="cours-bc-level-title">Cartes sans dossier</h3>' +
+          '<p class="cours-bc-level-sub anki-mut">Crée des dossiers via <b>Créer → Créer un dossier</b>.</p>' +
+        '</div>' + bodyHtml
+      );
+    }
 
-    return body;
+    return bodyHtml;
   }
 
   function renderQuickArianeGroupBody() {
@@ -660,29 +812,90 @@
     }
   }
 
-  /* ===== Gestion des groupes ===== */
+  /* ===== Gestion des dossiers ===== */
 
-  function renderGroupsModalBody() {
-    const groups = sortedGroups();
-    if (!groups.length) {
-      return '<p class="anki-mut" style="font-size:13px;">Aucun groupe pour l’instant. Crée-en un pour classer tes cartes Rapide.</p>';
-    }
-    return `<div class="qk-groups-list">${groups.map((g, idx) => `
-      <div class="qk-group-row" data-gid="${esc(g.id)}">
-        <span class="qk-group-swatch" style="background:${g.color};" title="Couleur"></span>
-        <input type="text" class="fi qk-group-name" value="${esc(g.name)}" data-gid="${esc(g.id)}" aria-label="Nom du groupe">
-        <select class="qk-group-color" data-gid="${esc(g.id)}" aria-label="Couleur" title="Couleur">
-          ${GROUP_COLORS.map(col => `<option value="${col}" ${g.color === col ? 'selected' : ''} style="background:${col};">${col}</option>`).join('')}
-        </select>
-        <button type="button" class="bs" title="Monter" ${idx === 0 ? 'disabled' : ''} onclick="window.quickMoveGroup('${esc(g.id)}', -1)">↑</button>
-        <button type="button" class="bs" title="Descendre" ${idx === groups.length - 1 ? 'disabled' : ''} onclick="window.quickMoveGroup('${esc(g.id)}', 1)">↓</button>
-        <button type="button" class="bs" style="color:var(--red);" title="Supprimer" onclick="window.quickDeleteGroup('${esc(g.id)}')">${window.iconHtml ? window.iconHtml('trash-2', 14, 'icon-sm') : '×'}</button>
-      </div>
-    `).join('')}</div>`;
+  function renderGroupsModalSection(sec) {
+    const mat = sec.mat;
+    const matId = mat.id || '';
+    const groups = groupsForMat(matId);
+    const rows = groups.map((g, idx) => {
+      const globalIdx = sortedGroups().findIndex(x => x.id === g.id);
+      const canUp = globalIdx > 0 && inferGroupMat(sortedGroups()[globalIdx - 1]) === matId;
+      const canDown = globalIdx >= 0 && globalIdx < sortedGroups().length - 1
+        && inferGroupMat(sortedGroups()[globalIdx + 1]) === matId;
+      return `
+        <div class="qk-group-row" data-gid="${esc(g.id)}">
+          <div class="qk-group-row-main">
+            <input type="text" class="fi qk-group-name" value="${esc(g.name)}" data-gid="${esc(g.id)}" aria-label="Nom du dossier" maxlength="40">
+            ${renderGroupColorDots(g.id, g.color)}
+          </div>
+          <div class="qk-group-actions">
+            <button type="button" class="bs qk-group-move" title="Monter" ${!canUp ? 'disabled' : ''} onclick="window.quickMoveGroup('${esc(g.id)}', -1)">${window.iconHtml ? window.iconHtml('chevron-up', 14, 'icon-sm') : '↑'}</button>
+            <button type="button" class="bs qk-group-move" title="Descendre" ${!canDown ? 'disabled' : ''} onclick="window.quickMoveGroup('${esc(g.id)}', 1)">${window.iconHtml ? window.iconHtml('chevron-down', 14, 'icon-sm') : '↓'}</button>
+            <button type="button" class="bs qk-group-del" title="Supprimer" onclick="window.quickDeleteGroup('${esc(g.id)}')">${window.iconHtml ? window.iconHtml('trash-2', 14, 'icon-sm') : '×'}</button>
+          </div>
+        </div>`;
+    }).join('');
+
+    const addId = 'qkNewGroupName-' + (matId || 'other');
+    return `
+      <section class="qk-groups-mat-block" data-mat="${esc(matId)}">
+        <div class="anki-lib-group-hdr qk-groups-mat-hdr" style="border-left:4px solid ${esc(mat.color)};">
+          <span class="anki-lib-grp-mat" style="background:${esc(mat.color)}20;color:${esc(mat.color)};">${esc(mat.label || matId || '?')}</span>
+          <span class="anki-lib-grp-t">${esc(mat.name || matId || 'Autre')}</span>
+        </div>
+        ${rows || '<p class="anki-mut qk-groups-empty">Aucun dossier pour cette matière.</p>'}
+        <div class="qk-group-add-inline">
+          <input type="text" id="${addId}" class="fi qk-new-group-name" data-mat="${esc(matId)}" placeholder="Nouveau dossier…" maxlength="40">
+          <button type="button" class="bp qk-group-add-btn" data-mat="${esc(matId)}" onclick="window.quickAddGroup('${jsStr(matId)}')">${window.iconLabel('plus', 'Ajouter')}</button>
+        </div>
+      </section>`;
   }
 
-  window.quickOpenGroupsModal = function () {
+  function renderGroupsModalBody() {
+    const mats = (window.D.matieres || []).slice();
+    if (!mats.length) {
+      return '<p class="anki-mut" style="font-size:13px;">Aucune matière configurée.</p>';
+    }
+    return `<div class="qk-groups-sections">${mats.map(m => renderGroupsModalSection({ mat: m, groups: groupsForMat(m.id) })).join('')}</div>`;
+  }
+
+  function refreshGroupsModalBody() {
+    const body = $('qkGroupsBody');
+    if (body) {
+      body.innerHTML = renderGroupsModalBody();
+      if (window.hydrateIcons) window.hydrateIcons(body);
+      bindGroupsModalInputs();
+    }
+  }
+
+  function bindGroupsModalInputs() {
+    const ov = $('ovQuickGroups');
+    if (!ov) return;
+    ov.querySelectorAll('.qk-new-group-name').forEach(function (inp) {
+      if (inp.dataset.bound === '1') return;
+      inp.dataset.bound = '1';
+      inp.onkeydown = function (e) {
+        if (e.key === 'Enter' && !e.isComposing) {
+          e.preventDefault();
+          window.quickAddGroup(inp.getAttribute('data-mat') || '');
+        }
+      };
+    });
+  }
+
+  window.quickPickGroupColor = function (gid, color) {
+    const g = groupInfo(gid);
+    if (!g || !color) return;
+    g.color = color;
+    refreshGroupsModalBody();
+  };
+
+  window.quickOpenGroupsModal = function (opts) {
+    opts = opts && typeof opts === 'object' ? opts : {};
     ensure();
+    Q.groupsModalFocusMat = opts.focusMat || Q.mat || '';
+    Q.groupsModalFocusAdd = !!opts.focusAdd;
     let ov = $('ovQuickGroups');
     if (!ov) {
       ov = document.createElement('div');
@@ -693,29 +906,27 @@
     ov.classList.remove('hidden');
     ov.innerHTML = `
       <div class="modal qk-groups-modal">
-        <h2>${window.iconLabel('folder', 'Groupes de cartes Rapide')}</h2>
-        <p class="anki-mut" style="font-size:12px;margin-top:-4px;">Catégorise tes cartes Y- (vocabulaire, formules, etc.). Les cartes sans groupe restent dans « Sans groupe ».</p>
+        <h2>${window.iconLabel('folder', 'Dossiers Rapide')}</h2>
+        <p class="anki-mut qk-groups-intro">Organise tes cartes Y- par matière. Clique une pastille pour la couleur — pas de liste déroulante.</p>
         <div id="qkGroupsBody">${renderGroupsModalBody()}</div>
-        <div class="qk-group-add-row">
-          <input type="text" id="qkNewGroupName" class="fi" placeholder="Nom du nouveau groupe" maxlength="40">
-          <button type="button" class="bp" onclick="window.quickAddGroup()">${window.iconLabel('plus', 'Ajouter')}</button>
-        </div>
         <div class="macts">
           <button type="button" class="bs" onclick="window.quickCloseGroupsModal()">Fermer</button>
           <button type="button" class="bp" onclick="window.quickSaveGroupsModal()">Enregistrer</button>
         </div>
       </div>`;
     if (window.hydrateIcons) window.hydrateIcons(ov);
-    const nameEl = $('qkNewGroupName');
+    bindGroupsModalInputs();
+
+    const focusMat = Q.groupsModalFocusMat || ((window.D.matieres || [])[0] && window.D.matieres[0].id) || '';
+    const addId = 'qkNewGroupName-' + (focusMat || 'other');
+    const nameEl = $(addId);
     if (nameEl) {
-      nameEl.onkeydown = function (e) {
-        if (e.key === 'Enter' && !e.isComposing) {
-          e.preventDefault();
-          window.quickAddGroup();
-        }
-      };
-      nameEl.focus();
+      if (Q.groupsModalFocusAdd) {
+        try { nameEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { /* ignore */ }
+        nameEl.focus();
+      }
     }
+    Q.groupsModalFocusAdd = false;
   };
 
   window.quickCloseGroupsModal = function () {
@@ -723,46 +934,53 @@
     if (ov) ov.classList.add('hidden');
   };
 
-  window.quickAddGroup = function () {
+  window.quickAddGroup = function (matId) {
     ensure();
     if (typeof window.refuseSecondaryFullMutation === 'function'
-        && window.refuseSecondaryFullMutation('Appareil secondaire : création de groupe indisponible.')) {
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de dossier indisponible.')) {
       return;
     }
-    const el = $('qkNewGroupName');
+    const mat = matId || Q.groupsModalFocusMat || Q.mat || ((window.D.matieres || [])[0] && window.D.matieres[0].id) || '';
+    const addId = 'qkNewGroupName-' + (mat || 'other');
+    const el = $(addId) || document.querySelector('.qk-new-group-name[data-mat="' + mat + '"]');
     const name = (el && el.value || '').trim();
     if (!name) {
-      if (typeof window.showToast === 'function') window.showToast('Indique un nom de groupe.');
+      if (typeof window.showToast === 'function') window.showToast('Indique un nom de dossier.');
+      if (el) el.focus();
+      return;
+    }
+    if (!mat) {
+      if (typeof window.showToast === 'function') window.showToast('Matière introuvable.');
       return;
     }
     const id = genGroupId();
     window.D.quickGroups.push({
       id,
       name,
-      color: nextGroupColor(),
-      order: window.D.quickGroups.length
+      color: defaultGroupColor(mat),
+      order: groupsForMat(mat).length,
+      mat: mat
     });
     if (el) el.value = '';
-    const body = $('qkGroupsBody');
-    if (body) body.innerHTML = renderGroupsModalBody();
-    if (window.hydrateIcons) window.hydrateIcons(body || document);
+    refreshGroupsModalBody();
+    if (typeof window.showToast === 'function') window.showToast('Dossier « ' + name + ' » créé.');
   };
 
   window.quickMoveGroup = function (id, delta) {
     ensure();
-    const groups = sortedGroups();
-    const idx = groups.findIndex(g => g.id === id);
+    const g = groupInfo(id);
+    if (!g) return;
+    const mat = inferGroupMat(g);
+    const groups = groupsForMat(mat);
+    const idx = groups.findIndex(x => x.id === id);
     if (idx < 0) return;
     const j = idx + delta;
     if (j < 0 || j >= groups.length) return;
     const tmp = groups[idx];
     groups[idx] = groups[j];
     groups[j] = tmp;
-    groups.forEach((g, i) => { g.order = i; });
-    window.D.quickGroups = groups;
-    const body = $('qkGroupsBody');
-    if (body) body.innerHTML = renderGroupsModalBody();
-    if (window.hydrateIcons) window.hydrateIcons(body || document);
+    groups.forEach((x, i) => { x.order = i; x.mat = mat; });
+    refreshGroupsModalBody();
   };
 
   window.quickDeleteGroup = function (id) {
@@ -771,8 +989,8 @@
     if (!g) return;
     const count = (window.D.exercices || []).filter(c => isQuickCard(c) && c.groupId === id).length;
     const msg = count
-      ? 'Supprimer le groupe « ' + g.name + ' » ? ' + count + ' carte(s) passeront en « Sans groupe ».'
-      : 'Supprimer le groupe « ' + g.name + ' » ?';
+      ? 'Supprimer le dossier « ' + g.name + ' » ? ' + count + ' carte(s) passeront en « Sans dossier ».'
+      : 'Supprimer le dossier « ' + g.name + ' » ?';
     const doDel = function () {
       window.D.quickGroups = (window.D.quickGroups || []).filter(x => x.id !== id);
       (window.D.exercices || []).forEach(c => {
@@ -780,12 +998,10 @@
       });
       window.D.quickGroups.forEach((x, i) => { x.order = i; });
       if (Q.nav.group === id) Q.nav.group = '';
-      const body = $('qkGroupsBody');
-      if (body) body.innerHTML = renderGroupsModalBody();
-      if (window.hydrateIcons) window.hydrateIcons(body || document);
+      refreshGroupsModalBody();
     };
     if (typeof window.sysConfirm === 'function') {
-      window.sysConfirm(msg, doDel, 'Groupe');
+      window.sysConfirm(msg, doDel, 'Dossier');
     } else {
       doDel();
     }
@@ -806,16 +1022,11 @@
         const name = (inp.value || '').trim();
         if (name) g.name = name;
       });
-      ov.querySelectorAll('.qk-group-color').forEach(function (sel) {
-        const gid = sel.getAttribute('data-gid');
-        const g = groupInfo(gid);
-        if (g && sel.value) g.color = sel.value;
-      });
     }
     window.save();
     window.quickCloseGroupsModal();
     window.renderFlashcards();
-    if (typeof window.showToast === 'function') window.showToast('Groupes enregistrés.');
+    if (typeof window.showToast === 'function') window.showToast('Dossiers enregistrés.');
   };
 
   window.quickStartAll = function () {

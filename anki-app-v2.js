@@ -3810,8 +3810,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const count = Number(window._quickCreateCount) || 0;
     const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const groupOpts = typeof window.quickGroupOptionsHtml === 'function'
-      ? window.quickGroupOptionsHtml(c.groupId || '', { noneLabel: 'Sans groupe' })
-      : '<option value="">Sans groupe</option>' + ((window.D.quickGroups || []).map(g =>
+      ? window.quickGroupOptionsHtml(c.groupId || '', { noneLabel: 'Sans dossier', matFilter: c.mat || '' })
+      : '<option value="">Sans dossier</option>' + ((window.D.quickGroups || []).map(g =>
           `<option value="${esc(g.id)}" ${c.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`
         ).join(''));
     const modePill = batch
@@ -3851,8 +3851,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           </div>
         </div>
         <div class="anki-modal-row">
-          <div class="fg"><label>Matière *</label><select id="quickMat">${matOpts}</select></div>
-          <div class="fg"><label>Groupe <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label><select id="quickGroup">${groupOpts}</select></div>
+          <div class="fg"><label>Matière *</label><select id="quickMat" onchange="window.quickRefreshGroupSelect&&window.quickRefreshGroupSelect()">${matOpts}</select></div>
+          <div class="fg"><label>Dossier <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label><select id="quickGroup">${groupOpts}</select></div>
         </div>
         <div class="fg">
           <label>Chapitre / cours <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label>
