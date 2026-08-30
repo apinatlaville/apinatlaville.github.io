@@ -2171,8 +2171,27 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 #ovAnkiSession .anki-sess-top { margin-bottom: 6px; }
 #ovAnkiSession .anki-sess-meta { margin-bottom: 8px; }
-#ovAnkiSession .anki-chrono { font-size: 22px; }
-#ovAnkiSession .anki-chrono-hint { max-width: 140px; font-size: 9px; }
+#ovAnkiSession .anki-chrono { font-size: 18px; }
+#ovAnkiSession .anki-chrono-wrap--deck { gap: 4px; }
+#ovAnkiSession .anki-chrono-wrap--deck .anki-chrono-btn {
+ width: 28px;
+ height: 28px;
+ padding: 0;
+}
+#ovAnkiSession .anki-chrono-wrap--deck .anki-chrono-reset {
+ width: 24px !important;
+ height: 24px !important;
+}
+#ovAnkiSession .anki-chrono-wrap--frozen {
+ gap: 6px;
+ padding: 3px 8px;
+ border-radius: 8px;
+ background: var(--s2);
+ border: 0.5px solid var(--bd);
+}
+#ovAnkiSession .anki-chrono--frozen { font-size: 16px !important; }
+#ovAnkiSession .anki-chrono-frozen-lbl { display: inline-flex; align-items: center; }
+#ovAnkiSession .anki-chrono-hint { max-width: 120px; font-size: 9px; }
 #ovAnkiSession .anki-sess-q {
  min-height: 0;
  padding: 12px 14px;
@@ -2226,6 +2245,46 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 #ovAnkiSession .anki-temps-chrono-btn {
  font-size: 10px !important;
  padding: 4px 8px !important;
+}
+#ovAnkiSession .anki-timing-panel {
+ margin: 0 0 8px;
+ padding: 8px 10px;
+ border-radius: 8px;
+ border: 0.5px solid var(--bd);
+ background: rgba(0, 0, 0, 0.04);
+}
+#ovAnkiSession .anki-timing-stats {
+ display: flex;
+ flex-wrap: wrap;
+ gap: 10px 16px;
+ margin-bottom: 8px;
+ padding-bottom: 8px;
+ border-bottom: 0.5px solid var(--bd);
+}
+#ovAnkiSession .anki-timing-stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#ovAnkiSession .anki-timing-stat-lbl {
+ font-size: 9px;
+ text-transform: uppercase;
+ letter-spacing: 0.4px;
+ color: var(--mut);
+}
+#ovAnkiSession .anki-timing-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+#ovAnkiSession .anki-timing-chip {
+ font-family: 'DM Mono', monospace;
+ font-size: 11px;
+ padding: 2px 6px;
+ border-radius: 6px;
+ background: var(--s2);
+ border: 0.5px solid var(--bd);
+}
+#ovAnkiSession .anki-timing-avg-val { font-family: 'DM Mono', monospace; font-size: 14px; }
+#ovAnkiSession .anki-timing-avg-n { font-size: 10px; margin-left: 4px; }
+#ovAnkiSession .anki-timing-target { margin-top: 6px; }
+#ovAnkiSession .anki-timing-cible-actuel { font-size: 10px; }
+#ovAnkiSession .anki-timing-avg-btn {
+ font-size: 10px !important;
+ padding: 4px 8px !important;
+ white-space: nowrap;
 }
 #ovAnkiSession .anki-session-min-wrap input.fc-number {
  width: 52px;
