@@ -151,16 +151,10 @@ window.syncMobileNavAccordion = function () {
     return;
   }
 
-  var activeGroup = null;
   groups.forEach(function (g) {
-    if (g.querySelector('.tab.on')) activeGroup = g;
-  });
-
-  groups.forEach(function (g) {
-    var open = g === activeGroup;
-    g.classList.toggle('is-open', open);
+    g.classList.remove('is-open');
     var t = g.querySelector('.nav-group-toggle');
-    if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (t) t.setAttribute('aria-expanded', 'false');
   });
 };
 
