@@ -97,7 +97,7 @@ body.theme-light.ui-finder.nav-sidebar-left #appNav .search-field {
     0 1px 3px rgba(0, 0, 0, 0.06) !important;
 }
 
-body.ui-finder.nav-sidebar-left .nav-group-label {
+body.ui-finder.nav-sidebar-left .nav-group-toggle-label {
   opacity: 0.85;
   letter-spacing: 0.04em;
   text-transform: uppercase;
