@@ -715,6 +715,7 @@ body.mode-compact .cdesc { display: none; }
 .notes-svg { width: 100%; height: auto; min-height: 220px; display: block; }
 .notes-grid { stroke: var(--bd); stroke-width: 1; stroke-dasharray: 3 4; }
 .notes-axis { fill: var(--mut); font-size: 10px; font-family: 'DM Mono', monospace; }
+.notes-axis-month { font-family: 'DM Sans', system-ui, sans-serif; font-size: 11px; letter-spacing: 0.01em; text-transform: lowercase; }
 .notes-line { stroke: var(--acc); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
 .notes-avg-line { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: 0.85; }
 .notes-avg-lbl { fill: var(--gold); font-size: 10px; font-family: 'DM Mono', monospace; }
