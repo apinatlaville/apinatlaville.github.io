@@ -377,9 +377,11 @@
     });
     const hint = $("ankiChronoHint");
     if (hint) {
-      hint.textContent = S.chronoRunning
-        ? "Chrono en cours"
-        : (S.chronoElapsed > 0 ? "Chrono en pause — reprends ou remets à zéro" : "Lance le chrono quand tu es prêt(e)");
+      hint.textContent = S.showAnswer
+        ? 'Chrono arrêté · auto-évalue ci-dessous'
+        : (S.chronoRunning
+          ? "Chrono en cours"
+          : (S.chronoElapsed > 0 ? "Chrono en pause — reprends ou remets à zéro" : "Lance le chrono quand tu es prêt(e)"));
     }
     const toggle = $("btnChronoToggle");
     if (toggle) {
@@ -418,21 +420,33 @@
     S.chronoStart = 0;
     S.chronoPausedAt = 0;
   }
-  function renderChronoBlock(compact) {
-    const sz = compact ? 14 : 20;
+  function renderChronoBlock(compact, deckMode) {
+    deckMode = !!deckMode;
+    if (deckMode && S.showAnswer) {
+      return (
+        `<div class="anki-chrono-wrap anki-chrono-wrap--deck anki-chrono-wrap--frozen">` +
+          `<span class="anki-chrono-frozen-lbl anki-mut">${window.iconHtml('timer', 12)}</span>` +
+          `<div class="anki-chrono anki-chrono--frozen" id="ankiChrono">${fmtSec(S.chronoElapsed)}</div>` +
+        `</div>`
+      );
+    }
+    const sz = deckMode ? 12 : (compact ? 14 : 20);
+    const resetSz = deckMode ? 12 : 16;
     const timeId = compact ? "syncDockChrono" : "ankiChrono";
+    const wrapClass = 'anki-chrono-wrap' + (compact ? ' compact' : '') + (deckMode ? ' anki-chrono-wrap--deck' : '');
+    const showReset = deckMode || !compact;
     return `
-      <div class="anki-chrono-wrap${compact ? ' compact' : ''}">
+      <div class="${wrapClass}">
         <button type="button" class="anki-chrono-btn" id="${compact ? 'btnChronoToggleDock' : 'btnChronoToggle'}" data-testid="btn-chrono-toggle${compact ? '-dock' : ''}" onclick="window.ankiV2ToggleChrono()" aria-label="Chrono">
           ${window.iconHtml(S.chronoRunning ? "pause" : "play", sz)}
         </button>
         <div class="anki-chrono${!S.chronoRunning && S.chronoElapsed <= 0 ? ' anki-chrono-idle' : ''}${compact ? ' sync-dock-chrono' : ''}" id="${timeId}">${fmtSec(S.chronoElapsed)}</div>
-        ${!compact ? `<button type="button" class="anki-chrono-btn anki-chrono-reset" data-testid="btn-chrono-reset" onclick="window.ankiV2ResetChrono()" title="Remettre à zéro">${window.iconHtml('refresh-cw', 16)}</button>` : ''}
+        ${showReset ? `<button type="button" class="anki-chrono-btn anki-chrono-reset" data-testid="btn-chrono-reset" onclick="window.ankiV2ResetChrono()" title="Remettre à zéro">${window.iconHtml('refresh-cw', resetSz)}</button>` : ''}
       </div>
     `;
   }
   window.ankiV2ToggleChrono = function () {
-    if (!S.current || !cardUsesSessionTiming(S.current)) return;
+    if (!S.current || !cardUsesSessionTiming(S.current) || S.showAnswer) return;
     if (S.chronoRunning) pauseChrono(false);
     else startChrono();
     renderSyncSessionDock();
@@ -446,7 +460,7 @@
       if (wrap) {
         const parent = wrap.parentElement;
         const hint = $("ankiChronoHint");
-        wrap.outerHTML = renderChronoBlock(false) + (hint ? '' : `<p class="anki-chrono-hint anki-mut" id="ankiChronoHint">Lance le chrono quand tu es prêt(e)</p>`);
+        wrap.outerHTML = renderChronoBlock(false, true) + (hint ? '' : `<p class="anki-chrono-hint anki-mut" id="ankiChronoHint">Lance le chrono quand tu es prêt(e)</p>`);
       }
     }
     renderSyncSessionDock();
@@ -556,6 +570,78 @@
     s = Math.max(0, Math.round(s));
     return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
   }
+
+  /** Derniers temps réels (historique) pour affichage session */
+  function getCardTimingStats(c) {
+    const times = (c && c.historique || [])
+      .filter(h => h && h.type !== 'undo' && typeof h.tempsReel === 'number' && h.tempsReel > 0)
+      .map(h => h.tempsReel);
+    const last = times.slice(-5).reverse();
+    const avg = times.length
+      ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
+      : null;
+    return { last, avg, count: times.length };
+  }
+
+  function renderSessionTimingPanel(c) {
+    const stats = getCardTimingStats(c);
+    const cibleSec = c.tempsCible || 60;
+    const cibleMin = (cibleSec / 60).toFixed(1).replace(/\.0$/, '');
+    const chronoMin = (S.chronoElapsed / 60).toFixed(1).replace(/\.0$/, '');
+    const avgLabel = stats.avg != null ? window.AnkiAlgoV2.fmtDur(stats.avg) : '—';
+    const avgMin = stats.avg != null ? (stats.avg / 60).toFixed(1).replace(/\.0$/, '') : '';
+    const lastHtml = stats.last.length
+      ? stats.last.map(t => `<span class="anki-timing-chip">${window.AnkiAlgoV2.fmtDur(t)}</span>`).join('')
+      : '<span class="anki-mut">Première révision</span>';
+    const manualVal = S.sessionTempsManuel != null ? S.sessionTempsManuel : '';
+    return `
+      <div class="anki-timing-panel" data-testid="session-timing-panel">
+        <div class="anki-timing-stats">
+          <div class="anki-timing-stat">
+            <span class="anki-timing-stat-lbl">Derniers temps</span>
+            <div class="anki-timing-chips">${lastHtml}</div>
+          </div>
+          <div class="anki-timing-stat anki-timing-stat--avg">
+            <span class="anki-timing-stat-lbl">Moyenne</span>
+            <strong class="anki-timing-avg-val">${avgLabel}</strong>
+            ${stats.count ? `<span class="anki-mut anki-timing-avg-n">(${stats.count} rev.)</span>` : ''}
+          </div>
+        </div>
+        <div class="anki-temps-manuel anki-temps-compact" data-testid="temps-manuel-wrap">
+          <div class="anki-temps-row">
+            <span class="anki-mut anki-temps-lbl">${window.iconLabel('timer', 'Temps réel')}</span>
+            <div class="anki-session-min-wrap">
+              <input type="number" class="fc-number" id="ankiTempsManuel" data-testid="input-temps-manuel" min="0" max="600" step="0.5"
+                placeholder="${chronoMin}"
+                value="${manualVal}"
+                oninput="window._ankiSessionTempsManuel = this.value === '' ? null : parseFloat(this.value);"
+                aria-label="Temps réel en minutes">
+              <span class="anki-mut">min</span>
+            </div>
+            <button type="button" class="cbt anki-temps-chrono-btn" onclick="document.getElementById('ankiTempsManuel').value=${(S.chronoElapsed / 60).toFixed(2)};window._ankiSessionTempsManuel=parseFloat(document.getElementById('ankiTempsManuel').value);">${window.iconLabel('timer', 'Chrono')}</button>
+            <span class="anki-mut anki-temps-hint">${fmtSec(S.chronoElapsed)}</span>
+          </div>
+        </div>
+        <div class="anki-timing-target">
+          <div class="anki-temps-row">
+            <span class="anki-mut anki-temps-lbl">${window.iconLabel('target', 'Objectif prochaine fois')}</span>
+            <span class="anki-mut anki-timing-cible-actuel">actuel ${window.AnkiAlgoV2.fmtDur(cibleSec)}</span>
+            <div class="anki-session-min-wrap">
+              <input type="number" class="fc-number" id="ankiTempsCibleNext" data-testid="input-temps-cible-next" min="0.5" max="600" step="0.5"
+                value="${cibleMin}"
+                aria-label="Temps objectif prochaine révision en minutes">
+              <span class="anki-mut">min</span>
+            </div>
+            ${stats.avg ? `<button type="button" class="cbt anki-timing-avg-btn" data-testid="btn-temps-cible-moyenne" onclick="window.ankiV2ApplyAvgTempsCible('${avgMin}')">→ Moyenne (${avgLabel})</button>` : ''}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  window.ankiV2ApplyAvgTempsCible = function (minStr) {
+    const input = document.getElementById('ankiTempsCibleNext');
+    if (input) input.value = String(minStr);
+  };
   function mat(id) { return (window.D.matieres || []).find(m => m.id === id) || { color: "#666", label: id || "?", name: id || "?" }; }
   const esc = s => window.escHtml(s);
 
@@ -3216,8 +3302,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
             <span class="anki-tag">${stars(c)}</span>
           </div>
           <div class="anki-sess-chrono-col">
-            ${useTiming ? `${renderChronoBlock(false)}
-            <p class="anki-chrono-hint anki-mut" id="ankiChronoHint">${S.chronoRunning ? "Chrono en cours" : "Lance le chrono quand tu es prêt(e)"}</p>` : ''}
+            ${useTiming ? `${renderChronoBlock(false, true)}
+            <p class="anki-chrono-hint anki-mut" id="ankiChronoHint">${S.showAnswer ? 'Chrono arrêté · auto-évalue ci-dessous' : (S.chronoRunning ? 'Chrono en cours' : 'Lance le chrono quand tu es prêt(e)')}</p>` : ''}
           </div>
         </div>
         ${useTiming ? `<div class="anki-sess-meta">${window.iconHtml('timer', 12)} Cible ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>` : `<div class="anki-sess-meta">${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>`}
@@ -3228,22 +3314,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div class="anki-eval-zone">
           ${hasReponse ? `<div class="anki-sess-r anki-sess-r-compact"><span class="anki-sess-r-label">Réponse</span><div>${formatSessFace(c.reponse)}</div></div>` : '<p class="anki-mut anki-no-rep-hint">Auto-éval · pas de réponse enregistrée</p>'}
           ${renderSourcesBox(c, true)}
-          ${useTiming ? `
-          <div class="anki-temps-manuel anki-temps-compact" data-testid="temps-manuel-wrap">
-            <div class="anki-temps-row">
-              <span class="anki-mut anki-temps-lbl">${window.iconLabel('timer', 'Temps')}</span>
-              <div class="anki-session-min-wrap">
-                <input type="number" class="fc-number" id="ankiTempsManuel" data-testid="input-temps-manuel" min="0" max="600" step="0.5"
-                  placeholder="${(S.chronoElapsed / 60).toFixed(1).replace(/\.0$/, '')}"
-                  value="${S.sessionTempsManuel != null ? S.sessionTempsManuel : ''}"
-                  oninput="window._ankiSessionTempsManuel = this.value === '' ? null : parseFloat(this.value);"
-                  aria-label="Temps en minutes">
-                <span class="anki-mut">min</span>
-              </div>
-              <button type="button" class="bs anki-temps-chrono-btn" onclick="document.getElementById('ankiTempsManuel').value=${(S.chronoElapsed / 60).toFixed(2)};window._ankiSessionTempsManuel=parseFloat(document.getElementById('ankiTempsManuel').value);">${window.iconLabel('timer', 'Chrono')}</button>
-              <span class="anki-mut anki-temps-hint">${fmtSec(S.chronoElapsed)}</span>
-            </div>
-          </div>` : ''}
+          ${useTiming ? renderSessionTimingPanel(c) : ''}
           <div class="anki-evals anki-evals-compact">
               <button class="anki-eval bad" data-testid="eval-bad" onclick="window.evalCardV2(2)"><span class="eval-bad">${window.iconHtml('circle-x', 22, 'icon-lg')}</span><small>Blocage</small></button>
               <button class="anki-eval mid" data-testid="eval-mid" onclick="window.evalCardV2(6)"><span class="eval-mid">${window.iconHtml('circle-minus', 22, 'icon-lg')}</span><small>Étourderie</small></button>
@@ -3295,7 +3366,19 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     `;
   }
 
-  window.revealAnkiV2 = function () { S.showAnswer = true; renderSessionOverlay(); };
+  window.revealAnkiV2 = function () {
+    if (cardUsesSessionTiming(S.current)) {
+      if (S.chronoRunning) {
+        syncChronoElapsed();
+        pauseChrono(false);
+      }
+      if (S.chronoElapsed > 0) {
+        S.sessionTempsManuel = parseFloat((S.chronoElapsed / 60).toFixed(1));
+      }
+    }
+    S.showAnswer = true;
+    renderSessionOverlay();
+  };
 
   // v4: helper deep clone (snapshot complet d'une carte pour Undo)
   function cloneCard(c) {
@@ -3396,6 +3479,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         tps = min * 60;
         S.sessionTempsManuel = min;
       }
+    }
+
+    const cibleInput = document.getElementById('ankiTempsCibleNext');
+    if (usesTiming && cibleInput && cibleInput.value !== '' && !isNaN(parseFloat(cibleInput.value))) {
+      const cibleMin = Math.max(0.5, parseFloat(cibleInput.value));
+      S.current.tempsCible = Math.round(cibleMin * 60);
     }
 
     const isDevoir = isDevoirCard(S.current);

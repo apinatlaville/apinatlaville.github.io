@@ -25,10 +25,10 @@ assert(/if \(!S\.current \|\| !cardUsesSessionTiming\(S\.current\)\) return/.tes
   'startChrono / toggle chrono gardés pour X');
 assert(/cardUsesSessionTiming\(c\) \? renderChronoBlock/.test(src),
   'dock : chrono conditionnel');
-assert(/useTiming \? `\$\{renderChronoBlock\(false\)\}/.test(src),
+assert(/useTiming \? `\$\{renderChronoBlock\(false, true\)/.test(src),
   'overlay plein écran : chrono conditionnel');
-assert(/useTiming \? `\s*\n\s*<div class="anki-temps-manuel/.test(src),
-  'saisie temps manuelle conditionnelle');
+assert(/useTiming \? renderSessionTimingPanel\(c\)/.test(src),
+  'panneau timing conditionnel (X uniquement)');
 assert(/const usesTiming = cardUsesSessionTiming\(S\.current\)/.test(src),
   'evalCardV2 branche usesTiming');
 assert(/if \(usesTiming && tps != null\) histEntry\.tempsReel/.test(src),
