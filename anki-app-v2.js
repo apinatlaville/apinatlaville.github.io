@@ -56,7 +56,297 @@
     cockpitFilterCours: '',
   };
 
-  // Chrono session : démarrage manuel · pause/play · reprise auto onglet si en cours
+  /** Fil d’Ariane pick Cockpit : cartes sans chapitre rattaché */
+  const COCKPIT_PICK_NONE = '__none__';
+
+  function jsPick(s) {
+    return typeof window.escapeJsStr === 'function'
+      ? window.escapeJsStr(s)
+      : String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
+  function getCockpitPickNavLevel() {
+    if (!S.cockpitFilterMat) return 0;
+    if (!S.cockpitFilterCours) return 1;
+    return 2;
+  }
+
+  function chapterUnitUidsForMat(matId) {
+    const set = new Set();
+    if (typeof window.listChapitres === 'function') {
+      window.listChapitres({ mat: matId }).forEach(ch => {
+        const uid = ch.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
+          ? window.resolveChapitreCoursUid(ch.id) : '');
+        if (uid) set.add(uid);
+      });
+    }
+    (window.D.cours || []).forEach(co => {
+      if (co.mat === matId && typeof window.isCoursUnite === 'function' && window.isCoursUnite(co)) {
+        set.add(co.uid);
+      }
+    });
+    return set;
+  }
+
+  function cardCoursIdList(c) {
+    return c.coursIds || (c.coursId ? [c.coursId] : []);
+  }
+
+  function cardSansChapitreForMat(c, matId, unitUids) {
+    if (c.mat !== matId) return false;
+    const ids = cardCoursIdList(c);
+    if (!ids.length) return true;
+    return !ids.some(uid => unitUids.has(uid));
+  }
+
+  function getCockpitPickBaseList() {
+    const allCards = (window.D.exercices || []).filter(c => (c.statut === 'actif' || c.statut === 'attente' || c.statut === 'reservoir') && !isDevoirCard(c));
+    const candidatsX = window.AnkiAlgoV2.getCandidates(window.D.exercices)
+      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'main' }));
+    const candidatsY = (window.AnkiAlgoV2.getQuickCandidates
+      ? window.AnkiAlgoV2.getQuickCandidates(window.D.exercices)
+      : [])
+      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'quick' }));
+    const cockpitSearch = (S.cockpitSearch || '').trim().toLowerCase();
+    const isManualTab = S.cockpitMode === 'manual';
+    let list = isManualTab ? allCards.map(c => {
+      const sc = window.AnkiAlgoV2.scoreSession(c);
+      return { ...c, _prio: sc.total, _prioFile: sc.file || (isQuickCard(c) ? 'quick' : 'main') };
+    }) : candidatsX.concat(candidatsY);
+
+    if (cockpitSearch && getCockpitPickNavLevel() >= 2) {
+      list = list.filter(c => {
+        const blob = [
+          c.titre || '',
+          c.question || '',
+          c.id || '',
+          cardCoursSearchText(c)
+        ].join(' ').toLowerCase();
+        return blob.includes(cockpitSearch);
+      });
+      if (!isManualTab) {
+        list = list.map(c => {
+          const sc = window.AnkiAlgoV2.scoreSession(c);
+          return {
+            ...c,
+            _prio: c._prio != null ? c._prio : sc.total,
+            _prioFile: c._prioFile || sc.file
+          };
+        });
+      }
+    }
+    list.sort((a, b) => {
+      const fa = a._prioFile === 'quick' || isQuickCard(a) ? 1 : 0;
+      const fb = b._prioFile === 'quick' || isQuickCard(b) ? 1 : 0;
+      if (fa !== fb) return fa - fb;
+      return (b._prio || 0) - (a._prio || 0);
+    });
+    return list;
+  }
+
+  function getCockpitDisplayList() {
+    const level = getCockpitPickNavLevel();
+    if (level < 2) return [];
+    let list = getCockpitPickBaseList().filter(c => c.mat === S.cockpitFilterMat);
+    if (S.cockpitFilterCours === COCKPIT_PICK_NONE) {
+      const uids = chapterUnitUidsForMat(S.cockpitFilterMat);
+      list = list.filter(c => cardSansChapitreForMat(c, S.cockpitFilterMat, uids));
+    } else if (S.cockpitFilterCours) {
+      list = list.filter(c => cardCoursIdList(c).includes(S.cockpitFilterCours));
+    }
+    return list;
+  }
+
+  function renderCockpitPickBreadcrumb(isManualTab) {
+    const chev = window.iconHtml ? window.iconHtml('chevron-right', 14) : '›';
+    const pickLabel = isManualTab ? 'Choisir mes cartes' : 'Ajouter des cartes';
+    let crumbs = `<button type="button" class="cours-bc-crumb${!S.cockpitFilterMat ? ' is-current' : ''}" onclick="window.ankiV2CockpitPickReset()">${window.iconLabel('search', pickLabel)}</button>`;
+    if (S.cockpitFilterMat) {
+      const m = mat(S.cockpitFilterMat);
+      crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
+      crumbs += `<button type="button" class="cours-bc-crumb${!S.cockpitFilterCours ? ' is-current' : ''}" onclick="window.ankiV2CockpitPickMat('${jsPick(S.cockpitFilterMat)}')">${esc(m.name || m.label || S.cockpitFilterMat)}</button>`;
+    }
+    if (S.cockpitFilterCours) {
+      let chapLabel = 'Sans chapitre';
+      if (S.cockpitFilterCours !== COCKPIT_PICK_NONE) {
+        const co = (window.D.cours || []).find(x => x.uid === S.cockpitFilterCours);
+        if (co) chapLabel = co.title || co.uid;
+        else if (typeof window.listChapitres === 'function') {
+          const ch = window.listChapitres({ mat: S.cockpitFilterMat }).find(c =>
+            (c.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
+              ? window.resolveChapitreCoursUid(c.id) : '')) === S.cockpitFilterCours
+          );
+          if (ch) chapLabel = ch.title || ch.id;
+        }
+      }
+      crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
+      crumbs += `<span class="cours-bc-crumb is-current">${esc(chapLabel)}</span>`;
+    }
+    return `<nav class="cours-bc-bar" aria-label="Fil d’Ariane — ajout à la session">${crumbs}</nav>`;
+  }
+
+  function renderCockpitPickMatTiles(baseList) {
+    const mats = window.D.matieres || [];
+    const tiles = mats.map(m => {
+      const n = baseList.filter(c => c.mat === m.id).length;
+      if (!n) return '';
+      return (
+        `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(m.color)}" onclick="window.ankiV2CockpitPickMat('${jsPick(m.id)}')">` +
+          `<span class="cours-bc-tile-name">${esc(m.name || m.label)}</span>` +
+          `<span class="cours-bc-tile-meta">${n} carte${n > 1 ? 's' : ''}</span>` +
+        `</button>`
+      );
+    }).join('');
+    if (!tiles) {
+      return `<div class="cours-bc-empty">${isManualTabEmptyHint()}</div>`;
+    }
+    return (
+      '<div class="cours-bc-level-head">' +
+        '<h3 class="cours-bc-level-title">Choisir une matière</h3>' +
+        '<p class="cours-bc-level-sub anki-mut">Puis chapitre Programme → cartes à ajouter à la session.</p>' +
+      '</div>' +
+      `<div class="cours-bc-grid">${tiles}</div>`
+    );
+  }
+
+  function isManualTabEmptyHint() {
+    return S.cockpitMode === 'manual'
+      ? 'Aucune carte active pour composer une session.'
+      : 'Aucune carte due pour le moment.';
+  }
+
+  function renderCockpitPickChapterTiles(baseList) {
+    const matId = S.cockpitFilterMat;
+    const m = mat(matId);
+    const matCards = baseList.filter(c => c.mat === matId);
+    const unitUids = chapterUnitUidsForMat(matId);
+    let tiles = '';
+    if (typeof window.listChapitres === 'function') {
+      window.listChapitres({ mat: matId }).forEach(ch => {
+        const uid = ch.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
+          ? window.resolveChapitreCoursUid(ch.id) : '');
+        if (!uid) return;
+        const n = matCards.filter(c => cardCoursIdList(c).includes(uid)).length;
+        if (!n) return;
+        tiles += (
+          `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(m.color)}" onclick="window.ankiV2CockpitPickChapter('${jsPick(uid)}')">` +
+            `<span class="cours-bc-tile-name">${esc(ch.title || ch.id)}</span>` +
+            `<span class="cours-bc-tile-meta">${n} carte${n > 1 ? 's' : ''}</span>` +
+          `</button>`
+        );
+      });
+    }
+    const noneCount = matCards.filter(c => cardSansChapitreForMat(c, matId, unitUids)).length;
+    if (noneCount) {
+      tiles += (
+        `<button type="button" class="cours-bc-tile" style="--mat-color:#6a7088" onclick="window.ankiV2CockpitPickChapter('${jsPick(COCKPIT_PICK_NONE)}')">` +
+          `<span class="cours-bc-tile-name">Sans chapitre</span>` +
+          `<span class="cours-bc-tile-meta">${noneCount} carte${noneCount > 1 ? 's' : ''}</span>` +
+        `</button>`
+      );
+    }
+    if (!tiles) {
+      return `<div class="cours-bc-empty">Aucune carte pour ${esc(m.name || m.label)} avec les filtres actuels.</div>`;
+    }
+    return (
+      '<div class="cours-bc-level-head">' +
+        `<h3 class="cours-bc-level-title">Chapitres — ${esc(m.name || m.label)}</h3>` +
+        `<p class="cours-bc-level-sub anki-mut">${matCards.length} carte${matCards.length > 1 ? 's' : ''} · ordre Programme</p>` +
+      '</div>' +
+      `<div class="cours-bc-grid">${tiles}</div>`
+    );
+  }
+
+  function renderCockpitPickGridArea(isManualTab, displayList) {
+    const cockpitSearch = S.cockpitSearch || '';
+    const pickHint = isManualTab
+      ? (cockpitSearch ? `<b>Recherche</b> (${displayList.length}) — clique pour sélectionner` : 'Clique pour ajouter ou retirer de la file · triées par prio ↓')
+      : (cockpitSearch ? `<b>Recherche</b> (${displayList.length})` : '<b>Cartes dues</b> — clique pour ajouter / retirer (budget recalculé)');
+    const showSearch = isManualTab || cockpitSearch || displayList.length > 12;
+    return (
+      (showSearch ? searchField(
+        isManualTab ? 'Cherche carte, code…' : 'Filtrer les cartes dues…',
+        `class="fi anki-search-input" value="${esc(cockpitSearch)}" oninput="window.ankiV2CockpitSearch(this.value)"`
+      ) : '') +
+      `<p class="anki-mut anki-cockpit-pick-hint">${pickHint}</p>` +
+      `<div class="cgrid anki-pick-grid" id="ankiPickGrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">` +
+        (displayList.map(c => renderPickPcard(c)).join('') ||
+          `<div class="anki-empty" style="grid-column:1/-1;">${(window.APP_MSG && window.APP_MSG.EMPTY_SEARCH) || 'Aucun résultat'}</div>`) +
+      `</div>`
+    );
+  }
+
+  function renderCockpitPickBody(isManualTab) {
+    const baseList = getCockpitPickBaseList();
+    const level = getCockpitPickNavLevel();
+    if (level === 0) return renderCockpitPickMatTiles(baseList);
+    if (level === 1) return renderCockpitPickChapterTiles(baseList);
+    return renderCockpitPickGridArea(isManualTab, getCockpitDisplayList());
+  }
+
+  function renderCockpitPickBlock(isManualTab) {
+    const isManualTabLocal = isManualTab;
+    const level = getCockpitPickNavLevel();
+    const pickStats = isManualTabLocal
+      ? `${S.selectionIds.size} sélectionnée(s)`
+      : `${S.pinnedIds.size} ajoutée(s) · ${S.excludedIds.size} retirée(s)`;
+    const canPlayChapter = level >= 2 && S.cockpitFilterCours && S.cockpitFilterCours !== COCKPIT_PICK_NONE;
+    return `
+      <div class="anki-card-block anki-cockpit-pick" id="ankiPickSection">
+        <div class="pbar">
+          <div>
+            <h3 style="font-family:'Inter';font-size:16px;margin-bottom:4px;">${window.iconLabel('layers', isManualTabLocal ? 'Composer la session' : 'Ajouter à la session')}</h3>
+            <p style="color:var(--mut);font-size:12px;margin:0;" id="ankiPickStats">${pickStats}</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${canPlayChapter ? `<button type="button" class="bp" onclick="window.ankiV2PlayChapter('${esc(S.cockpitFilterCours)}')" title="Réviser toutes les cartes actives du chapitre">${window.iconLabel('play', 'Play chapitre')}</button>` : ''}
+            ${level >= 2 ? (isManualTabLocal ? `<button class="cbt" type="button" onclick="window.ankiV2SelectAllPick()">Sél. toutes</button>` : `<button class="cbt" type="button" onclick="window.ankiV2ResetAutoAdjust()">Réinit. algo</button>`) : ''}
+            ${level >= 2 ? `<button class="cbt" type="button" onclick="window.ankiV2SelectClear()">Vider</button>` : ''}
+          </div>
+        </div>
+        <div class="cours-bc-page anki-cockpit-pick-bc">
+          ${renderCockpitPickBreadcrumb(isManualTabLocal)}
+          <div class="cours-bc-body" id="ankiPickBody">${renderCockpitPickBody(isManualTabLocal)}</div>
+        </div>
+      </div>`;
+  }
+
+  function refreshCockpitPickSection() {
+    const section = $('ankiPickSection');
+    if (!section) { renderActiveView(); return; }
+    const isManualTab = S.cockpitMode === 'manual';
+    const body = $('ankiPickBody');
+    const scrollTop = body ? body.scrollTop : 0;
+    const grid = $('ankiPickGrid');
+    const gridScroll = grid ? grid.scrollTop : 0;
+    section.outerHTML = renderCockpitPickBlock(isManualTab);
+    const newBody = $('ankiPickBody');
+    const newGrid = $('ankiPickGrid');
+    if (newBody && !newGrid) newBody.scrollTop = scrollTop;
+    if (newGrid) newGrid.scrollTop = gridScroll;
+    const host = $('ankiPickSection');
+    if (host && window.hydrateIcons) window.hydrateIcons(host);
+  }
+
+  window.ankiV2CockpitPickReset = function () {
+    S.cockpitFilterMat = '';
+    S.cockpitFilterCours = '';
+    S.cockpitSearch = '';
+    refreshCockpitPickSection();
+  };
+
+  window.ankiV2CockpitPickMat = function (matId) {
+    S.cockpitFilterMat = matId || '';
+    S.cockpitFilterCours = '';
+    S.cockpitSearch = '';
+    refreshCockpitPickSection();
+  };
+
+  window.ankiV2CockpitPickChapter = function (uid) {
+    S.cockpitFilterCours = uid || '';
+    S.cockpitSearch = '';
+    refreshCockpitPickSection();
+  };
   function stopChronoInterval() {
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
   }
@@ -66,6 +356,7 @@
     }
   }
   function chronoColor() {
+    if (!cardUsesSessionTiming(S.current)) return "var(--mut)";
     const cible = (S.current && S.current.tempsCible) || 60;
     if (!S.chronoRunning && S.chronoElapsed <= 0) return "var(--mut)";
     if (S.chronoElapsed > cible * 1.5) return "var(--red)";
@@ -113,7 +404,7 @@
     paintChronoDisplays();
   }
   function startChrono() {
-    if (!S.current) return;
+    if (!S.current || !cardUsesSessionTiming(S.current)) return;
     S.chronoStart = Date.now() - S.chronoElapsed * 1000;
     S.chronoRunning = true;
     stopChronoInterval();
@@ -141,13 +432,13 @@
     `;
   }
   window.ankiV2ToggleChrono = function () {
-    if (!S.current) return;
+    if (!S.current || !cardUsesSessionTiming(S.current)) return;
     if (S.chronoRunning) pauseChrono(false);
     else startChrono();
     renderSyncSessionDock();
   };
   window.ankiV2ResetChrono = function () {
-    if (!S.current) return;
+    if (!S.current || !cardUsesSessionTiming(S.current)) return;
     resetChronoCard();
     paintChronoDisplays();
     if ($("ovAnkiSession") && !$("ovAnkiSession").classList.contains("hidden")) {
@@ -223,6 +514,10 @@
   }
   function isMainCard(c) {
     return !!(c && window.AnkiAlgoV2 && window.AnkiAlgoV2.cardKind(c) === 'main');
+  }
+  /** Chrono / saisie temps / objectif : cartes X uniquement (pas Y rapides, pas W devoirs). */
+  function cardUsesSessionTiming(c) {
+    return !!(c && !isQuickCard(c) && !isDevoirCard(c));
   }
   function countReservoirMain() {
     return (window.D.exercices || []).filter(c => window.AnkiAlgoV2.isReservoir(c) && !isQuickCard(c) && !isDevoirCard(c)).length;
@@ -855,79 +1150,6 @@
     return (c.coursIds || []).map(uid => coursLabel(uid)).join(' ');
   }
 
-  function getCockpitDisplayList() {
-    const allCards = (window.D.exercices || []).filter(c => (c.statut === 'actif' || c.statut === 'attente' || c.statut === 'reservoir') && !isDevoirCard(c));
-    const candidatsX = window.AnkiAlgoV2.getCandidates(window.D.exercices)
-      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'main' }));
-    const candidatsY = (window.AnkiAlgoV2.getQuickCandidates
-      ? window.AnkiAlgoV2.getQuickCandidates(window.D.exercices)
-      : [])
-      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'quick' }));
-    const cockpitSearch = (S.cockpitSearch || '').trim().toLowerCase();
-    const isManualTab = S.cockpitMode === 'manual';
-    let list = isManualTab ? allCards.map(c => {
-      const sc = window.AnkiAlgoV2.scoreSession(c);
-      return { ...c, _prio: sc.total, _prioFile: sc.file || (isQuickCard(c) ? 'quick' : 'main') };
-    }) : candidatsX.concat(candidatsY);
-
-    if (S.cockpitFilterMat) list = list.filter(c => c.mat === S.cockpitFilterMat);
-    if (S.cockpitFilterCours) {
-      list = list.filter(c => {
-        const ids = c.coursIds || (c.coursId ? [c.coursId] : []);
-        return ids.includes(S.cockpitFilterCours);
-      });
-    }
-    if (cockpitSearch) {
-      list = list.filter(c => {
-        const blob = [
-          c.titre || '',
-          c.question || '',
-          c.id || '',
-          cardCoursSearchText(c)
-        ].join(' ').toLowerCase();
-        return blob.includes(cockpitSearch);
-      });
-      if (!isManualTab) {
-        list = list.map(c => {
-          const sc = window.AnkiAlgoV2.scoreSession(c);
-          return {
-            ...c,
-            _prio: c._prio != null ? c._prio : sc.total,
-            _prioFile: c._prioFile || sc.file
-          };
-        });
-      }
-    }
-    // Files séparées : d’abord X- (tri prioX), puis Y- (tri prioY) — scores non comparables
-    list.sort((a, b) => {
-      const fa = a._prioFile === 'quick' || isQuickCard(a) ? 1 : 0;
-      const fb = b._prioFile === 'quick' || isQuickCard(b) ? 1 : 0;
-      if (fa !== fb) return fa - fb;
-      return (b._prio || 0) - (a._prio || 0);
-    });
-    return list;
-  }
-
-  function renderCockpitPickFilters(isManualTab) {
-    if (!isManualTab) return '';
-    const matOpts = (window.D.matieres || []).map(m =>
-      `<option value="${m.id}"${S.cockpitFilterMat === m.id ? ' selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`
-    ).join('');
-    const chapterOpts = buildCockpitChapterOptions().map(o =>
-      `<option value="${esc(o.uid)}"${S.cockpitFilterCours === o.uid ? ' selected' : ''}>${esc(o.label)} · ${esc(o.uid)}</option>`
-    ).join('');
-    return `
-      <div class="anki-filters anki-cockpit-filters">
-        <select class="fi" onchange="window.ankiV2CockpitFilter('mat', this.value)">
-          <option value="">Toutes matières</option>${matOpts}
-        </select>
-        <select class="fi" onchange="window.ankiV2CockpitFilter('cours', this.value)">
-          <option value="">Tous chapitres (ordre Programme)</option>${chapterOpts}
-        </select>
-        <button type="button" class="bp" ${S.cockpitFilterCours ? '' : 'disabled'} onclick="window.ankiV2PlayChapter('${esc(S.cockpitFilterCours)}')" title="Réviser toutes les cartes actives du chapitre">${window.iconLabel('play', 'Play chapitre')}</button>
-      </div>`;
-  }
-
   function buildCockpitChapterOptions() {
     if (typeof window.listChapitres === 'function') {
       const list = window.listChapitres(S.cockpitFilterMat ? { mat: S.cockpitFilterMat } : {});
@@ -961,9 +1183,6 @@
       quickE: plan.countQuickExtra || 0
     };
     const overloadBanner = '';
-
-    const cockpitSearch = S.cockpitSearch || '';
-    const displayList = getCockpitDisplayList();
 
     let html = `
       ${renderCockpitKpisBar()}
@@ -1001,35 +1220,7 @@
       </div>
     `;
 
-    const pickTitle = isManualTab ? 'Choisir mes cartes' : 'Ajouter des Cartes';
-    const pickHint = isManualTab
-      ? (cockpitSearch ? `<b>Recherche</b> (${displayList.length}) — clique pour sélectionner` : 'Toutes les cartes actives — clique pour composer ta session')
-      : (cockpitSearch ? `<b>Recherche</b> (${displayList.length})` : '<b>Cartes dues</b> — clique pour ajouter / retirer (budget recalculé)');
-
-    const pickStats = isManualTab
-      ? `${S.selectionIds.size} sélectionnée(s)`
-      : `${S.pinnedIds.size} ajoutée(s) · ${S.excludedIds.size} retirée(s)`;
-
-    html += `
-      <div class="anki-card-block">
-        <div class="pbar">
-          <div>
-            <h3 style="font-family:'Inter';font-size:16px;margin-bottom:4px;">${window.iconLabel('search', pickTitle)}</h3>
-            <p style="color:var(--mut);font-size:12px;margin:0;" id="ankiPickStats">${pickStats}</p>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            ${isManualTab ? `<button class="cbt" type="button" onclick="window.ankiV2SelectAllPick()">Sél. toutes</button>` : `<button class="cbt" type="button" onclick="window.ankiV2ResetAutoAdjust()">Réinit. algo</button>`}
-            <button class="cbt" type="button" onclick="window.ankiV2SelectClear()">Vider</button>
-          </div>
-        </div>
-        ${isManualTab ? searchField("Cherche carte, chapitre, code cours...", `class="fi anki-search-input" value="${esc(cockpitSearch)}" oninput="window.ankiV2CockpitSearch(this.value)"`) : (cockpitSearch || displayList.length > 12 ? searchField('Filtrer les cartes dues...', `class="fi anki-search-input" value="${esc(cockpitSearch)}" oninput="window.ankiV2CockpitSearch(this.value)"`) : '')}
-        ${renderCockpitPickFilters(isManualTab)}
-        <p class="anki-mut" style="margin:8px 0 6px;font-size:11px;">${pickHint}${isManualTab ? ' · triées par prio ↓' : ''}</p>
-        <div class="cgrid anki-pick-grid" id="ankiPickGrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">
-          ${displayList.map(c => renderPickPcard(c)).join('') || `<div class="anki-empty" style="grid-column:1/-1;">${(window.APP_MSG && window.APP_MSG.EMPTY_SEARCH) || 'Aucun résultat'}</div>`}
-        </div>
-      </div>
-    `;
+    html += renderCockpitPickBlock(isManualTab);
     return html;
   }
 
@@ -1047,26 +1238,25 @@
 
   window.ankiV2CockpitSearch = function (v) {
     S.cockpitSearch = v;
-    renderPickGridOnly();
-    const input = document.querySelector('.anki-search-input');
-    if (input) { input.focus(); input.setSelectionRange(v.length, v.length); }
+    if (getCockpitPickNavLevel() < 2) return;
+    keepPageScroll(function () {
+      renderPickGridOnly();
+      const input = document.querySelector('#ankiPickSection .anki-search-input');
+      if (input) { input.focus(); input.setSelectionRange(v.length, v.length); }
+    });
   };
 
   window.ankiV2CockpitFilter = function (k, v) {
     if (k === 'mat') {
-      S.cockpitFilterMat = v;
-      if (S.cockpitFilterCours) {
-        const co = (window.D.cours || []).find(x => x.uid === S.cockpitFilterCours);
-        if (co && v && co.mat !== v) S.cockpitFilterCours = '';
-      }
+      if (v) window.ankiV2CockpitPickMat(v);
+      else window.ankiV2CockpitPickReset();
     } else if (k === 'cours') {
-      S.cockpitFilterCours = v;
       if (v) {
         const co = (window.D.cours || []).find(x => x.uid === v);
-        if (co) S.cockpitFilterMat = co.mat;
+        if (co && !S.cockpitFilterMat) S.cockpitFilterMat = co.mat;
       }
+      window.ankiV2CockpitPickChapter(v || '');
     }
-    keepPageScroll(renderPickGridOnly);
   };
 
   window.ankiV2BackToAuto = function () {
@@ -1116,10 +1306,14 @@
   }
 
   function renderPickGridOnly() {
+    if (getCockpitPickNavLevel() < 2) {
+      keepPageScroll(refreshCockpitPickSection);
+      return;
+    }
     const grid = $("ankiPickGrid");
     const stats = $("ankiPickStats");
     const scrollTop = grid ? grid.scrollTop : 0;
-    if (!grid) { renderActiveView(); return; }
+    if (!grid) { refreshCockpitPickSection(); return; }
     const plan = computeCockpitPlan();
     setEffectiveIdsFromPlan(plan);
     const list = getCockpitDisplayList();
@@ -1129,6 +1323,14 @@
       stats.textContent = S.cockpitMode === 'manual'
         ? `${S.selectionIds.size} sélectionnée(s)`
         : `${S.pinnedIds.size} ajoutée(s) · ${S.excludedIds.size} retirée(s)`;
+    }
+    const hint = document.querySelector('#ankiPickSection .anki-cockpit-pick-hint');
+    if (hint) {
+      const isManualTab = S.cockpitMode === 'manual';
+      const cockpitSearch = S.cockpitSearch || '';
+      hint.innerHTML = isManualTab
+        ? (cockpitSearch ? `<b>Recherche</b> (${list.length}) — clique pour sélectionner` : 'Clique pour ajouter ou retirer de la file · triées par prio ↓')
+        : (cockpitSearch ? `<b>Recherche</b> (${list.length})` : '<b>Cartes dues</b> — clique pour ajouter / retirer (budget recalculé)');
     }
     grid.scrollTop = scrollTop;
     window.hydrateIcons(grid);
@@ -2816,7 +3018,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <span class="sync-dock-pill-title">Synchrotron</span>
           <span class="sync-dock-pill-sub">${esc(sub)}</span>
         </span>
-        ${c ? `<span class="sync-dock-pill-chrono" id="syncDockChrono">${fmtSec(S.chronoElapsed)}</span>` : ''}
+        ${c && cardUsesSessionTiming(c) ? `<span class="sync-dock-pill-chrono" id="syncDockChrono">${fmtSec(S.chronoElapsed)}</span>` : ''}
         <span class="sync-dock-pill-chevron">${window.iconHtml('chevron-up', 16)}</span>
       </button>
     `;
@@ -2907,7 +3109,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         <div class="sync-dock-card-top">
           <span class="uid-badge">${esc(c.id)}</span>
           <span class="anki-tag" style="background:${matColor}22;color:${matColor};border:1px solid ${matColor}">${esc(mat(c.mat).label)}</span>
-          ${renderChronoBlock(true)}
+          ${cardUsesSessionTiming(c) ? renderChronoBlock(true) : ''}
         </div>
         <div class="sync-dock-title">${esc(c.titre || c.question || c.id)}</div>
         <div class="sync-dock-meta anki-mut">${sessStatsHtml(S.stats.ok, S.stats.mid, S.stats.bad)} · reste ${S.queue.length}</div>
@@ -2994,6 +3196,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const hasReponse = c.reponse && c.reponse.trim().length;
     const showSlider = (window.D.settings && window.D.settings.ankiShowSlider !== false);
     const isDevoir = isDevoirCard(c);
+    const useTiming = cardUsesSessionTiming(c);
 
     const isNewDeckCard = S._deckLastCardId !== c.id;
     S._deckLastCardId = c.id;
@@ -3013,11 +3216,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
             <span class="anki-tag">${stars(c)}</span>
           </div>
           <div class="anki-sess-chrono-col">
-            ${renderChronoBlock(false)}
-            <p class="anki-chrono-hint anki-mut" id="ankiChronoHint">${S.chronoRunning ? "Chrono en cours" : "Lance le chrono quand tu es prêt(e)"}</p>
+            ${useTiming ? `${renderChronoBlock(false)}
+            <p class="anki-chrono-hint anki-mut" id="ankiChronoHint">${S.chronoRunning ? "Chrono en cours" : "Lance le chrono quand tu es prêt(e)"}</p>` : ''}
           </div>
         </div>
-        <div class="anki-sess-meta">${window.iconHtml('timer', 12)} Cible ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>
+        ${useTiming ? `<div class="anki-sess-meta">${window.iconHtml('timer', 12)} Cible ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>` : `<div class="anki-sess-meta">${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>`}
         ${showTitre ? `<div class="anki-sess-titre">${esc(c.titre)}</div>` : ''}
         <div class="anki-sess-q">${formatSessFace(c.question || '')}</div>
         ${renderSourcesBox(c, false)}
@@ -3025,6 +3228,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div class="anki-eval-zone">
           ${hasReponse ? `<div class="anki-sess-r anki-sess-r-compact"><span class="anki-sess-r-label">Réponse</span><div>${formatSessFace(c.reponse)}</div></div>` : '<p class="anki-mut anki-no-rep-hint">Auto-éval · pas de réponse enregistrée</p>'}
           ${renderSourcesBox(c, true)}
+          ${useTiming ? `
           <div class="anki-temps-manuel anki-temps-compact" data-testid="temps-manuel-wrap">
             <div class="anki-temps-row">
               <span class="anki-mut anki-temps-lbl">${window.iconLabel('timer', 'Temps')}</span>
@@ -3039,7 +3243,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
               <button type="button" class="bs anki-temps-chrono-btn" onclick="document.getElementById('ankiTempsManuel').value=${(S.chronoElapsed / 60).toFixed(2)};window._ankiSessionTempsManuel=parseFloat(document.getElementById('ankiTempsManuel').value);">${window.iconLabel('timer', 'Chrono')}</button>
               <span class="anki-mut anki-temps-hint">${fmtSec(S.chronoElapsed)}</span>
             </div>
-          </div>
+          </div>` : ''}
           <div class="anki-evals anki-evals-compact">
               <button class="anki-eval bad" data-testid="eval-bad" onclick="window.evalCardV2(2)"><span class="eval-bad">${window.iconHtml('circle-x', 22, 'icon-lg')}</span><small>Blocage</small></button>
               <button class="anki-eval mid" data-testid="eval-mid" onclick="window.evalCardV2(6)"><span class="eval-mid">${window.iconHtml('circle-minus', 22, 'icon-lg')}</span><small>Étourderie</small></button>
@@ -3177,17 +3381,21 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     S._evalBusy = true;
     try {
     qScore = Math.max(0, Math.min(10, qScore));
+    const usesTiming = cardUsesSessionTiming(S.current);
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
     syncChronoElapsed();
     S.chronoRunning = false;
 
-    // temps réel = saisie manuelle (minutes) ou chrono figé au moment de la note (secondes)
-    const inputManuel = document.getElementById('ankiTempsManuel');
-    let tps = S.chronoElapsed; // par défaut : chrono auto (secondes)
-    if (inputManuel && inputManuel.value !== '' && !isNaN(parseFloat(inputManuel.value))) {
-      const min = Math.max(0, parseFloat(inputManuel.value));
-      tps = min * 60; // conversion minutes → secondes
-      S.sessionTempsManuel = min;
+    // temps réel : cartes X uniquement (pas Y rapides)
+    let tps = null;
+    if (usesTiming) {
+      const inputManuel = document.getElementById('ankiTempsManuel');
+      tps = S.chronoElapsed;
+      if (inputManuel && inputManuel.value !== '' && !isNaN(parseFloat(inputManuel.value))) {
+        const min = Math.max(0, parseFloat(inputManuel.value));
+        tps = min * 60;
+        S.sessionTempsManuel = min;
+      }
     }
 
     const isDevoir = isDevoirCard(S.current);
@@ -3238,7 +3446,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         if (out._v2Phase) S.current._v2Phase = out._v2Phase;
       }
       S.current.historique = S.current.historique || [];
-      S.current.historique.push({ date: new Date().toISOString(), qScore, tempsReel: Math.round(tps), pen: out.penaliteVitesse, mode: S.mode });
+      const histEntry = { date: new Date().toISOString(), qScore, pen: out.penaliteVitesse, mode: S.mode };
+      if (usesTiming && tps != null) histEntry.tempsReel = Math.round(tps);
+      S.current.historique.push(histEntry);
       window.AnkiAlgoV2.log("eval", {
         id: S.current.id,
         qScore,
@@ -3256,7 +3466,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           : (snapshot.card._blocageActif ? `<br>${window.iconLabel('check', '<b style="color:var(--grn);">Blocage levé</b>')}` : '');
         window.sysAlert(
           `<b>${esc(S.current.titre || S.current.id)}</b><br><br>` +
-          `${window.iconLabel('target', `Score : <b>${qScore}/10</b> (vitesse ×${out.penaliteVitesse})`)}<br>` +
+          `${window.iconLabel('target', `Score : <b>${qScore}/10</b>${usesTiming ? ` (vitesse ×${out.penaliteVitesse})` : ''}`)}<br>` +
           `${window.iconLabel('bar-chart', `Ease : ${easeAvant.toFixed(2)} → <b style="color:${easeColor};">${out.ease} ${easeArrow}</b>`)}<br>` +
           `${window.iconLabel('calendar', `Intervalle : ${intAvant}j → <b>${out.intervalle}j</b>`)}<br>` +
           `${window.iconLabel('calendar', `Prochaine révision : <b>${out.dateProchaineRevision}</b>`)}${blocageLine}`,
@@ -3832,8 +4042,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const count = Number(window._quickCreateCount) || 0;
     const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const groupOpts = typeof window.quickGroupOptionsHtml === 'function'
-      ? window.quickGroupOptionsHtml(c.groupId || '', { noneLabel: 'Sans groupe' })
-      : '<option value="">Sans groupe</option>' + ((window.D.quickGroups || []).map(g =>
+      ? window.quickGroupOptionsHtml(c.groupId || '', { noneLabel: 'Sans dossier', matFilter: c.mat || '' })
+      : '<option value="">Sans dossier</option>' + ((window.D.quickGroups || []).map(g =>
           `<option value="${esc(g.id)}" ${c.groupId === g.id ? 'selected' : ''}>${esc(g.name)}</option>`
         ).join(''));
     const modePill = batch
@@ -3873,8 +4083,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           </div>
         </div>
         <div class="anki-modal-row">
-          <div class="fg"><label>Matière *</label><select id="quickMat">${matOpts}</select></div>
-          <div class="fg"><label>Groupe <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label><select id="quickGroup">${groupOpts}</select></div>
+          <div class="fg"><label>Matière *</label><select id="quickMat" onchange="window.quickRefreshGroupSelect&&window.quickRefreshGroupSelect()">${matOpts}</select></div>
+          <div class="fg"><label>Dossier <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label><select id="quickGroup">${groupOpts}</select></div>
         </div>
         <div class="fg">
           <label>Chapitre / cours <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label>

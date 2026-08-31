@@ -715,6 +715,7 @@ body.mode-compact .cdesc { display: none; }
 .notes-svg { width: 100%; height: auto; min-height: 220px; display: block; }
 .notes-grid { stroke: var(--bd); stroke-width: 1; stroke-dasharray: 3 4; }
 .notes-axis { fill: var(--mut); font-size: 10px; font-family: 'DM Mono', monospace; }
+.notes-axis-month { font-family: 'DM Sans', system-ui, sans-serif; font-size: 11px; letter-spacing: 0.01em; text-transform: lowercase; }
 .notes-line { stroke: var(--acc); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
 .notes-avg-line { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: 0.85; }
 .notes-avg-lbl { fill: var(--gold); font-size: 10px; font-family: 'DM Mono', monospace; }
@@ -1834,6 +1835,10 @@ body.not-logged-in #splashScreen {
 .anki-lib-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 .anki-cockpit-filters { margin-top: 8px; margin-bottom: 4px; }
 .anki-cockpit-filters .fi { min-width: 140px; }
+.anki-cockpit-pick-bc { margin-top: 12px; }
+.anki-cockpit-pick-bc .cours-bc-bar { margin-bottom: 12px; }
+.anki-cockpit-pick-hint { margin: 8px 0 6px; font-size: 11px; }
+.anki-cockpit-pick .cours-bc-body { margin-top: 4px; }
 .anki-lib-chip {
  display: inline-flex;
  align-items: center;
@@ -2809,56 +2814,107 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .quick-bc-page { max-width: 960px; }
 .quick-bc-page .cours-bc-bar { margin-bottom: 16px; }
 .quick-filters--in-group { margin-bottom: 12px; }
-.cours-bc-tile--manage {
- border-style: dashed;
- opacity: 0.95;
+.quick-group-section { margin-bottom: 18px; }
+.quick-group-section .cours-bc-grid { margin-top: 10px; }
+.quick-group-section--orphan { margin-top: 8px; }
+.qk-groups-modal {
+  max-width: 540px;
+  width: min(540px, calc(100vw - 32px));
 }
-.cours-bc-tile--manage:hover {
- border-color: var(--acc);
- background: color-mix(in srgb, var(--acc) 8%, var(--s2));
+.qk-groups-intro {
+  font-size: 12px;
+  margin: -4px 0 12px;
+  line-height: 1.45;
 }
-.qk-groups-modal .qk-groups-list {
- display: flex;
- flex-direction: column;
- gap: 8px;
- margin: 12px 0;
- max-height: 40vh;
- overflow: auto;
+.qk-groups-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 4px;
+}
+.qk-groups-mat-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.qk-groups-mat-hdr { margin-bottom: 2px; }
+.qk-groups-empty {
+  font-size: 12px;
+  margin: 0 0 4px 4px;
 }
 .qk-group-row {
- display: flex;
- gap: 6px;
- align-items: center;
- flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+  padding: 10px 12px;
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
 }
-.qk-group-swatch {
- width: 14px;
- height: 14px;
- border-radius: 4px;
- flex-shrink: 0;
+.qk-group-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 .qk-group-row .qk-group-name {
- flex: 1;
- min-width: 120px;
+  width: 100%;
 }
-.qk-group-row .qk-group-color {
- max-width: 110px;
- font-size: 11px;
- padding: 4px 6px;
- background: var(--bg);
- border: 1px solid var(--bd);
- color: var(--txt);
- border-radius: 6px;
+.qk-color-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
-.qk-group-add-row {
- display: flex;
- gap: 8px;
- margin: 10px 0 4px;
- flex-wrap: wrap;
+.qk-color-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.12s ease, border-color 0.12s ease;
 }
-.qk-group-add-row .fi {
- flex: 1;
- min-width: 140px;
+.qk-color-dot:hover {
+  transform: scale(1.08);
+}
+.qk-color-dot.is-on {
+  border-color: var(--txt);
+  box-shadow: 0 0 0 2px var(--bg);
+  transform: scale(1.12);
+}
+.qk-group-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.qk-group-actions .bs {
+  min-width: 34px;
+  padding: 4px 6px;
+}
+.qk-group-add-inline {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 2px;
+}
+.qk-group-add-inline .fi {
+  flex: 1;
+  min-width: 0;
+}
+.qk-group-add-inline .bp {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.cours-create-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--bd);
 }
 .quick-group-section .anki-lib-grp-mat {
  font-weight: 600;
