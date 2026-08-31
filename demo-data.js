@@ -15,8 +15,8 @@ window.demoData = {
     {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter: 6, defaultAnnee: 2, interNames: {'01':'Vocabulaire scientifique','02':'Expressions'}},
   ],
   quickGroups: [
-    { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0 },
-    { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1 },
+    { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0, mat: 'ANGL' },
+    { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1, mat: 'ANGL' },
   ],
   chapitres: [
     /* PHYS 1ère — ordre Programme testable (DnD / Fil d'Ariane) */
@@ -166,8 +166,8 @@ window.demoDataXP = (function() {
       {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter:6, defaultAnnee:2, interNames:{'01':'Vocabulaire scientifique','02':'Expressions'}}
     ],
     quickGroups: [
-      { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0 },
-      { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1 },
+      { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0, mat: 'ANGL' },
+      { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1, mat: 'ANGL' },
     ],
     chapitres: [
       { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U1M' },
@@ -853,8 +853,8 @@ window.demoDataPCStar = (function () {
       { id: "CH-O3G", mat: "CHIM", annee: 1, cl: "C", inter: "03", order: 2, title: "Chimie organique", created: "2026-08-01", notes: "", coursUniteUid: "CH-U3O" }
     ],
     quickGroups: [
-      { id: "QG-VOC", name: "Vocabulaire", color: "#e07ab3", order: 0 },
-      { id: "QG-EXP", name: "Expressions", color: "#a855f7", order: 1 }
+      { id: "QG-VOC", name: "Vocabulaire", color: "#e07ab3", order: 0, mat: "ANGL" },
+      { id: "QG-EXP", name: "Expressions", color: "#a855f7", order: 1, mat: "ANGL" }
     ],
     cours: cours,
     exercices: allExercices,

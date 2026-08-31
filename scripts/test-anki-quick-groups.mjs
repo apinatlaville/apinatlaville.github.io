@@ -1,5 +1,5 @@
 /**
- * Groupes Rapide — navigation fil d’Ariane.
+ * Groupes Rapide — navigation fil d’Ariane + dossiers par matière.
  * Usage: node scripts/test-anki-quick-groups.mjs
  */
 import fs from 'fs';
@@ -25,22 +25,30 @@ const demoSrc = fs.readFileSync(path.join(root, 'demo-data.js'), 'utf8');
 const indexSrc = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const cssSrc = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
 
-console.log('=== Rapide : groupes fil d’Ariane ===\n');
+console.log('=== Rapide : dossiers fil d’Ariane ===\n');
 
 assert(/quickGroups:\s*\[\]/.test(dataSrc), 'emptyData.quickGroups');
 assert(/D\.quickGroups/.test(algoSrc) && /migrateData/.test(algoSrc), 'migrateData initialise quickGroups');
+assert(/mat:\s*g\.mat/.test(algoSrc), 'migrate quickGroups mat');
 assert(/cours-bc-bar|cours-bc-tile|cours-bc-page/.test(quickSrc), 'UI fil d’Ariane (crumbs + tuiles)');
-assert(/quickArianeReset|quickArianePickGroup|quickArianeManageGroups/.test(quickSrc), 'navigation Ariane Rapide');
-assert(/Choisir un groupe/.test(quickSrc), 'écran racine : tuiles groupes');
-assert(/Gérer les groupes/.test(quickSrc), 'tuile gérer les groupes');
+assert(/quickArianeReset|quickArianePickGroup|quickOpenCreateFolder/.test(quickSrc), 'navigation Ariane Rapide');
+assert(/Choisir un dossier/.test(quickSrc), 'écran racine : tuiles dossiers');
+assert(/quick-group-section|groupsByMat|quickGroupsByMat/.test(quickSrc), 'dossiers triés par matière');
+assert(/btnQuickCreateFolder|Créer un dossier/.test(quickSrc), 'création dossier dans menu Créer');
+assert(/btnQuickManageFolders|Gérer les dossiers/.test(quickSrc), 'gestion dossiers dans menu Créer');
+assert(!/cours-bc-tile--manage/.test(quickSrc), 'plus de tuile gérer sur l’écran racine');
+assert(/qk-color-dots|quickPickGroupColor/.test(quickSrc), 'pastilles couleur (sans select)');
+assert(!/qk-group-color/.test(quickSrc), 'plus de select couleur scrollable');
 assert(!/qkFltGroup|Par groupe|quickSetViewBy|quickSetCardGroup/.test(quickSrc), 'plus de toggles/dropdowns groupes');
 assert(!/qk-group-assign|groupAssignControl/.test(quickSrc), 'plus de select groupe sur carte');
-assert(/id="quickGroup"/.test(appSrc), 'champ Groupe dans le modal création');
+assert(/id="quickGroup"/.test(appSrc), 'champ Dossier dans le modal création');
+assert(/quickRefreshGroupSelect/.test(appSrc), 'filtre dossiers par matière au modal');
 assert(/groupId/.test(appSrc) && /editingQuickId/.test(appSrc), 'sauvegarde + édition groupId');
 assert(/groupId:'QG-VOC'|groupId: 'QG-VOC'|groupId: "QG-VOC"/.test(demoSrc), 'démo assigne des groupes');
+assert(/mat:\s*'ANGL'|mat:\s*"ANGL"/.test(demoSrc), 'démo quickGroups avec matière');
 assert(/quickGroups:/.test(demoSrc), 'démo définit quickGroups');
-assert(/quick-bc-page|cours-bc-tile--manage/.test(cssSrc), 'styles fil d’Ariane Rapide');
-assert(/__BOOT_CACHE_V\s*=\s*'20260830a'/.test(indexSrc), 'cache 20260830a');
+assert(/quick-bc-page|qk-groups-sections|qk-color-dot|cours-bc-tile--manage/.test(cssSrc), 'styles Rapide (dossiers + fil d\'Ariane)');
+assert(/__BOOT_CACHE_V\s*=\s*'20260831b'/.test(indexSrc), 'cache 20260831b');
 
 const sandbox = {
   window: {
@@ -53,7 +61,7 @@ const sandbox = {
       matieres: [{ id: 'ANGL', label: 'ANGL', name: 'Anglais', color: '#e07ab3' }],
       cours: [],
       quickGroups: [
-        { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0 },
+        { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0, mat: 'ANGL' },
         { id: '', name: 'bad' },
         { id: 'QG-X', name: '  ' }
       ]
@@ -68,6 +76,7 @@ sandbox.window.AnkiAlgo.migrateData(sandbox.window.D);
 assert(Array.isArray(sandbox.window.D.quickGroups), 'après migrate : quickGroups array');
 assert(sandbox.window.D.quickGroups.length === 1 && sandbox.window.D.quickGroups[0].id === 'QG-VOC',
   'migrate filtre groupes invalides');
+assert(sandbox.window.D.quickGroups[0].mat === 'ANGL', 'migrate conserve mat');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);
