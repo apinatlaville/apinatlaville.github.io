@@ -564,7 +564,6 @@ window.layoutChrome = function() {
   }
 
   if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
-  if (document.body.classList.contains('mobile-sidebar-expanded') && typeof window.syncMobileNavAccordion === 'function') window.syncMobileNavAccordion();
 };
 
 /** Panneau Finder mobile : flèche dans le bandeau titre → plein écran */

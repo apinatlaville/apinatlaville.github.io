@@ -31,8 +31,10 @@ assert(/cours|ankiV2|flashcards|home|notes|print|settings|programme/.test(nav), 
 assert(/bootLoadApplication|loadParallel|cours-wizard/.test(boot), 'boot-loader charge app + wizard');
 assert(/device-session|profiles-io|anki-algo-v2|anki-app-v2/.test(boot), 'boot charge sync + Anki');
 assert(/__BOOT_CACHE_V\s*=\s*'20260831c'/.test(index), 'cache version définie');
-assert(/syncMobileSidebarPanel\(\)[\s\S]{0,160}mobile-sidebar-expanded/.test(read('app.js')),
-  'layoutChrome sync accordéon via classe body');
+assert(/syncMobileSidebarPanel\(\)/.test(read('app.js')),
+  'layoutChrome sync panneau mobile sidebar');
+assert(!/layoutChrome[\s\S]{0,400}syncMobileNavAccordion/.test(read('app.js')),
+  'layoutChrome ne réinitialise pas l’accordéon nav');
 
 console.log('\n=== Programme / chapitres ===\n');
 assert(/paneProgramme|renderProgramme/.test(read('programme.js')), 'module programme.js');
