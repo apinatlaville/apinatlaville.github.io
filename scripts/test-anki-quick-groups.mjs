@@ -40,7 +40,7 @@ assert(/groupId/.test(appSrc) && /editingQuickId/.test(appSrc), 'sauvegarde + é
 assert(/groupId:'QG-VOC'|groupId: 'QG-VOC'|groupId: "QG-VOC"/.test(demoSrc), 'démo assigne des groupes');
 assert(/quickGroups:/.test(demoSrc), 'démo définit quickGroups');
 assert(/quick-bc-page|cours-bc-tile--manage/.test(cssSrc), 'styles fil d’Ariane Rapide');
-assert(/__BOOT_CACHE_V\s*=\s*'20260827c'/.test(indexSrc), 'cache 20260827c');
+assert(/__BOOT_CACHE_V\s*=\s*'20260830a'/.test(indexSrc), 'cache 20260830a');
 
 const sandbox = {
   window: {
