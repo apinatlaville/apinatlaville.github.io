@@ -46,7 +46,9 @@ assert(/quickRefreshGroupSelect/.test(appSrc), 'filtre dossiers par matière au 
 assert(/groupId/.test(appSrc) && /editingQuickId/.test(appSrc), 'sauvegarde + édition groupId');
 assert(/groupId:'QG-VOC'|groupId: 'QG-VOC'|groupId: "QG-VOC"/.test(demoSrc), 'démo assigne des groupes');
 assert(/mat:\s*'ANGL'|mat:\s*"ANGL"/.test(demoSrc), 'démo quickGroups avec matière');
-assert(/quick-bc-page|qk-groups-sections|qk-color-dot/.test(cssSrc), 'styles dossiers Rapide');
+assert(/quickGroups:/.test(demoSrc), 'démo définit quickGroups');
+assert(/quick-bc-page|qk-groups-sections|qk-color-dot|cours-bc-tile--manage/.test(cssSrc), 'styles Rapide (dossiers + fil d\'Ariane)');
+assert(/__BOOT_CACHE_V\s*=\s*'20260831b'/.test(indexSrc), 'cache 20260831b');
 
 const sandbox = {
   window: {

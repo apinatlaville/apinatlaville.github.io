@@ -19,11 +19,19 @@ window.demoData = {
     { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1, mat: 'ANGL' },
   ],
   chapitres: [
+    /* PHYS 1ère — ordre Programme testable (DnD / Fil d'Ariane) */
     { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U1M' },
     { id: 'PH-T9Y', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', order: 1, title: 'Thermodynamique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U2T' },
     { id: 'PH-E7L', mat: 'PHYS', annee: 1, cl: 'A', inter: '03', order: 2, title: 'Électromagnétisme', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U3E' },
+    { id: 'PH-O1P', mat: 'PHYS', annee: 1, cl: 'A', inter: '04', order: 3, title: 'Optique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U4O' },
+    /* MATH 1ère */
     { id: 'MA-A1G', mat: 'MATH', annee: 1, cl: 'B', inter: '01', order: 0, title: 'Algèbre linéaire', created: '2026-08-01', notes: '', coursUniteUid: 'MA-U1A' },
     { id: 'MA-N2P', mat: 'MATH', annee: 1, cl: 'B', inter: '02', order: 1, title: 'Analyse', created: '2026-08-01', notes: '', coursUniteUid: 'MA-U2N' },
+    /* CHIM 1ère */
+    { id: 'CH-C1R', mat: 'CHIM', annee: 1, cl: 'C', inter: '01', order: 0, title: 'Cristallographie', created: '2026-08-01', notes: '', coursUniteUid: 'CH-U1C' },
+    { id: 'CH-K2N', mat: 'CHIM', annee: 1, cl: 'C', inter: '02', order: 1, title: 'Cinétique chimique', created: '2026-08-01', notes: '', coursUniteUid: 'CH-U2K' },
+    { id: 'CH-O3G', mat: 'CHIM', annee: 1, cl: 'C', inter: '03', order: 2, title: 'Chimie organique', created: '2026-08-01', notes: '', coursUniteUid: 'CH-U3O' },
+    /* PHYS 2ème */
     { id: 'PH-S4Q', mat: 'PHYS', annee: 2, cl: 'A', inter: '03', order: 0, title: 'Électrostatique (L2)', created: '2026-08-10', notes: 'Exemple 2ème année', coursUniteUid: 'PH-U4S' }
   ],
   cours: (function () {
@@ -41,24 +49,28 @@ window.demoData = {
       { uid: 'MA-U1A', title: 'Algèbre linéaire', type: 'COURS', rev: 'green', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-40), chapitreId: 'MA-A1G', role: 'unite', isUnite: true },
       { uid: 'MA-U2N', title: 'Analyse', type: 'COURS', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: _shift(-40), chapitreId: 'MA-N2P', role: 'unite', isUnite: true },
       { uid: 'PH-U4S', title: 'Électrostatique (L2)', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-10), chapitreId: 'PH-S4Q', role: 'unite', isUnite: true },
-      /* Documents papier (certains rattachés) */
+      { uid: 'PH-U4O', title: 'Optique', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-10), chapitreId: 'PH-O1P', role: 'unite', isUnite: true },
+      { uid: 'CH-U1C', title: 'Cristallographie', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: _shift(-36), chapitreId: 'CH-C1R', role: 'unite', isUnite: true },
+      { uid: 'CH-U2K', title: 'Cinétique chimique', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-30), chapitreId: 'CH-K2N', role: 'unite', isUnite: true },
+      { uid: 'CH-U3O', title: 'Chimie organique', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: _shift(-12), chapitreId: 'CH-O3G', role: 'unite', isUnite: true },
+      /* Documents papier (rattachés ou orphelins pour Fil d'Ariane) */
       { uid: 'PH-A1B', title: 'Mécanique de Newton', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-40), chapitreId: 'PH-M3K' },
       { uid: 'PH-X9Y', title: 'Thermodynamique', type: 'FICHE', rev: 'orange', mat: 'PHYS', cl: 'A', inter: '02', stat: 'printed', date: _shift(-35), chapitreId: 'PH-T9Y' },
       { uid: 'PH-3K9', title: 'Électromagnétisme', type: 'COURS', rev: 'green', mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-28), chapitreId: 'PH-E7L' },
       { uid: 'MA-7Z3', title: 'Espaces Vectoriels', type: 'COURS', rev: 'red', mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-38), chapitreId: 'MA-A1G' },
       { uid: 'MA-P4L', title: 'Séries Entières', type: 'TD', rev: 'green', mat: 'MATH', cl: 'B', inter: '02', stat: 'pending', date: _shift(-22), chapitreId: 'MA-N2P' },
-      { uid: 'CH-W2N', title: 'Cristallographie', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: _shift(-36) },
-      { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-30) },
+      { uid: 'CH-W2N', title: 'Cristallographie', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '01', stat: 'active', date: _shift(-36), chapitreId: 'CH-C1R' },
+      { uid: 'CH-8M5', title: 'Cinétique Chimique', type: 'COURS', rev: 'orange', mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-30), chapitreId: 'CH-K2N' },
       { uid: 'MA-V6J', title: 'Réduction des endomorphismes', type: 'FICHE', rev: 'orange', mat: 'MATH', cl: 'B', inter: '03', stat: 'active', date: _shift(-18) },
-      { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: _shift(-12) },
-      { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-10) },
-      { uid: 'CH-N12', title: 'DS Cinétique', type: 'DS', rev: 'red', note: '12', rang: 18, effectif: 42, mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-45), duree: 180 },
-      { uid: 'PH-N16', title: 'Colle EM', type: 'KHOLLE', rev: 'green', note: '16', rang: 4, effectif: 12, mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-38), duree: 60 },
-      { uid: 'MA-N11', title: 'DS Analyse', type: 'DS', rev: 'orange', note: '11.5', rang: 20, effectif: 42, mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: _shift(-28), duree: 240 },
-      { uid: 'PH-N14', title: 'Colle Mécanique', type: 'KHOLLE', rev: 'green', note: '14', rang: 6, effectif: 12, mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-21), duree: 60 },
-      { uid: 'CH-N13', title: 'Colle Orga', type: 'KHOLLE', rev: 'orange', note: '13', rang: 7, effectif: 12, mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: _shift(-14), duree: 60 },
-      { uid: 'MA-N17', title: 'Colle Algèbre', type: 'KHOLLE', rev: 'green', note: '17', rang: 2, effectif: 12, mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-7), duree: 60 },
-      { uid: 'PH-N15', title: 'DS Optique', type: 'DS', rev: 'green', note: '15', rang: 8, effectif: 42, mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-3), duree: 180 }
+      { uid: 'CH-T1R', title: 'Chimie Organique - Alcools', type: 'COURS', rev: 'green', mat: 'CHIM', cl: 'C', inter: '03', stat: 'pending', date: _shift(-12), chapitreId: 'CH-O3G' },
+      { uid: 'PH-5D4', title: 'Optique Ondulatoire', type: 'TD', rev: 'red', mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-10), chapitreId: 'PH-O1P' },
+      { uid: 'CH-N12', title: 'DS Cinétique', type: 'DS', rev: 'red', note: '12', rang: 18, effectif: 42, mat: 'CHIM', cl: 'C', inter: '02', stat: 'active', date: _shift(-45), duree: 180, chapitreId: 'CH-K2N' },
+      { uid: 'PH-N16', title: 'Colle EM', type: 'KHOLLE', rev: 'green', note: '16', rang: 4, effectif: 12, mat: 'PHYS', cl: 'A', inter: '03', stat: 'active', date: _shift(-38), duree: 60, chapitreId: 'PH-E7L' },
+      { uid: 'MA-N11', title: 'DS Analyse', type: 'DS', rev: 'orange', note: '11.5', rang: 20, effectif: 42, mat: 'MATH', cl: 'B', inter: '02', stat: 'active', date: _shift(-28), duree: 240, chapitreId: 'MA-N2P' },
+      { uid: 'PH-N14', title: 'Colle Mécanique', type: 'KHOLLE', rev: 'green', note: '14', rang: 6, effectif: 12, mat: 'PHYS', cl: 'A', inter: '01', stat: 'active', date: _shift(-21), duree: 60, chapitreId: 'PH-M3K' },
+      { uid: 'CH-N13', title: 'Colle Orga', type: 'KHOLLE', rev: 'orange', note: '13', rang: 7, effectif: 12, mat: 'CHIM', cl: 'C', inter: '03', stat: 'active', date: _shift(-14), duree: 60, chapitreId: 'CH-O3G' },
+      { uid: 'MA-N17', title: 'Colle Algèbre', type: 'KHOLLE', rev: 'green', note: '17', rang: 2, effectif: 12, mat: 'MATH', cl: 'B', inter: '01', stat: 'active', date: _shift(-7), duree: 60, chapitreId: 'MA-A1G' },
+      { uid: 'PH-N15', title: 'DS Optique', type: 'DS', rev: 'green', note: '15', rang: 8, effectif: 42, mat: 'PHYS', cl: 'A', inter: '04', stat: 'active', date: _shift(-3), duree: 180, chapitreId: 'PH-O1P' }
     ];
   })(),
   exercices: (function(){
@@ -69,39 +81,39 @@ window.demoData = {
       // ===========================================================
       // 📚 COURS LONGS (15-25 min) — démonstrations complètes
       // ===========================================================
-      { id:'X-K3F', titre:"Théorème énergie cinétique (démo complète)", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Démontre le théorème de l'énergie cinétique pour un système matériel + rappelle les hypothèses + applique à l'oscillateur harmonique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen. Hypothèses : système fermé, sommation sur tous les points. Application : E_méca = Ec + Ep, conservation si forces conservatives.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], epinglee:true, dateCreation:_today },
-      { id:'X-7QP', titre:"Diagonalisabilité (démonstration)", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Démontre le critère de diagonalisabilité : un endomorphisme est diagonalisable ssi son polynôme caractéristique est scindé ET dim(E_λ) = mult(λ) pour tout λ.", reponse:"Sens direct : si diagonalisable, base de vecteurs propres → matrice diagonale → χ scindé et dim(E_λ) = mult(λ). Sens réciproque : si conditions remplies, somme des sous-espaces propres = E (dim) → base de vecteurs propres.", tempsCible:1500, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-T8R', titre:"Mécanisme SN1 vs SN2", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Compare les mécanismes SN1 et SN2 : étapes, cinétique, stéréochimie, conditions favorables.", reponse:"SN1 : 2 étapes (carbocation), cinétique d'ordre 1, racémisation, favorable substrat tertiaire+solvant polaire protique. SN2 : 1 étape concertée, ordre 2, inversion de Walden, favorable primaire+aprotique polaire.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-2RT', titre:"Équations de Maxwell (formes locales et intégrales)", coursIds:['PH-3K9'], mat:'PHYS', profil:'COURS', question:"Énonce les 4 équations de Maxwell sous forme locale ET intégrale, donne leur signification physique.", reponse:"Gauss (E) : div E = ρ/ε₀ ; Thomson : div B = 0 ; Faraday : rot E = -∂B/∂t ; Ampère-Maxwell : rot B = μ₀(j + ε₀∂E/∂t). Intégrales : flux/circulation.", tempsCible:900, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'X-K3F', titre:"Théorème énergie cinétique (démo complète)", coursIds:['PH-U1M'], mat:'PHYS', profil:'COURS', question:"Démontre le théorème de l'énergie cinétique pour un système matériel + rappelle les hypothèses + applique à l'oscillateur harmonique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen. Hypothèses : système fermé, sommation sur tous les points. Application : E_méca = Ec + Ep, conservation si forces conservatives.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], epinglee:true, dateCreation:_today },
+      { id:'X-7QP', titre:"Diagonalisabilité (démonstration)", coursIds:['MA-U1A'], mat:'MATH', profil:'COURS', question:"Démontre le critère de diagonalisabilité : un endomorphisme est diagonalisable ssi son polynôme caractéristique est scindé ET dim(E_λ) = mult(λ) pour tout λ.", reponse:"Sens direct : si diagonalisable, base de vecteurs propres → matrice diagonale → χ scindé et dim(E_λ) = mult(λ). Sens réciproque : si conditions remplies, somme des sous-espaces propres = E (dim) → base de vecteurs propres.", tempsCible:1500, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-T8R', titre:"Mécanisme SN1 vs SN2", coursIds:['CH-U3O'], mat:'CHIM', profil:'COURS', question:"Compare les mécanismes SN1 et SN2 : étapes, cinétique, stéréochimie, conditions favorables.", reponse:"SN1 : 2 étapes (carbocation), cinétique d'ordre 1, racémisation, favorable substrat tertiaire+solvant polaire protique. SN2 : 1 étape concertée, ordre 2, inversion de Walden, favorable primaire+aprotique polaire.", tempsCible:1200, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-2RT', titre:"Équations de Maxwell (formes locales et intégrales)", coursIds:['PH-U3E'], mat:'PHYS', profil:'COURS', question:"Énonce les 4 équations de Maxwell sous forme locale ET intégrale, donne leur signification physique.", reponse:"Gauss (E) : div E = ρ/ε₀ ; Thomson : div B = 0 ; Faraday : rot E = -∂B/∂t ; Ampère-Maxwell : rot B = μ₀(j + ε₀∂E/∂t). Intégrales : flux/circulation.", tempsCible:900, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
 
       // ===========================================================
       // 🧪 DÉMONSTRATIONS / MÉCANISMES (5-10 min)
       // ===========================================================
-      { id:'X-5BD', titre:"Sous-espace vectoriel (preuve)", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Prouve que l'intersection de 2 SEV est un SEV.", reponse:"Soit F, G SEV de E. F∩G non vide (contient 0). Stabilité : ∀(x,y)∈F∩G, ∀λ : x+λy ∈ F (car F SEV) ET ∈ G → ∈ F∩G.", tempsCible:480, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-9XM', titre:"Démo rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'COURS', question:"Démontre la formule du rendement de Carnot à partir des 2 principes.", reponse:"Cycle ditherme réversible : ΔS_univ = 0 → -Qc/Tc - Qf/Tf = 0 → Qf = -Qc·Tf/Tc. η = W/Qc = 1 + Qf/Qc = 1 - Tf/Tc.", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-N7G', titre:"Loi d'Arrhenius (démo)", coursIds:['CH-8M5'], mat:'CHIM', profil:'COURS', question:"Démontre k = A·exp(-Ea/RT) à partir de la théorie des collisions.", reponse:"Fraction de molécules avec E ≥ Ea suit Boltzmann : exp(-Ea/RT). Vitesse = facteur préexp (collisions+géométrie) × fraction efficace.", tempsCible:540, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
-      { id:'X-D6X', titre:"Dérivation série entière", coursIds:['MA-P4L'], mat:'MATH', profil:'COURS', question:"Calcule Σ n·x^(n−1) sur ]-1,1[ par dérivation terme à terme. Justifie l'opération.", reponse:"Σ x^n = 1/(1-x) sur ]-1,1[. Dérivation terme à terme légitime (convergence normale sur tout compact) : Σ n·x^(n-1) = 1/(1-x)².", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-5BD', titre:"Sous-espace vectoriel (preuve)", coursIds:['MA-U1A'], mat:'MATH', profil:'COURS', question:"Prouve que l'intersection de 2 SEV est un SEV.", reponse:"Soit F, G SEV de E. F∩G non vide (contient 0). Stabilité : ∀(x,y)∈F∩G, ∀λ : x+λy ∈ F (car F SEV) ET ∈ G → ∈ F∩G.", tempsCible:480, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-9XM', titre:"Démo rendement Carnot", coursIds:['PH-U2T'], mat:'PHYS', profil:'COURS', question:"Démontre la formule du rendement de Carnot à partir des 2 principes.", reponse:"Cycle ditherme réversible : ΔS_univ = 0 → -Qc/Tc - Qf/Tf = 0 → Qf = -Qc·Tf/Tc. η = W/Qc = 1 + Qf/Qc = 1 - Tf/Tc.", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-N7G', titre:"Loi d'Arrhenius (démo)", coursIds:['CH-U2K'], mat:'CHIM', profil:'COURS', question:"Démontre k = A·exp(-Ea/RT) à partir de la théorie des collisions.", reponse:"Fraction de molécules avec E ≥ Ea suit Boltzmann : exp(-Ea/RT). Vitesse = facteur préexp (collisions+géométrie) × fraction efficace.", tempsCible:540, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'X-D6X', titre:"Dérivation série entière", coursIds:['MA-U2N'], mat:'MATH', profil:'COURS', question:"Calcule Σ n·x^(n−1) sur ]-1,1[ par dérivation terme à terme. Justifie l'opération.", reponse:"Σ x^n = 1/(1-x) sur ]-1,1[. Dérivation terme à terme légitime (convergence normale sur tout compact) : Σ n·x^(n-1) = 1/(1-x)².", tempsCible:600, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
 
       // ===========================================================
       // 📐 EXERCICES TYPES (20-30 min) — méthodes à maîtriser
       // ===========================================================
-      { id:'X-J8L', titre:"Exo : Interférences fentes d'Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Setup : λ=633nm, a=0.5mm, D=2m. (1) Calcule l'interfrange. (2) Si on plonge dans l'eau (n=1.33), nouvel interfrange ? (3) Si on bouche 1 fente, que voit-on ?", reponse:"(1) i=λD/a = 2.53 mm. (2) λ' = λ/n → i' = 1.90 mm. (3) Plus d'interférences, juste tache de diffraction d'une fente.", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'X-J8L', titre:"Exo : Interférences fentes d'Young", coursIds:['PH-U4O'], mat:'PHYS', profil:'EXO', question:"Setup : λ=633nm, a=0.5mm, D=2m. (1) Calcule l'interfrange. (2) Si on plonge dans l'eau (n=1.33), nouvel interfrange ? (3) Si on bouche 1 fente, que voit-on ?", reponse:"(1) i=λD/a = 2.53 mm. (2) λ' = λ/n → i' = 1.90 mm. (3) Plus d'interférences, juste tache de diffraction d'une fente.", tempsCible:1500, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
       { id:'X-EXJ', titre:"Exo : Réduction d'endomorphisme", coursIds:['MA-V6J'], mat:'MATH', profil:'EXO', question:"Soit M = ((3,1),(0,2)). (1) M est-elle diagonalisable ? (2) Si oui, trouve P et D telles que M = P·D·P⁻¹.", reponse:"(1) χ_M(X) = (X-3)(X-2) scindé à racines simples → diagonalisable. (2) E_3 = Vect((1,0)), E_2 = Vect((1,-1)). P = ((1,1),(0,-1)), D = diag(3,2).", tempsCible:1800, priorite:1, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
-      { id:'X-EXC', titre:"Exo : Cinétique ordre 1 (régression)", coursIds:['CH-8M5'], mat:'CHIM', profil:'EXO', question:"On a [A](t=0)=0.1 M, [A](100s)=0.082 M, [A](300s)=0.055 M. (1) Vérifie que c'est bien d'ordre 1. (2) Détermine k et t½.", reponse:"(1) ln[A] vs t : (0,-2.30), (100,-2.50), (300,-2.90) → droite, ordre 1. (2) Pente = -k → k ≈ 0.002 s⁻¹. t½ = ln2/k ≈ 347 s.", tempsCible:1200, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
+      { id:'X-EXC', titre:"Exo : Cinétique ordre 1 (régression)", coursIds:['CH-U2K'], mat:'CHIM', profil:'EXO', question:"On a [A](t=0)=0.1 M, [A](100s)=0.082 M, [A](300s)=0.055 M. (1) Vérifie que c'est bien d'ordre 1. (2) Détermine k et t½.", reponse:"(1) ln[A] vs t : (0,-2.30), (100,-2.50), (300,-2.90) → droite, ordre 1. (2) Pente = -k → k ≈ 0.002 s⁻¹. t½ = ln2/k ≈ 347 s.", tempsCible:1200, priorite:2, statut:'actif', intervalle:0, ease:2.4, repetitions:0, dateProchaineRevision:_shift(2), historique:[], dateCreation:_today },
 
       // ===========================================================
       // 🎯 FORMULES COURTES (1-3 min) — rappel rapide
       // ===========================================================
-      { id:'X-FRM', titre:"Maxwell-Faraday (forme locale)", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation de Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:90, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-FRM', titre:"Maxwell-Faraday (forme locale)", coursIds:['PH-U3E'], mat:'PHYS', profil:'FORMULE', question:"Équation de Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:90, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
       { id:'X-HDM', titre:"Hadamard (rayon convergence)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R.", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:120, priorite:2, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-T12', titre:"t½ ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Temps de demi-réaction d'un ordre 1.", reponse:"t½ = ln(2) / k (indépendant de [A]₀)", tempsCible:90, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
-      { id:'X-FR2', titre:"Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"Rendement Carnot.", reponse:"η = 1 − Tf/Tc", tempsCible:60, priorite:3, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
+      { id:'X-T12', titre:"t½ ordre 1", coursIds:['CH-U2K'], mat:'CHIM', profil:'FORMULE', question:"Temps de demi-réaction d'un ordre 1.", reponse:"t½ = ln(2) / k (indépendant de [A]₀)", tempsCible:90, priorite:1, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_today, historique:[], dateCreation:_today },
+      { id:'X-FR2', titre:"Carnot", coursIds:['PH-U2T'], mat:'PHYS', profil:'FORMULE', question:"Rendement Carnot.", reponse:"η = 1 − Tf/Tc", tempsCible:60, priorite:3, statut:'actif', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:_shift(1), historique:[], dateCreation:_today },
       { id:'X-VBR', titre:"Variance Bernoulli", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Variance d'une loi de Bernoulli B(p).", reponse:"V(X) = p(1-p)", tempsCible:60, importance:2, statut:'reservoir', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
 
       // ===========================================================
       // ⏳ RÉSERVOIR (nouvelles cartes en attente)
       // ===========================================================
-      { id:'X-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov : addition d'H-X sur alcène asymétrique.", reponse:"H+ s'additionne sur le carbone le PLUS hydrogéné (donc X- sur le plus substitué) → carbocation le plus stable.", tempsCible:300, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
+      { id:'X-W3K', titre:"Markovnikov", coursIds:['CH-U3O'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov : addition d'H-X sur alcène asymétrique.", reponse:"H+ s'additionne sur le carbone le PLUS hydrogéné (donc X- sur le plus substitué) → carbocation le plus stable.", tempsCible:300, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_today },
 
       // ===========================================================
       // 🇬🇧 ANGLAIS (max 3 — juste pour combler les trous)
@@ -148,48 +160,66 @@ window.demoDataXP = (function() {
       {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
     ],
     classeurs: [
-      {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter:12, interNames:{'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique','05':'Mécanique quantique'}},
-      {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter:12, interNames:{'01':'Algèbre linéaire','02':'Analyse','03':'Réduction','04':'Probabilités'}},
-      {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter:12, interNames:{'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools','04':'Atomistique'}},
-      {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter:6, interNames:{'01':'Vocabulaire scientifique','02':'Expressions'}}
+      {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter:12, defaultAnnee:1, interNames:{'01':'Mécanique','02':'Thermodynamique','03':'Électromagnétisme','04':'Optique','05':'Mécanique quantique'}},
+      {id:'B', name:'Classeur Maths B', icon:'book-orange', color:'#f0c060', maxInter:12, defaultAnnee:1, interNames:{'01':'Algèbre linéaire','02':'Analyse','03':'Réduction','04':'Probabilités'}},
+      {id:'C', name:'Classeur Chim C', icon:'book-green', color:'#50d890', maxInter:12, defaultAnnee:1, interNames:{'01':'Cristallographie','02':'Cinétique','03':'Orga - Alcools','04':'Atomistique'}},
+      {id:'E', name:'Classeur Anglais', icon:'languages', color:'#e07ab3', maxInter:6, defaultAnnee:2, interNames:{'01':'Vocabulaire scientifique','02':'Expressions'}}
     ],
     quickGroups: [
       { id: 'QG-VOC', name: 'Vocabulaire', color: '#e07ab3', order: 0, mat: 'ANGL' },
       { id: 'QG-EXP', name: 'Expressions', color: '#a855f7', order: 1, mat: 'ANGL' },
     ],
+    chapitres: [
+      { id: 'PH-M3K', mat: 'PHYS', annee: 1, cl: 'A', inter: '01', order: 0, title: 'Mécanique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U1M' },
+      { id: 'PH-T9Y', mat: 'PHYS', annee: 1, cl: 'A', inter: '02', order: 1, title: 'Thermodynamique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U2T' },
+      { id: 'PH-E7L', mat: 'PHYS', annee: 1, cl: 'A', inter: '03', order: 2, title: 'Électromagnétisme', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U3E' },
+      { id: 'PH-O1P', mat: 'PHYS', annee: 1, cl: 'A', inter: '04', order: 3, title: 'Optique', created: '2026-08-01', notes: '', coursUniteUid: 'PH-U4O' },
+      { id: 'MA-A1G', mat: 'MATH', annee: 1, cl: 'B', inter: '01', order: 0, title: 'Algèbre linéaire', created: '2026-08-01', notes: '', coursUniteUid: 'MA-U1A' },
+      { id: 'MA-N2P', mat: 'MATH', annee: 1, cl: 'B', inter: '02', order: 1, title: 'Analyse', created: '2026-08-01', notes: '', coursUniteUid: 'MA-U2N' },
+      { id: 'CH-K2N', mat: 'CHIM', annee: 1, cl: 'C', inter: '02', order: 0, title: 'Cinétique chimique', created: '2026-08-01', notes: '', coursUniteUid: 'CH-U2K' },
+      { id: 'CH-O3G', mat: 'CHIM', annee: 1, cl: 'C', inter: '03', order: 1, title: 'Chimie organique', created: '2026-08-01', notes: '', coursUniteUid: 'CH-U3O' }
+    ],
     cours: [
-      { uid:'PH-A1B', title:'Mécanique de Newton', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-21) },
-      { uid:'PH-X9Y', title:'Thermodynamique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-18) },
-      { uid:'PH-3K9', title:'Électromagnétisme', type:'COURS', rev:'orange', mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-14) },
-      { uid:'PH-5D4', title:'Optique Ondulatoire', type:'TD', rev:'red', mat:'PHYS', cl:'A', inter:'04', stat:'active', date:_shift(-7) },
-      { uid:'MA-7Z3', title:'Espaces Vectoriels', type:'COURS', rev:'green', mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-21) },
-      { uid:'MA-P4L', title:'Séries Entières', type:'TD', rev:'orange', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-10) },
+      { uid:'PH-U1M', title:'Mécanique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-21), chapitreId:'PH-M3K', role:'unite', isUnite:true },
+      { uid:'PH-U2T', title:'Thermodynamique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-18), chapitreId:'PH-T9Y', role:'unite', isUnite:true },
+      { uid:'PH-U3E', title:'Électromagnétisme', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-14), chapitreId:'PH-E7L', role:'unite', isUnite:true },
+      { uid:'PH-U4O', title:'Optique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'04', stat:'active', date:_shift(-7), chapitreId:'PH-O1P', role:'unite', isUnite:true },
+      { uid:'MA-U1A', title:'Algèbre linéaire', type:'COURS', rev:'green', mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-21), chapitreId:'MA-A1G', role:'unite', isUnite:true },
+      { uid:'MA-U2N', title:'Analyse', type:'COURS', rev:'green', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-10), chapitreId:'MA-N2P', role:'unite', isUnite:true },
+      { uid:'CH-U2K', title:'Cinétique chimique', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8), chapitreId:'CH-K2N', role:'unite', isUnite:true },
+      { uid:'CH-U3O', title:'Chimie organique', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'03', stat:'active', date:_shift(-12), chapitreId:'CH-O3G', role:'unite', isUnite:true },
+      { uid:'PH-A1B', title:'Mécanique de Newton', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-21), chapitreId:'PH-M3K' },
+      { uid:'PH-X9Y', title:'Thermodynamique', type:'COURS', rev:'green', mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-18), chapitreId:'PH-T9Y' },
+      { uid:'PH-3K9', title:'Électromagnétisme', type:'COURS', rev:'orange', mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-14), chapitreId:'PH-E7L' },
+      { uid:'PH-5D4', title:'Optique Ondulatoire', type:'TD', rev:'red', mat:'PHYS', cl:'A', inter:'04', stat:'active', date:_shift(-7), chapitreId:'PH-O1P' },
+      { uid:'MA-7Z3', title:'Espaces Vectoriels', type:'COURS', rev:'green', mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-21), chapitreId:'MA-A1G' },
+      { uid:'MA-P4L', title:'Séries Entières', type:'TD', rev:'orange', mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-10), chapitreId:'MA-N2P' },
       { uid:'MA-V6J', title:'Réduction', type:'FICHE', rev:'orange', mat:'MATH', cl:'B', inter:'03', stat:'active', date:_shift(-5) },
-      { uid:'CH-T1R', title:'Chimie Org - Alcools', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'03', stat:'active', date:_shift(-12) },
-      { uid:'CH-8M5', title:'Cinétique Chimique', type:'COURS', rev:'orange', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8) },
-      { uid:'PH-D1A', title:'DS1 Mécanique', type:'DS', rev:'orange', note:'11', rang:22, effectif:42, mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-18), duree:180 },
-      { uid:'PH-K1A', title:'Colle Thermo', type:'KHOLLE', rev:'green', note:'14', rang:5, effectif:12, mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-14), duree:60 },
-      { uid:'MA-D1A', title:'DS1 Algèbre', type:'DS', rev:'red', note:'9.5', rang:28, effectif:42, mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-16), duree:240 },
-      { uid:'MA-K1A', title:'Colle Analyse', type:'KHOLLE', rev:'green', note:'15', rang:3, effectif:12, mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-9), duree:60 },
-      { uid:'CH-K1A', title:'Colle Cinétique', type:'KHOLLE', rev:'orange', note:'12.5', rang:8, effectif:12, mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-6), duree:60 },
-      { uid:'PH-D2A', title:'DS2 EM', type:'DS', rev:'green', note:'13', rang:14, effectif:42, mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-3), duree:180 }
+      { uid:'CH-T1R', title:'Chimie Org - Alcools', type:'COURS', rev:'green', mat:'CHIM', cl:'C', inter:'03', stat:'active', date:_shift(-12), chapitreId:'CH-O3G' },
+      { uid:'CH-8M5', title:'Cinétique Chimique', type:'COURS', rev:'orange', mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-8), chapitreId:'CH-K2N' },
+      { uid:'PH-D1A', title:'DS1 Mécanique', type:'DS', rev:'orange', note:'11', rang:22, effectif:42, mat:'PHYS', cl:'A', inter:'01', stat:'active', date:_shift(-18), duree:180, chapitreId:'PH-M3K' },
+      { uid:'PH-K1A', title:'Colle Thermo', type:'KHOLLE', rev:'green', note:'14', rang:5, effectif:12, mat:'PHYS', cl:'A', inter:'02', stat:'active', date:_shift(-14), duree:60, chapitreId:'PH-T9Y' },
+      { uid:'MA-D1A', title:'DS1 Algèbre', type:'DS', rev:'red', note:'9.5', rang:28, effectif:42, mat:'MATH', cl:'B', inter:'01', stat:'active', date:_shift(-16), duree:240, chapitreId:'MA-A1G' },
+      { uid:'MA-K1A', title:'Colle Analyse', type:'KHOLLE', rev:'green', note:'15', rang:3, effectif:12, mat:'MATH', cl:'B', inter:'02', stat:'active', date:_shift(-9), duree:60, chapitreId:'MA-N2P' },
+      { uid:'CH-K1A', title:'Colle Cinétique', type:'KHOLLE', rev:'orange', note:'12.5', rang:8, effectif:12, mat:'CHIM', cl:'C', inter:'02', stat:'active', date:_shift(-6), duree:60, chapitreId:'CH-K2N' },
+      { uid:'PH-D2A', title:'DS2 EM', type:'DS', rev:'green', note:'13', rang:14, effectif:42, mat:'PHYS', cl:'A', inter:'03', stat:'active', date:_shift(-3), duree:180, chapitreId:'PH-E7L' }
     ],
     exercices: [
       // Cartes maîtrisées (ease haut, intervalle moyen, historique réussi)
-      { id:'X-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-A1B'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen.", tempsCible:60, priorite:1, statut:'actif', intervalle:8, ease:2.75, repetitions:4, dateProchaineRevision:_shift(2), historique:histo([8,9,8,9],[55,50,48,45]), dateCreation:_dateTime(-21) },
-      { id:'X-9XM', titre:"Rendement Carnot", coursIds:['PH-X9Y'], mat:'PHYS', profil:'FORMULE', question:"η de Carnot ?", reponse:"η = 1 − Tf/Tc (T en K).", tempsCible:30, priorite:2, statut:'actif', intervalle:14, ease:2.8, repetitions:5, dateProchaineRevision:_shift(7), historique:histo([8,9,10,9,10],[28,25,22,20,18]), dateCreation:_dateTime(-25) },
+      { id:'X-K3F', titre:"Théorème énergie cinétique", coursIds:['PH-U1M'], mat:'PHYS', profil:'COURS', question:"Énonce le théorème de l'énergie cinétique.", reponse:"ΔEc = ΣW(F_ext) + ΣW(F_int). Réf. galiléen.", tempsCible:60, priorite:1, statut:'actif', intervalle:8, ease:2.75, repetitions:4, dateProchaineRevision:_shift(2), historique:histo([8,9,8,9],[55,50,48,45]), dateCreation:_dateTime(-21) },
+      { id:'X-9XM', titre:"Rendement Carnot", coursIds:['PH-U2T'], mat:'PHYS', profil:'FORMULE', question:"η de Carnot ?", reponse:"η = 1 − Tf/Tc (T en K).", tempsCible:30, priorite:2, statut:'actif', intervalle:14, ease:2.8, repetitions:5, dateProchaineRevision:_shift(7), historique:histo([8,9,10,9,10],[28,25,22,20,18]), dateCreation:_dateTime(-25) },
       // Cartes en difficulté (ease bas, intervalle court, historique mixte)
       { id:'X-7QP', titre:"Diagonalisabilité", coursIds:['MA-V6J'], mat:'MATH', profil:'COURS', question:"Critère de diagonalisabilité d'un endomorphisme.", reponse:"⟺ Pol. car. scindé + dim(E_λ)=mult(λ) ∀λ.", tempsCible:90, priorite:1, statut:'actif', intervalle:1, ease:1.85, repetitions:3, dateProchaineRevision:_today, historique:histo([3,5,3,6],[120,100,140,95]), dateCreation:_dateTime(-15) },
-      { id:'X-D6X', titre:"Série dérivée", coursIds:['MA-P4L'], mat:'MATH', profil:'EXO', question:"Σ n·x^(n−1) sur ]-1,1[ ?", reponse:"= 1/(1-x)²", tempsCible:75, priorite:1, statut:'actif', intervalle:0, ease:1.7, repetitions:2, dateProchaineRevision:_today, historique:histo([2,4,3],[110,90,105]), dateCreation:_dateTime(-12) },
+      { id:'X-D6X', titre:"Série dérivée", coursIds:['MA-U2N'], mat:'MATH', profil:'EXO', question:"Σ n·x^(n−1) sur ]-1,1[ ?", reponse:"= 1/(1-x)²", tempsCible:75, priorite:1, statut:'actif', intervalle:0, ease:1.7, repetitions:2, dateProchaineRevision:_today, historique:histo([2,4,3],[110,90,105]), dateCreation:_dateTime(-12) },
       // Cartes moyennes
-      { id:'X-2RT', titre:"Maxwell-Faraday", coursIds:['PH-3K9'], mat:'PHYS', profil:'FORMULE', question:"Équation Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:30, priorite:2, statut:'actif', intervalle:5, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([6,7,7],[35,30,28]), dateCreation:_dateTime(-14) },
-      { id:'X-J8L', titre:"Interférences Young", coursIds:['PH-5D4'], mat:'PHYS', profil:'EXO', question:"Interfrange dans les fentes d'Young ?", reponse:"i = λD/a", tempsCible:90, priorite:2, statut:'actif', intervalle:3, ease:2.2, repetitions:2, dateProchaineRevision:_shift(1), historique:histo([5,6],[100,85]), dateCreation:_dateTime(-9) },
-      { id:'X-5BD', titre:"Sous-espace vectoriel", coursIds:['MA-7Z3'], mat:'MATH', profil:'COURS', question:"Définition d'un SEV.", reponse:"Stable par +, ·, contient 0_E.", tempsCible:45, priorite:2, statut:'actif', intervalle:21, ease:2.85, repetitions:6, dateProchaineRevision:_shift(14), historique:histo([9,10,9,10,9,10],[40,35,30,28,25,22]), dateCreation:_dateTime(-30) },
-      { id:'X-T8R', titre:"Oxydation alcool primaire", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Produits d'oxydation douce d'un alcool primaire ?", reponse:"Aldéhyde (puis acide carbox. si excès).", tempsCible:45, priorite:2, statut:'actif', intervalle:7, ease:2.5, repetitions:3, dateProchaineRevision:_shift(3), historique:histo([7,8,7],[50,45,40]), dateCreation:_dateTime(-10) },
-      { id:'X-N7G', titre:"Cinétique ordre 1", coursIds:['CH-8M5'], mat:'CHIM', profil:'FORMULE', question:"Loi d'ordre 1 intégrée et t½.", reponse:"[A]=[A]₀·exp(−kt); t½=ln2/k", tempsCible:60, priorite:1, statut:'actif', intervalle:0, ease:2.0, repetitions:1, dateProchaineRevision:_today, historique:histo([4,3],[80,75]), dateCreation:_dateTime(-7) },
+      { id:'X-2RT', titre:"Maxwell-Faraday", coursIds:['PH-U3E'], mat:'PHYS', profil:'FORMULE', question:"Équation Maxwell-Faraday locale.", reponse:"rot(E) = −∂B/∂t", tempsCible:30, priorite:2, statut:'actif', intervalle:5, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([6,7,7],[35,30,28]), dateCreation:_dateTime(-14) },
+      { id:'X-J8L', titre:"Interférences Young", coursIds:['PH-U4O'], mat:'PHYS', profil:'EXO', question:"Interfrange dans les fentes d'Young ?", reponse:"i = λD/a", tempsCible:90, priorite:2, statut:'actif', intervalle:3, ease:2.2, repetitions:2, dateProchaineRevision:_shift(1), historique:histo([5,6],[100,85]), dateCreation:_dateTime(-9) },
+      { id:'X-5BD', titre:"Sous-espace vectoriel", coursIds:['MA-U1A'], mat:'MATH', profil:'COURS', question:"Définition d'un SEV.", reponse:"Stable par +, ·, contient 0_E.", tempsCible:45, priorite:2, statut:'actif', intervalle:21, ease:2.85, repetitions:6, dateProchaineRevision:_shift(14), historique:histo([9,10,9,10,9,10],[40,35,30,28,25,22]), dateCreation:_dateTime(-30) },
+      { id:'X-T8R', titre:"Oxydation alcool primaire", coursIds:['CH-U3O'], mat:'CHIM', profil:'COURS', question:"Produits d'oxydation douce d'un alcool primaire ?", reponse:"Aldéhyde (puis acide carbox. si excès).", tempsCible:45, priorite:2, statut:'actif', intervalle:7, ease:2.5, repetitions:3, dateProchaineRevision:_shift(3), historique:histo([7,8,7],[50,45,40]), dateCreation:_dateTime(-10) },
+      { id:'X-N7G', titre:"Cinétique ordre 1", coursIds:['CH-U2K'], mat:'CHIM', profil:'FORMULE', question:"Loi d'ordre 1 intégrée et t½.", reponse:"[A]=[A]₀·exp(−kt); t½=ln2/k", tempsCible:60, priorite:1, statut:'actif', intervalle:0, ease:2.0, repetitions:1, dateProchaineRevision:_today, historique:histo([4,3],[80,75]), dateCreation:_dateTime(-7) },
       // Réservoir : nouvelles cartes en attente
       { id:'X-V4N', titre:"Rayon convergence (Hadamard)", coursIds:[], mat:'MATH', profil:'FORMULE', question:"Formule de Hadamard pour R ?", reponse:"1/R = limsup |a_n|^(1/n)", tempsCible:50, priorite:2, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-2) },
-      { id:'X-W3K', titre:"Markovnikov", coursIds:['CH-T1R'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov.", reponse:"H+ sur le C le + hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-1) },
+      { id:'X-W3K', titre:"Markovnikov", coursIds:['CH-U3O'], mat:'CHIM', profil:'COURS', question:"Règle de Markovnikov.", reponse:"H+ sur le C le + hydrogéné de la double liaison.", tempsCible:30, priorite:3, statut:'attente', intervalle:0, ease:2.5, repetitions:0, dateProchaineRevision:null, historique:[], dateCreation:_dateTime(-1) },
       // Anglais (matière dédiée) — vocab + historique
       { id:'Y-A2C', titre:"to elicit", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-VOC', question:"to elicit", reponse:"provoquer / susciter", tempsCible:20, priorite:2, statut:'actif', intervalle:4, ease:2.4, repetitions:3, dateProchaineRevision:_shift(1), historique:histo([7,8,7],[18,15,14]), dateCreation:_dateTime(-12) },
       { id:'Y-B7E', titre:"to bridge the gap", coursIds:[], mat:'ANGL', profil:'ANGLAIS', groupId:'QG-EXP', question:"to bridge the gap", reponse:"combler le fossé", tempsCible:20, priorite:2, statut:'actif', intervalle:8, ease:2.5, repetitions:4, dateProchaineRevision:_shift(5), historique:histo([8,9,8,9],[18,15,12,12]), dateCreation:_dateTime(-15) },
@@ -444,7 +474,7 @@ window.demoDataPCStar = (function () {
       /* Approximation : bonne note → bon rang (1 = premier) */
       rang = Math.max(1, Math.min(effectif, Math.round(effectif * (1 - n / 20) * 0.9 + 1 + (n % 3) - 1)));
     }
-    return {
+    var note = {
       uid: o.uid,
       title: o.title,
       type: o.type,
@@ -459,6 +489,22 @@ window.demoDataPCStar = (function () {
       date: shift(o.days),
       duree: o.duree != null ? o.duree : (o.type === "KHOLLE" ? 60 : 180)
     };
+    if (o.chapitreId) note.chapitreId = o.chapitreId;
+    else {
+      var autoChap = chapFor(o.mat, o.cl, o.inter);
+      if (autoChap) note.chapitreId = autoChap;
+    }
+    return note;
+  }
+
+  function chapFor(mat, cl, inter) {
+    var key = mat + ":" + cl + ":" + inter;
+    var map = {
+      "PHYS:A:01": "PH-M3K", "PHYS:A:02": "PH-T9Y", "PHYS:A:03": "PH-E7L", "PHYS:A:04": "PH-O1P",
+      "MATH:B:01": "MA-A1G", "MATH:B:02": "MA-N2P", "MATH:B:03": "MA-R3D", "MATH:B:04": "MA-P4B",
+      "CHIM:C:01": "CH-C1R", "CHIM:C:02": "CH-K2N", "CHIM:C:03": "CH-O3G"
+    };
+    return map[key] || null;
   }
 
   // ——— Documents cours (programme PC* typique S1/S2) ———
@@ -469,6 +515,11 @@ window.demoDataPCStar = (function () {
     { uid: "PH-U4O", title: "Optique ondulatoire", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "04", stat: "active", date: shift(-30), chapitreId: "PH-O1P", role: "unite", isUnite: true },
     { uid: "MA-U1A", title: "Algèbre linéaire", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "01", stat: "active", date: shift(-100), chapitreId: "MA-A1G", role: "unite", isUnite: true },
     { uid: "MA-U2N", title: "Analyse", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "02", stat: "active", date: shift(-70), chapitreId: "MA-N2P", role: "unite", isUnite: true },
+    { uid: "MA-U3R", title: "Réduction endomorphismes", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "03", stat: "active", date: shift(-40), chapitreId: "MA-R3D", role: "unite", isUnite: true },
+    { uid: "MA-U4P", title: "Probabilités discrètes", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "04", stat: "active", date: shift(-20), chapitreId: "MA-P4B", role: "unite", isUnite: true },
+    { uid: "CH-U1C", title: "Cristallographie", type: "COURS", rev: "green", mat: "CHIM", cl: "C", inter: "01", stat: "active", date: shift(-75), chapitreId: "CH-C1R", role: "unite", isUnite: true },
+    { uid: "CH-U2K", title: "Cinétique chimique", type: "COURS", rev: "green", mat: "CHIM", cl: "C", inter: "02", stat: "active", date: shift(-45), chapitreId: "CH-K2N", role: "unite", isUnite: true },
+    { uid: "CH-U3O", title: "Chimie org — Alcools & mécanismes", type: "COURS", rev: "green", mat: "CHIM", cl: "C", inter: "03", stat: "active", date: shift(-25), chapitreId: "CH-O3G", role: "unite", isUnite: true },
     { uid: "PH-MEC", title: "Mécanique du point", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "01", stat: "active", date: shift(-95), chapitreId: "PH-M3K" },
     { uid: "PH-THD", title: "Thermodynamique", type: "COURS", rev: "green", mat: "PHYS", cl: "A", inter: "02", stat: "active", date: shift(-80), chapitreId: "PH-T9Y" },
     { uid: "PH-EMG", title: "Électromagnétisme", type: "COURS", rev: "orange", mat: "PHYS", cl: "A", inter: "03", stat: "active", date: shift(-55), chapitreId: "PH-E7L" },
@@ -477,9 +528,9 @@ window.demoDataPCStar = (function () {
     { uid: "MA-ANL", title: "Analyse (suites & intégrales)", type: "COURS", rev: "green", mat: "MATH", cl: "B", inter: "02", stat: "active", date: shift(-70), chapitreId: "MA-N2P" },
     { uid: "MA-RED", title: "Réduction endomorphismes", type: "FICHE", rev: "orange", mat: "MATH", cl: "B", inter: "03", stat: "active", date: shift(-40) },
     { uid: "MA-PRO", title: "Probabilités discrètes", type: "TD", rev: "red", mat: "MATH", cl: "B", inter: "04", stat: "active", date: shift(-20) },
-    { uid: "CH-CRU", title: "Cristallographie", type: "COURS", rev: "green", mat: "CHIM", cl: "C", inter: "01", stat: "active", date: shift(-75) },
-    { uid: "CH-CIN", title: "Cinétique chimique", type: "COURS", rev: "orange", mat: "CHIM", cl: "C", inter: "02", stat: "active", date: shift(-45) },
-    { uid: "CH-ORG", title: "Chimie org — Alcools & mécanismes", type: "COURS", rev: "orange", mat: "CHIM", cl: "C", inter: "03", stat: "active", date: shift(-25) },
+    { uid: "CH-CRU", title: "Cristallographie", type: "COURS", rev: "green", mat: "CHIM", cl: "C", inter: "01", stat: "active", date: shift(-75), chapitreId: "CH-C1R" },
+    { uid: "CH-CIN", title: "Cinétique chimique", type: "COURS", rev: "orange", mat: "CHIM", cl: "C", inter: "02", stat: "active", date: shift(-45), chapitreId: "CH-K2N" },
+    { uid: "CH-ORG", title: "Chimie org — Alcools & mécanismes", type: "COURS", rev: "orange", mat: "CHIM", cl: "C", inter: "03", stat: "active", date: shift(-25), chapitreId: "CH-O3G" },
 
     // ——— Notes DS / khôlles (progression mi-année, ~4 mois) ———
     makeNote({ uid: "PH-D01", title: "DS1 Mécanique", type: "DS", note: 8.5, mat: "PHYS", cl: "A", inter: "01", days: -105, rev: "red", duree: 180 }),
@@ -514,7 +565,7 @@ window.demoDataPCStar = (function () {
   // ——— Cartes X- par chapitre (volume mi-année réaliste) ———
   var xCards = [].concat(
     // ═══ PHYS — Mécanique (chapitre ancien, bien avancé) ═══
-    chapterCards({ prefix: "PHM", mat: "PHYS", coursId: "PH-MEC", baseAge: -115, seed: 1, items: [
+    chapterCards({ prefix: "PHM", mat: "PHYS", coursId: "PH-U1M", baseAge: -115, seed: 1, items: [
       { p: "COURS", qu: true, imp: 5, stage: "mature", q: "Questions usuelles — Mécanique du point : énoncer PFD, TEC, théorème du moment cinétique et leurs hypothèses.", a: "PFD: ΣF=ma. TEC: ΔEc=W_ext+W_int. Moment cinétique: dL/dt=M_ext. Réf. galiléen, système matériel.", t: 1500 },
       { p: "COURS", qu: true, imp: 5, stage: "good", q: "[QU] Référentiels : définition réf. galiléen, réf. tournant, force centrifuge et de Coriolis.", a: "Galiléen: rectiligne uniforme. Tournant: F_cf=mΩ²r, F_Cor=-2mΩ∧v.", t: 1080 },
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "[QU] Énergie mécanique : quand est-elle conservée ? Lien avec forces conservatives.", a: "Conservée si forces int/ext conservatives. W=-ΔEp, Em=Ec+Ep constant.", t: 720 },
@@ -534,7 +585,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ PHYS — Thermodynamique ═══
-    chapterCards({ prefix: "PHT", mat: "PHYS", coursId: "PH-THD", baseAge: -98, seed: 2, items: [
+    chapterCards({ prefix: "PHT", mat: "PHYS", coursId: "PH-U2T", baseAge: -98, seed: 2, items: [
       { p: "COURS", qu: true, imp: 5, stage: "mature", q: "Questions usuelles — Thermo : 1er et 2e principes, enthalpie, entropie (définitions).", a: "1er: ΔU=W+Q. 2e: ΔS_univ≥0. H=U+pV, dS échange+création.", t: 1320 },
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "[QU] Transformations reversibles/irréversibles, machine thermique, rendement.", a: "Réversible: quasi-statique sans dissipation. η=W/Qc≤η_Carnot.", t: 900 },
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "[QU] Démontrer η_Carnot = 1 − Tf/Tc.", a: "Cycle réversible ditherme → ΔS=0 → η=1-Tf/Tc.", t: 900, pin: true },
@@ -552,7 +603,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ PHYS — Électromagnétisme ═══
-    chapterCards({ prefix: "PHE", mat: "PHYS", coursId: "PH-EMG", baseAge: -72, seed: 3, items: [
+    chapterCards({ prefix: "PHE", mat: "PHYS", coursId: "PH-U3E", baseAge: -72, seed: 3, items: [
       { p: "COURS", qu: true, imp: 5, stage: "learning", q: "Questions usuelles — EM : Maxwell (4 eq. locales), flux, circulation, potentiels.", a: "Gauss E/B, Faraday, Ampère-Maxwell. rot E=-∂B/∂t.", t: 1200 },
       { p: "COURS", qu: true, imp: 4, stage: "struggle", q: "[QU] Loi de Gauss, théorème de Green-Ostrogradski (rappel).", a: "Φ=∫E·dS=Q/ε₀. ∫div F dV=∮F·dS.", t: 900 },
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "[QU] Induction : loi de Faraday, Lenz, auto-induction.", a: "e=-dΦ/dt. Lenz: s'oppose à la variation.", t: 780 },
@@ -570,7 +621,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ PHYS — Optique ═══
-    chapterCards({ prefix: "PHO", mat: "PHYS", coursId: "PH-OPT", baseAge: -38, seed: 4, items: [
+    chapterCards({ prefix: "PHO", mat: "PHYS", coursId: "PH-U4O", baseAge: -38, seed: 4, items: [
       { p: "COURS", qu: true, imp: 5, stage: "started", q: "Questions usuelles — Optique : diffraction, interférences, résolution.", a: "Young: i=λD/a. Fente: a sinθ=nλ. Critère Rayleigh.", t: 1080 },
       { p: "COURS", qu: true, imp: 4, stage: "fresh", q: "[QU] Ondes lumineuses : relation dispersion, c=λν, indice n.", a: "n=c/v, λ_n=λ/n.", t: 540 },
       { p: "EXO", imp: 5, stage: "struggle", q: "Fentes de Young : λ=633nm, a=0,5mm, D=2m → interfrange. Effet n=1,33 ?", a: "i≈2,53mm ; dans l'eau i'≈1,90mm.", t: 1500 },
@@ -584,7 +635,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ MATH — Algèbre linéaire ═══
-    chapterCards({ prefix: "MAL", mat: "MATH", coursId: "MA-ALG", baseAge: -120, seed: 5, items: [
+    chapterCards({ prefix: "MAL", mat: "MATH", coursId: "MA-U1A", baseAge: -120, seed: 5, items: [
       { p: "COURS", qu: true, imp: 5, stage: "mature", q: "Questions usuelles — Algèbre : SEV, base, dimension, rang, théorème de la base.", a: "SEV: stable +,·. Base: libre+ génératrice. dim=card base. Th. base: compléter en base.", t: 1200 },
       { p: "COURS", qu: true, imp: 5, stage: "mature", q: "[QU] Applications linéaires : noyau, image, théorème du rang.", a: "Ker f SEV, Im f SEV. dim Ker + dim Im = dim E.", t: 900 },
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "[QU] Matrices : produit, inverse, changement de base.", a: "Mat(gh)=Mat(g)Mat(h). P_AP=P_BA^{-1}.", t: 780 },
@@ -602,7 +653,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ MATH — Analyse ═══
-    chapterCards({ prefix: "MAN", mat: "MATH", coursId: "MA-ANL", baseAge: -88, seed: 6, items: [
+    chapterCards({ prefix: "MAN", mat: "MATH", coursId: "MA-U2N", baseAge: -88, seed: 6, items: [
       { p: "COURS", qu: true, imp: 5, stage: "good", q: "Questions usuelles — Analyse : suites, séries, intégrales impropres, équivalents.", a: "Cauchy suites. Séries: reste, critères comparaison, d'Alembert. Équiv. ln(1+u)~u.", t: 1200 },
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "[QU] Séries entières : rayon, dérivation/intégration terme à terme.", a: "R=1/limsup|a_n|^{1/n}. Sur ]-R,R[ dérivation OK.", t: 900 },
       { p: "EXO", imp: 4, stage: "mature", q: "Calculer Σ n·x^(n−1) sur ]−1,1[.", a: "= 1/(1−x)²", t: 720 },
@@ -618,7 +669,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ MATH — Réduction ═══
-    chapterCards({ prefix: "MAR", mat: "MATH", coursId: "MA-RED", baseAge: -52, seed: 7, items: [
+    chapterCards({ prefix: "MAR", mat: "MATH", coursId: "MA-U3R", baseAge: -52, seed: 7, items: [
       { p: "COURS", qu: true, imp: 5, stage: "struggle", q: "Questions usuelles — Réduction : valeurs propres, diagonalisation, trigonalisation.", a: "Av=λv. Diag ⟺ χ scindé + dim E_λ=mult(λ).", t: 1200 },
       { p: "COURS", qu: true, imp: 5, stage: "learning", q: "[QU] Polynôme annulateur, théorème Cayley-Hamilton.", a: "χ_A(A)=0. Annulateur minimal divise χ.", t: 900 },
       { p: "EXO", imp: 5, stage: "struggle", q: "M=((3,1),(0,2)). Diagonalisable ? P, D ?", a: "Oui. P=((1,1),(0,−1)), D=diag(3,2).", t: 1680 },
@@ -632,7 +683,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ MATH — Probabilités ═══
-    chapterCards({ prefix: "MAP", mat: "MATH", coursId: "MA-PRO", baseAge: -28, seed: 8, items: [
+    chapterCards({ prefix: "MAP", mat: "MATH", coursId: "MA-U4P", baseAge: -28, seed: 8, items: [
       { p: "COURS", qu: true, imp: 5, stage: "started", q: "Questions usuelles — Probas : VA discrètes, loi, espérance, variance.", a: "E(X)=Σx_i p_i, V(X)=E(X²)-E(X)².", t: 900 },
       { p: "COURS", qu: true, imp: 4, stage: "fresh", q: "[QU] Formule de Bayes, probabilités totales.", a: "P(A|B)=P(B|A)P(A)/P(B). P(A)=ΣP(A|B_i)P(B_i).", t: 720 },
       { p: "EXO", imp: 4, stage: "learning", q: "Binomiale B(n,p) : E, V, P(X=k).", a: "E=np, V=np(1-p), P=C(n,k)p^k(1-p)^{n-k}.", t: 960 },
@@ -644,7 +695,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ CHIM — Cristallographie ═══
-    chapterCards({ prefix: "CHC", mat: "CHIM", coursId: "CH-CRU", baseAge: -92, seed: 9, items: [
+    chapterCards({ prefix: "CHC", mat: "CHIM", coursId: "CH-U1C", baseAge: -92, seed: 9, items: [
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "Questions usuelles — Cristallo : réseaux, maille, compacité, Bragg.", a: "Réseau = translations. Maille = motif+réseau. Bragg: 2d sinθ=nλ.", t: 1080 },
       { p: "EXO", imp: 3, stage: "mature", q: "Compacité CC, CC, CFC.", a: "CC≈0,68 ; CFC≈0,74 ; CVC≈0,68.", t: 720 },
       { p: "EXO", imp: 3, stage: "good", q: "Nombre d'atomes par maille cubique faces centrées.", a: "4 atomes/maille (8×1/8 + 6×1/2).", t: 600 },
@@ -656,7 +707,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ CHIM — Cinétique ═══
-    chapterCards({ prefix: "CHI", mat: "CHIM", coursId: "CH-CIN", baseAge: -58, seed: 10, items: [
+    chapterCards({ prefix: "CHI", mat: "CHIM", coursId: "CH-U2K", baseAge: -58, seed: 10, items: [
       { p: "COURS", qu: true, imp: 4, stage: "learning", q: "Questions usuelles — Cinétique : ordre, loi de vitesse, mécanismes, Arrhenius.", a: "v=k[A]^α. Arrhenius k=Ae^{-Ea/RT}. t½ ordre1=ln2/k.", t: 1080 },
       { p: "COURS", qu: true, imp: 3, stage: "struggle", q: "[QU] Mécanismes : étape limitante, intermédiaire réactionnel.", a: "RDS = plus lente. Steady state pour radicaux.", t: 900 },
       { p: "EXO", imp: 4, stage: "good", q: "Vérifier ordre 1 sur données [A](t), trouver k et t½.", a: "ln[A] linéaire → k≈0,002 s⁻¹.", t: 1200 },
@@ -670,7 +721,7 @@ window.demoDataPCStar = (function () {
     ] }),
 
     // ═══ CHIM — Orga ═══
-    chapterCards({ prefix: "CHO", mat: "CHIM", coursId: "CH-ORG", baseAge: -32, seed: 11, items: [
+    chapterCards({ prefix: "CHO", mat: "CHIM", coursId: "CH-U3O", baseAge: -32, seed: 11, items: [
       { p: "COURS", qu: true, imp: 4, stage: "good", q: "Questions usuelles — Orga : SN1/SN2, E1/E2, alcools, carbonylés.", a: "SN1 carbocation ; SN2 Walden. E1/E2 déshydratation.", t: 1200 },
       { p: "COURS", qu: true, imp: 4, stage: "learning", q: "[QU] Oxydation alcools : primaire → aldéhyde/acide, tertiaire résiste.", a: "Primaire: PCC→aldéhyde. Tertiaire: pas d'ox. ménagée facile.", t: 900 },
       { p: "EXO", imp: 4, stage: "good", q: "Comparer SN1 vs SN2 (cinétique, stéréo, substrat).", a: "SN1 ordre1, racémisation ; SN2 ordre2, inversion.", t: 1140 },
@@ -684,14 +735,14 @@ window.demoDataPCStar = (function () {
 
   // Cartes réservoir supplémentaires (feuilles pas encore traitées)
   xCards = xCards.concat([
-    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-OPT"], q: "Diffraction fente unique : position minima.", a: "a·sinθ = nλ", temps: 600, created: dateTime(-5) }),
-    card({ id: nextAnkiId("X"), mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-PRO"], q: "Loi faible des grands nombres (énoncé).", a: "X̄_n → E(X) en probabilité.", temps: 420, created: dateTime(-4) }),
-    card({ id: nextAnkiId("X"), mat: "CHIM", profil: "EXO", imp: 3, statut: "reservoir", due: null, coursIds: ["CH-ORG"], q: "Synthèse aspirine (schéma réactionnel).", a: "Acide salicylique + anhydride acétique → ASA.", temps: 900, created: dateTime(-3) }),
-    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "EXO", imp: 4, statut: "reservoir", due: null, coursIds: ["PH-MEC"], q: "Pendule conique : fréquence propre.", a: "ω = √(g/(L·cosα))", temps: 1200, created: dateTime(-2) }),
-    card({ id: nextAnkiId("X"), mat: "MATH", profil: "EXO", imp: 5, statut: "reservoir", due: null, coursIds: ["MA-RED"], q: "Réduction matrice 4×4 (TD complet).", a: "(exemple numérique)", temps: 1800, created: dateTime(-1) }),
-    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-THD"], q: "[QU] Phase et transitions de phase (Clapeyron).", a: "dp/dT = L/(TΔv).", temps: 720, created: dateTime(-6) }),
-    card({ id: nextAnkiId("X"), mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-ANL"], q: "[QU] Équations différentielles linéaires ordre 2.", a: "y''+ay'+by=0 → r²+ar+b=0.", temps: 780, created: dateTime(-7) }),
-    card({ id: nextAnkiId("X"), mat: "CHIM", profil: "COURS", imp: 2, statut: "reservoir", due: null, coursIds: ["CH-CRU"], q: "[QU] Bandes électroniques (conducteur/isolant).", a: "Gap interdit ; conducteur: bandes chevauchantes.", temps: 660, created: dateTime(-8) })
+    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-U4O"], q: "Diffraction fente unique : position minima.", a: "a·sinθ = nλ", temps: 600, created: dateTime(-5) }),
+    card({ id: nextAnkiId("X"), mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-U4P"], q: "Loi faible des grands nombres (énoncé).", a: "X̄_n → E(X) en probabilité.", temps: 420, created: dateTime(-4) }),
+    card({ id: nextAnkiId("X"), mat: "CHIM", profil: "EXO", imp: 3, statut: "reservoir", due: null, coursIds: ["CH-U3O"], q: "Synthèse aspirine (schéma réactionnel).", a: "Acide salicylique + anhydride acétique → ASA.", temps: 900, created: dateTime(-3) }),
+    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "EXO", imp: 4, statut: "reservoir", due: null, coursIds: ["PH-U1M"], q: "Pendule conique : fréquence propre.", a: "ω = √(g/(L·cosα))", temps: 1200, created: dateTime(-2) }),
+    card({ id: nextAnkiId("X"), mat: "MATH", profil: "EXO", imp: 5, statut: "reservoir", due: null, coursIds: ["MA-U3R"], q: "Réduction matrice 4×4 (TD complet).", a: "(exemple numérique)", temps: 1800, created: dateTime(-1) }),
+    card({ id: nextAnkiId("X"), mat: "PHYS", profil: "COURS", imp: 3, statut: "reservoir", due: null, coursIds: ["PH-U2T"], q: "[QU] Phase et transitions de phase (Clapeyron).", a: "dp/dT = L/(TΔv).", temps: 720, created: dateTime(-6) }),
+    card({ id: nextAnkiId("X"), mat: "MATH", profil: "COURS", imp: 4, statut: "reservoir", due: null, coursIds: ["MA-U2N"], q: "[QU] Équations différentielles linéaires ordre 2.", a: "y''+ay'+by=0 → r²+ar+b=0.", temps: 780, created: dateTime(-7) }),
+    card({ id: nextAnkiId("X"), mat: "CHIM", profil: "COURS", imp: 2, statut: "reservoir", due: null, coursIds: ["CH-U1C"], q: "[QU] Bandes électroniques (conducteur/isolant).", a: "Gap interdit ; conducteur: bandes chevauchantes.", temps: 660, created: dateTime(-8) })
   ]);
 
   // ——— 50 cartes anglais Y- ———
@@ -748,11 +799,11 @@ window.demoDataPCStar = (function () {
 
   // ——— Devoirs W- (découpage mi-année : en cours / à faire / terminé) ———
   var wCards = [
-    card({ id: "W-DM1", type: "devoir", mat: "MATH", profil: "EXO", imp: 5, coursIds: ["MA-ALG", "MA-RED"], q: "DM Algèbre : SEV, bases, réduction (6 exos).", pieces: 4, done: 1, dureeMin: 120, restantMin: 90, proposeMin: 120, sessionMin: 30, lim: shift(5), due: shift(2), created: dateTime(-10) }),
-    card({ id: "W-DM2", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-OPT"], q: "DM Optique : interférences + diffraction.", pieces: 3, done: 0, dureeMin: 90, restantMin: 90, proposeMin: 90, sessionMin: 25, lim: shift(9), due: shift(5), created: dateTime(-4) }),
-    card({ id: "W-DM3", type: "devoir", mat: "CHIM", profil: "EXO", imp: 5, coursIds: ["CH-CIN"], q: "DM Cinétique : ordres, Arrhenius, mécanismes.", pieces: 2, done: 2, dureeMin: 60, restantMin: 0, proposeMin: 60, sessionMin: 30, lim: shift(-1), due: shift(-1), created: dateTime(-20), statut: "fini" }),
-    card({ id: "W-DM4", type: "devoir", mat: "MATH", profil: "EXO", imp: 3, coursIds: ["MA-PRO"], q: "DM Probas : variables discrètes, espérance.", pieces: 3, done: 0, dureeMin: 75, restantMin: 75, proposeMin: 75, sessionMin: 25, lim: shift(18), due: shift(11), created: dateTime(-2) }),
-    card({ id: "W-DM5", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-EMG"], q: "DM EM : Gauss, induction, RLC (4 exos).", pieces: 4, done: 2, dureeMin: 100, restantMin: 50, proposeMin: 100, sessionMin: 25, lim: shift(3), due: today, created: dateTime(-14) })
+    card({ id: "W-DM1", type: "devoir", mat: "MATH", profil: "EXO", imp: 5, coursIds: ["MA-U1A", "MA-U3R"], q: "DM Algèbre : SEV, bases, réduction (6 exos).", pieces: 4, done: 1, dureeMin: 120, restantMin: 90, proposeMin: 120, sessionMin: 30, lim: shift(5), due: shift(2), created: dateTime(-10) }),
+    card({ id: "W-DM2", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-U4O"], q: "DM Optique : interférences + diffraction.", pieces: 3, done: 0, dureeMin: 90, restantMin: 90, proposeMin: 90, sessionMin: 25, lim: shift(9), due: shift(5), created: dateTime(-4) }),
+    card({ id: "W-DM3", type: "devoir", mat: "CHIM", profil: "EXO", imp: 5, coursIds: ["CH-U2K"], q: "DM Cinétique : ordres, Arrhenius, mécanismes.", pieces: 2, done: 2, dureeMin: 60, restantMin: 0, proposeMin: 60, sessionMin: 30, lim: shift(-1), due: shift(-1), created: dateTime(-20), statut: "fini" }),
+    card({ id: "W-DM4", type: "devoir", mat: "MATH", profil: "EXO", imp: 3, coursIds: ["MA-U4P"], q: "DM Probas : variables discrètes, espérance.", pieces: 3, done: 0, dureeMin: 75, restantMin: 75, proposeMin: 75, sessionMin: 25, lim: shift(18), due: shift(11), created: dateTime(-2) }),
+    card({ id: "W-DM5", type: "devoir", mat: "PHYS", profil: "EXO", imp: 4, coursIds: ["PH-U3E"], q: "DM EM : Gauss, induction, RLC (4 exos).", pieces: 4, done: 2, dureeMin: 100, restantMin: 50, proposeMin: 100, sessionMin: 25, lim: shift(3), due: today, created: dateTime(-14) })
   ];
 
   var allExercices = xCards.concat(yCards);
@@ -794,7 +845,12 @@ window.demoDataPCStar = (function () {
       { id: "PH-E7L", mat: "PHYS", annee: 1, cl: "A", inter: "03", order: 2, title: "Électromagnétisme", created: "2026-08-01", notes: "", coursUniteUid: "PH-U3E" },
       { id: "PH-O1P", mat: "PHYS", annee: 1, cl: "A", inter: "04", order: 3, title: "Optique ondulatoire", created: "2026-08-01", notes: "", coursUniteUid: "PH-U4O" },
       { id: "MA-A1G", mat: "MATH", annee: 1, cl: "B", inter: "01", order: 0, title: "Algèbre linéaire", created: "2026-08-01", notes: "", coursUniteUid: "MA-U1A" },
-      { id: "MA-N2P", mat: "MATH", annee: 1, cl: "B", inter: "02", order: 1, title: "Analyse", created: "2026-08-01", notes: "", coursUniteUid: "MA-U2N" }
+      { id: "MA-N2P", mat: "MATH", annee: 1, cl: "B", inter: "02", order: 1, title: "Analyse", created: "2026-08-01", notes: "", coursUniteUid: "MA-U2N" },
+      { id: "MA-R3D", mat: "MATH", annee: 1, cl: "B", inter: "03", order: 2, title: "Réduction", created: "2026-08-01", notes: "", coursUniteUid: "MA-U3R" },
+      { id: "MA-P4B", mat: "MATH", annee: 1, cl: "B", inter: "04", order: 3, title: "Probabilités", created: "2026-08-01", notes: "", coursUniteUid: "MA-U4P" },
+      { id: "CH-C1R", mat: "CHIM", annee: 1, cl: "C", inter: "01", order: 0, title: "Cristallographie", created: "2026-08-01", notes: "", coursUniteUid: "CH-U1C" },
+      { id: "CH-K2N", mat: "CHIM", annee: 1, cl: "C", inter: "02", order: 1, title: "Cinétique chimique", created: "2026-08-01", notes: "", coursUniteUid: "CH-U2K" },
+      { id: "CH-O3G", mat: "CHIM", annee: 1, cl: "C", inter: "03", order: 2, title: "Chimie organique", created: "2026-08-01", notes: "", coursUniteUid: "CH-U3O" }
     ],
     quickGroups: [
       { id: "QG-VOC", name: "Vocabulaire", color: "#e07ab3", order: 0, mat: "ANGL" },
