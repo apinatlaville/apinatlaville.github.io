@@ -564,6 +564,7 @@ window.layoutChrome = function() {
   }
 
   if (typeof window.syncMobileSidebarPanel === 'function') window.syncMobileSidebarPanel();
+  if (expanded && typeof window.syncMobileNavAccordion === 'function') window.syncMobileNavAccordion();
 };
 
 /** Panneau Finder mobile : flèche dans le bandeau titre → plein écran */
@@ -581,6 +582,7 @@ window.setMobileSidebarExpanded = function (expanded) {
   const icon = btn.querySelector('[data-icon]');
   if (icon) icon.setAttribute('data-icon', expanded ? 'chevron-up' : 'chevron-down');
   if (typeof window.hydrateIcons === 'function') window.hydrateIcons(btn);
+  if (expanded && typeof window.syncMobileNavAccordion === 'function') window.syncMobileNavAccordion();
 };
 
 window.toggleMobileSidebarPanel = function () {

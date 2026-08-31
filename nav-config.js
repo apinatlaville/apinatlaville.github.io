@@ -106,11 +106,17 @@ window.renderAppNav = function (activeTab) {
   var active = activeTab || window._activeTab || 'home';
   var html = '';
 
-  window.APP_NAV_SECTIONS.forEach(function (sec) {
+  window.APP_NAV_SECTIONS.forEach(function (sec, idx) {
+    var groupKey = sec.id || ('g' + idx);
     var gid = sec.id ? ' id="navGroup' + sec.id + '"' : '';
     var gcls = sec.className ? ' ' + sec.className : '';
-    html += '<div class="nav-group' + gcls + '"' + gid + '>';
-    html += '<div class="nav-group-label">' + sec.label + '</div>';
+    var itemsId = 'navGroupItems' + groupKey;
+    html += '<div class="nav-group' + gcls + '"' + gid + ' data-nav-group="' + groupKey + '">';
+    html += '<button type="button" class="nav-group-label nav-group-toggle" aria-expanded="false" aria-controls="' + itemsId + '">';
+    html += '<span class="nav-group-toggle-label">' + sec.label + '</span>';
+    html += '<span class="nav-group-chevron" data-icon="chevron-down" data-icon-size="14" aria-hidden="true"></span>';
+    html += '</button>';
+    html += '<div class="nav-group-items" id="' + itemsId + '">';
     sec.items.forEach(function (item) {
       var on = item.tab === active ? ' on' : '';
       var cls = item.className ? ' ' + item.className : '';
@@ -122,12 +128,66 @@ window.renderAppNav = function (activeTab) {
         html += '<div id="navSubNav" class="nav-sub hidden" aria-label="Sous-navigation"></div>';
       }
     });
-    html += '</div>';
+    html += '</div></div>';
   });
 
   bar.innerHTML = html;
   if (typeof window.hydrateIcons === 'function') window.hydrateIcons(bar);
+  if (typeof window.syncMobileNavAccordion === 'function') window.syncMobileNavAccordion();
 };
+
+/** Accordéon des groupes nav — replié par défaut sur mobile uniquement */
+window.syncMobileNavAccordion = function () {
+  var mq = window.matchMedia('(max-width: 767px)');
+  var groups = document.querySelectorAll('#tabsBar .nav-group');
+  if (!groups.length) return;
+
+  if (!mq.matches) {
+    groups.forEach(function (g) {
+      g.classList.add('is-open');
+      var t = g.querySelector('.nav-group-toggle');
+      if (t) t.setAttribute('aria-expanded', 'true');
+    });
+    return;
+  }
+
+  var activeGroup = null;
+  groups.forEach(function (g) {
+    if (g.querySelector('.tab.on')) activeGroup = g;
+  });
+
+  groups.forEach(function (g) {
+    var open = g === activeGroup;
+    g.classList.toggle('is-open', open);
+    var t = g.querySelector('.nav-group-toggle');
+    if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+};
+
+(function initMobileNavAccordion() {
+  function onToggleClick(e) {
+    var toggle = e.target.closest('#tabsBar .nav-group-toggle');
+    if (!toggle) return;
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    if (!document.body.classList.contains('mobile-sidebar-expanded')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var group = toggle.closest('.nav-group');
+    if (!group) return;
+    var opening = !group.classList.contains('is-open');
+    document.querySelectorAll('#tabsBar .nav-group').forEach(function (g) {
+      var open = opening && g === group;
+      g.classList.toggle('is-open', open);
+      var t = g.querySelector('.nav-group-toggle');
+      if (t) t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+  document.addEventListener('click', onToggleClick);
+  window.addEventListener('resize', function () {
+    clearTimeout(window._navAccordionResizeT);
+    window._navAccordionResizeT = setTimeout(window.syncMobileNavAccordion, 120);
+  });
+})();
 
 (function bootNav() {
   function init() {

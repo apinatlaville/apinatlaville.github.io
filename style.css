@@ -4744,15 +4744,34 @@ body.nav-sidebar-left .nav-group {
   margin-bottom: 8px;
   flex-shrink: 0;
 }
-body.nav-sidebar-left .nav-group-label {
+body.nav-sidebar-left .nav-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+body.nav-sidebar-left .nav-group-toggle {
   display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px 3px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: default;
+  pointer-events: none;
+  color: inherit;
+}
+body.nav-sidebar-left .nav-group-toggle-label {
   font-size: 11px;
   font-weight: 600;
   color: var(--mut);
-  padding: 8px 10px 3px;
   opacity: 0.75;
   letter-spacing: 0.01em;
   text-transform: none;
+}
+body.nav-sidebar-left .nav-group-chevron {
+  display: none;
 }
 body.nav-sidebar-left .tab {
   width: 100%;
@@ -4879,6 +4898,48 @@ body.nav-sidebar-left .nav-mobile-extras {
     min-height: auto;
     overflow: visible;
     touch-action: pan-y;
+  }
+
+  /* Accordéon nav : catégories repliées par défaut (mobile uniquement) */
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group {
+    margin-bottom: 6px;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    pointer-events: auto;
+    cursor: pointer;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group-toggle-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--txt);
+    opacity: 1;
+    text-transform: none;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group-chevron {
+    display: inline-flex;
+    align-items: center;
+    color: var(--mut);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group.is-open .nav-group-chevron {
+    transform: rotate(180deg);
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group-items {
+    display: none;
+    padding: 4px 0 2px 4px;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group.is-open .nav-group-items {
+    display: flex;
   }
 
   body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer {
