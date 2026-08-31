@@ -38,7 +38,7 @@ assert(/ovQuickLatex|restoreOverlay|mountLatexEasyEditor/.test(latexSrc), 'popup
 assert(/restoreOverlay:\s*'ovQuickCreate'/.test(appSrc), 'FAB Rapide restaure ovQuickCreate');
 assert(/mountLatexEasyEditor/.test(fs.readFileSync(path.join(root, 'latex-test.js'), 'utf8')), 'API mountLatexEasyEditor lab');
 assert(/paneQuickLatex/.test(indexSrc) && /quickLatex/.test(navSrc), 'bundle quickLatex toujours enregistré');
-assert(/__BOOT_CACHE_V\s*=\s*'20260827c'/.test(indexSrc), 'cache 20260827c');
+assert(/__BOOT_CACHE_V\s*=\s*'20260830a'/.test(indexSrc), 'cache 20260830a');
 
 const cardUiSrc = fs.readFileSync(path.join(root, 'anki-card-ui.js'), 'utf8');
 assert(/openCardTypePicker\(\)/.test(cardUiSrc), 'FAB ouvre le type picker');
