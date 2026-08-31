@@ -601,6 +601,10 @@
     return bits.join(' · ');
   }
 
+  /** IDs dédiés au sélecteur durée Cockpit (évite collision avec modales) */
+  const SESSION_TIME_H_ID = 'ankiSessionTimeH';
+  const SESSION_TIME_M_ID = 'ankiSessionTimeM';
+
   function getSessionMinutesV2() {
     // Toujours lire les settings (source de vérité) — évite qu'un cache S.sessionMinTonight
     // ignore un changement fait depuis la Carte mentale / un autre écran
@@ -619,7 +623,16 @@
     return `
       <div class="anki-session-bar">
         <span class="anki-session-bar-label">${window.iconLabel('timer', 'Durée session')}</span>
-        ${durationPickerHtml(total, { minTotal: 5, maxTotal: 300, maxHours: 5, hClass: 'anki-time-h', mClass: 'anki-time-m', onChange: 'window.ankiV2SetSessionTime()' })}
+        ${durationPickerHtml(total, {
+          hId: SESSION_TIME_H_ID,
+          mId: SESSION_TIME_M_ID,
+          hClass: 'anki-session-time-h',
+          mClass: 'anki-session-time-m',
+          minTotal: 5,
+          maxTotal: 300,
+          maxHours: 5,
+          onChange: 'window.ankiV2SetSessionTime()'
+        })}
         <div class="anki-session-presets">
           ${presets.map(([m, label]) =>
             `<button type="button" class="cbt anki-preset-time${total === m ? ' on' : ''}" data-preset="${m}" onclick="window.ankiV2SetSessionTimePreset(${m})">${label}</button>`
@@ -1001,21 +1014,35 @@
     return n;
   }
 
+  function refreshSessionTimeBarOnly(total) {
+    total = total != null ? total : getSessionMinutesV2();
+    const bar = document.querySelector('.anki-session-bar');
+    if (bar) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = renderSessionTimeBar(total);
+      const newBar = wrap.firstElementChild;
+      if (newBar) {
+        bar.replaceWith(newBar);
+        if (window.hydrateIcons) window.hydrateIcons(newBar);
+      }
+    }
+    const kpi = document.getElementById('ankiKpiSessionDur');
+    if (kpi) kpi.innerHTML = formatSessionKpi(total);
+  }
+
   window.ankiV2SetSessionTime = function () {
-    const hEl = document.querySelector('.anki-time-h');
-    const mEl = document.querySelector('.anki-time-m');
-    const h = hEl ? parseInt(hEl.value, 10) || 0 : 0;
-    const m = mEl ? parseInt(mEl.value, 10) || 0 : 0;
-    const total = setSessionMinutesV2(h * 60 + m);
+    const total = setSessionMinutesV2(
+      readDurationFromPicker(SESSION_TIME_H_ID, SESSION_TIME_M_ID, null, null, 5, 300)
+    );
     window.save();
-    syncSessionTimeUi(total);
+    refreshSessionTimeBarOnly(total);
     refreshQueueOnly();
   };
 
   window.ankiV2SetSessionTimePreset = function (min) {
     const total = setSessionMinutesV2(min);
     window.save();
-    syncSessionTimeUi(total);
+    refreshSessionTimeBarOnly(total);
     refreshQueueOnly();
   };
 
@@ -1026,12 +1053,7 @@
   };
 
   function syncSessionTimeUi(total) {
-    syncDurationPicker(total, null, null, 'anki-time-h', 'anki-time-m');
-    const kpi = document.getElementById('ankiKpiSessionDur') || document.querySelector('.anki-kpis .kpi:last-child .kpi-n');
-    if (kpi) kpi.innerHTML = formatSessionKpi(total);
-    document.querySelectorAll('.anki-preset-time').forEach(btn => {
-      btn.classList.toggle('on', parseInt(btn.dataset.preset, 10) === total);
-    });
+    refreshSessionTimeBarOnly(total);
   }
 
   window.ankiV2SetSessionOverflow = function (checked) {
@@ -3825,7 +3847,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="exoMat">${matOpts}</select></div>
           <div class="fg"><label>Profil</label><select id="exoProf">${profileOpts}</select></div>
-          ${durationPickerHtml(tempsMin, { hId: 'exoTimeH', mId: 'exoTimeM', minTotal: 5, maxTotal: 600, maxHours: 10, label: 'Durée' })}
+          ${durationPickerHtml(tempsMin, { hId: 'exoTimeH', mId: 'exoTimeM', hClass: 'anki-exo-time-h', mClass: 'anki-exo-time-m', minTotal: 5, maxTotal: 600, maxHours: 10, label: 'Durée' })}
         </div>
         <div class="anki-modal-row anki-modal-row--meta">
           <div class="fg fg-importance">
