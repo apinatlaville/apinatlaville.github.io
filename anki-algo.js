@@ -1085,8 +1085,24 @@
         id: String(g.id),
         name: String(g.name).trim(),
         color: g.color || '#6a7088',
-        order: g.order != null ? Number(g.order) : i
+        order: g.order != null ? Number(g.order) : i,
+        mat: g.mat ? String(g.mat) : ''
       }));
+    /* Inférer matière des cartes Y- si absente */
+    D.quickGroups.forEach(function (g) {
+      if (g.mat) return;
+      const counts = {};
+      ALGO.allCards(D).forEach(function (c) {
+        if (ALGO.cardKind(c) !== 'quick' || c.groupId !== g.id || !c.mat) return;
+        counts[c.mat] = (counts[c.mat] || 0) + 1;
+      });
+      let best = '';
+      let max = 0;
+      Object.keys(counts).forEach(function (k) {
+        if (counts[k] > max) { max = counts[k]; best = k; }
+      });
+      if (best) g.mat = best;
+    });
     const moved = [];
     D.exercices = D.exercices.filter(c => {
       const isW = c.type === 'devoir' || ALGO.cardKind(c) === 'devoir'
