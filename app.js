@@ -974,6 +974,32 @@ function _notesFmtDate(iso) {
   return iso.substring(8, 10) + '/' + iso.substring(5, 7);
 }
 
+/** Repères d’axe X : début de chaque mois présent dans les notes (pas la date du jour). */
+function _notesChartMonthTicks(docs, xOf) {
+  const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const seen = new Set();
+  const ticks = [];
+  docs.forEach(function (c, i) {
+    const d = c.date;
+    if (!d || d.length < 7) return;
+    const ym = d.substring(0, 7);
+    if (seen.has(ym)) return;
+    seen.add(ym);
+    const mo = parseInt(d.substring(5, 7), 10) - 1;
+    if (mo < 0 || mo > 11) return;
+    ticks.push({ x: xOf(i), label: MONTHS[mo] });
+  });
+  if (ticks.length <= 1) return ticks;
+  const MIN = 54;
+  const out = [ticks[0]];
+  for (let k = 1; k < ticks.length; k++) {
+    const t = ticks[k];
+    if (t.x - out[out.length - 1].x >= MIN) out.push(t);
+    else if (k === ticks.length - 1 && out[out.length - 1].label !== t.label) out.push(t);
+  }
+  return out;
+}
+
 function _notesFmtRangDisplay(c) {
   const r = _notesParseRang(c);
   if (r == null) return '—';
@@ -1088,6 +1114,7 @@ function _notesBuildEvolutionSvg(docs, metric) {
     ? `moy. ${_notesFmtAvg(vals)}ᵉ`
     : `moy. ${_notesFmtAvg(vals)}`;
   const aria = isRang ? 'Évolution des rangs' : 'Évolution des notes';
+  const monthTicks = _notesChartMonthTicks(docs, xOf);
 
   return `
     <svg viewBox="0 0 ${W} ${H}" class="notes-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${aria}">
@@ -1105,9 +1132,11 @@ function _notesBuildEvolutionSvg(docs, metric) {
         <text x="${W - PAD_R}" y="${avgY - 6}" text-anchor="end" class="notes-avg-lbl">${avgLbl}</text>` : ''}
       ${area ? `<path d="${area}" fill="url(#notesGrad)"/>` : ''}
       ${pts.length > 1 ? `<path d="${path}" class="notes-line" fill="none"/>` : ''}
+      ${monthTicks.map(t => `
+        <text x="${t.x.toFixed(1)}" y="${H - 10}" text-anchor="middle" class="notes-axis notes-axis-month">${window.escHtml(t.label)}</text>
+      `).join('')}
       ${pts.map(p => {
         const col = p.isDs ? 'var(--acc)' : 'var(--gold)';
-        const lbl = _notesFmtDate(p.c.date);
         const tipVal = isRang ? _notesFmtRangDisplay(p.c) : (p.val + '/20');
         const tip = `${p.c.title || p.c.uid} · ${tipVal} · ${p.c.type === 'KHOLLE' ? 'Khôlle' : 'DS'}`;
         const ptLbl = isRang ? String(p.val) : String(p.val);
@@ -1117,7 +1146,6 @@ function _notesBuildEvolutionSvg(docs, metric) {
             <circle cx="${p.x}" cy="${p.y}" r="11" fill="transparent"/>
             <circle cx="${p.x}" cy="${p.y}" r="5.5" fill="var(--bg)" stroke="${col}" stroke-width="2.5"/>
             <text x="${p.x}" y="${p.y - 12}" text-anchor="middle" class="notes-pt-val" fill="${col}">${window.escHtml(ptLbl)}</text>
-            <text x="${p.x}" y="${H - 10}" text-anchor="middle" class="notes-axis">${window.escHtml(lbl)}</text>
           </g>`;
       }).join('')}
     </svg>
