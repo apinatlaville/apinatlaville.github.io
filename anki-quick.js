@@ -528,7 +528,7 @@
           ${window.iconHtml('search', 14, 'icon-sm')}
           <input type="text" id="qkSearch" placeholder="Filtrer dans ${esc(navGroup.name)}..." oninput="window.quickFilter()">
         </div>
-        <button class="bs" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe (actives)')}</button>
+        <button class="bs" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>
       </div>` : ''}
 
       <div id="qkSections" class="quick-bc-root"></div>
@@ -1032,14 +1032,377 @@
   window.quickStartAll = function () {
     const list = getFiltered().filter(c => c.statut === 'actif');
     if (!list.length) return window.sysAlert("Aucune carte Y- active à réviser.", "Rapide");
-    window.save();
-    if (window.startAnkiSingle && list.length === 1) {
-      window.startAnkiSingle(list[0].id);
-    } else if (typeof window.ankiV2SetQuickQueue === 'function') {
-      window.ankiV2SetQuickQueue(list.map(c => c.id));
-      window.switchTab('ankiV2');
-    } else if (window.startAnkiSingle) {
-      window.startAnkiSingle(list[0].id);
+    const g = groupNavMeta(Q.nav.group);
+    openQuickDrill(list, (g && g.name) || 'Groupe');
+  };
+
+  /** Réviser un dossier Rapide (groupId) hors navigation courante. */
+  window.quickStartGroup = function (groupKey) {
+    const key = groupKey || Q.nav.group;
+    if (!key) return window.sysAlert("Ouvre un dossier pour réviser un groupe.", "Rapide");
+    const list = (key === UNGROUPED
+      ? allQuickCards().filter(c => !c.groupId)
+      : allQuickCards().filter(c => c.groupId === key)
+    ).filter(c => c.statut === 'actif');
+    if (!list.length) return window.sysAlert("Aucune carte Y- active dans ce groupe.", "Rapide");
+    const g = groupNavMeta(key);
+    openQuickDrill(list, (g && g.name) || 'Groupe');
+  };
+
+  /**
+   * Compare une saisie à la face attendue.
+   * Ignore casse, espaces (tous) et accents — le mot doit rester le même.
+   */
+  window.normalizeQuickDrillAnswer = function (s) {
+    return String(s == null ? '' : s)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, '');
+  };
+
+  const DRILL = {
+    phase: 'setup',
+    label: '',
+    pool: [],
+    queue: [],
+    idx: 0,
+    random: true,
+    swap: false,
+    typeMode: false,
+    revealed: false,
+    typed: '',
+    check: null,
+    results: {},
+    _bound: false
+  };
+
+  function readDrillPrefs() {
+    const st = (window.D && window.D.settings && window.D.settings.ankiQuickDrill) || {};
+    DRILL.random = st.random !== false;
+    DRILL.swap = st.swap === true;
+    DRILL.typeMode = st.typeMode === true;
+  }
+
+  function persistDrillPrefs() {
+    if (!window.D) return;
+    if (!window.D.settings) window.D.settings = {};
+    window.D.settings.ankiQuickDrill = {
+      random: !!DRILL.random,
+      swap: !!DRILL.swap,
+      typeMode: !!DRILL.typeMode
+    };
+    if (typeof window.save === 'function') {
+      try { window.save(); } catch (e) { /* prefs locales */ }
     }
+  }
+
+  function shuffleCards(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function drillLiveCard() {
+    return DRILL.queue[DRILL.idx] || null;
+  }
+
+  function drillFaces(c) {
+    const q = (c && c.question) || '';
+    const r = (c && c.reponse) || '';
+    if (DRILL.swap) return { prompt: r || q, expected: r ? q : '', swapped: true, empty: !r };
+    return { prompt: q, expected: r, swapped: false, empty: !r };
+  }
+
+  function expectedLooksLikeLatex(s) {
+    return /\\[a-zA-Z[{]|\\\(|\\\[/.test(String(s || ''));
+  }
+
+  function drillCounts() {
+    let ok = 0, bad = 0;
+    Object.keys(DRILL.results).forEach(function (id) {
+      if (DRILL.results[id] === 'ok') ok++;
+      else if (DRILL.results[id] === 'bad') bad++;
+    });
+    return { ok: ok, bad: bad, done: ok + bad, total: DRILL.queue.length };
+  }
+
+  function ensureDrillOverlay() {
+    let ov = document.getElementById('ovQuickDrill');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'ovQuickDrill';
+      ov.className = 'ov hidden';
+      ov.innerHTML = '<div class="modal qk-drill-modal" id="qkDrillRoot" role="dialog" aria-modal="true"></div>';
+      document.body.appendChild(ov);
+    }
+    if (!DRILL._bound) {
+      DRILL._bound = true;
+      ov.addEventListener('click', function (e) {
+        if (e.target === ov) window.quickDrillClose();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (ov.classList.contains('hidden')) return;
+        if (e.key !== 'Escape') return;
+        // Laisser le dialogue système (confirm / alert) gérer Escape en priorité
+        const sys = document.getElementById('ovSysDialog');
+        if (sys && !sys.classList.contains('hidden')) return;
+        e.preventDefault();
+        window.quickDrillClose();
+      });
+    }
+    return ov;
+  }
+
+  function openQuickDrill(cards, label) {
+    readDrillPrefs();
+    DRILL.pool = cards.slice();
+    DRILL.label = label || 'Groupe';
+    DRILL.phase = 'setup';
+    DRILL.queue = [];
+    DRILL.idx = 0;
+    DRILL.revealed = false;
+    DRILL.typed = '';
+    DRILL.check = null;
+    DRILL.results = {};
+    const ov = ensureDrillOverlay();
+    ov.classList.remove('hidden');
+    renderDrill();
+  }
+
+  function buildDrillQueue(subset) {
+    const src = subset && subset.length ? subset : DRILL.pool;
+    DRILL.queue = DRILL.random ? shuffleCards(src) : src.slice();
+    DRILL.idx = 0;
+    DRILL.results = {};
+    DRILL.revealed = false;
+    DRILL.typed = '';
+    DRILL.check = null;
+  }
+
+  function optChip(on, icon, label, onclick) {
+    return `<button type="button" class="qk-drill-chip${on ? ' on' : ''}" onclick="${onclick}">${window.iconLabel(icon, label)}</button>`;
+  }
+
+  function renderDrill() {
+    const root = document.getElementById('qkDrillRoot');
+    const ov = document.getElementById('ovQuickDrill');
+    if (!root || !ov || ov.classList.contains('hidden')) return;
+    const n = (DRILL.phase === 'setup' ? DRILL.pool : DRILL.queue).length;
+    const chips = `
+      <div class="qk-drill-opts" role="group" aria-label="Options de révision">
+        ${optChip(DRILL.random, 'shuffle', 'Aléatoire', "window.quickDrillToggle('random')")}
+        ${optChip(DRILL.swap, 'arrow-left-right', DRILL.swap ? 'Verso → recto' : 'Recto → verso', "window.quickDrillToggle('swap')")}
+        ${optChip(DRILL.typeMode, 'keyboard', 'Écrire la réponse', "window.quickDrillToggle('type')")}
+      </div>
+      <p class="qk-drill-hint">${DRILL.swap ? 'On te montre le verso, tu retrouves le recto (ex. EN → FR).' : 'On te montre le recto, tu retrouves le verso (ex. FR → EN).'}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
+    `;
+
+    let body = '';
+    if (DRILL.phase === 'setup') {
+      body = `
+        <h2 id="qkDrillTitle">${window.iconLabel('play', 'Réviser le groupe')}</h2>
+        <p class="qk-drill-sub"><b>${esc(DRILL.label)}</b> · ${n} carte${n > 1 ? 's' : ''}</p>
+        ${chips}
+        <div class="qk-drill-acts">
+          <button type="button" class="bs" onclick="window.quickDrillClose()">Annuler</button>
+          <button type="button" class="bp" onclick="window.quickDrillBegin()">${window.iconLabel('play', 'Commencer')}</button>
+        </div>
+      `;
+    } else if (DRILL.phase === 'done') {
+      const cts = drillCounts();
+      const missed = DRILL.queue.filter(function (c) { return DRILL.results[c.id] === 'bad'; });
+      body = `
+        <h2 id="qkDrillTitle">${window.iconLabel('target', 'Bilan')}</h2>
+        <p class="qk-drill-sub">${esc(DRILL.label)}</p>
+        <div class="qk-drill-score">
+          <div class="qk-drill-score-ok"><b>${cts.ok}</b><span>juste${cts.ok > 1 ? 's' : ''}</span></div>
+          <div class="qk-drill-score-bad"><b>${cts.bad}</b><span>ratée${cts.bad > 1 ? 's' : ''}</span></div>
+        </div>
+        ${chips}
+        <div class="qk-drill-acts qk-drill-acts-col">
+          <button type="button" class="bp" onclick="window.quickDrillRetry('all')">${window.iconLabel('refresh-cw', 'Tout revoir')}</button>
+          <button type="button" class="bs" ${missed.length ? '' : 'disabled'} onclick="window.quickDrillRetry('missed')">${window.iconLabel('circle-x', 'Revoir les ratées' + (missed.length ? ' (' + missed.length + ')' : ''))}</button>
+          <button type="button" class="bs" onclick="window.quickDrillClose()">Fermer</button>
+        </div>
+      `;
+    } else {
+      const c = drillLiveCard();
+      if (!c) {
+        DRILL.phase = 'done';
+        return renderDrill();
+      }
+      const faces = drillFaces(c);
+      const cts = drillCounts();
+      const canType = DRILL.typeMode && faces.expected && !expectedLooksLikeLatex(faces.expected);
+      const typeBlocked = DRILL.typeMode && (!faces.expected || expectedLooksLikeLatex(faces.expected));
+      body = `
+        <div class="qk-drill-top">
+          <h2 id="qkDrillTitle">${window.iconLabel('zap', esc(DRILL.label))}</h2>
+          <button type="button" class="qk-drill-x" onclick="window.quickDrillClose()" aria-label="Fermer">${window.iconHtml('x', 18)}</button>
+        </div>
+        <div class="qk-drill-progress">
+          <span>${DRILL.idx + 1} / ${DRILL.queue.length}</span>
+          <span class="qk-drill-mini-ok">${cts.ok} juste${cts.ok > 1 ? 's' : ''}</span>
+          <span class="qk-drill-mini-bad">${cts.bad} ratée${cts.bad > 1 ? 's' : ''}</span>
+        </div>
+        ${chips}
+        <div class="qk-drill-card">
+          <div class="qk-drill-face-lbl">${faces.swapped ? 'Verso (indice)' : 'Recto'}</div>
+          <div class="qk-drill-prompt">${formatFace(faces.prompt) || '<em>Face vide</em>'}</div>
+        </div>
+        ${typeBlocked ? '<p class="qk-drill-hint">Cette carte n’a pas de texte simple à taper — auto-évaluation.</p>' : ''}
+        ${canType && !DRILL.revealed ? `
+          <form class="qk-drill-type" onsubmit="window.quickDrillCheck(); return false;">
+            <label for="qkDrillInput">Ta réponse</label>
+            <input type="text" id="qkDrillInput" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Écris la réponse…" value="${escAttr(DRILL.typed)}">
+            <button type="submit" class="bp">${window.iconLabel('check', 'Vérifier')}</button>
+          </form>
+        ` : ''}
+        ${DRILL.check ? `
+          <div class="qk-drill-verdict ${DRILL.check.ok ? 'ok' : 'bad'}">
+            ${DRILL.check.ok
+              ? window.iconLabel('circle-check', 'Juste')
+              : window.iconLabel('circle-x', 'Raté')}
+            ${DRILL.check.ok ? '' : `<div class="qk-drill-expected"><span>Attendu</span>${formatFace(faces.expected)}</div>`}
+            ${!DRILL.check.ok && DRILL.check.got ? `<div class="qk-drill-got"><span>Tu as écrit</span>${esc(DRILL.check.got)}</div>` : ''}
+            ${!DRILL.check.ok ? `<button type="button" class="bs qk-drill-override" onclick="window.quickDrillOverrideOk()">C’était bon (faute de frappe)</button>` : ''}
+          </div>
+        ` : ''}
+        ${!canType && DRILL.revealed ? `
+          <div class="qk-drill-card qk-drill-answer">
+            <div class="qk-drill-face-lbl">${faces.swapped ? 'Recto (réponse)' : 'Verso'}</div>
+            <div class="qk-drill-prompt">${faces.expected ? formatFace(faces.expected) : '<em>Pas de réponse enregistrée</em>'}</div>
+          </div>
+        ` : ''}
+        <div class="qk-drill-acts">
+          ${canType && !DRILL.revealed
+            ? `<button type="button" class="bs" onclick="window.quickDrillGiveUp()">${window.iconLabel('book-open', 'Je ne sais pas')}</button>`
+            : (!DRILL.revealed
+            ? `<button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>`
+            : (DRILL.check
+              ? `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>`
+              : `<button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark(true)">${window.iconLabel('check', 'Je savais')}</button>
+                 <button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark(false)">${window.iconLabel('x', 'Raté')}</button>`))}
+        </div>
+      `;
+    }
+
+    root.innerHTML = body;
+    if (window.hydrateIcons) window.hydrateIcons(root);
+    const inp = document.getElementById('qkDrillInput');
+    if (inp) {
+      inp.focus();
+      inp.addEventListener('input', function () { DRILL.typed = inp.value; });
+    }
+  }
+
+  window.quickDrillToggle = function (which) {
+    if (which === 'random') DRILL.random = !DRILL.random;
+    else if (which === 'swap') {
+      DRILL.swap = !DRILL.swap;
+      DRILL.revealed = false;
+      DRILL.check = null;
+      DRILL.typed = '';
+    } else if (which === 'type') {
+      DRILL.typeMode = !DRILL.typeMode;
+      DRILL.revealed = false;
+      DRILL.check = null;
+      DRILL.typed = '';
+    }
+    persistDrillPrefs();
+    renderDrill();
+  };
+
+  window.quickDrillBegin = function () {
+    if (!DRILL.pool.length) return;
+    buildDrillQueue(DRILL.pool);
+    DRILL.phase = 'card';
+    renderDrill();
+  };
+
+  window.quickDrillReveal = function () {
+    DRILL.revealed = true;
+    renderDrill();
+  };
+
+  window.quickDrillGiveUp = function () {
+    const c = drillLiveCard();
+    if (!c) return;
+    const inp = document.getElementById('qkDrillInput');
+    if (inp) DRILL.typed = inp.value;
+    DRILL.revealed = true;
+    DRILL.check = { ok: false, got: DRILL.typed };
+    DRILL.results[c.id] = 'bad';
+    renderDrill();
+  };
+
+  window.quickDrillMark = function (ok) {
+    const c = drillLiveCard();
+    if (!c) return;
+    DRILL.results[c.id] = ok ? 'ok' : 'bad';
+    window.quickDrillAdvance();
+  };
+
+  window.quickDrillCheck = function () {
+    const c = drillLiveCard();
+    if (!c) return;
+    const faces = drillFaces(c);
+    const inp = document.getElementById('qkDrillInput');
+    const got = inp ? inp.value : DRILL.typed;
+    DRILL.typed = got;
+    const a = window.normalizeQuickDrillAnswer(got);
+    const b = window.normalizeQuickDrillAnswer(faces.expected);
+    const ok = !!b && a === b;
+    DRILL.check = { ok: ok, got: got };
+    DRILL.revealed = true;
+    DRILL.results[c.id] = ok ? 'ok' : 'bad';
+    renderDrill();
+    if (ok) {
+      setTimeout(function () {
+        if (DRILL.phase === 'card' && drillLiveCard() === c && DRILL.check && DRILL.check.ok) {
+          window.quickDrillAdvance();
+        }
+      }, 650);
+    }
+  };
+
+  window.quickDrillOverrideOk = function () {
+    const c = drillLiveCard();
+    if (!c) return;
+    DRILL.results[c.id] = 'ok';
+    DRILL.check = { ok: true, got: DRILL.typed };
+    renderDrill();
+  };
+
+  window.quickDrillAdvance = function () {
+    DRILL.idx += 1;
+    DRILL.revealed = false;
+    DRILL.typed = '';
+    DRILL.check = null;
+    if (DRILL.idx >= DRILL.queue.length) DRILL.phase = 'done';
+    renderDrill();
+  };
+
+  window.quickDrillRetry = function (mode) {
+    const missed = DRILL.queue.filter(function (c) { return DRILL.results[c.id] === 'bad'; });
+    if (mode === 'missed') {
+      if (!missed.length) return;
+      buildDrillQueue(missed);
+    } else {
+      buildDrillQueue(DRILL.pool);
+    }
+    DRILL.phase = 'card';
+    renderDrill();
+  };
+
+  window.quickDrillClose = function () {
+    const ov = document.getElementById('ovQuickDrill');
+    if (ov) ov.classList.add('hidden');
+    DRILL.phase = 'setup';
+    DRILL.queue = [];
   };
 })();

@@ -3102,6 +3102,165 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .qk-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 6px; flex-shrink: 0; }
 .qk-actions { display: flex; gap: 4px; }
 
+.qk-drill-modal {
+  max-width: 520px;
+  width: min(520px, 100%);
+  padding: 20px 20px 18px;
+}
+.qk-drill-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.qk-drill-top h2 { margin: 0; text-align: left; justify-content: flex-start; font-size: 16px; }
+.qk-drill-x {
+  background: none;
+  border: none;
+  color: var(--mut);
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.qk-drill-sub { color: var(--mut); font-size: 13px; text-align: center; margin: -8px 0 14px; }
+.qk-drill-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+.qk-drill-chip {
+  background: var(--s3);
+  border: 1px solid var(--bd);
+  color: var(--txt);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qk-drill-chip.on {
+  background: color-mix(in srgb, var(--acc) 18%, var(--s2));
+  border-color: var(--acc);
+  color: var(--acc);
+}
+.qk-drill-hint { font-size: 11px; color: var(--mut); text-align: center; margin: 0 0 14px; line-height: 1.4; }
+.qk-drill-progress {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--mut);
+  margin-bottom: 10px;
+}
+.qk-drill-mini-ok { color: var(--grn); }
+.qk-drill-mini-bad { color: var(--red); }
+.qk-drill-card {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 16px 14px;
+  margin-bottom: 12px;
+  min-height: 88px;
+}
+.qk-drill-face-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mut);
+  margin-bottom: 8px;
+}
+.qk-drill-prompt {
+  font-size: 20px;
+  line-height: 1.35;
+  text-align: center;
+  color: var(--txt);
+  word-break: break-word;
+}
+.qk-drill-type {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.qk-drill-type label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mut);
+  text-transform: uppercase;
+}
+.qk-drill-type input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--txt);
+  font-size: 16px;
+}
+.qk-drill-type input:focus {
+  outline: none;
+  border-color: var(--acc);
+}
+.qk-drill-verdict {
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+.qk-drill-verdict.ok { background: rgba(61,148,96,.12); color: var(--grn); border: 1px solid rgba(61,148,96,.3); }
+.qk-drill-verdict.bad { background: rgba(220,80,80,.1); color: var(--red); border: 1px solid rgba(220,80,80,.28); }
+.qk-drill-expected, .qk-drill-got {
+  margin-top: 8px;
+  font-weight: 500;
+  color: var(--txt);
+  font-size: 15px;
+}
+.qk-drill-expected span, .qk-drill-got span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--mut);
+  margin-bottom: 4px;
+}
+.qk-drill-override { margin-top: 10px; }
+.qk-drill-acts {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.qk-drill-acts-col { flex-direction: column; align-items: stretch; }
+.qk-drill-acts-col .bp, .qk-drill-acts-col .bs { width: 100%; }
+.qk-drill-score {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 8px 0 16px;
+}
+.qk-drill-score-ok, .qk-drill-score-bad {
+  flex: 1;
+  text-align: center;
+  border-radius: 14px;
+  padding: 16px 8px;
+  border: 1px solid var(--bd);
+}
+.qk-drill-score-ok { background: rgba(61,148,96,.1); }
+.qk-drill-score-bad { background: rgba(220,80,80,.08); }
+.qk-drill-score b { display: block; font-size: 28px; line-height: 1.1; }
+.qk-drill-score-ok b { color: var(--grn); }
+.qk-drill-score-bad b { color: var(--red); }
+.qk-drill-score span { font-size: 12px; color: var(--mut); }
+
+.anki-lib-mat-hdr .bs { flex-shrink: 0; margin-left: 8px; }
+
 /* =====================================================
  🆕 EXTRAS v3 (drag, slider, diag, devoirs, calendrier)
  ===================================================== */
