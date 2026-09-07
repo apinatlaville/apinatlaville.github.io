@@ -1316,9 +1316,9 @@
           </form>
         ` : ''}
         ${DRILL.check ? `
-          <div class="qk-drill-verdict ${DRILL.check.ok ? 'ok' : 'bad'}">
+          <div class="qk-drill-verdict ${DRILL.check.ok ? 'ok qk-drill-verdict--hero' : 'bad'}">
             ${DRILL.check.ok
-              ? window.iconLabel('circle-check', 'Juste')
+              ? `<span class="qk-drill-juste">${window.iconHtml('circle-check', 28)}<span>Juste</span></span>`
               : window.iconLabel('circle-x', 'Raté')}
             ${DRILL.check.ok ? '' : `<div class="qk-drill-expected"><span>Attendu</span>${formatFace(faces.expected)}</div>`}
             ${!DRILL.check.ok && DRILL.check.got ? `<div class="qk-drill-got"><span>Tu as écrit</span>${esc(DRILL.check.got)}</div>` : ''}
@@ -1337,7 +1337,9 @@
             : (!DRILL.revealed
             ? `<button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>`
             : (DRILL.check
-              ? `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>`
+              ? (DRILL.check.ok
+                ? ''
+                : `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>`)
               : `<button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark(false)">${window.iconLabel('x', 'Raté')}</button>
                  <button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark(true)">${window.iconLabel('check', 'Je savais')}</button>`))}
         </div>
@@ -1415,7 +1417,7 @@
         if (DRILL.phase === 'card' && drillLiveCard() === c && DRILL.check && DRILL.check.ok) {
           window.quickDrillAdvance();
         }
-      }, 980);
+      }, 2000);
     }
   };
 

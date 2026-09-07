@@ -3325,6 +3325,31 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
     inset 0 0 18px color-mix(in srgb, var(--grn) 16%, transparent);
   animation: qk-drill-ok-pop 0.55s ease-out;
 }
+.qk-drill-verdict--hero {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  margin: 8px 0 4px;
+}
+.qk-drill-juste {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--grn);
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-shadow: 0 0 24px color-mix(in srgb, var(--grn) 45%, transparent);
+}
+.qk-drill-juste .icon {
+  color: var(--grn);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--grn) 55%, transparent));
+}
 .qk-drill-verdict.bad { background: rgba(220,80,80,.1); color: var(--red); border: 1px solid rgba(220,80,80,.28); }
 @keyframes qk-drill-ok-pop {
   0% {
