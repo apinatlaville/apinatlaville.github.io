@@ -11,7 +11,7 @@
 
   var CONFIG = {
     HEARTBEAT_MS: 10000,
-    TTL_MS: 45000,
+    TTL_MS: 180000,
     STORAGE_DEVICE_ID: 'mc_device_id',
     STORAGE_ROLE_PREF: 'mc_device_role',
     PRESENCE_COLLECTION: 'presence',
@@ -290,9 +290,10 @@
       var others = otherLiving(state.hub);
       var pref = state.preferredRole;
       var id = getDeviceId();
+      var listedPrimary = state.hub && state.hub.primaryDeviceId;
 
-      // Suivant : Primary déjà là, OU d'autres appareils déjà connectés
-      if ((remote && remote !== id) || others.length > 0) {
+      // Suivant : Primary déjà là (même lease expiré) OU d'autres appareils déjà connectés
+      if ((remote && remote !== id) || (listedPrimary && listedPrimary !== id) || others.length > 0) {
         state.needsRoleChoice = true;
         state.controlStolen = false;
         state.effectiveRole = CONFIG.ROLES.SECONDARY;
@@ -446,11 +447,8 @@
       var id = getDeviceId();
       hub = touchSelf(hub, 'offline');
       if (hub.devices[id]) hub.devices[id].lastSeen = now() - CONFIG.TTL_MS - 1000;
-      if (hub.primaryDeviceId === id) {
-        hub.primaryDeviceId = null;
-        hub.primaryUpdatedAt = 0;
-        hub.primaryClaimedAt = 0;
-      }
+      // Ne pas lâcher le rôle Principal : pagehide se déclenche au verrouillage /
+      // changement d’onglet. L’autre appareil devra « Prendre le contrôle ».
       var ref = presenceRef();
       if (ref && window.setDoc) window.setDoc(ref, hub);
     } catch (e) { /* best-effort */ }

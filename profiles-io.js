@@ -159,7 +159,8 @@
       updatedAt: p.updatedAt || nowIso(),
       archived: !!p.archived,
       bytes: Math.max(0, Number(p.bytes) || 0),
-      cloudBlobPending: !!p.cloudBlobPending
+      cloudBlobPending: !!p.cloudBlobPending,
+      allowDemoReset: p.allowDemoReset === true
     };
     if (p.generation != null && p.generation !== '' && !isNaN(Number(p.generation))) {
       entry.generation = Number(p.generation);
@@ -208,9 +209,25 @@
     if (meta.activeProfile) lsSet(ACTIVE_KEY, meta.activeProfile);
   }
 
+  function structureSignature(data) {
+    function norm(arr, keys) {
+      return JSON.stringify((arr || []).filter(function (x) {
+        return x && !x._system;
+      }).map(function (x) {
+        var o = {};
+        keys.forEach(function (k) { o[k] = x[k] == null ? '' : x[k]; });
+        return o;
+      }).sort(function (a, b) {
+        return String(a.id).localeCompare(String(b.id));
+      }));
+    }
+    return norm(data && data.matieres, ['id', 'name', 'label', 'color']) + '|' +
+      norm(data && data.classeurs, ['id', 'name', 'color', 'maxInter', 'interNames']);
+  }
+
   /**
-   * Profil « coquille » (emptyData / template) — sans cours ni synchrotron.
-   * Les matières/classeurs du template ne comptent PAS comme contenu utilisateur.
+   * Profil « coquille » (emptyData / template) — sans cours ni synchrotron
+   * ni structure matières/classeurs personnalisée.
    */
   function isEffectivelyEmptyProfile(data) {
     if (!data || typeof data !== 'object' || data._account === true) return true;
@@ -219,6 +236,8 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     if (cours + ex + dv > 0) return false;
     if (data.sessionEnCoursV2) return false;
+    var tmpl = window.emptyData;
+    if (tmpl && structureSignature(data) !== structureSignature(tmpl)) return false;
     return true;
   }
 
@@ -230,6 +249,9 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     var score = cours * 100 + ex * 10 + dv * 10;
     if (data.sessionEnCoursV2) score += 5;
+    var mats = (data.matieres || []).filter(function (m) { return m && !m._system; }).length;
+    var cls = (data.classeurs || []).filter(function (c) { return c && !c._system; }).length;
+    score += mats + cls;
     return score;
   }
 
@@ -1083,6 +1105,9 @@
           }
         }
         if (cp.cloudBlobPending != null) byId[cp.id].cloudBlobPending = !!cp.cloudBlobPending;
+        if (cp.allowDemoReset === true || cp.allowDemoReset === false) {
+          byId[cp.id].allowDemoReset = !!cp.allowDemoReset;
+        }
         if (cp.generation != null) {
           var prevGen = Number(byId[cp.id].generation) || 0;
           var nextGen = Number(cp.generation) || 0;
@@ -1107,6 +1132,7 @@
           archived: !!cp.archived,
           bytes: Math.max(0, Number(cp.bytes) || 0),
           cloudBlobPending: !!cp.cloudBlobPending,
+          allowDemoReset: cp.allowDemoReset === true,
           generation: cp.generation != null ? Number(cp.generation) : undefined
         });
         byId[cp.id] = meta.profiles[meta.profiles.length - 1];
@@ -1258,6 +1284,9 @@
         else if (p.cloudBlobPending === false) {
           var clearList = opts.clearBlobPendingIds || [];
           if (clearList.indexOf(p.id) !== -1) byId[p.id].cloudBlobPending = false;
+        }
+        if (p.allowDemoReset === true || p.allowDemoReset === false) {
+          byId[p.id].allowDemoReset = p.allowDemoReset === true;
         }
       } else {
         var revived = (opts.revivedIds || []).indexOf(p.id) !== -1;
@@ -1832,6 +1861,38 @@
     return report;
   }
 
+  function profileAllowsDemoReset(profileId) {
+    var id = profileId || getSessionProfileId();
+    var p = getProfileMeta(id);
+    if (p && p.allowDemoReset === true) return true;
+    if (p && p.allowDemoReset === false) return false;
+    if (window.D && window.D.settings && window.D.settings.allowDemoReset === true) return true;
+    return false;
+  }
+
+  async function setProfileAllowDemoReset(profileId, allowed) {
+    var id = profileId || getSessionProfileId();
+    var meta = ensureLocalRegistry();
+    var p = meta.profiles.find(function (x) { return x.id === id; });
+    if (!p) throw new Error('Profil introuvable');
+    p.allowDemoReset = !!allowed;
+    p.updatedAt = nowIso();
+    writeMetaLocal(meta);
+    if (id === getSessionProfileId() && window.D) {
+      if (!window.D.settings) window.D.settings = {};
+      window.D.settings.allowDemoReset = !!allowed;
+    }
+    var user = window.currentUser;
+    if (!window.isLocalMode && user && user.sub) {
+      await persistAccountIndexCloud(user, meta);
+    }
+    if (id === getSessionProfileId() && typeof window.save === 'function') {
+      try { await window.save(); } catch (e) { /* flag index déjà local */ }
+    }
+    if (typeof window.syncDemoResetUi === 'function') window.syncDemoResetUi();
+    return p;
+  }
+
   // ─── Profils CRUD ───────────────────────────────────────
 
   function rollbackCreatedProfile(id) {
@@ -1899,7 +1960,8 @@
       updatedAt: nowIso(),
       bytes: 0,
       cloudBlobPending: false,
-      generation: Date.now()
+      generation: Date.now(),
+      allowDemoReset: opts.allowDemoReset === true
     };
     meta.profiles.push(entry);
     writeMetaLocal(meta);
@@ -1915,6 +1977,7 @@
       if (window.D && window.D.settings && window.D.settings.userName) {
         seed.settings.userName = window.D.settings.userName;
       }
+      seed.settings.allowDemoReset = entry.allowDemoReset === true;
     }
     if (!seed.meta) seed.meta = {};
     seed.meta.updatedAt = Date.now();
@@ -2346,6 +2409,14 @@
           '<button type="button" class="bs" id="pioCreateEmpty">Créer vide</button>' +
           '<button type="button" class="bs" id="pioCreateCopy">Créer (copie)</button>' +
         '</div>' +
+        '<label class="pio-check" style="margin:4px 0 8px;">' +
+          '<input type="checkbox" id="pioAllowDemoReset">' +
+          '<span><b>Autoriser démo / reset / tests</b><small>Décoché = profil de données réelles (recommandé). Coché = tu pourras charger les simulations et vider le profil.</small></span>' +
+        '</label>' +
+        '<label class="pio-check" style="margin:0 0 12px;">' +
+          '<input type="checkbox" id="pioActiveAllowDemoReset"' + (profileAllowsDemoReset(active) ? ' checked' : '') + '>' +
+          '<span><b>Ce profil (actif) autorise démo / reset</b><small>Décoche pour protéger tes vraies données sur « ' + esc((getProfileMeta(active) || {}).name || active) + ' ».</small></span>' +
+        '</label>' +
         '<div class="pio-row">' +
           '<input type="text" id="pioRenameInput" class="pio-input" placeholder="Nouveau nom du profil actif" maxlength="40">' +
           '<button type="button" class="bs" id="pioRenameBtn">Renommer</button>' +
@@ -2449,7 +2520,7 @@
       createEmpty.onclick = function () {
         var nameEl = document.getElementById('pioNewName');
         var name = (nameEl && nameEl.value.trim()) || 'Test';
-        createProfile(name, { copyFromActive: false }).then(function (p) {
+        createProfile(name, { copyFromActive: false, allowDemoReset: !!(document.getElementById('pioAllowDemoReset') && document.getElementById('pioAllowDemoReset').checked) }).then(function (p) {
           if (typeof window.showToast === 'function') window.showToast('Profil « ' + p.name + ' » créé.');
           renderSettingsBlock();
         }).catch(function (e) {
@@ -2463,12 +2534,41 @@
       createCopy.onclick = function () {
         var nameEl = document.getElementById('pioNewName');
         var name = (nameEl && nameEl.value.trim()) || 'Copie';
-        createProfile(name, { copyFromActive: true }).then(function (p) {
+        createProfile(name, { copyFromActive: true, allowDemoReset: !!(document.getElementById('pioAllowDemoReset') && document.getElementById('pioAllowDemoReset').checked) }).then(function (p) {
           if (typeof window.showToast === 'function') window.showToast('Profil « ' + p.name + ' » (copie) créé.');
           renderSettingsBlock();
         }).catch(function (e) {
           alert(e.message || e);
         });
+      };
+    }
+
+    var activeDemo = document.getElementById('pioActiveAllowDemoReset');
+    if (activeDemo) {
+      activeDemo.onchange = function () {
+        var allowed = !!activeDemo.checked;
+        var go = function () {
+          setProfileAllowDemoReset(getSessionProfileId(), allowed).then(function () {
+            if (typeof window.showToast === 'function') {
+              window.showToast(allowed
+                ? 'Démo / reset autorisés sur ce profil.'
+                : 'Démo / reset désactivés sur ce profil.');
+            }
+            renderSettingsBlock();
+          }).catch(function (e) {
+            activeDemo.checked = !allowed;
+            alert(e.message || e);
+          });
+        };
+        if (!allowed && typeof window.sysConfirm === 'function') {
+          window.sysConfirm(
+            'Désactiver démo / reset sur ce profil ? Tu pourras les réactiver plus tard. Les boutons Simulation et Vider disparaîtront.',
+            go
+          );
+          activeDemo.checked = true;
+          return;
+        }
+        go();
       };
     }
 
@@ -2727,6 +2827,8 @@
     normalizeImport: normalizeImport,
     applyImport: applyImport,
     createProfile: createProfile,
+    profileAllowsDemoReset: profileAllowsDemoReset,
+    setProfileAllowDemoReset: setProfileAllowDemoReset,
     renameProfile: renameProfile,
     deleteProfile: deleteProfile,
     archiveProfile: archiveProfile,

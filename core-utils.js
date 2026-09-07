@@ -211,6 +211,29 @@
     if (el) el.classList.add('hidden');
   };
 
+  /** true si save() n’a rien persisté (rollback mémoire nécessaire) */
+  window.isPersistHardFail = function (err) {
+    var msg = String(err && err.message ? err.message : err || '');
+    return /SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe|SAVE_DISABLED/i.test(msg);
+  };
+
+  /**
+   * Attend save(). Rollback seulement si rien n’a été écrit (local / secondaire).
+   * Échec cloud après succès local → resolve { cloudFailed: true } (garder la mutation).
+   */
+  window.flushSave = function (opts) {
+    opts = opts || {};
+    return Promise.resolve(typeof window.save === 'function' ? window.save() : null).then(function () {
+      return { cloudFailed: false };
+    }).catch(function (err) {
+      if (window.isPersistHardFail(err)) {
+        if (typeof opts.rollback === 'function') opts.rollback();
+        throw err;
+      }
+      return { cloudFailed: true };
+    });
+  };
+
   /** Accès localStorage sécurisé (Safari privé / quota) */
   window.safeLocalGet = function (key) {
     try { return localStorage.getItem(key); } catch (e) { return null; }

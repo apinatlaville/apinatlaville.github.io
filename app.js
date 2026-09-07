@@ -297,10 +297,38 @@ window.applySettings = function() {
   if (window.ProfilesIO && typeof window.ProfilesIO.renderSettingsBlock === 'function') {
     window.ProfilesIO.renderSettingsBlock();
   }
+  if (typeof window.syncDemoResetUi === 'function') window.syncDemoResetUi();
 
 };
 
+window.syncDemoResetUi = function () {
+  var allowed = window.ProfilesIO && typeof window.ProfilesIO.profileAllowsDemoReset === 'function'
+    ? window.ProfilesIO.profileAllowsDemoReset()
+    : false;
+  var unlocked = document.getElementById('demoResetUnlocked');
+  var locked = document.getElementById('demoResetLocked');
+  if (unlocked) unlocked.hidden = !allowed;
+  if (locked) locked.hidden = !!allowed;
+};
+
+window.assertDemoResetAllowed = function () {
+  if (window.ProfilesIO && typeof window.ProfilesIO.profileAllowsDemoReset === 'function'
+      && window.ProfilesIO.profileAllowsDemoReset()) {
+    return true;
+  }
+  if (typeof window.sysAlert === 'function') {
+    window.sysAlert(
+      'Ce profil n’autorise pas les démos ni la réinitialisation.<br><br>' +
+      'Crée un <b>profil de test</b> en cochant « Autoriser démo / reset / tests », ' +
+      'ou active l’option sur ce profil dans Paramètres → Profils.',
+      'Action bloquée'
+    );
+  }
+  return false;
+};
+
 window.loadDemoPCStar = function() {
+  if (!window.assertDemoResetAllowed()) return;
   window.sysConfirm(
     "Charger la simulation mi-année PC* ?\n\n" +
     "~190 cartes Anki (X-/Y- au format ABC), ~27 notes DS/khôlles, devoirs découpés, programme S1/S2.\n" +
@@ -321,6 +349,7 @@ window.loadDemoPCStar = function() {
 };
 
 window.loadDemo = function() {
+  if (!window.assertDemoResetAllowed()) return;
   window.sysConfirm("Activer les tests va remplacer tes données actuelles.\n\nContinuer ?", async () => {
     await window.ensureDemoData();
     if (!window.assertDemoDataLoaded('demoData')) return;
@@ -335,6 +364,7 @@ window.loadDemo = function() {
 };
 
 window.loadDemoXP = function() {
+  if (!window.assertDemoResetAllowed()) return;
   window.sysConfirm("Charger les données de démo « expérimenté » ?\n\nSimule 3 semaines d'usage : historique riche, notes DS/khôlles, ease variés, un DM en cours.\n\nCela remplace tes données actuelles.", async () => {
     await window.ensureDemoData();
     if (!window.assertDemoDataLoaded('demoDataXP')) return;
@@ -369,6 +399,7 @@ window.ensureDemoData = function() {
 };
 
 window.resetData = function() {
+  if (!window.assertDemoResetAllowed()) return;
   const pid = window._activeProfileId
     || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
     || 'ce profil';
@@ -2127,6 +2158,7 @@ async function initApp(user) {
   }
   // Toujours sortir du pré-accueil (même si unlockPage déjà appelé par le timer 12s)
   if (typeof window.enterApp === 'function') window.enterApp();
+  if (typeof window.syncDemoResetUi === 'function') window.syncDemoResetUi();
 
   if (localDataCorrupt) {
     window.sysAlert(
@@ -2237,6 +2269,111 @@ window.mergeRemoteCoursPatches = function (localCours, remoteCours) {
   });
 };
 
+function _unionByKey(localArr, remoteArr, key) {
+  if (!Array.isArray(localArr)) return Array.isArray(remoteArr) ? remoteArr.slice() : [];
+  const have = Object.create(null);
+  localArr.forEach(function (x) {
+    if (x && x[key]) have[x[key]] = true;
+  });
+  (remoteArr || []).forEach(function (x) {
+    if (x && x[key] && !have[x[key]]) {
+      localArr.push(x);
+      have[x[key]] = true;
+    }
+  });
+  return localArr;
+}
+
+function _cardRecency(c) {
+  if (!c) return 0;
+  const hist = Array.isArray(c.historique) ? c.historique.length : 0;
+  let last = 0;
+  if (hist) {
+    const h = c.historique[hist - 1];
+    last = Date.parse(h && h.date) || 0;
+  }
+  const faits = Number(c._morceauxFaits) || 0;
+  const reps = Number(c.repetitions) || 0;
+  return hist * 1e12 + last + faits * 10 + reps;
+}
+
+function _mergeCardArrays(localArr, remoteArr) {
+  if (!Array.isArray(localArr)) return Array.isArray(remoteArr) ? remoteArr.slice() : [];
+  const byId = Object.create(null);
+  (remoteArr || []).forEach(function (c) {
+    if (c && c.id) byId[c.id] = c;
+  });
+  localArr.forEach(function (c, i) {
+    if (!c || !c.id) return;
+    const r = byId[c.id];
+    if (!r) {
+      byId[c.id] = c;
+      return;
+    }
+    byId[c.id] = _cardRecency(c) >= _cardRecency(r) ? c : r;
+    localArr[i] = byId[c.id];
+  });
+  (remoteArr || []).forEach(function (c) {
+    if (!c || !c.id) return;
+    if (!localArr.some(function (x) { return x && x.id === c.id; })) localArr.push(byId[c.id] || c);
+  });
+  return localArr;
+}
+
+/** Fusionne un blob cloud en avance dans window.D (union, pas last-write-wins). */
+window.mergeRemoteProfileIntoLocal = function (remote) {
+  if (!remote || typeof remote !== 'object' || !window.D) return;
+  if (!Array.isArray(window.D.cours)) window.D.cours = [];
+  if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
+  if (!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
+  if (typeof window.mergeRemoteCoursPatches === 'function') {
+    window.mergeRemoteCoursPatches(window.D.cours, remote.cours);
+  }
+  _unionByKey(window.D.cours, remote.cours, 'uid');
+  _mergeCardArrays(window.D.exercices, remote.exercices);
+  _mergeCardArrays(window.D.devoirs, remote.devoirs);
+  if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
+  if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
+  _unionByKey(window.D.matieres, remote.matieres, 'id');
+  _unionByKey(window.D.classeurs, remote.classeurs, 'id');
+  if (!window.D.sessionEnCoursV2 && remote.sessionEnCoursV2) {
+    window.D.sessionEnCoursV2 = remote.sessionEnCoursV2;
+  }
+};
+
+window._applyCloudSnapshotGuards = function (cur, emptyOutgoing) {
+  if (cur && cur._account === true) {
+    throw new Error('Refus d’écrire le profil sur l’index compte cloud');
+  }
+  if (cur && cur._deleted) {
+    throw new Error('Refus d’écrire : profil cloud marqué supprimé');
+  }
+  const emptyCloud = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+    ? window.ProfilesIO.isEffectivelyEmptyProfile(cur)
+    : false;
+  if (emptyOutgoing && cur && !emptyCloud && !window._allowEmptyProfileWrite) {
+    throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
+  }
+};
+
+window._repersistLocalProfile = function (sessionPid) {
+  const mergedPayload = JSON.stringify(window.D);
+  if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+    window.ProfilesIO.writeLocalProfileData(sessionPid, mergedPayload);
+  } else if (typeof window.safeLocalSet === 'function') {
+    window.safeLocalSet('backup_local_cours', mergedPayload);
+  }
+};
+
+window._stripProfileForCloud = function () {
+  var toWrite = window.D;
+  if (window.ProfilesIO && typeof window.ProfilesIO.stripUndefinedDeep === 'function') {
+    toWrite = window.ProfilesIO.stripUndefinedDeep(window.D);
+    if (!toWrite || typeof toWrite !== 'object') toWrite = window.D;
+  }
+  return toWrite;
+};
+
 /**
  * Sauvegarde locale + cloud Firestore (file d'attente : pas d'écritures concurrentes).
  * Retourne une Promise qui REJECTE en cas d'échec inattendu (les callers await le voient).
@@ -2277,7 +2414,7 @@ window._saveImpl = async function() {
         M.SAVE_DISABLED_TITLE || "Sauvegarde désactivée"
       );
     }
-    return;
+    throw new Error('SAVE_DISABLED');
   }
 
   if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
@@ -2349,77 +2486,50 @@ window._saveImpl = async function() {
           throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
         }
       }
-      // Garde-fou : profil tombstoné / pending ailleurs
       if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
         const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
         if (!writability.ok) {
           throw new Error('Refus d’écrire cloud : profil non inscriptible (' + (writability.reason || '?') + ')');
         }
       }
-      // Garde-fou : ne jamais écraser un index compte / un blob non vide avec du vide
-      // + anti lost-update : si le cloud (ex. patch secondaire) a avancé la révision, merger avant écriture
-      if (window.getDoc) {
-        let cloudGuardOk = false;
-        try {
-          const snap = await window.getDoc(window.docRef);
-          cloudGuardOk = true;
-          if (snap.exists()) {
-            const cur = snap.data();
-            if (cur && cur._account === true) {
-              throw new Error('Refus d’écrire le profil sur l’index compte cloud');
-            }
-            if (cur && cur._deleted) {
-              throw new Error('Refus d’écrire : profil cloud marqué supprimé');
-            }
-            const emptyCloud = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
-              ? window.ProfilesIO.isEffectivelyEmptyProfile(cur)
-              : false;
-            if (emptyOutgoing && !emptyCloud && !window._allowEmptyProfileWrite) {
-              throw new Error('Refus d’écraser des données cloud non vides avec un profil vide');
-            }
-            const remoteRev = Number(cur && cur.meta && cur.meta.revision) || 0;
-            // Base = dernière révision cloud confirmée (pas revision-1 après un setDoc échoué)
-            const confirmed = window._lastCloudConfirmedRevision;
-            const localBase = (confirmed != null && confirmed !== '')
-              ? (Number(confirmed) || 0)
-              : prevRevision;
-            if (remoteRev > localBase) {
-              // Remote en avance (souvent patch secondaire) — merge 3-voies via baseline
-              if (typeof window.mergeRemoteCoursPatches === 'function') {
-                window.mergeRemoteCoursPatches(window.D.cours, cur.cours);
-              }
-              window.D.meta.revision = remoteRev + 1;
-              window.D.meta.updatedAt = Date.now();
-              console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
-              // Re-persister le local déjà écrit avec le merge
-              const mergedPayload = JSON.stringify(window.D);
-              if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-                window.ProfilesIO.writeLocalProfileData(sessionPid, mergedPayload);
-              } else if (typeof window.safeLocalSet === 'function') {
-                window.safeLocalSet('backup_local_cours', mergedPayload);
-              }
-            }
-          }
-        } catch (guardErr) {
-          if (/index compte|écraser|docRef profil|non inscriptible|marqué supprimé/i.test(String(guardErr && guardErr.message))) throw guardErr;
-          // getDoc échoue : fail-closed si on tente d’écrire du vide
-          if (emptyOutgoing && !window._allowEmptyProfileWrite) {
-            throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
-          }
-          console.warn('Garde cloud getDoc échouée — écriture non vide autorisée:', guardErr);
+
+      const confirmed = window._lastCloudConfirmedRevision;
+      const localBase = (confirmed != null && confirmed !== '')
+        ? (Number(confirmed) || 0)
+        : prevRevision;
+
+      function applyRemoteIfAhead(cur) {
+        window._applyCloudSnapshotGuards(cur, emptyOutgoing);
+        if (!cur) return;
+        const remoteRev = Number(cur.meta && cur.meta.revision) || 0;
+        if (remoteRev > localBase) {
+          window.mergeRemoteProfileIntoLocal(cur);
+          window.D.meta.revision = remoteRev + 1;
+          window.D.meta.updatedAt = Date.now();
+          console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
+          window._repersistLocalProfile(sessionPid);
         }
-        if (!cloudGuardOk && emptyOutgoing && !window._allowEmptyProfileWrite) {
-          throw new Error('Refus d’écrire un profil vide : vérification cloud impossible');
-        }
-      } else if (emptyOutgoing && !window._allowEmptyProfileWrite) {
-        throw new Error('Refus d’écrire un profil vide : getDoc indisponible');
       }
-      var toWrite = window.D;
-      if (window.ProfilesIO && typeof window.ProfilesIO.stripUndefinedDeep === 'function') {
-        toWrite = window.ProfilesIO.stripUndefinedDeep(window.D);
-        if (!toWrite || typeof toWrite !== 'object') toWrite = window.D;
+
+      if (typeof window.runTransaction === 'function' && window.db) {
+        await window.runTransaction(window.db, async function (tx) {
+          const snap = await tx.get(window.docRef);
+          const cur = snap.exists() ? snap.data() : null;
+          if (!cur && emptyOutgoing && !window._allowEmptyProfileWrite) {
+            // nouveau doc vide : OK
+          }
+          applyRemoteIfAhead(cur);
+          tx.set(window.docRef, window._stripProfileForCloud());
+        });
+      } else if (window.getDoc) {
+        const snap = await window.getDoc(window.docRef);
+        const cur = snap.exists() ? snap.data() : null;
+        applyRemoteIfAhead(cur);
+        await window.setDoc(window.docRef, window._stripProfileForCloud());
+      } else {
+        throw new Error('Refus d’écrire cloud : getDoc / transaction indisponible');
       }
-      await window.setDoc(window.docRef, toWrite);
+
       console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
       window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
       if (typeof window.captureCoursPlacementBase === 'function') {

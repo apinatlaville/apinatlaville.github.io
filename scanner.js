@@ -244,8 +244,7 @@ window.confirmPrintSuccess = function(success) {
   });
   markPrinted(window.D.cours);
   Promise.resolve(window.save()).then(onOk).catch(function (err) {
-    const msg = String(err && err.message || err || '');
-    if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+    if (window.isPersistHardFail && window.isPersistHardFail(err)) {
       uids.forEach(function (uid) {
         const x = window.D.cours.find(function (d) { return d.uid === uid; });
         if (x && Object.prototype.hasOwnProperty.call(prevByUid, uid)) x.stat = prevByUid[uid];
