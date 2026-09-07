@@ -111,18 +111,30 @@
 
   var _toastHideTimer = null;
 
-  /** Affiche le toast global (#errorToast). opts.duration: ms (0 = sticky) */
+  /** Affiche le toast global (#errorToast). opts: { duration, type: 'ok'|'error'|'info' } */
   window.showToast = function (msg, opts) {
     opts = opts || {};
     var toast = document.getElementById('errorToast');
     var toastMsg = document.getElementById('errorToastMsg');
     if (!toast || !toastMsg) return;
+    var type = opts.type === 'ok' || opts.type === 'success'
+      ? 'ok'
+      : (opts.type === 'error' ? 'error' : 'info');
+    toast.classList.remove('ui-toast--ok', 'ui-toast--error', 'ui-toast--info');
+    toast.classList.add('ui-toast--' + type);
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    var iconHost = toast.querySelector('.ui-toast-icon');
+    if (iconHost) {
+      var iconName = type === 'ok' ? 'circle-check' : (type === 'error' ? 'alert-triangle' : 'lightbulb');
+      iconHost.setAttribute('data-icon', iconName);
+      if (typeof window.hydrateIcons === 'function') window.hydrateIcons(iconHost);
+    }
     toastMsg.textContent = String(msg == null ? '' : msg);
     toast.classList.remove('hidden');
     if (_toastHideTimer) clearTimeout(_toastHideTimer);
     _toastHideTimer = null;
     var ms = opts.duration;
-    if (ms == null) ms = 6000;
+    if (ms == null) ms = type === 'error' ? 6000 : 3200;
     if (ms > 0) {
       _toastHideTimer = setTimeout(function () {
         toast.classList.add('hidden');
@@ -155,7 +167,8 @@
     if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
     if (opts.toast) {
       window.showToast(opts.toastMsg != null ? opts.toastMsg : entry.msg, {
-        duration: opts.sticky ? 0 : opts.duration
+        duration: opts.sticky ? 0 : opts.duration,
+        type: 'error'
       });
     }
     return entry;
@@ -289,7 +302,7 @@
       window.sysAlert(body, M.LOAD_TITLE);
     } else {
       var plain = 'Fichiers non chargés : ' + names + '. ' + M.RELOAD_HINT;
-      window.showToast(plain, { duration: 0 });
+      window.showToast(plain, { duration: 0, type: 'error' });
     }
   };
 

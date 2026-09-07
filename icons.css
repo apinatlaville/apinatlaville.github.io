@@ -314,8 +314,9 @@
 .eval-mid { color: var(--gold); }
 .eval-bad { color: var(--red); }
 
-/* Alert icon in toast */
-.toast-icon {
+/* Alert icon in toast — couleur portée par .ui-toast--ok/error/info */
+.toast-icon,
+.ui-toast-icon {
   flex-shrink: 0;
-  color: var(--red);
+  color: var(--mut);
 }

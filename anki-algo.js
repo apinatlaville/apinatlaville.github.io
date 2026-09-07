@@ -147,9 +147,19 @@
       let suffix = "";
       for (let j = 0; j < 3; j++) suffix += ALPHANUM.charAt(Math.floor(Math.random() * ALPHANUM.length));
       const code = prefix + "-" + suffix;
-      if (!used.has(code)) return code;
+      if (!used.has(code)) {
+        used.add(code);
+        return code;
+      }
     }
-    return prefix + "-" + Date.now().toString(36).slice(-3).toUpperCase();
+    let n = 0;
+    let fallback;
+    do {
+      fallback = prefix + "-" + (Date.now() + n).toString(36).slice(-3).toUpperCase();
+      n++;
+    } while (used.has(fallback) && n < 200);
+    used.add(fallback);
+    return fallback;
   };
 
   // ===== Conversion temps =====

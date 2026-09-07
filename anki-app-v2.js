@@ -3785,7 +3785,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           delete window.D.sessionEnCoursV2;
         }
       }
-      window.save(); window.renderAnkiV2();
+      window.save();
+      window.renderAnkiV2();
+      if (typeof window.renderFlashcards === 'function') {
+        try { window.renderFlashcards(); } catch (e) { /* onglet Rapide optionnel */ }
+      }
     }, "Suppression");
   };
 
@@ -4125,7 +4129,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   function showQuickCreateModal(c) {
     let ov = $("ovQuickCreate");
-    if (!ov) { ov = document.createElement("div"); ov.id = "ovQuickCreate"; ov.className = "ov"; document.body.appendChild(ov); }
+    if (!ov) { ov = document.createElement("div"); ov.id = "ovQuickCreate"; ov.className = "ov ov-scroll"; document.body.appendChild(ov); }
     ov.classList.remove("hidden");
     const batch = !editingQuickId && window._quickCreateMode === 'batch';
     const count = Number(window._quickCreateCount) || 0;
@@ -4283,7 +4287,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         window._quickCreateCount = (Number(window._quickCreateCount) || 0) + 1;
         showQuickCreateModal({ mat, groupId: groupId || '', question: '', reponse: '' });
         if (typeof window.showToast === 'function') {
-          window.showToast('Carte ' + window._quickCreateCount + ' créée — continue ou Termine.');
+          window.showToast('Carte ' + window._quickCreateCount + ' créée — continue ou Termine.', { type: 'ok' });
         }
         return;
       }
@@ -4294,7 +4298,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const ov = $("ovQuickCreate");
       if (ov) ov.classList.add('hidden');
       if (typeof window.showToast === 'function') {
-        window.showToast(isEdit ? ('Carte ' + card.id + ' mise à jour.') : ('Carte ' + card.id + ' créée et active.'));
+        window.showToast(isEdit ? ('Carte ' + card.id + ' mise à jour.') : ('Carte ' + card.id + ' créée et active.'), { type: 'ok' });
       } else if (!isEdit) {
         window.sysAlert(window.iconLabel('check', 'Carte rapide créée et active.'), 'Rapide Y-');
       }
@@ -4370,8 +4374,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
     const mats = Array.isArray(window.D.matieres) ? window.D.matieres : [];
     const matV = data.mat || ((mats[0] && mats[0].id) || 'XX');
-    const existing = ankExistingIds();
+    if (!window._pendingExoIds) window._pendingExoIds = new Set();
+    const existing = ankExistingIds().concat(Array.from(window._pendingExoIds));
     const id = window.AnkiAlgoV2.genExoUid('Y', existing);
+    window._pendingExoIds.add(id);
     const profil = data.profil || 'ANGLAIS';
     const statut = data.statut || 'actif';
     const importance = data.importance != null ? data.importance : 3;
@@ -4397,8 +4403,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (data.groupId) card.groupId = data.groupId;
     window.D.exercices.unshift(card);
     return Promise.resolve(window.save()).then(function () {
+      window._pendingExoIds.delete(id);
       return card;
     }).catch(function (err) {
+      window._pendingExoIds.delete(id);
       const msg = String(err && err.message || err || '');
       if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
         window.D.exercices = (window.D.exercices || []).filter(c => c !== card && c.id !== id);

@@ -1211,12 +1211,24 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 #ovExo.ov,
 #ovDevoir.ov,
 #ovQuickCreate.ov,
-#ovQuickLatex.ov {
- align-items: flex-start;
- justify-content: center;
- overflow-y: auto;
- -webkit-overflow-scrolling: touch;
- padding: max(14px, 2vh) 14px max(28px, 4vh);
+#ovQuickLatex.ov,
+#ovQuickGroups.ov {
+  align-items: center;
+  align-items: safe center;
+  justify-content: center;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: max(14px, 2vh) 14px max(28px, 4vh);
+}
+.ov.ov-scroll > .modal,
+#ovExo.ov > .modal,
+#ovDevoir.ov > .modal,
+#ovQuickCreate.ov > .modal,
+#ovQuickLatex.ov > .modal,
+#ovQuickGroups.ov > .modal {
+  margin-top: auto;
+  margin-bottom: auto;
+  flex-shrink: 0;
 }
 body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
 #ovSysDialog { z-index: 2000; }
@@ -2907,11 +2919,32 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   margin: -4px 0 12px;
   line-height: 1.45;
 }
+.qk-group-create {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 12px;
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+}
+.qk-group-create-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--mut);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.qk-new-group-mat {
+  width: 100%;
+  margin-bottom: 4px;
+}
 .qk-groups-sections {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-height: min(58vh, 520px);
+  max-height: min(50vh, 440px);
   overflow-y: auto;
   padding-right: 4px;
   margin-bottom: 4px;
@@ -3128,6 +3161,54 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   max-width: 520px;
   width: min(520px, 100%);
   padding: 20px 20px 18px;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.25s ease, background 0.25s ease;
+}
+.qk-drill-modal.is-ok-flash {
+  background: color-mix(in srgb, var(--grn) 14%, var(--s1));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--grn) 45%, transparent),
+    0 0 42px color-mix(in srgb, var(--grn) 38%, transparent),
+    0 18px 48px rgba(0, 0, 0, 0.28);
+  animation: qk-drill-ok-modal 0.9s ease-out;
+}
+.qk-drill-ok-wash {
+  pointer-events: none;
+  position: absolute;
+  inset: -30% -20%;
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    color-mix(in srgb, var(--grn) 42%, transparent) 0%,
+    color-mix(in srgb, var(--grn) 16%, transparent) 38%,
+    transparent 68%
+  );
+  animation: qk-drill-ok-wash 0.95s ease-out forwards;
+  z-index: 0;
+}
+.qk-drill-modal > *:not(.qk-drill-ok-wash) {
+  position: relative;
+  z-index: 1;
+}
+@keyframes qk-drill-ok-modal {
+  0% {
+    background: color-mix(in srgb, var(--grn) 28%, var(--s1));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--grn) 55%, transparent),
+      0 0 64px color-mix(in srgb, var(--grn) 55%, transparent);
+  }
+  100% {
+    background: color-mix(in srgb, var(--grn) 14%, var(--s1));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--grn) 45%, transparent),
+      0 0 42px color-mix(in srgb, var(--grn) 38%, transparent),
+      0 18px 48px rgba(0, 0, 0, 0.28);
+  }
+}
+@keyframes qk-drill-ok-wash {
+  0% { opacity: 0.2; transform: scale(0.88); }
+  35% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0.55; transform: scale(1); }
 }
 .qk-drill-top {
   display: flex;
@@ -3235,8 +3316,43 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   font-weight: 600;
   text-align: center;
 }
-.qk-drill-verdict.ok { background: rgba(61,148,96,.12); color: var(--grn); border: 1px solid rgba(61,148,96,.3); }
+.qk-drill-verdict.ok {
+  background: color-mix(in srgb, var(--grn) 22%, var(--s2));
+  color: var(--grn);
+  border: 1px solid color-mix(in srgb, var(--grn) 55%, transparent);
+  box-shadow:
+    0 0 28px color-mix(in srgb, var(--grn) 40%, transparent),
+    inset 0 0 18px color-mix(in srgb, var(--grn) 16%, transparent);
+  animation: qk-drill-ok-pop 0.55s ease-out;
+}
 .qk-drill-verdict.bad { background: rgba(220,80,80,.1); color: var(--red); border: 1px solid rgba(220,80,80,.28); }
+@keyframes qk-drill-ok-pop {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.55;
+    box-shadow: 0 0 0 transparent;
+  }
+  45% {
+    transform: scale(1.04);
+    opacity: 1;
+    box-shadow:
+      0 0 36px color-mix(in srgb, var(--grn) 55%, transparent),
+      inset 0 0 22px color-mix(in srgb, var(--grn) 20%, transparent);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 28px color-mix(in srgb, var(--grn) 40%, transparent),
+      inset 0 0 18px color-mix(in srgb, var(--grn) 16%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qk-drill-modal.is-ok-flash,
+  .qk-drill-ok-wash,
+  .qk-drill-verdict.ok {
+    animation: none;
+  }
+}
 .qk-drill-expected, .qk-drill-got {
   margin-top: 8px;
   font-weight: 500;

@@ -2008,6 +2008,12 @@ async function initApp(user) {
     if (window.bootProfiler) window.bootProfiler.measureSync('initApp.migrateData', function () { window.AnkiAlgo.migrateData(window.D); });
     else window.AnkiAlgo.migrateData(window.D);
   }
+  if (typeof window.dedupeAnkiCardArrays === 'function') {
+    const removedDupes = window.dedupeAnkiCardArrays(window.D);
+    if (removedDupes > 0 && typeof window.save === 'function') {
+      try { window.save(); } catch (e) { /* best-effort */ }
+    }
+  }
   // Migration coursId (string) → coursIds (array) pour les anciennes cartes Anki
   const _allCardsMigr = window.AnkiAlgo ? window.AnkiAlgo.allCards(window.D) : (window.D.exercices || []).concat(window.D.devoirs || []);
   _allCardsMigr.forEach(c => {
@@ -2303,7 +2309,7 @@ function _mergeCardArrays(localArr, remoteArr) {
   (remoteArr || []).forEach(function (c) {
     if (c && c.id) byId[c.id] = c;
   });
-  localArr.forEach(function (c, i) {
+  localArr.forEach(function (c) {
     if (!c || !c.id) return;
     const r = byId[c.id];
     if (!r) {
@@ -2311,14 +2317,52 @@ function _mergeCardArrays(localArr, remoteArr) {
       return;
     }
     byId[c.id] = _cardRecency(c) >= _cardRecency(r) ? c : r;
-    localArr[i] = byId[c.id];
+  });
+  const seen = Object.create(null);
+  const out = [];
+  localArr.forEach(function (c) {
+    if (!c || !c.id) return;
+    if (seen[c.id]) return;
+    seen[c.id] = true;
+    out.push(byId[c.id] || c);
   });
   (remoteArr || []).forEach(function (c) {
-    if (!c || !c.id) return;
-    if (!localArr.some(function (x) { return x && x.id === c.id; })) localArr.push(byId[c.id] || c);
+    if (!c || !c.id || seen[c.id]) return;
+    seen[c.id] = true;
+    out.push(byId[c.id] || c);
   });
+  localArr.length = 0;
+  for (let i = 0; i < out.length; i++) localArr.push(out[i]);
   return localArr;
 }
+
+/** Une seule entrée par id (garde la plus récente). Retourne le nb de doublons retirés. */
+window.dedupeAnkiCardArrays = function (D) {
+  D = D || window.D;
+  if (!D) return 0;
+  function dedupe(arr) {
+    if (!Array.isArray(arr) || !arr.length) return 0;
+    const best = Object.create(null);
+    const order = [];
+    const orphans = [];
+    arr.forEach(function (c) {
+      if (!c) return;
+      if (!c.id) { orphans.push(c); return; }
+      if (!best[c.id]) {
+        best[c.id] = c;
+        order.push(c.id);
+      } else if (_cardRecency(c) > _cardRecency(best[c.id])) {
+        best[c.id] = c;
+      }
+    });
+    const before = arr.length;
+    arr.length = 0;
+    order.forEach(function (id) { arr.push(best[id]); });
+    orphans.forEach(function (c) { arr.push(c); });
+    return Math.max(0, before - arr.length);
+  }
+  return dedupe(D.exercices) + dedupe(D.devoirs);
+};
 
 /** Fusionne un blob cloud en avance dans window.D (union, pas last-write-wins). */
 window.mergeRemoteProfileIntoLocal = function (remote) {
@@ -2332,6 +2376,7 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
   _unionByKey(window.D.cours, remote.cours, 'uid');
   _mergeCardArrays(window.D.exercices, remote.exercices);
   _mergeCardArrays(window.D.devoirs, remote.devoirs);
+  if (typeof window.dedupeAnkiCardArrays === 'function') window.dedupeAnkiCardArrays(window.D);
   if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
   if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
   _unionByKey(window.D.matieres, remote.matieres, 'id');
