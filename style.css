@@ -2873,6 +2873,28 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .quick-bc-page { max-width: 960px; }
 .quick-bc-page .cours-bc-bar { margin-bottom: 16px; }
 .quick-filters--in-group { margin-bottom: 12px; }
+.quick-drill-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.qk-drill-opts--toolbar {
+  margin-bottom: 0;
+  justify-content: flex-start;
+}
+.qk-drill-opts--toolbar .qk-drill-chip {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+@media (max-width: 720px) {
+  .quick-drill-bar {
+    margin-left: 0;
+    width: 100%;
+  }
+  .qk-drill-opts--toolbar { width: 100%; }
+}
 .quick-group-section { margin-bottom: 18px; }
 .quick-group-section .cours-bc-grid { margin-top: 10px; }
 .quick-group-section--orphan { margin-top: 8px; }

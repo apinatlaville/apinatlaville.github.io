@@ -528,7 +528,10 @@
           ${window.iconHtml('search', 14, 'icon-sm')}
           <input type="text" id="qkSearch" placeholder="Filtrer dans ${esc(navGroup.name)}..." oninput="window.quickFilter()">
         </div>
-        <button class="bs" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>
+        <div class="quick-drill-bar" id="qkDrillBar">
+          ${renderToolbarDrillOpts()}
+          <button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>
+        </div>
       </div>` : ''}
 
       <div id="qkSections" class="quick-bc-root"></div>
@@ -1161,13 +1164,8 @@
     readDrillPrefs();
     DRILL.pool = cards.slice();
     DRILL.label = label || 'Groupe';
-    DRILL.phase = 'setup';
-    DRILL.queue = [];
-    DRILL.idx = 0;
-    DRILL.revealed = false;
-    DRILL.typed = '';
-    DRILL.check = null;
-    DRILL.results = {};
+    buildDrillQueue(DRILL.pool);
+    DRILL.phase = 'card';
     const ov = ensureDrillOverlay();
     ov.classList.remove('hidden');
     renderDrill();
@@ -1187,32 +1185,32 @@
     return `<button type="button" class="qk-drill-chip${on ? ' on' : ''}" onclick="${onclick}">${window.iconLabel(icon, label)}</button>`;
   }
 
+  function renderToolbarDrillOpts() {
+    readDrillPrefs();
+    return `
+      <div class="qk-drill-opts qk-drill-opts--toolbar" role="group" aria-label="Options de révision">
+        ${optChip(DRILL.random, 'shuffle', 'Aléatoire', "window.quickDrillToggle('random')")}
+        ${optChip(DRILL.swap, 'arrow-left-right', DRILL.swap ? 'Verso → recto' : 'Recto → verso', "window.quickDrillToggle('swap')")}
+        ${optChip(DRILL.typeMode, 'keyboard', 'Écrire', "window.quickDrillToggle('type')")}
+      </div>`;
+  }
+
+  function refreshToolbarDrillOpts() {
+    const bar = document.getElementById('qkDrillBar');
+    if (!bar) return;
+    const btn = bar.querySelector('button.bp');
+    const btnHtml = btn ? btn.outerHTML : `<button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>`;
+    bar.innerHTML = renderToolbarDrillOpts() + btnHtml;
+    if (window.hydrateIcons) window.hydrateIcons(bar);
+  }
+
   function renderDrill() {
     const root = document.getElementById('qkDrillRoot');
     const ov = document.getElementById('ovQuickDrill');
     if (!root || !ov || ov.classList.contains('hidden')) return;
-    const n = (DRILL.phase === 'setup' ? DRILL.pool : DRILL.queue).length;
-    const chips = `
-      <div class="qk-drill-opts" role="group" aria-label="Options de révision">
-        ${optChip(DRILL.random, 'shuffle', 'Aléatoire', "window.quickDrillToggle('random')")}
-        ${optChip(DRILL.swap, 'arrow-left-right', DRILL.swap ? 'Verso → recto' : 'Recto → verso', "window.quickDrillToggle('swap')")}
-        ${optChip(DRILL.typeMode, 'keyboard', 'Écrire la réponse', "window.quickDrillToggle('type')")}
-      </div>
-      <p class="qk-drill-hint">${DRILL.swap ? 'On te montre le verso, tu retrouves le recto (ex. EN → FR).' : 'On te montre le recto, tu retrouves le verso (ex. FR → EN).'}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
-    `;
 
     let body = '';
-    if (DRILL.phase === 'setup') {
-      body = `
-        <h2 id="qkDrillTitle">${window.iconLabel('play', 'Réviser le groupe')}</h2>
-        <p class="qk-drill-sub"><b>${esc(DRILL.label)}</b> · ${n} carte${n > 1 ? 's' : ''}</p>
-        ${chips}
-        <div class="qk-drill-acts">
-          <button type="button" class="bs" onclick="window.quickDrillClose()">Annuler</button>
-          <button type="button" class="bp" onclick="window.quickDrillBegin()">${window.iconLabel('play', 'Commencer')}</button>
-        </div>
-      `;
-    } else if (DRILL.phase === 'done') {
+    if (DRILL.phase === 'done') {
       const cts = drillCounts();
       const missed = DRILL.queue.filter(function (c) { return DRILL.results[c.id] === 'bad'; });
       body = `
@@ -1222,7 +1220,6 @@
           <div class="qk-drill-score-ok"><b>${cts.ok}</b><span>juste${cts.ok > 1 ? 's' : ''}</span></div>
           <div class="qk-drill-score-bad"><b>${cts.bad}</b><span>ratée${cts.bad > 1 ? 's' : ''}</span></div>
         </div>
-        ${chips}
         <div class="qk-drill-acts qk-drill-acts-col">
           <button type="button" class="bp" onclick="window.quickDrillRetry('all')">${window.iconLabel('refresh-cw', 'Tout revoir')}</button>
           <button type="button" class="bs" ${missed.length ? '' : 'disabled'} onclick="window.quickDrillRetry('missed')">${window.iconLabel('circle-x', 'Revoir les ratées' + (missed.length ? ' (' + missed.length + ')' : ''))}</button>
@@ -1249,7 +1246,7 @@
           <span class="qk-drill-mini-ok">${cts.ok} juste${cts.ok > 1 ? 's' : ''}</span>
           <span class="qk-drill-mini-bad">${cts.bad} ratée${cts.bad > 1 ? 's' : ''}</span>
         </div>
-        ${chips}
+        <p class="qk-drill-hint">${DRILL.swap ? 'Verso → recto (ex. EN → FR).' : 'Recto → verso (ex. FR → EN).'}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
         <div class="qk-drill-card">
           <div class="qk-drill-face-lbl">${faces.swapped ? 'Verso (indice)' : 'Recto'}</div>
           <div class="qk-drill-prompt">${formatFace(faces.prompt) || '<em>Face vide</em>'}</div>
@@ -1301,20 +1298,12 @@
   }
 
   window.quickDrillToggle = function (which) {
+    readDrillPrefs();
     if (which === 'random') DRILL.random = !DRILL.random;
-    else if (which === 'swap') {
-      DRILL.swap = !DRILL.swap;
-      DRILL.revealed = false;
-      DRILL.check = null;
-      DRILL.typed = '';
-    } else if (which === 'type') {
-      DRILL.typeMode = !DRILL.typeMode;
-      DRILL.revealed = false;
-      DRILL.check = null;
-      DRILL.typed = '';
-    }
+    else if (which === 'swap') DRILL.swap = !DRILL.swap;
+    else if (which === 'type') DRILL.typeMode = !DRILL.typeMode;
     persistDrillPrefs();
-    renderDrill();
+    refreshToolbarDrillOpts();
   };
 
   window.quickDrillBegin = function () {
