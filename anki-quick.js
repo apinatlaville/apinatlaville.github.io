@@ -116,15 +116,25 @@
     return (m && m.color) || nextGroupColor();
   }
 
-  function renderGroupColorDots(gid, currentColor) {
+  function renderGroupColorDots(gid, currentColor, opts) {
+    opts = opts || {};
+    const forNew = !!opts.forNew;
+    const onclick = forNew
+      ? function (col) { return `window.quickPickNewGroupColor('${col}')`; }
+      : function (col) { return `window.quickPickGroupColor('${jsStr(gid)}','${col}')`; };
     return `<div class="qk-color-dots" role="radiogroup" aria-label="Couleur du dossier">` +
       GROUP_COLORS.map(col =>
         `<button type="button" class="qk-color-dot${currentColor === col ? ' is-on' : ''}" ` +
-        `style="background:${col}" data-gid="${esc(gid)}" data-color="${col}" ` +
+        `style="background:${col}" ${forNew ? '' : `data-gid="${esc(gid)}" `}data-color="${col}" ` +
         `aria-label="Couleur" aria-pressed="${currentColor === col ? 'true' : 'false'}" ` +
-        `onclick="window.quickPickGroupColor('${jsStr(gid)}','${col}')"></button>`
+        `onclick="${onclick(col)}"></button>`
       ).join('') +
       `</div>`;
+  }
+
+  function renderGroupColorReadonly(color) {
+    const c = color || '#6a7088';
+    return `<span class="qk-color-dot qk-color-dot--readonly is-on" style="background:${esc(c)}" title="Couleur" aria-hidden="true"></span>`;
   }
 
   function groupInfo(id) {
@@ -265,6 +275,28 @@
     }
   }
 
+  /** Uniformise les faces : réduit la police tant que le texte déborde (cartes à taille fixe). */
+  function fitQuickCardFaces(root) {
+    var host = root || document.getElementById('qkSections') || document;
+    if (!host) return;
+    host.querySelectorAll('.qk-q, .qk-r').forEach(function (el) {
+      el.style.fontSize = '';
+      var base = parseFloat(window.getComputedStyle(el).fontSize) || 15;
+      var size = base;
+      var min = 10;
+      el.style.fontSize = size + 'px';
+      /* Limite de sécurité anti-boucle */
+      var guard = 0;
+      while (guard < 24 && size > min && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
+        size -= 0.5;
+        el.style.fontSize = size + 'px';
+        guard++;
+      }
+    });
+  }
+
+  window.fitQuickCardFaces = fitQuickCardFaces;
+
   /** Re-rendu des faces LaTeX une fois MathLive + formatCardFaceHtml prêts */
   window.hydrateQuickCardFaces = function (root) {
     var host = root || document.getElementById('qkSections') || document;
@@ -300,10 +332,18 @@
         var card = el.closest('.qk-card');
         if (card && faceNeedsMath(raw)) card.classList.add('qk-card--math');
       });
+      fitQuickCardFaces(host);
     }
 
     var initial = collectMathNodes();
-    if (!initial.length || !anyFaceNeedsMath(initial)) return Promise.resolve();
+    if (!initial.length) {
+      fitQuickCardFaces(host);
+      return Promise.resolve();
+    }
+    if (!anyFaceNeedsMath(initial)) {
+      fitQuickCardFaces(host);
+      return Promise.resolve();
+    }
 
     var loadScripts = Promise.resolve();
     if (typeof window.ensureScriptsForTab === 'function') {
@@ -395,7 +435,7 @@
       btnManageFolders.dataset.bound = '1';
       btnManageFolders.addEventListener('click', function () {
         window.closeQuickCreateMenu();
-        window.quickOpenGroupsModal();
+        window.quickArianeManageGroups();
       });
     }
     if (!window._quickCreateMenuDocBound) {
@@ -571,11 +611,11 @@
   };
 
   window.quickOpenCreateFolder = function () {
-    window.quickOpenGroupsModal({ focusAdd: true, focusMat: Q.mat || '' });
+    window.quickOpenGroupsModal({ focusAdd: true, focusMat: Q.mat || '', mode: 'create' });
   };
 
   window.quickArianeManageGroups = function () {
-    window.quickOpenGroupsModal();
+    window.quickOpenGroupsModal({ mode: 'manage', focusMat: Q.mat || '' });
   };
 
   window.quickActivate = function (id) {
@@ -828,7 +868,14 @@
 
     if (window.hydrateIcons) window.hydrateIcons(host);
     if (Q.nav.group && typeof window.hydrateQuickCardFaces === 'function') {
-      window.hydrateQuickCardFaces(host);
+      var hyd = window.hydrateQuickCardFaces(host);
+      if (hyd && typeof hyd.then === 'function') {
+        hyd.then(function () { fitQuickCardFaces(host); });
+      } else {
+        fitQuickCardFaces(host);
+      }
+    } else {
+      fitQuickCardFaces(host);
     }
   }
 
@@ -838,12 +885,14 @@
     const mat = sec.mat;
     const matId = mat.id || '';
     const groups = groupsForMat(matId);
+    const manage = Q.groupsModalMode === 'manage';
     const rows = groups.map(function (g) {
       const globalIdx = sortedGroups().findIndex(x => x.id === g.id);
       const canUp = globalIdx > 0 && inferGroupMat(sortedGroups()[globalIdx - 1]) === matId;
       const canDown = globalIdx >= 0 && globalIdx < sortedGroups().length - 1
         && inferGroupMat(sortedGroups()[globalIdx + 1]) === matId;
-      return `
+      if (manage) {
+        return `
         <div class="qk-group-row" data-gid="${esc(g.id)}">
           <div class="qk-group-row-main">
             <input type="text" class="fi qk-group-name" value="${esc(g.name)}" data-gid="${esc(g.id)}" aria-label="Nom du dossier" maxlength="40">
@@ -853,6 +902,14 @@
             <button type="button" class="bs qk-group-move" title="Monter" ${!canUp ? 'disabled' : ''} onclick="window.quickMoveGroup('${esc(g.id)}', -1)">${window.iconHtml ? window.iconHtml('chevron-up', 14, 'icon-sm') : '↑'}</button>
             <button type="button" class="bs qk-group-move" title="Descendre" ${!canDown ? 'disabled' : ''} onclick="window.quickMoveGroup('${esc(g.id)}', 1)">${window.iconHtml ? window.iconHtml('chevron-down', 14, 'icon-sm') : '↓'}</button>
             <button type="button" class="bs qk-group-del" title="Supprimer" onclick="window.quickDeleteGroup('${esc(g.id)}')">${window.iconHtml ? window.iconHtml('trash-2', 14, 'icon-sm') : '×'}</button>
+          </div>
+        </div>`;
+      }
+      return `
+        <div class="qk-group-row qk-group-row--readonly" data-gid="${esc(g.id)}">
+          <div class="qk-group-row-main qk-group-row-main--readonly">
+            ${renderGroupColorReadonly(g.color)}
+            <span class="qk-group-name-ro">${esc(g.name)}</span>
           </div>
         </div>`;
     }).join('');
@@ -891,6 +948,7 @@
     }
     const matId = selectedGroupsMatId();
     const mat = mats.find(m => m.id === matId) || mats[0];
+    if (!Q.newGroupColor) Q.newGroupColor = defaultGroupColor(mat.id);
     return `
       <div class="qk-group-create">
         <label class="qk-group-create-lbl" for="qkNewGroupMat">Matière</label>
@@ -900,6 +958,8 @@
           <input type="text" id="qkNewGroupName" class="fi qk-new-group-name" placeholder="Nom du dossier…" maxlength="40" autocomplete="off">
           <button type="button" class="bp qk-group-add-btn" onclick="window.quickAddGroup()">${window.iconLabel('plus', 'Ajouter')}</button>
         </div>
+        <label class="qk-group-create-lbl">Couleur</label>
+        ${renderGroupColorDots('new', Q.newGroupColor, { forNew: true })}
       </div>
       <div class="qk-groups-sections">
         ${renderGroupsModalSection({ mat: mat, groups: groupsForMat(mat.id) })}
@@ -910,11 +970,21 @@
     const body = $('qkGroupsBody');
     if (body) {
       const keepName = ($('qkNewGroupName') && $('qkNewGroupName').value) || '';
+      const keepColor = Q.newGroupColor;
       body.innerHTML = renderGroupsModalBody();
+      if (keepColor) Q.newGroupColor = keepColor;
       if (window.hydrateIcons) window.hydrateIcons(body);
       bindGroupsModalInputs();
       const nameEl = $('qkNewGroupName');
       if (nameEl && keepName) nameEl.value = keepName;
+      // Re-sync color dots after HTML rebuild with preserved color
+      if (keepColor) {
+        body.querySelectorAll('.qk-group-create .qk-color-dot').forEach(function (btn) {
+          const on = btn.getAttribute('data-color') === keepColor;
+          btn.classList.toggle('is-on', on);
+          btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
     }
   }
 
@@ -933,9 +1003,22 @@
   window.quickGroupsMatChanged = function (matId) {
     Q.groupsModalFocusMat = matId || '';
     Q.mat = matId || Q.mat;
+    Q.newGroupColor = defaultGroupColor(matId);
     refreshGroupsModalBody();
     const nameEl = $('qkNewGroupName');
     if (nameEl) nameEl.focus();
+  };
+
+  window.quickPickNewGroupColor = function (color) {
+    if (!color) return;
+    Q.newGroupColor = color;
+    const body = $('qkGroupsBody');
+    if (!body) return;
+    body.querySelectorAll('.qk-group-create .qk-color-dot').forEach(function (btn) {
+      const on = btn.getAttribute('data-color') === color;
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
   };
 
   window.quickPickGroupColor = function (gid, color) {
@@ -950,6 +1033,13 @@
     ensure();
     Q.groupsModalFocusMat = opts.focusMat || Q.mat || selectedGroupsMatId();
     Q.groupsModalFocusAdd = !!opts.focusAdd;
+    Q.groupsModalMode = opts.mode === 'manage' || (!opts.focusAdd && opts.mode !== 'create')
+      ? 'manage'
+      : 'create';
+    // Créer un dossier → create ; Gérer les dossiers → manage
+    if (opts.mode === 'create' || opts.focusAdd) Q.groupsModalMode = 'create';
+    if (opts.mode === 'manage') Q.groupsModalMode = 'manage';
+    Q.newGroupColor = defaultGroupColor(Q.groupsModalFocusMat);
     let ov = $('ovQuickGroups');
     if (!ov) {
       ov = document.createElement('div');
@@ -958,10 +1048,16 @@
       document.body.appendChild(ov);
     }
     ov.classList.remove('hidden');
+    const intro = Q.groupsModalMode === 'manage'
+      ? 'Renomme, change la couleur, réordonne ou supprime tes dossiers.'
+      : 'Choisis la matière, le nom et la couleur, puis ajoute le dossier.';
+    const title = Q.groupsModalMode === 'manage'
+      ? window.iconLabel('folder', 'Gérer les dossiers')
+      : window.iconLabel('folder', 'Nouveau dossier');
     ov.innerHTML = `
       <div class="modal qk-groups-modal">
-        <h2>${window.iconLabel('folder', 'Dossiers Rapide')}</h2>
-        <p class="anki-mut qk-groups-intro">Choisis la matière, crée un dossier, puis ajuste nom et couleur.</p>
+        <h2>${title}</h2>
+        <p class="anki-mut qk-groups-intro">${intro}</p>
         <div id="qkGroupsBody">${renderGroupsModalBody()}</div>
         <div class="macts">
           <button type="button" class="bs" onclick="window.quickCloseGroupsModal()">Fermer</button>
@@ -972,7 +1068,7 @@
     bindGroupsModalInputs();
 
     const nameEl = $('qkNewGroupName');
-    if (nameEl && Q.groupsModalFocusAdd) {
+    if (nameEl && (Q.groupsModalFocusAdd || Q.groupsModalMode === 'create')) {
       try { nameEl.focus(); } catch (e) { /* ignore */ }
     }
     Q.groupsModalFocusAdd = false;
@@ -1013,11 +1109,12 @@
     window.D.quickGroups.push({
       id,
       name,
-      color: defaultGroupColor(mat),
+      color: Q.newGroupColor || defaultGroupColor(mat),
       order: groupsForMat(mat).length,
       mat: mat
     });
     if (el) el.value = '';
+    Q.newGroupColor = defaultGroupColor(mat);
     refreshGroupsModalBody();
     if (typeof window.showToast === 'function') window.showToast('Dossier « ' + name + ' » créé.', { type: 'ok' });
     const again = $('qkNewGroupName');
@@ -1295,7 +1392,7 @@
         ${DRILL.check && DRILL.check.ok ? '<div class="qk-drill-ok-wash" aria-hidden="true"></div>' : ''}
         <div class="qk-drill-top">
           <h2 id="qkDrillTitle">${window.iconLabel('zap', esc(DRILL.label))}</h2>
-          <button type="button" class="qk-drill-x" onclick="window.quickDrillClose()" aria-label="Fermer">${window.iconHtml('x', 18)}</button>
+          <button type="button" class="qk-drill-x" onclick="window.quickDrillClose()" aria-label="Quitter">${window.iconHtml('x', 18)}</button>
         </div>
         <div class="qk-drill-progress">
           <span>${DRILL.idx + 1} / ${DRILL.queue.length}</span>
@@ -1315,16 +1412,21 @@
             <button type="submit" class="bp">${window.iconLabel('check', 'Vérifier')}</button>
           </form>
         ` : ''}
-        ${DRILL.check ? `
-          <div class="qk-drill-verdict ${DRILL.check.ok ? 'ok qk-drill-verdict--hero' : 'bad'}">
+        ${DRILL.check ? (
+          DRILL.check.ok && DRILL.check.glowOnly
+            ? '' /* flash vert seul — pas de texte « Juste » */
+            : `<div class="qk-drill-verdict ${DRILL.check.ok ? 'ok qk-drill-verdict--hero' : 'bad'}">
             ${DRILL.check.ok
-              ? `<span class="qk-drill-juste">${window.iconHtml('circle-check', 28)}<span>Juste</span></span>`
+              ? `<span class="qk-drill-juste">
+                   <span class="qk-drill-juste-lbl">${window.iconHtml('circle-check', 22)} Juste</span>
+                   <span class="qk-drill-juste-word">${faces.expected ? formatFace(faces.expected) : esc(DRILL.check.got || '')}</span>
+                 </span>`
               : window.iconLabel('circle-x', 'Raté')}
             ${DRILL.check.ok ? '' : `<div class="qk-drill-expected"><span>Attendu</span>${formatFace(faces.expected)}</div>`}
             ${!DRILL.check.ok && DRILL.check.got ? `<div class="qk-drill-got"><span>Tu as écrit</span>${esc(DRILL.check.got)}</div>` : ''}
             ${!DRILL.check.ok ? `<button type="button" class="bs qk-drill-override" onclick="window.quickDrillOverrideOk()">C’était bon (faute de frappe)</button>` : ''}
-          </div>
-        ` : ''}
+          </div>`
+        ) : ''}
         ${!canType && DRILL.revealed ? `
           <div class="qk-drill-card qk-drill-answer">
             <div class="qk-drill-face-lbl">${faces.swapped ? 'Recto (réponse)' : 'Verso'}</div>
@@ -1333,15 +1435,22 @@
         ` : ''}
         <div class="qk-drill-acts">
           ${canType && !DRILL.revealed
-            ? `<button type="button" class="bs" onclick="window.quickDrillGiveUp()">${window.iconLabel('book-open', 'Je ne sais pas')}</button>`
+            ? `<button type="button" class="bs" onclick="window.quickDrillGiveUp()">${window.iconLabel('book-open', 'Je ne sais pas')}</button>
+               <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`
             : (!DRILL.revealed
-            ? `<button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>`
+            ? `<button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>
+               <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`
             : (DRILL.check
               ? (DRILL.check.ok
-                ? ''
-                : `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>`)
+                ? (DRILL.check.glowOnly
+                  ? ''
+                  : `<p class="qk-drill-ok-wait" aria-live="polite">Passage automatique…</p>
+                     <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`)
+                : `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>
+                   <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`)
               : `<button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark(false)">${window.iconLabel('x', 'Raté')}</button>
-                 <button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark(true)">${window.iconLabel('check', 'Je savais')}</button>`))}
+                 <button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark(true)">${window.iconLabel('check', 'Je savais')}</button>
+                 <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`))}
         </div>
       `;
     }
@@ -1392,8 +1501,27 @@
     const c = drillLiveCard();
     if (!c) return;
     DRILL.results[c.id] = ok ? 'ok' : 'bad';
+    if (ok) {
+      DRILL.revealed = true;
+      DRILL.check = { ok: true, glowOnly: true };
+      renderDrill();
+      scheduleOkAdvance(c, 500);
+      return;
+    }
     window.quickDrillAdvance();
   };
+
+  function scheduleOkAdvance(card, ms) {
+    const delay = ms != null ? ms : 2000;
+    try {
+      if (navigator.vibrate) navigator.vibrate(28);
+    } catch (e) { /* ignore */ }
+    setTimeout(function () {
+      if (DRILL.phase === 'card' && drillLiveCard() === card && DRILL.check && DRILL.check.ok) {
+        window.quickDrillAdvance();
+      }
+    }, delay);
+  }
 
   window.quickDrillCheck = function () {
     const c = drillLiveCard();
@@ -1409,16 +1537,7 @@
     DRILL.revealed = true;
     DRILL.results[c.id] = ok ? 'ok' : 'bad';
     renderDrill();
-    if (ok) {
-      try {
-        if (navigator.vibrate) navigator.vibrate(28);
-      } catch (e) { /* ignore */ }
-      setTimeout(function () {
-        if (DRILL.phase === 'card' && drillLiveCard() === c && DRILL.check && DRILL.check.ok) {
-          window.quickDrillAdvance();
-        }
-      }, 2000);
-    }
+    if (ok) scheduleOkAdvance(c);
   };
 
   window.quickDrillOverrideOk = function () {
@@ -1426,7 +1545,9 @@
     if (!c) return;
     DRILL.results[c.id] = 'ok';
     DRILL.check = { ok: true, got: DRILL.typed };
+    DRILL.revealed = true;
     renderDrill();
+    scheduleOkAdvance(c);
   };
 
   window.quickDrillAdvance = function () {

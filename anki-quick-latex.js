@@ -78,12 +78,18 @@
     var rEl = CTX.fieldR ? $(CTX.fieldR) : null;
     if (CTX.latexRecto && _editorRecto) {
       var q = _editorRecto.getInline();
-      if (qEl) qEl.value = q;
+      if (qEl) {
+        qEl.value = q;
+        try { qEl.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) { /* ignore */ }
+      }
       CTX.question = q;
     }
     if (CTX.latexVerso && _editorVerso) {
       var r = _editorVerso.getInline();
-      if (rEl) rEl.value = r;
+      if (rEl) {
+        rEl.value = r;
+        try { rEl.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) { /* ignore */ }
+      }
       CTX.reponse = r;
     }
     return true;
@@ -242,9 +248,7 @@
     var apply = $('qlEasyApply');
     if (apply) apply.addEventListener('click', function () { closeLatexPopup(true); });
 
-    ov.onclick = function (e) {
-      if (e.target === ov) closeLatexPopup(false);
-    };
+    /* Pas de fermeture au clic extérieur pendant la création Rapide */
   }
 
   window.openQuickLatexCard = function (opts) {

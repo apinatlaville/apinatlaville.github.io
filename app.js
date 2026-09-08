@@ -188,10 +188,8 @@ document.addEventListener('click', function(e) {
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
       else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
       else if (ov.id === 'ovMove') ov.classList.add('hidden');
-      else if (ov.id === 'ovExo' || ov.id === 'ovDevoir' || ov.id === 'ovQuickCreate') ov.classList.add('hidden');
-      else if (ov.id === 'ovQuickLatex' && typeof window.closeQuickLatexPopup === 'function') {
-        window.closeQuickLatexPopup(false);
-      }
+      else if (ov.id === 'ovExo' || ov.id === 'ovDevoir') ov.classList.add('hidden');
+      /* ovQuickCreate / ovQuickLatex : pas de fermeture au clic extérieur (évite de perdre la saisie) */
     }
   });
   const w = window.$('fabWrapper');
@@ -2058,6 +2056,7 @@ async function initApp(user) {
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b9aff';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
   if(window.D.settings.ankiIncludeNew === undefined) window.D.settings.ankiIncludeNew = 5;
+  if(window.D.settings.ankiMaxAnglaisFill === undefined) window.D.settings.ankiMaxAnglaisFill = 5;
   if(!window.D.settings.ankiMaxPerDay) window.D.settings.ankiMaxPerDay = 75;
 
   window.D.classeurs.forEach(cl => {

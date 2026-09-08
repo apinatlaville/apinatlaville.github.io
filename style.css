@@ -2671,6 +2671,31 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   line-height: 1.2;
   min-height: 0;
 }
+.anki-modal-row .anki-duration-field .anki-time-total {
+  flex: 1.2;
+  min-width: 64px;
+  width: auto !important;
+  padding: 10px 8px !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 600;
+  color: var(--txt) !important;
+  text-align: center;
+  border-radius: var(--radius-control) !important;
+  background: var(--s2) !important;
+  border: 0.5px solid var(--bd) !important;
+  line-height: 1.2;
+}
+.anki-modal-row .anki-duration-field .anki-time-or {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 0 2px;
+}
+.anki-duration-tip {
+  font-size: 11px;
+  margin: -6px 0 10px;
+  line-height: 1.35;
+}
 .anki-modal-row .anki-duration-field .anki-time-unit {
   flex-shrink: 0;
   font-size: 11px;
@@ -2766,16 +2791,41 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  gap: 6px;
  flex: 1;
  min-width: 180px;
- align-items: stretch;
+ align-items: flex-start;
 }
-.quick-face-field input {
+.quick-face-field input,
+.quick-face-field textarea {
  flex: 1;
  min-width: 0;
+}
+.quick-face-field textarea {
+ resize: none;
+ min-height: 42px;
+ max-height: 280px;
+ line-height: 1.35;
+ padding: 10px 12px;
+ box-sizing: border-box;
+ overflow-y: hidden;
+ field-sizing: content; /* navigateurs récents : croît avec le contenu */
 }
 .quick-face-field .bs,
 .quick-latex-btn {
  flex: 0 0 auto;
  white-space: nowrap;
+ align-self: flex-start;
+ min-height: 42px;
+}
+.quick-face-field .quick-nl-btn {
+ min-width: 42px;
+ padding-left: 10px;
+ padding-right: 10px;
+ font-size: 16px;
+ line-height: 1;
+}
+.quick-face-hint {
+ font-size: 11px;
+ margin: 6px 0 0;
+ line-height: 1.35;
 }
 .anki-quick-mode-pill {
  display: inline-flex;
@@ -2815,6 +2865,15 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .ql-easy-pane .latex-lab-work {
  max-height: none;
+}
+/* Création de carte : aperçu empilé (texte avant / formule / texte après), pas côte à côte */
+#ovQuickLatex .latex-lab-compose,
+.ql-easy-pane .latex-lab-compose {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "editor"
+    "preview";
+  min-height: 0;
 }
 .ql-card-lab .ql-meta {
  display: grid;
@@ -2969,11 +3028,32 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   border: 1px solid var(--bd);
   border-radius: 10px;
 }
+.qk-group-row--readonly {
+  grid-template-columns: 1fr;
+}
 .qk-group-row-main {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+}
+.qk-group-row-main--readonly {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.qk-group-name-ro {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--txt);
+}
+.qk-color-dot--readonly {
+  pointer-events: none;
+  width: 14px;
+  height: 14px;
+}
+.qk-group-create .qk-color-dots {
+  margin-top: 2px;
 }
 .qk-group-row .qk-group-name {
   width: 100%;
@@ -3036,26 +3116,29 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .quick-grid {
  display: grid;
  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+ grid-auto-rows: 190px;
  gap: 12px;
+ align-items: stretch;
 }
 .qk-card {
  perspective: 1000px;
- height: 170px;
+ height: 100%;
+ min-height: 0;
  cursor: pointer;
 }
 .qk-card.qk-card--math {
- height: auto;
- min-height: 220px;
+ height: 100%;
+ min-height: 0;
 }
 .qk-card.qk-card--math .qk-inner {
- min-height: 220px;
- height: auto;
+ min-height: 0;
+ height: 100%;
 }
 .qk-card.qk-card--math .qk-front,
 .qk-card.qk-card--math .qk-back {
- position: relative;
- height: auto;
- min-height: 220px;
+ position: absolute;
+ height: 100%;
+ min-height: 0;
 }
 .qk-card.qk-card--math.flipped .qk-front {
  display: none;
@@ -3096,19 +3179,25 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .qk-q {
  font-size: 15px;
  color: var(--txt);
- flex: 1;
- overflow: auto;
- line-height: 1.45;
+ flex: 1 1 auto;
+ min-height: 0;
+ overflow: hidden;
+ line-height: 1.35;
  max-height: 100%;
-}
-.qk-card--math .qk-q {
- font-size: 18px;
- padding: 10px 4px 12px;
- overflow-x: auto;
- overflow-y: auto;
  display: flex;
  align-items: center;
- min-height: 72px;
+ justify-content: center;
+ text-align: center;
+ word-break: break-word;
+}
+.qk-card--math .qk-q {
+ font-size: 15px;
+ padding: 6px 4px;
+ overflow: hidden;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ min-height: 0;
 }
 .qk-card--math .qk-q .latex-lab-preview-math,
 .qk-card--math .qk-r .latex-lab-preview-math {
@@ -3136,12 +3225,13 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  font-size: 12px;
  font-style: italic;
 }
-.qk-r { font-size: 14px; color: var(--txt); text-align: center; flex: 1; display: flex; align-items: center; justify-content: center; padding: 6px; line-height: 1.4; overflow: auto; }
+.qk-r { font-size: 14px; color: var(--txt); text-align: center; flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 6px; line-height: 1.35; overflow: hidden; word-break: break-word; }
 .qk-card--math .qk-r {
  justify-content: center;
  text-align: center;
- font-size: 18px;
- min-height: 72px;
+ font-size: 15px;
+ min-height: 0;
+ overflow: hidden;
 }
 .qk-card--math .qk-stats {
  font-size: 9px;
@@ -3219,12 +3309,29 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .qk-drill-top h2 { margin: 0; text-align: left; justify-content: flex-start; font-size: 16px; }
 .qk-drill-x {
-  background: none;
-  border: none;
-  color: var(--mut);
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  color: var(--txt);
   cursor: pointer;
-  padding: 4px;
+  padding: 8px;
   flex-shrink: 0;
+  border-radius: 10px;
+  min-width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.qk-drill-quit {
+  width: 100%;
+  margin-top: 4px;
+}
+.qk-drill-ok-wait {
+  width: 100%;
+  margin: 0 0 4px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--mut);
 }
 .qk-drill-sub { color: var(--mut); font-size: 13px; text-align: center; margin: -8px 0 14px; }
 .qk-drill-opts {
@@ -3282,6 +3389,7 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   text-align: center;
   color: var(--txt);
   word-break: break-word;
+  white-space: pre-wrap;
 }
 .qk-drill-type {
   display: flex;
@@ -3338,13 +3446,30 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   color: var(--grn);
-  font-size: 36px;
+  line-height: 1.15;
+  text-align: center;
+  max-width: 100%;
+}
+.qk-drill-juste-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--grn);
+  opacity: 0.9;
+}
+.qk-drill-juste-word {
+  display: block;
+  font-size: clamp(28px, 7vw, 42px);
   font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  text-shadow: 0 0 24px color-mix(in srgb, var(--grn) 45%, transparent);
+  color: var(--grn);
+  word-break: break-word;
+  text-shadow: 0 0 28px color-mix(in srgb, var(--grn) 50%, transparent);
 }
 .qk-drill-juste .icon {
   color: var(--grn);
@@ -3399,6 +3524,46 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 6px;
+}
+@media (max-width: 520px) {
+  .qk-drill-modal {
+    padding: 16px 14px 14px;
+    max-height: min(92vh, 100dvh);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .qk-drill-prompt { font-size: 18px; }
+  .qk-drill-juste-word { font-size: 28px; }
+  .qk-drill-verdict--hero { min-height: 100px; padding: 22px 12px; }
+  .qk-drill-acts .bp,
+  .qk-drill-acts .bs {
+    flex: 1 1 calc(50% - 8px);
+    min-height: 44px;
+  }
+  .qk-drill-quit,
+  .qk-drill-ok-wait {
+    flex: 1 1 100%;
+  }
+  .qk-drill-type input {
+    font-size: 16px; /* évite zoom iOS */
+    min-height: 44px;
+  }
+  .quick-drill-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .qk-drill-opts--toolbar {
+    justify-content: stretch;
+  }
+  .qk-drill-opts--toolbar .qk-drill-chip {
+    flex: 1 1 auto;
+    text-align: center;
+    justify-content: center;
+  }
+  .quick-drill-bar .bp {
+    width: 100%;
+    min-height: 44px;
+  }
 }
 .qk-drill-acts-col { flex-direction: column; align-items: stretch; }
 .qk-drill-acts-col .bp, .qk-drill-acts-col .bs { width: 100%; }
@@ -4789,11 +4954,19 @@ body.theme-light .anki-stars-display .anki-star.off {
  border: 0.5px solid var(--bd);
  border-radius: var(--radius-surface);
 }
-.anki-session-bar-label {
- font-size: 12px;
- font-weight: 600;
- color: var(--txt);
- white-space: nowrap;
+.anki-session-bar-sep {
+  width: 1px;
+  height: 28px;
+  background: var(--bd);
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.anki-max-quick-input {
+  width: 64px !important;
+  min-width: 64px;
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
 }
 .anki-session-presets {
  display: flex;
@@ -5693,9 +5866,13 @@ body.nav-sidebar-left #paneLatexTest.on {
   min-height: 240px;
 }
 .latex-lab-panel-editor .latex-lab-field-wrap {
-  flex: 1 1 auto;
-  min-height: 64px;
-  max-height: 160px;
+  /* Taille compacte par défaut ; s’élargit avec la formule ; scroll seulement au-delà du max */
+  flex: 0 1 auto;
+  min-height: 72px;
+  max-height: 280px;
+  height: auto;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 .latex-lab-panel-label {
   font-size: 10px;
@@ -5728,19 +5905,22 @@ body.nav-sidebar-left #paneLatexTest.on {
   border-radius: 10px;
   padding: 12px 14px;
   min-height: 72px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   /* Pas de flex+align-items:center : ça casse les délimiteurs étirés (pmatrix). */
   display: block;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  height: fit-content;
+  max-height: 280px;
 }
 .latex-lab-preview-wrap {
   flex: 1 1 auto;
   min-height: 96px;
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 0.35em 0.5em;
+  gap: 0;
   padding: 14px 16px;
   border-radius: 10px;
   border: 1px solid var(--bd);
@@ -5751,6 +5931,21 @@ body.nav-sidebar-left #paneLatexTest.on {
   font-size: 1.35rem;
   line-height: 1.45;
   color: var(--txt);
+  text-align: center;
+}
+.latex-lab-preview-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  max-width: 100%;
+}
+.latex-lab-preview-before,
+.latex-lab-preview-after {
+  display: block;
+  width: 100%;
   text-align: center;
 }
 .latex-lab-preview-text {
@@ -6150,7 +6345,8 @@ body.nav-sidebar-left #paneLatexTest.on {
   }
   .latex-lab-panel-editor .latex-lab-field-wrap {
     min-height: 56px;
-    max-height: 22vh;
+    max-height: 40vh;
+    flex: 0 1 auto;
   }
   .latex-lab-quickbar {
     position: relative;

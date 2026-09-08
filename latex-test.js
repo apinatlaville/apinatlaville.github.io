@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 7;
+  var UI_REV = 9;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -23,7 +23,7 @@
       id: 'freq',
       label: 'Fréquents',
       items: [
-        { label: 'a/b', latex: '\\frac{#0}{#1}', title: 'Fraction' },
+        { label: 'a/b', latex: '\\dfrac{#0}{#1}', title: 'Fraction' },
         { label: '√', latex: '\\sqrt{#0}', title: 'Racine carrée' },
         { label: '∫', latex: '\\int_{#0}^{#1}#2\\,\\mathrm{d}#3', title: 'Intégrale définie' },
         { label: '∑', latex: '\\sum_{#0}^{#1}#2', title: 'Somme' },
@@ -48,6 +48,7 @@
         { label: 'ln', latex: '\\ln{#0}', title: 'Log népérien' },
         { label: 'e^{}', latex: 'e^{#0}', title: 'Exponentielle' },
         { label: 'aⁿ', latex: '{#0}^{#1}', title: 'Puissance' },
+        { label: '⌀', latex: '\\cancel{#0}', title: 'Barré en diagonale (annuler)' },
         { label: '|·|', latex: '\\left|#0\\right|', title: 'Valeur absolue' },
         { label: '( )', latex: '\\left(#0\\right)', title: 'Parenthèses auto' },
         { label: '…', latex: '\\dots', title: 'Points de suspension' },
@@ -58,7 +59,7 @@
       id: 'base',
       label: 'Bases',
       items: [
-        { label: 'a/b', latex: '\\frac{#0}{#1}', title: 'Fraction' },
+        { label: 'a/b', latex: '\\dfrac{#0}{#1}', title: 'Fraction' },
         { label: 'dfrac', latex: '\\dfrac{#0}{#1}', title: 'Fraction display' },
         { label: 'tfrac', latex: '\\tfrac{#0}{#1}', title: 'Fraction texte' },
         { label: '√', latex: '\\sqrt{#0}', title: 'Racine carrée' },
@@ -275,6 +276,9 @@
         { label: 'widetilde', latex: '\\widetilde{#0}', title: 'Tilde large' },
         { label: 'overline', latex: '\\overline{#0}', title: 'Ligne au-dessus' },
         { label: 'underline', latex: '\\underline{#0}', title: 'Souligné' },
+        { label: '⌀', latex: '\\cancel{#0}', title: 'Barré en diagonale (annuler)' },
+        { label: '⌀\\', latex: '\\bcancel{#0}', title: 'Barré diagonale inverse' },
+        { label: '⊗', latex: '\\xcancel{#0}', title: 'Barré en X' },
         { label: 'underbrace', latex: '\\underbrace{#0}_{#1}', title: 'Accolade sous' },
         { label: 'overbrace', latex: '\\overbrace{#0}^{#1}', title: 'Accolade sur' },
         { label: 'text', latex: '\\text{#0}', title: 'Texte en mode math' }
@@ -1020,17 +1024,31 @@
     });
   }
 
+  /**
+   * Fractions lisibles : \\frac → \\dfrac (taille pleine, y compris imbriquées).
+   * Ne touche pas \\dfrac / \\tfrac / \\cfrac / \\dfrac déjà présents.
+   */
+  function promoteFractionsToDisplay(latex) {
+    if (!latex) return latex;
+    return String(latex).replace(/\\frac(?![a-zA-Z])/g, '\\dfrac');
+  }
+
   function latexToMarkup(latex) {
     if (!latex) return '';
-    var normalized = normalizeVectorLatex(latex);
+    var normalized = promoteFractionsToDisplay(normalizeVectorLatex(latex));
+    var opts = { defaultMode: 'displaystyle' };
     try {
       if (window.MathfieldElement && typeof window.MathfieldElement.convertLatexToMarkup === 'function') {
-        return window.MathfieldElement.convertLatexToMarkup(normalized);
+        return window.MathfieldElement.convertLatexToMarkup(normalized, opts);
       }
     } catch (e) { /* ignore */ }
     try {
       if (window.MathLive && typeof window.MathLive.convertLatexToMarkup === 'function') {
-        return window.MathLive.convertLatexToMarkup(normalized);
+        try {
+          return window.MathLive.convertLatexToMarkup(normalized, opts);
+        } catch (eOpts) {
+          return window.MathLive.convertLatexToMarkup(normalized, 'displaystyle');
+        }
       }
     } catch (e2) { /* ignore */ }
     return '<span class="latex-lab-fallback-math">' + escHtml(normalized) + '</span>';
@@ -1038,10 +1056,17 @@
 
   /** Aperçu lab / Easy : texte échappé + formule markup (une seule voie). */
   function formatLatexPreviewHtml(before, latex, after) {
-    var html = '';
-    if (before) html += '<span class="latex-lab-preview-text">' + escHtml(before) + '</span>';
-    if (latex) html += '<span class="latex-lab-preview-math">' + latexToMarkup(latex) + '</span>';
-    if (after) html += '<span class="latex-lab-preview-text">' + escHtml(after) + '</span>';
+    var html = '<div class="latex-lab-preview-stack">';
+    if (before) {
+      html += '<div class="latex-lab-preview-text latex-lab-preview-before">' + escHtml(before) + '</div>';
+    }
+    if (latex) {
+      html += '<div class="latex-lab-preview-math">' + latexToMarkup(latex) + '</div>';
+    }
+    if (after) {
+      html += '<div class="latex-lab-preview-text latex-lab-preview-after">' + escHtml(after) + '</div>';
+    }
+    html += '</div>';
     return html;
   }
 
@@ -1080,17 +1105,20 @@
   function formatCardFaceHtml(str) {
     var s = String(str == null ? '' : str);
     if (!s) return '';
+    function textHtml(t) {
+      return escHtml(t).replace(/\r\n|\r|\n/g, '<br>');
+    }
     if (s.indexOf('\\(') < 0) {
       if (/\\[a-zA-Z{]/.test(s)) {
         return '<span class="latex-lab-preview-math">' + latexToMarkup(s) + '</span>';
       }
-      return escHtml(s);
+      return textHtml(s);
     }
     return parseLatexInlineSegments(s).map(function (seg) {
       if (seg.type === 'math') {
         return '<span class="latex-lab-preview-math">' + latexToMarkup(seg.value) + '</span>';
       }
-      return escHtml(seg.value);
+      return textHtml(seg.value);
     }).join('');
   }
 
@@ -1113,7 +1141,7 @@
   function applyLatexToEditor(latex, focus) {
     if (!_mf) return;
     try {
-      _mf.value = latex || '';
+      _mf.value = promoteFractionsToDisplay(latex || '');
     } catch (e) { /* ignore */ }
     syncFromEditor();
     if (focus) {
@@ -1123,6 +1151,7 @@
 
   function insertSnip(latex) {
     if (!_mf) return;
+    latex = promoteFractionsToDisplay(latex || '');
     try {
       if (typeof _mf.executeCommand === 'function') {
         _mf.executeCommand(['insert', latex]);
@@ -1150,6 +1179,10 @@
 
   function insertTextBox() {
     insertSnip('\\text{#0}');
+  }
+
+  function insertCancelBox() {
+    insertSnip('\\cancel{#0}');
   }
 
   function copyLatex(full) {
@@ -1367,9 +1400,15 @@
     try {
       mf.menuItems = [];
       mf.mathVirtualKeyboardPolicy = 'manual';
+      mf.defaultMode = 'math';
     } catch (e) { /* ignore */ }
     mf.setAttribute('virtual-keyboard-mode', 'manual');
     mf.setAttribute('math-virtual-keyboard-policy', 'manual');
+    try {
+      /* Éditeur : fractions en taille display pour la lisibilité */
+      if ('defaultMode' in mf) mf.defaultMode = 'math';
+      mf.setAttribute('default-mode', 'math');
+    } catch (e2) { /* ignore */ }
   }
 
   function wireFields() {
@@ -1451,6 +1490,7 @@
                 '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="quad" title="Grand espace (Maj+Espace)">□</button>' +
                 '<button type="button" class="latex-lab-quick" id="latexTestInsertText" title="Insérer du texte dans la formule">\\text{}</button>' +
+                '<button type="button" class="latex-lab-quick" id="latexTestInsertCancel" title="Barré en diagonale">\\cancel{}</button>' +
                 '<label class="latex-lab-space-toggle" title="Espace clavier → espacement LaTeX">' +
                   '<input type="checkbox" id="latexTestSpaceMode" checked> Espace auto' +
                 '</label>' +
@@ -1499,6 +1539,8 @@
     });
     var textBtn = document.getElementById('latexTestInsertText');
     if (textBtn) textBtn.addEventListener('click', insertTextBox);
+    var cancelBtn = document.getElementById('latexTestInsertCancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', insertCancelBox);
 
     var spaceToggle = document.getElementById('latexTestSpaceMode');
     if (spaceToggle) {
@@ -1614,13 +1656,14 @@
 
     function applyLatex(latex, focus) {
       if (!mf) return;
-      try { mf.value = latex || ''; } catch (e) { /* ignore */ }
+      try { mf.value = promoteFractionsToDisplay(latex || ''); } catch (e) { /* ignore */ }
       syncFromEditor();
       if (focus) { try { mf.focus(); } catch (e2) { /* ignore */ } }
     }
 
     function insertSnipLocal(latex) {
       if (!mf) return;
+      latex = promoteFractionsToDisplay(latex || '');
       try {
         if (typeof mf.executeCommand === 'function') mf.executeCommand(['insert', latex]);
         else mf.value = (mf.value || '') + latex;
@@ -1783,6 +1826,7 @@
                 '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="quad" title="Grand espace">□</button>' +
                 '<button type="button" class="latex-lab-quick" id="' + pid('InsertText') + '" title="Texte dans la formule">\\text{}</button>' +
+                '<button type="button" class="latex-lab-quick" id="' + pid('InsertCancel') + '" title="Barré en diagonale">\\cancel{}</button>' +
                 '<label class="latex-lab-space-toggle" title="Espace clavier → espacement LaTeX">' +
                   '<input type="checkbox" id="' + pid('SpaceMode') + '" checked> Espace auto' +
                 '</label>' +
@@ -1820,6 +1864,8 @@
     });
     var textBtn = gel('InsertText');
     if (textBtn) textBtn.addEventListener('click', function () { insertSnipLocal('\\text{#0}'); });
+    var cancelBtn = gel('InsertCancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', function () { insertSnipLocal('\\cancel{#0}'); });
     var spaceToggle = gel('SpaceMode');
     if (spaceToggle) spaceToggle.addEventListener('change', function () { spaceMode = !!spaceToggle.checked; });
     var clearBtn = gel('Clear');

@@ -703,9 +703,26 @@
     return 90;
   }
 
+  function getMaxQuickFill() {
+    const st = (window.D && window.D.settings) || {};
+    if (st.ankiMaxAnglaisFill == null || st.ankiMaxAnglaisFill === '') return 5;
+    const n = parseInt(st.ankiMaxAnglaisFill, 10);
+    if (!Number.isFinite(n) || n < 0) return 5;
+    return Math.min(200, n);
+  }
+
+  function setMaxQuickFill(val) {
+    if (!window.D.settings) window.D.settings = {};
+    const n = Math.max(0, Math.min(200, parseInt(val, 10)));
+    window.D.settings.ankiMaxAnglaisFill = Number.isFinite(n) ? n : 5;
+    return window.D.settings.ankiMaxAnglaisFill;
+  }
+
   function renderSessionTimeBar(sessionMin) {
     const total = Math.max(5, Math.min(300, parseInt(sessionMin, 10) || 60));
+    const maxQuick = getMaxQuickFill();
     const presets = [[45, '45m'], [60, '1h'], [75, '1h15'], [90, '1h30'], [120, '2h']];
+    const quickPresets = [5, 10, 15, 20, 30, 50];
     return `
       <div class="anki-session-bar">
         <span class="anki-session-bar-label">${window.iconLabel('timer', 'Durée session')}</span>
@@ -724,6 +741,14 @@
             `<button type="button" class="cbt anki-preset-time${total === m ? ' on' : ''}" data-preset="${m}" onclick="window.ankiV2SetSessionTimePreset(${m})">${label}</button>`
           ).join('')}
         </div>
+        <div class="anki-session-bar-sep" aria-hidden="true"></div>
+        <span class="anki-session-bar-label" title="Plafond de cartes Rapide (Y-) tissées dans la session">${window.iconLabel('zap', 'Max Rapide')}</span>
+        <input type="number" class="fi anki-max-quick-input" id="ankiMaxQuickFill" min="0" max="200" step="1" value="${maxQuick}" onchange="window.ankiV2SetMaxQuickFill(this.value)" aria-label="Nombre max de cartes Rapide par session">
+        <div class="anki-session-presets anki-quick-presets">
+          ${quickPresets.map(n =>
+            `<button type="button" class="cbt anki-preset-time${maxQuick === n ? ' on' : ''}" onclick="window.ankiV2SetMaxQuickFill(${n})">${n}</button>`
+          ).join('')}
+        </div>
       </div>`;
   }
 
@@ -732,8 +757,11 @@
     const minTotal = opts.minTotal != null ? opts.minTotal : 5;
     const maxTotal = opts.maxTotal != null ? opts.maxTotal : 300;
     const maxHours = opts.maxHours != null ? opts.maxHours : 5;
+    const minuteStep = opts.minuteStep != null ? opts.minuteStep : 5;
+    const editable = !!opts.editable;
     const hId = opts.hId || '';
     const mId = opts.mId || '';
+    const totalId = opts.totalId || '';
     const hClass = opts.hClass || 'anki-time-h';
     const mClass = opts.mClass || 'anki-time-m';
     const onChange = opts.onChange ? ` onchange="${opts.onChange}"` : '';
@@ -742,25 +770,47 @@
 
     let total = Math.max(minTotal, Math.min(maxTotal, Math.round(parseFloat(totalMin)) || minTotal));
     let h = Math.floor(total / 60);
-    let m = Math.round((total % 60) / 5) * 5;
-    if (h * 60 + m < minTotal) m = minTotal - h * 60;
-    if (m >= 60) { h += 1; m -= 60; }
-    m = Math.round(m / 5) * 5;
+    let m = total % 60;
+    if (minuteStep > 1) {
+      m = Math.round(m / minuteStep) * minuteStep;
+      if (h * 60 + m < minTotal) m = minTotal - h * 60;
+      if (m >= 60) { h += 1; m -= 60; }
+      m = Math.round(m / minuteStep) * minuteStep;
+      total = h * 60 + m;
+    }
 
-    const hourOpts = Array.from({ length: maxHours + 1 }, (_, i) => i).map(hh =>
-      `<option value="${hh}"${hh === h ? ' selected' : ''}>${hh}</option>`
-    ).join('');
-    const minOpts = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(mm =>
-      `<option value="${mm}"${mm === m ? ' selected' : ''}>${String(mm).padStart(2, '0')}</option>`
-    ).join('');
-
-    const picker = `
+    let picker;
+    if (editable) {
+      const totalAttr = totalId
+        ? `<input type="number" class="anki-time-total fi" id="${totalId}" min="${minTotal}" max="${maxTotal}" step="1" value="${total}" aria-label="Minutes totales" inputmode="numeric"${onChange}>`
+        : '';
+      picker = `
+      <div class="${wrapClass} anki-session-time--editable">
+        <input type="number" class="${hClass} fi" ${hId ? `id="${hId}"` : ''} min="0" max="${maxHours}" step="1" value="${h}" aria-label="Heures" inputmode="numeric"${onChange}>
+        <span class="anki-time-unit">h</span>
+        <input type="number" class="${mClass} fi" ${mId ? `id="${mId}"` : ''} min="0" max="59" step="1" value="${m}" aria-label="Minutes" inputmode="numeric"${onChange}>
+        <span class="anki-time-unit">min</span>
+        ${totalAttr ? `<span class="anki-mut anki-time-or">·</span>${totalAttr}<span class="anki-time-unit">min total</span>` : ''}
+      </div>`;
+    } else {
+      const hourOpts = Array.from({ length: maxHours + 1 }, (_, i) => i).map(hh =>
+        `<option value="${hh}"${hh === h ? ' selected' : ''}>${hh}</option>`
+      ).join('');
+      const minValues = [];
+      for (let mm = 0; mm < 60; mm += minuteStep) minValues.push(mm);
+      if (minValues.indexOf(m) < 0) minValues.push(m);
+      minValues.sort(function (a, b) { return a - b; });
+      const minOpts = minValues.map(mm =>
+        `<option value="${mm}"${mm === m ? ' selected' : ''}>${String(mm).padStart(2, '0')}</option>`
+      ).join('');
+      picker = `
       <div class="${wrapClass}">
         <select class="${hClass} fi" ${hId ? `id="${hId}"` : ''} aria-label="Heures"${onChange}>${hourOpts}</select>
         <span class="anki-time-unit">h</span>
         <select class="${mClass} fi" ${mId ? `id="${mId}"` : ''} aria-label="Minutes"${onChange}>${minOpts}</select>
         <span class="anki-time-unit">min</span>
       </div>`;
+    }
 
     if (label) {
       return `<div class="fg anki-duration-field"><label>${label}</label>${picker}</div>`;
@@ -768,22 +818,78 @@
     return picker;
   }
 
-  function readDurationFromPicker(hId, mId, hClass, mClass, minTotal, maxTotal) {
+  function readDurationFromPicker(hId, mId, hClass, mClass, minTotal, maxTotal, totalId) {
+    if (totalId) {
+      const tEl = $(totalId);
+      if (tEl && tEl.value !== '') {
+        const t = parseInt(tEl.value, 10);
+        if (!isNaN(t)) return Math.max(minTotal, Math.min(maxTotal, t));
+      }
+    }
     const hEl = hId ? $(hId) : document.querySelector('.' + (hClass || 'anki-time-h'));
     const mEl = mId ? $(mId) : document.querySelector('.' + (mClass || 'anki-time-m'));
     const h = hEl ? parseInt(hEl.value, 10) || 0 : 0;
-    const m = mEl ? parseInt(mEl.value, 10) || 0 : 0;
+    let m = mEl ? parseInt(mEl.value, 10) || 0 : 0;
+    if (m > 59) m = 59;
+    if (m < 0) m = 0;
     return Math.max(minTotal, Math.min(maxTotal, h * 60 + m));
   }
 
-  function syncDurationPicker(total, hId, mId, hClass, mClass) {
+  function syncDurationPicker(total, hId, mId, hClass, mClass, totalId) {
     const hEl = hId ? $(hId) : document.querySelector('.' + (hClass || 'anki-time-h'));
     const mEl = mId ? $(mId) : document.querySelector('.' + (mClass || 'anki-time-m'));
     if (!hEl || !mEl) return;
     const h = Math.floor(total / 60);
-    const m = Math.round((total % 60) / 5) * 5;
+    const m = total % 60;
     hEl.value = String(h);
     mEl.value = String(m);
+    if (totalId) {
+      const tEl = $(totalId);
+      if (tEl) tEl.value = String(total);
+    }
+  }
+
+  function wireEditableDurationPicker(opts) {
+    opts = opts || {};
+    const minTotal = opts.minTotal != null ? opts.minTotal : 1;
+    const maxTotal = opts.maxTotal != null ? opts.maxTotal : 600;
+    const hEl = opts.hId ? $(opts.hId) : null;
+    const mEl = opts.mId ? $(opts.mId) : null;
+    const tEl = opts.totalId ? $(opts.totalId) : null;
+    if (!hEl || !mEl) return;
+
+    function clampTotal(n) {
+      return Math.max(minTotal, Math.min(maxTotal, Math.round(n) || minTotal));
+    }
+    function applyTotal(total, source) {
+      total = clampTotal(total);
+      const h = Math.floor(total / 60);
+      const m = total % 60;
+      if (source !== 'h') hEl.value = String(h);
+      if (source !== 'm') mEl.value = String(m);
+      if (tEl && source !== 't') tEl.value = String(total);
+    }
+    function fromHM(source) {
+      let h = parseInt(hEl.value, 10) || 0;
+      let m = parseInt(mEl.value, 10) || 0;
+      if (m > 59) { h += Math.floor(m / 60); m = m % 60; }
+      if (m < 0) m = 0;
+      if (h < 0) h = 0;
+      applyTotal(h * 60 + m, source);
+    }
+
+    hEl.addEventListener('input', function () { fromHM('h'); });
+    mEl.addEventListener('input', function () { fromHM('m'); });
+    hEl.addEventListener('change', function () { fromHM('h'); });
+    mEl.addEventListener('change', function () { fromHM('m'); });
+    if (tEl) {
+      tEl.addEventListener('input', function () {
+        applyTotal(parseInt(tEl.value, 10) || minTotal, 't');
+      });
+      tEl.addEventListener('change', function () {
+        applyTotal(parseInt(tEl.value, 10) || minTotal, 't');
+      });
+    }
   }
   function stars(c) { return window.importanceLabel(c); }
   function cardImportance(c) { return window.AnkiAlgoV2.getImportance(c); }
@@ -1136,6 +1242,22 @@
     setSessionMinutesV2(val);
     window.save();
     window.renderAnkiV2();
+  };
+
+  window.ankiV2SetMaxQuickFill = function (val) {
+    setMaxQuickFill(val);
+    window.save();
+    const bar = document.querySelector('.anki-session-bar');
+    if (bar) {
+      const inp = bar.querySelector('#ankiMaxQuickFill');
+      const n = getMaxQuickFill();
+      if (inp) inp.value = String(n);
+      bar.querySelectorAll('.anki-quick-presets .anki-preset-time').forEach(function (btn) {
+        const v = parseInt(btn.textContent, 10);
+        btn.classList.toggle('on', v === n);
+      });
+    }
+    refreshQueueOnly();
   };
 
   function syncSessionTimeUi(total) {
@@ -2567,8 +2689,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <input type="number" class="fi" min="15" max="240" value="${st.ankiMaxPerDay || 75}" onchange="window.D.settings.ankiMaxPerDay=parseInt(this.value)||75;window.save();">
         </div>
         <div class="anki-set-row">
-          <label>Max cartes rapides Y- en fin de session <code class="anki-mut">ankiMaxAnglaisFill</code></label>
-          <input type="number" class="fi" min="0" max="30" value="${st.ankiMaxAnglaisFill != null ? st.ankiMaxAnglaisFill : 5}" onchange="window.D.settings.ankiMaxAnglaisFill=parseInt(this.value)||5;window.save();window.renderAnkiV2();">
+          <label>Max cartes Rapide (Y-) par session</label>
+          <input type="number" class="fi" min="0" max="200" value="${st.ankiMaxAnglaisFill != null ? st.ankiMaxAnglaisFill : 5}" onchange="window.ankiV2SetMaxQuickFill(this.value)">
+          <p class="anki-mut" style="font-size:11px;margin-top:4px;">Plafond de petites cartes tissées dans la session Synchrotron (0 = aucune). Même réglage que « Max Rapide » en haut du Cockpit.</p>
         </div>
         <div class="anki-set-row">
           <label>Marge budget de session <code class="anki-mut">margeBudget</code> (0.5–1.0, défaut 0.92)</label>
@@ -3813,10 +3936,16 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   function autoGrowTextarea(el, maxPx) {
     if (!el || el.tagName !== 'TEXTAREA') return;
     const max = maxPx || 280;
+    el.style.overflowY = 'hidden';
     el.style.height = 'auto';
-    const h = Math.min(el.scrollHeight, max);
-    el.style.height = h + 'px';
-    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
+    const full = el.scrollHeight;
+    if (full > max) {
+      el.style.height = max + 'px';
+      el.style.overflowY = 'auto';
+    } else {
+      el.style.height = full + 'px';
+      el.style.overflowY = 'hidden';
+    }
   }
 
   function bindAutoGrowTextareas(root, maxPx) {
@@ -3940,8 +4069,21 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="exoMat">${matOpts}</select></div>
           <div class="fg"><label>Profil</label><select id="exoProf">${profileOpts}</select></div>
-          ${durationPickerHtml(tempsMin, { hId: 'exoTimeH', mId: 'exoTimeM', hClass: 'anki-exo-time-h', mClass: 'anki-exo-time-m', minTotal: 5, maxTotal: 600, maxHours: 10, label: 'Durée' })}
+          ${durationPickerHtml(tempsMin, {
+            hId: 'exoTimeH',
+            mId: 'exoTimeM',
+            totalId: 'exoTimeTotal',
+            hClass: 'anki-exo-time-h',
+            mClass: 'anki-exo-time-m',
+            minTotal: 1,
+            maxTotal: 600,
+            maxHours: 10,
+            minuteStep: 1,
+            editable: true,
+            label: 'Durée'
+          })}
         </div>
+        <p class="anki-mut anki-duration-tip">Saisie à la minute près (h / min, ou total en minutes).</p>
         <div class="anki-modal-row anki-modal-row--meta">
           <div class="fg fg-importance">
             <label>Importance</label>
@@ -3977,6 +4119,13 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     renderCoursLinkUI('exo');
     window.hydrateIcons(ov);
     bindAutoGrowTextareas(ov);
+    wireEditableDurationPicker({
+      hId: 'exoTimeH',
+      mId: 'exoTimeM',
+      totalId: 'exoTimeTotal',
+      minTotal: 1,
+      maxTotal: 600
+    });
   }
 
   /** Ancien modal découpe — redirige vers l’onglet Agenda. */
@@ -3989,6 +4138,122 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   function applyDevoirDecoupe() {
     return null;
   }
+
+  window.ankiV2SaveExo = function () {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
+      return;
+    }
+    showFormError('exoFormError', '');
+    const titre = fieldVal('exoTitre');
+    const q = fieldVal('exoQ');
+    const r = fieldVal('exoR');
+    const matV = fieldVal('exoMat');
+    const profil = fieldVal('exoProf') || 'COURS';
+    const tempsMin = readDurationFromPicker('exoTimeH', 'exoTimeM', null, null, 1, 600, 'exoTimeTotal');
+    const temps = Math.round(tempsMin * 60);
+    const importance = window.getStarPickerValue('exoImportance');
+    const stat = fieldVal('exoStat') || 'reservoir';
+    const coursIds = Array.from(S.coursLinkSelection || []);
+
+    function readSrc(prefix) {
+      const type = fieldVal('exoSrc' + prefix + 'Type');
+      const nom = fieldVal('exoSrc' + prefix + 'Nom');
+      const det = fieldVal('exoSrc' + prefix + 'Det');
+      if (!type && !nom && !det) return null;
+      return { type: type || 'livre', nom: nom, details: det };
+    }
+    const sourceEnonce = readSrc('Enonce');
+    const sourceCorrection = readSrc('Cor');
+
+    if (!titre || !matV) {
+      showFormError('exoFormError', 'Titre et matière sont obligatoires.');
+      return;
+    }
+
+    let createdCard = null;
+    let editSnapshot = null;
+    const editId = editingExoId;
+
+    if (editId) {
+      const c = ankFind(editId);
+      if (!c || isDevoirCard(c)) return;
+      editSnapshot = Object.assign({}, c);
+      Object.assign(c, {
+        titre: titre,
+        question: q,
+        reponse: r,
+        mat: matV,
+        profil: profil,
+        tempsCible: temps,
+        importance: importance,
+        statut: stat,
+        coursIds: coursIds
+      });
+      delete c.priorite;
+      if (sourceEnonce) c.sourceEnonce = sourceEnonce;
+      else delete c.sourceEnonce;
+      if (sourceCorrection) c.sourceCorrection = sourceCorrection;
+      else delete c.sourceCorrection;
+      delete c.type;
+      delete c.dateLimite;
+      delete c._morceauxTotal;
+      delete c._morceauxFaits;
+      delete c._dureeTotaleMin;
+      delete c.coursId;
+      if (stat === 'actif' && !c.dateProchaineRevision) {
+        c.dateProchaineRevision = window.AnkiAlgoV2.todayISO();
+      }
+    } else {
+      const existing = ankExistingIds();
+      const newId = window.AnkiAlgoV2.genExoUid('X', existing);
+      const easeProf = window.AnkiAlgoV2.getProfile(profil);
+      createdCard = {
+        id: newId,
+        titre: titre,
+        question: q,
+        reponse: r,
+        mat: matV,
+        profil: profil,
+        tempsCible: temps,
+        importance: importance,
+        statut: stat,
+        coursIds: coursIds,
+        intervalle: 0,
+        ease: easeProf && easeProf.ease != null ? easeProf.ease : 2.5,
+        repetitions: 0,
+        dateProchaineRevision: stat === 'actif' ? window.AnkiAlgoV2.todayISO() : null,
+        historique: [],
+        epinglee: false,
+        dateCreation: new Date().toISOString()
+      };
+      if (sourceEnonce) createdCard.sourceEnonce = sourceEnonce;
+      if (sourceCorrection) createdCard.sourceCorrection = sourceCorrection;
+      window.D.exercices.unshift(createdCard);
+    }
+
+    Promise.resolve(window.save()).then(function () {
+      editingExoId = null;
+      const ov = $('ovExo');
+      if (ov) ov.classList.add('hidden');
+      window.renderAnkiV2();
+      if (typeof window.showToast === 'function') {
+        window.showToast(editId ? 'Carte mise à jour.' : ('Carte ' + (createdCard && createdCard.id) + ' créée.'), { type: 'ok' });
+      }
+    }).catch(function (err) {
+      if (window.isPersistHardFail && window.isPersistHardFail(err)) {
+        if (createdCard) {
+          window.D.exercices = (window.D.exercices || []).filter(function (x) {
+            return x !== createdCard && x.id !== createdCard.id;
+          });
+        } else if (editId && editSnapshot) {
+          const live = ankFind(editId);
+          if (live) Object.assign(live, editSnapshot);
+        }
+      }
+      showFormError('exoFormError', 'Enregistrement impossible — la carte n’a pas été sauvegardée.');
+    });
+  };
 
   window.ankiV2SaveDevoir = function () {
     if (typeof window.sysAlert === 'function') {
@@ -4164,16 +4429,19 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         <div class="fg">
           <label>Question / recto *</label>
           <div class="quick-face-field">
-            <input type="text" id="quickQ" placeholder="Ex: « to elicit »" value="${esc(c.question || '')}">
+            <textarea id="quickQ" rows="1" placeholder="Ex: « to elicit »">${esc(c.question || '')}</textarea>
+            <button type="button" class="bs quick-nl-btn" title="Saut de ligne (Maj+Entrée)" aria-label="Saut de ligne" onclick="window.ankiV2QuickInsertNewline('quickQ')">↵</button>
             <button type="button" class="bs" onclick="window.ankiV2QuickOpenLatex('recto')">${window.iconLabel('sigma', 'LaTeX')}</button>
           </div>
         </div>
         <div class="fg">
           <label>Réponse / verso <span class="anki-mut" style="font-weight:normal;">(facultatif)</span></label>
           <div class="quick-face-field">
-            <input type="text" id="quickR" placeholder="Traduction ou rappel court" value="${esc(c.reponse || '')}">
+            <textarea id="quickR" rows="1" placeholder="Traduction ou rappel court">${esc(c.reponse || '')}</textarea>
+            <button type="button" class="bs quick-nl-btn" title="Saut de ligne (Maj+Entrée)" aria-label="Saut de ligne" onclick="window.ankiV2QuickInsertNewline('quickR')">↵</button>
             <button type="button" class="bs" onclick="window.ankiV2QuickOpenLatex('verso')">${window.iconLabel('sigma', 'LaTeX')}</button>
           </div>
+          <p class="anki-mut quick-face-hint">Entrée = créer · Maj+Entrée ou ↵ = nouvelle ligne · Tab = champ suivant</p>
         </div>
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="quickMat" onchange="window.quickRefreshGroupSelect&&window.quickRefreshGroupSelect()">${matOpts}</select></div>
@@ -4204,24 +4472,40 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     renderCoursLinkUI('quick');
     const qEl = $("quickQ");
     const rEl = $("quickR");
-    if (rEl) {
-      rEl.onkeydown = function (e) {
-        if (e.key === 'Enter' && !e.isComposing && !e.repeat) {
-          e.preventDefault();
-          window.ankiV2SaveQuick();
-        }
+    function bindQuickFaceEnter(el, onPlainEnter) {
+      if (!el) return;
+      el.onkeydown = function (e) {
+        if (e.key !== 'Enter' && e.key !== 'NumpadEnter') return;
+        if (e.isComposing || e.repeat) return;
+        /* Maj+Entrée (ou Ctrl/Cmd) : saut de ligne natif */
+        if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        onPlainEnter();
       };
     }
-    if (qEl) {
-      qEl.onkeydown = function (e) {
-        if (e.key === 'Enter' && !e.isComposing && !e.repeat) {
-          e.preventDefault();
-          if (rEl) rEl.focus();
-        }
-      };
-    }
+    bindQuickFaceEnter(qEl, function () {
+      window.ankiV2SaveQuick();
+    });
+    bindQuickFaceEnter(rEl, function () {
+      window.ankiV2SaveQuick();
+    });
     if (qEl) qEl.focus();
   }
+
+  /** Insère un saut de ligne dans recto/verso (Entrée seule valide la carte). */
+  window.ankiV2QuickInsertNewline = function (fieldId) {
+    const el = $(fieldId);
+    if (!el) return;
+    const start = typeof el.selectionStart === 'number' ? el.selectionStart : (el.value || '').length;
+    const end = typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
+    const val = el.value || '';
+    el.value = val.slice(0, start) + '\n' + val.slice(end);
+    try {
+      el.selectionStart = el.selectionEnd = start + 1;
+    } catch (e) { /* ignore */ }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    try { el.focus(); } catch (e2) { /* ignore */ }
+  };
 
   window.ankiV2QuickOpenLatex = function (side) {
     const mat = fieldVal('quickMat');
