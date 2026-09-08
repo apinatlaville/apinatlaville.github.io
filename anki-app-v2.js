@@ -761,7 +761,8 @@
     const editable = !!opts.editable;
     const hId = opts.hId || '';
     const mId = opts.mId || '';
-    const totalId = opts.totalId || '';
+    const m0Id = opts.m0Id || (mId ? mId + '0' : '');
+    const m1Id = opts.m1Id || (mId ? mId + '1' : '');
     const hClass = opts.hClass || 'anki-time-h';
     const mClass = opts.mClass || 'anki-time-m';
     const onChange = opts.onChange ? ` onchange="${opts.onChange}"` : '';
@@ -771,26 +772,27 @@
     let total = Math.max(minTotal, Math.min(maxTotal, Math.round(parseFloat(totalMin)) || minTotal));
     let h = Math.floor(total / 60);
     let m = total % 60;
-    if (minuteStep > 1) {
+    if (minuteStep > 1 && !editable) {
       m = Math.round(m / minuteStep) * minuteStep;
       if (h * 60 + m < minTotal) m = minTotal - h * 60;
       if (m >= 60) { h += 1; m -= 60; }
       m = Math.round(m / minuteStep) * minuteStep;
       total = h * 60 + m;
     }
+    if (editable) {
+      /* Format h:mm → 1 case heure + 2 cases minutes (0–9 h max) */
+      if (h > 9) { h = 9; m = Math.min(m, 59); total = h * 60 + m; }
+    }
 
     let picker;
     if (editable) {
-      const totalAttr = totalId
-        ? `<input type="number" class="anki-time-total fi" id="${totalId}" min="${minTotal}" max="${maxTotal}" step="1" value="${total}" aria-label="Minutes totales" inputmode="numeric"${onChange}>`
-        : '';
+      const mm = String(m).padStart(2, '0');
       picker = `
-      <div class="${wrapClass} anki-session-time--editable">
-        <input type="number" class="${hClass} fi" ${hId ? `id="${hId}"` : ''} min="0" max="${maxHours}" step="1" value="${h}" aria-label="Heures" inputmode="numeric"${onChange}>
-        <span class="anki-time-unit">h</span>
-        <input type="number" class="${mClass} fi" ${mId ? `id="${mId}"` : ''} min="0" max="59" step="1" value="${m}" aria-label="Minutes" inputmode="numeric"${onChange}>
-        <span class="anki-time-unit">min</span>
-        ${totalAttr ? `<span class="anki-mut anki-time-or">·</span>${totalAttr}<span class="anki-time-unit">min total</span>` : ''}
+      <div class="anki-hmm-boxes" role="group" aria-label="Durée h:mm">
+        <input type="text" class="anki-hmm-box anki-hmm-h" ${hId ? `id="${hId}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${h}" aria-label="Heures" autocomplete="off">
+        <span class="anki-hmm-sep" aria-hidden="true">:</span>
+        <input type="text" class="anki-hmm-box anki-hmm-m0" ${m0Id ? `id="${m0Id}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${mm.charAt(0)}" aria-label="Dizaines de minutes" autocomplete="off">
+        <input type="text" class="anki-hmm-box anki-hmm-m1" ${m1Id ? `id="${m1Id}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${mm.charAt(1)}" aria-label="Unités de minutes" autocomplete="off">
       </div>`;
     } else {
       const hourOpts = Array.from({ length: maxHours + 1 }, (_, i) => i).map(hh =>
@@ -813,12 +815,24 @@
     }
 
     if (label) {
-      return `<div class="fg anki-duration-field"><label>${label}</label>${picker}</div>`;
+      return `<div class="fg anki-duration-field${editable ? ' anki-duration-field--hmm' : ''}"><label>${label}</label>${picker}</div>`;
     }
     return picker;
   }
 
   function readDurationFromPicker(hId, mId, hClass, mClass, minTotal, maxTotal, totalId) {
+    /* Format h:mm (3 cases) */
+    const hEl = hId ? $(hId) : null;
+    const m0El = mId ? $(mId + '0') : null;
+    const m1El = mId ? $(mId + '1') : null;
+    if (hEl && m0El && m1El && hEl.classList.contains('anki-hmm-box')) {
+      const h = parseInt(hEl.value, 10) || 0;
+      const m0 = parseInt(m0El.value, 10) || 0;
+      const m1 = parseInt(m1El.value, 10) || 0;
+      let m = m0 * 10 + m1;
+      if (m > 59) m = 59;
+      return Math.max(minTotal, Math.min(maxTotal, h * 60 + m));
+    }
     if (totalId) {
       const tEl = $(totalId);
       if (tEl && tEl.value !== '') {
@@ -826,21 +840,30 @@
         if (!isNaN(t)) return Math.max(minTotal, Math.min(maxTotal, t));
       }
     }
-    const hEl = hId ? $(hId) : document.querySelector('.' + (hClass || 'anki-time-h'));
-    const mEl = mId ? $(mId) : document.querySelector('.' + (mClass || 'anki-time-m'));
-    const h = hEl ? parseInt(hEl.value, 10) || 0 : 0;
-    let m = mEl ? parseInt(mEl.value, 10) || 0 : 0;
+    const hSel = hId ? $(hId) : document.querySelector('.' + (hClass || 'anki-time-h'));
+    const mSel = mId ? $(mId) : document.querySelector('.' + (mClass || 'anki-time-m'));
+    const h = hSel ? parseInt(hSel.value, 10) || 0 : 0;
+    let m = mSel ? parseInt(mSel.value, 10) || 0 : 0;
     if (m > 59) m = 59;
     if (m < 0) m = 0;
     return Math.max(minTotal, Math.min(maxTotal, h * 60 + m));
   }
 
   function syncDurationPicker(total, hId, mId, hClass, mClass, totalId) {
-    const hEl = hId ? $(hId) : document.querySelector('.' + (hClass || 'anki-time-h'));
-    const mEl = mId ? $(mId) : document.querySelector('.' + (mClass || 'anki-time-m'));
-    if (!hEl || !mEl) return;
     const h = Math.floor(total / 60);
     const m = total % 60;
+    const hEl = hId ? $(hId) : document.querySelector('.' + (hClass || 'anki-time-h'));
+    const m0El = mId ? $(mId + '0') : null;
+    const m1El = mId ? $(mId + '1') : null;
+    if (hEl && m0El && m1El && hEl.classList.contains('anki-hmm-box')) {
+      const mm = String(Math.min(59, m)).padStart(2, '0');
+      hEl.value = String(Math.min(9, h));
+      m0El.value = mm.charAt(0);
+      m1El.value = mm.charAt(1);
+      return;
+    }
+    const mEl = mId ? $(mId) : document.querySelector('.' + (mClass || 'anki-time-m'));
+    if (!hEl || !mEl) return;
     hEl.value = String(h);
     mEl.value = String(m);
     if (totalId) {
@@ -849,47 +872,87 @@
     }
   }
 
+  /** Cases h:mm façon recherche code dashboard (auto-avance). */
   function wireEditableDurationPicker(opts) {
     opts = opts || {};
     const minTotal = opts.minTotal != null ? opts.minTotal : 1;
     const maxTotal = opts.maxTotal != null ? opts.maxTotal : 600;
     const hEl = opts.hId ? $(opts.hId) : null;
-    const mEl = opts.mId ? $(opts.mId) : null;
-    const tEl = opts.totalId ? $(opts.totalId) : null;
-    if (!hEl || !mEl) return;
+    const mId = opts.mId || '';
+    const m0El = mId ? $(mId + '0') : null;
+    const m1El = mId ? $(mId + '1') : null;
+    if (!hEl || !m0El || !m1El) return;
+    const boxes = [hEl, m0El, m1El];
 
-    function clampTotal(n) {
-      return Math.max(minTotal, Math.min(maxTotal, Math.round(n) || minTotal));
+    function digitOnly(el, maxDigit) {
+      let v = String(el.value || '').replace(/\D/g, '');
+      if (v.length > 1) v = v.slice(-1);
+      if (v && maxDigit != null && parseInt(v, 10) > maxDigit) v = String(maxDigit);
+      el.value = v;
     }
-    function applyTotal(total, source) {
-      total = clampTotal(total);
-      const h = Math.floor(total / 60);
-      const m = total % 60;
-      if (source !== 'h') hEl.value = String(h);
-      if (source !== 'm') mEl.value = String(m);
-      if (tEl && source !== 't') tEl.value = String(total);
-    }
-    function fromHM(source) {
+
+    function clampAndSync() {
       let h = parseInt(hEl.value, 10) || 0;
-      let m = parseInt(mEl.value, 10) || 0;
-      if (m > 59) { h += Math.floor(m / 60); m = m % 60; }
-      if (m < 0) m = 0;
-      if (h < 0) h = 0;
-      applyTotal(h * 60 + m, source);
+      let m0 = parseInt(m0El.value, 10) || 0;
+      let m1 = parseInt(m1El.value, 10) || 0;
+      let m = m0 * 10 + m1;
+      if (m > 59) {
+        m = 59;
+        m0El.value = '5';
+        m1El.value = '9';
+      }
+      let total = h * 60 + m;
+      if (total < minTotal) {
+        total = minTotal;
+        h = Math.floor(total / 60);
+        m = total % 60;
+        const mm = String(m).padStart(2, '0');
+        hEl.value = String(h);
+        m0El.value = mm.charAt(0);
+        m1El.value = mm.charAt(1);
+      } else if (total > maxTotal) {
+        total = maxTotal;
+        h = Math.floor(total / 60);
+        m = total % 60;
+        const mm = String(m).padStart(2, '0');
+        hEl.value = String(Math.min(9, h));
+        m0El.value = mm.charAt(0);
+        m1El.value = mm.charAt(1);
+      }
     }
 
-    hEl.addEventListener('input', function () { fromHM('h'); });
-    mEl.addEventListener('input', function () { fromHM('m'); });
-    hEl.addEventListener('change', function () { fromHM('h'); });
-    mEl.addEventListener('change', function () { fromHM('m'); });
-    if (tEl) {
-      tEl.addEventListener('input', function () {
-        applyTotal(parseInt(tEl.value, 10) || minTotal, 't');
+    boxes.forEach(function (box, i) {
+      if (box.dataset.hmmBound === '1') return;
+      box.dataset.hmmBound = '1';
+      box.addEventListener('input', function () {
+        digitOnly(box, i === 1 ? 5 : 9);
+        if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
+        clampAndSync();
       });
-      tEl.addEventListener('change', function () {
-        applyTotal(parseInt(tEl.value, 10) || minTotal, 't');
+      box.addEventListener('keydown', function (e) {
+        if (e.key === 'Backspace' && !box.value && i > 0) {
+          boxes[i - 1].focus();
+        }
       });
-    }
+      box.addEventListener('focus', function () {
+        try { box.select(); } catch (err) { /* ignore */ }
+      });
+      box.addEventListener('paste', function (e) {
+        e.preventDefault();
+        const raw = ((e.clipboardData || window.clipboardData).getData('text') || '');
+        const digits = raw.replace(/\D/g, '').substring(0, 3);
+        if (!digits) return;
+        hEl.value = digits.charAt(0) || '0';
+        m0El.value = digits.charAt(1) || '0';
+        m1El.value = digits.charAt(2) || '0';
+        digitOnly(hEl, 9);
+        digitOnly(m0El, 5);
+        digitOnly(m1El, 9);
+        clampAndSync();
+        const focusIdx = Math.min(digits.length, 2);
+        boxes[focusIdx].focus();
+      });
+    });
   }
   function stars(c) { return window.importanceLabel(c); }
   function cardImportance(c) { return window.AnkiAlgoV2.getImportance(c); }
@@ -1652,11 +1715,17 @@
   function renderReservoirRow(c) {
     const m = mat(c.mat);
     const checked = S.reservoirSel.has(c.id);
-    const hasSrcE = c.sourceEnonce && (c.sourceEnonce.nom || c.sourceEnonce.details);
-    const hasSrcC = c.sourceCorrection && (c.sourceCorrection.nom || c.sourceCorrection.details);
+    const hasSrcE = c.sourceEnonce && (c.sourceEnonce.nom || c.sourceEnonce.details || c.sourceEnonce.coursUid);
+    const hasSrcC = c.sourceCorrection && (c.sourceCorrection.nom || c.sourceCorrection.details || c.sourceCorrection.coursUid);
     const srcChips = [];
-    if (hasSrcE) srcChips.push(`<span class="anki-tag" style="background:#ffaa3320;color:#ffaa33;border:1px solid #ffaa33;">${window.iconLabel('book-open', `Énoncé : ${esc(c.sourceEnonce.type || '?')} · ${esc(c.sourceEnonce.nom || '')} ${esc(c.sourceEnonce.details || '')}`)}</span>`);
-    if (hasSrcC) srcChips.push(`<span class="anki-tag" style="background:#42b56b20;color:#42b56b;border:1px solid #42b56b;">${window.iconLabel('check', `Corrigé : ${esc(c.sourceCorrection.type || '?')} · ${esc(c.sourceCorrection.nom || '')} ${esc(c.sourceCorrection.details || '')}`)}</span>`);
+    if (hasSrcE) {
+      const d = formatSrcDisplay(c.sourceEnonce);
+      srcChips.push(`<span class="anki-tag" style="background:#ffaa3320;color:#ffaa33;border:1px solid #ffaa33;">${window.iconLabel('book-open', `Énoncé : ${esc(d.type || '?')} · ${esc(d.nom || '')} ${esc(d.details || '')}`)}</span>`);
+    }
+    if (hasSrcC) {
+      const d = formatSrcDisplay(c.sourceCorrection);
+      srcChips.push(`<span class="anki-tag" style="background:#42b56b20;color:#42b56b;border:1px solid #42b56b;">${window.iconLabel('check', `Corrigé : ${esc(d.type || '?')} · ${esc(d.nom || '')} ${esc(d.details || '')}`)}</span>`);
+    }
     return `
       <div class="anki-lib-row" data-testid="reservoir-row-${c.id}">
         ${cardTypeBadge(c)}
@@ -3184,11 +3253,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const parts = [];
     [['sourceEnonce', 'Énoncé', 'book-open', 'var(--gold)'], ['sourceCorrection', 'Corrigé', 'check', 'var(--grn)']].forEach(([key, label, icon, color]) => {
       const src = c[key];
-      if (!src || (!src.nom && !src.details)) return;
+      if (!src || (!src.nom && !src.details && !src.coursUid)) return;
+      const d = formatSrcDisplay(src);
       parts.push(`
         <div class="sync-dock-src" style="--src-color:${color}">
-          <div class="sync-dock-src-label">${window.iconLabel(icon, label)} · ${esc(src.type || 'livre')}</div>
-          <div class="sync-dock-src-body"><b>${esc(src.nom || '')}</b>${src.details ? `<span class="sync-dock-src-det">${esc(src.details)}</span>` : ''}</div>
+          <div class="sync-dock-src-label">${window.iconLabel(icon, label)} · ${esc(d.type || 'livre')}</div>
+          <div class="sync-dock-src-body"><b>${esc(d.nom || '')}</b>${d.details ? `<span class="sync-dock-src-det">${esc(d.details)}</span>` : ''}</div>
         </div>
       `);
     });
@@ -3476,15 +3546,15 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!c) return '';
     const src = isAnswerSide ? c.sourceCorrection : c.sourceEnonce;
     if (!src) return '';
-    const hasContent = (src.nom || src.details);
+    const hasContent = (src.nom || src.details || src.coursUid);
     if (!hasContent) return '';
-    const labelType = (src.type || '').toString();
+    const d = formatSrcDisplay(src);
     const labelTitle = isAnswerSide ? window.iconLabel('check', 'Corrigé') : window.iconLabel('book-open', 'Énoncé');
     const color = isAnswerSide ? 'var(--grn)' : 'var(--gold)';
     return `
       <div class="anki-src-box" data-testid="src-box-${isAnswerSide ? 'cor' : 'enon'}" style="border:1px dashed ${color};background:rgba(0,0,0,0.04);padding:8px 10px;border-radius:6px;margin:6px 0;">
-        <div style="font-size:11px;color:${color};font-weight:700;letter-spacing:.4px;text-transform:uppercase;">${labelTitle} · ${esc(labelType)}</div>
-        <div style="font-size:13px;margin-top:2px;"><b>${esc(src.nom || '')}</b> ${src.details ? ' — ' + esc(src.details) : ''}</div>
+        <div style="font-size:11px;color:${color};font-weight:700;letter-spacing:.4px;text-transform:uppercase;">${labelTitle} · ${esc(d.type || '')}</div>
+        <div style="font-size:13px;margin-top:2px;"><b>${esc(d.nom || '')}</b> ${d.details ? ' — ' + esc(d.details) : ''}</div>
       </div>
     `;
   }
@@ -3960,9 +4030,298 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   function cardHasSrcGuidance(c) {
     return !!(
-      (c.sourceEnonce && (c.sourceEnonce.type || c.sourceEnonce.nom || c.sourceEnonce.details))
-      || (c.sourceCorrection && (c.sourceCorrection.type || c.sourceCorrection.nom || c.sourceCorrection.details))
+      (c.sourceEnonce && (c.sourceEnonce.type || c.sourceEnonce.nom || c.sourceEnonce.details || c.sourceEnonce.coursUid))
+      || (c.sourceCorrection && (c.sourceCorrection.type || c.sourceCorrection.nom || c.sourceCorrection.details || c.sourceCorrection.coursUid))
     );
+  }
+
+  function srcCoursLabel(uid) {
+    if (!uid) return '';
+    const co = (window.D.cours || []).find(function (x) { return x.uid === uid; });
+    if (!co) return String(uid);
+    return (co.uid || '') + (co.title ? ' · ' + co.title : '');
+  }
+
+  function formatSrcDisplay(src) {
+    if (!src) return { type: '', nom: '', details: '' };
+    let nom = src.nom || '';
+    let details = src.details || '';
+    const type = src.type || '';
+    if (src.coursUid) {
+      const co = (window.D.cours || []).find(function (x) { return x.uid === src.coursUid; });
+      if (co) {
+        nom = co.title || co.uid;
+        const path = [co.mat, co.cl, co.inter].filter(Boolean).join(' › ');
+        const bits = [co.uid];
+        if (path) bits.push(path);
+        if (details) bits.push(details);
+        details = bits.join(' · ');
+      } else {
+        nom = nom || src.coursUid;
+      }
+    }
+    return { type: type, nom: nom, details: details };
+  }
+
+  function srcArianeKey(prefix, side) {
+    return String(prefix || 'exo') + String(side || 'Enonce');
+  }
+
+  function ensureSrcArianeState(prefix, side, seedUid) {
+    if (!S.srcAriane) S.srcAriane = Object.create(null);
+    const key = srcArianeKey(prefix, side);
+    if (!S.srcAriane[key]) S.srcAriane[key] = { mat: '', cl: '', inter: '' };
+    if (seedUid) {
+      const co = (window.D.cours || []).find(function (x) { return x.uid === seedUid; });
+      if (co) {
+        S.srcAriane[key] = {
+          mat: String(co.mat || ''),
+          cl: String(co.cl || ''),
+          inter: String(co.inter || '')
+        };
+      }
+    }
+    return S.srcAriane[key];
+  }
+
+  function renderSrcArianeBody(prefix, side) {
+    const key = srcArianeKey(prefix, side);
+    const nav = ensureSrcArianeState(prefix, side);
+    const list = (window.D.cours || []).filter(function (c) {
+      if (!c) return false;
+      if (typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : (c.role === 'unite' || c.isUnite)) return false;
+      return true;
+    });
+    const tree = typeof window.buildCoursBrowseTree === 'function'
+      ? window.buildCoursBrowseTree(list)
+      : [];
+    const mats = window.D.matieres || [];
+    const cls = window.D.classeurs || [];
+    const js = window.escapeJsStr || function (s) { return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); };
+    const p = esc(prefix);
+    const s = esc(side);
+
+    const matNode = nav.mat ? tree.find(function (m) { return m.id === nav.mat; }) : null;
+    const clNode = matNode && nav.cl ? matNode.classeurs.find(function (c) { return c.id === nav.cl; }) : null;
+    const interNode = clNode && nav.inter ? clNode.inters.find(function (i) { return i.id === nav.inter; }) : null;
+
+    if (nav.mat && !matNode) { nav.mat = ''; nav.cl = ''; nav.inter = ''; }
+    else if (nav.cl && !clNode) { nav.cl = ''; nav.inter = ''; }
+    else if (nav.inter && !interNode) { nav.inter = ''; }
+
+    const mo = matNode ? (mats.find(function (x) { return x.id === matNode.id; }) || { name: matNode.id, color: '#6a6a88' }) : null;
+    const co = clNode ? (cls.find(function (x) { return x.id === clNode.id; }) || { name: clNode.id, color: '#5b8df7', interNames: {} }) : null;
+    const chev = window.iconHtml ? window.iconHtml('chevron-right', 12) : '›';
+
+    let crumbs = '<button type="button" class="cours-bc-crumb' + (!nav.mat ? ' is-current' : '') +
+      '" onclick="window.ankiV2SrcArianeNav(\'' + p + '\',\'' + s + '\',\'reset\')">' +
+      (window.iconHtml ? window.iconHtml('home', 12) : '') + ' Docs</button>';
+    if (nav.mat && mo) {
+      crumbs += '<span class="cours-bc-sep" aria-hidden="true">' + chev + '</span>';
+      crumbs += '<button type="button" class="cours-bc-crumb' + (!nav.cl ? ' is-current' : '') +
+        '" onclick="window.ankiV2SrcArianeNav(\'' + p + '\',\'' + s + '\',\'mat\',\'' + js(nav.mat) + '\')">' + esc(mo.name) + '</button>';
+    }
+    if (nav.cl && co) {
+      crumbs += '<span class="cours-bc-sep" aria-hidden="true">' + chev + '</span>';
+      crumbs += '<button type="button" class="cours-bc-crumb' + (!nav.inter ? ' is-current' : '') +
+        '" onclick="window.ankiV2SrcArianeNav(\'' + p + '\',\'' + s + '\',\'cl\',\'' + js(nav.cl) + '\')">' + esc(co.name) + '</button>';
+    }
+    if (nav.inter && interNode) {
+      const interLabel = typeof window.getInterName === 'function' ? window.getInterName(co, interNode.id) : interNode.id;
+      crumbs += '<span class="cours-bc-sep" aria-hidden="true">' + chev + '</span>';
+      crumbs += '<span class="cours-bc-crumb is-current">' + esc(interLabel) + '</span>';
+    }
+
+    let body = '';
+    if (!nav.mat) {
+      if (!tree.length) {
+        body = '<div class="cours-bc-empty">Aucun document.</div>';
+      } else {
+        body = '<div class="cours-bc-grid anki-src-ariane-grid">' + tree.map(function (m) {
+          const mat = mats.find(function (x) { return x.id === m.id; }) || { name: m.id, color: '#6a6a88' };
+          return '<button type="button" class="cours-bc-tile" style="--mat-color:' + esc(mat.color) + '" onclick="window.ankiV2SrcArianeNav(\'' + p + '\',\'' + s + '\',\'mat\',\'' + js(m.id) + '\')">' +
+            '<span class="cours-bc-tile-name">' + esc(mat.name) + '</span>' +
+            '<span class="cours-bc-tile-meta">' + m.count + ' doc' + (m.count > 1 ? 's' : '') + '</span></button>';
+        }).join('') + '</div>';
+      }
+    } else if (!nav.cl) {
+      body = '<div class="cours-bc-grid anki-src-ariane-grid">' + (matNode.classeurs || []).map(function (c) {
+        const cl = cls.find(function (x) { return x.id === c.id; }) || { name: c.id, color: mo.color };
+        return '<button type="button" class="cours-bc-tile" style="--mat-color:' + esc(cl.color || mo.color) + '" onclick="window.ankiV2SrcArianeNav(\'' + p + '\',\'' + s + '\',\'cl\',\'' + js(c.id) + '\')">' +
+          '<span class="cours-bc-tile-name">' + esc(cl.name) + '</span>' +
+          '<span class="cours-bc-tile-meta">' + c.count + '</span></button>';
+      }).join('') + '</div>';
+    } else if (!nav.inter) {
+      body = '<div class="cours-bc-grid anki-src-ariane-grid">' + (clNode.inters || []).map(function (i) {
+        const label = typeof window.getInterName === 'function' ? window.getInterName(co, i.id) : i.id;
+        return '<button type="button" class="cours-bc-tile" style="--mat-color:' + esc(mo.color) + '" onclick="window.ankiV2SrcArianeNav(\'' + p + '\',\'' + s + '\',\'inter\',\'' + js(i.id) + '\')">' +
+          '<span class="cours-bc-tile-name">' + esc(label) + '</span>' +
+          '<span class="cours-bc-tile-meta">' + i.count + '</span></button>';
+      }).join('') + '</div>';
+    } else {
+      const docs = interNode.cours || [];
+      if (!docs.length) {
+        body = '<div class="cours-bc-empty">Aucun document ici.</div>';
+      } else {
+        body = '<div class="anki-src-ariane-docs">' + docs.map(function (doc) {
+          return '<button type="button" class="anki-src-ariane-doc" onclick="window.ankiV2SrcArianeSelect(\'' + p + '\',\'' + s + '\',\'' + js(doc.uid) + '\')">' +
+            '<span class="mono">' + esc(doc.uid) + '</span>' +
+            '<span>' + esc(doc.title || '') + '</span></button>';
+        }).join('') + '</div>';
+      }
+    }
+
+    return '<nav class="cours-bc-bar anki-src-ariane-bar" aria-label="Fil d’Ariane guidage">' + crumbs + '</nav>' +
+      '<div class="anki-src-ariane-body">' + body + '</div>';
+  }
+
+  function refreshSrcArianeUI(prefix, side) {
+    const wrap = $(prefix + 'Src' + side + 'Ariane');
+    if (!wrap) return;
+    wrap.innerHTML = renderSrcArianeBody(prefix, side);
+    window.hydrateIcons(wrap);
+  }
+
+  function syncSrcModeVisibility(prefix, side) {
+    const typeEl = $(prefix + 'Src' + side + 'Type');
+    const livre = $(prefix + 'Src' + side + 'LivreFields');
+    const cours = $(prefix + 'Src' + side + 'CoursFields');
+    if (!typeEl) return;
+    const isCours = typeEl.value === 'cours';
+    if (livre) livre.classList.toggle('hidden', isCours);
+    if (cours) cours.classList.toggle('hidden', !isCours);
+    if (isCours) refreshSrcArianeUI(prefix, side);
+  }
+
+  window.ankiV2SrcTypeChange = function (prefix, side) {
+    syncSrcModeVisibility(prefix, side);
+  };
+
+  window.ankiV2SrcArianeNav = function (prefix, side, level, id) {
+    const nav = ensureSrcArianeState(prefix, side);
+    if (level === 'reset') {
+      nav.mat = ''; nav.cl = ''; nav.inter = '';
+    } else if (level === 'mat') {
+      nav.mat = String(id || ''); nav.cl = ''; nav.inter = '';
+    } else if (level === 'cl') {
+      nav.cl = String(id || ''); nav.inter = '';
+    } else if (level === 'inter') {
+      nav.inter = String(id || '');
+    }
+    refreshSrcArianeUI(prefix, side);
+  };
+
+  window.ankiV2SrcArianeSelect = function (prefix, side, uid) {
+    const hid = $(prefix + 'Src' + side + 'CoursUid');
+    const chip = $(prefix + 'Src' + side + 'CoursChip');
+    if (hid) hid.value = uid || '';
+    if (chip) {
+      if (uid) {
+        chip.classList.remove('hidden');
+        chip.innerHTML = '<span class="anki-link-chip" style="cursor:default;">' + esc(srcCoursLabel(uid)) +
+          ' <button type="button" class="anki-src-clear" onclick="window.ankiV2SrcArianeClear(\'' + esc(prefix) + '\',\'' + esc(side) + '\')" aria-label="Retirer">' +
+          (window.iconHtml ? window.iconHtml('x', 12) : '×') + '</button></span>';
+      } else {
+        chip.classList.add('hidden');
+        chip.innerHTML = '';
+      }
+    }
+  };
+
+  window.ankiV2SrcArianeClear = function (prefix, side) {
+    window.ankiV2SrcArianeSelect(prefix, side, '');
+  };
+
+  function renderSrcSideFields(c, prefix, side, labels) {
+    const src = side === 'Enonce' ? (c.sourceEnonce || {}) : (c.sourceCorrection || {});
+    const id = prefix;
+    const type = src.type || '';
+    const isCours = type === 'cours' || (!!src.coursUid && type !== 'livre' && type !== 'classeur' && type !== 'app');
+    const effectiveType = isCours ? 'cours' : type;
+    const coursUid = src.coursUid || '';
+    ensureSrcArianeState(prefix, side, coursUid);
+
+    const corAppOpt = side === 'Cor'
+      ? `<option value="app" ${effectiveType === 'app' ? 'selected' : ''}>Dans l'app</option>`
+      : '';
+
+    return `
+      <div class="anki-src-side" data-src-side="${side}">
+        <div class="anki-modal-row">
+          <div class="fg"><label>${labels.typeLabel}</label>
+            <select id="${id}Src${side}Type" onchange="window.ankiV2SrcTypeChange('${id}','${side}')">
+              <option value="">— Aucun —</option>
+              <option value="livre" ${effectiveType === 'livre' ? 'selected' : ''}>Livre</option>
+              <option value="classeur" ${effectiveType === 'classeur' ? 'selected' : ''}>Classeur</option>
+              <option value="cours" ${effectiveType === 'cours' ? 'selected' : ''}>Cours (fil d’Ariane)</option>
+              ${corAppOpt}
+            </select>
+          </div>
+        </div>
+        <div id="${id}Src${side}LivreFields" class="anki-src-livre-fields${effectiveType === 'cours' ? ' hidden' : ''}">
+          <div class="anki-modal-row">
+            <div class="fg"><label>${labels.nomLabel}</label>
+              <input type="text" id="${id}Src${side}Nom" ${id === 'exo' && side === 'Enonce' ? 'data-testid="src-enonce-nom"' : ''}${id === 'exo' && side === 'Cor' ? 'data-testid="src-cor-nom"' : ''} placeholder="${labels.nomPh}" value="${esc(src.nom || '')}">
+            </div>
+            <div class="fg"><label>${labels.detLabel}</label>
+              <input type="text" id="${id}Src${side}Det" ${id === 'exo' && side === 'Enonce' ? 'data-testid="src-enonce-det"' : ''}${id === 'exo' && side === 'Cor' ? 'data-testid="src-cor-det"' : ''} placeholder="${labels.detPh}" value="${esc((!isCours && src.details) || '')}">
+            </div>
+          </div>
+        </div>
+        <div id="${id}Src${side}CoursFields" class="anki-src-cours-fields${effectiveType === 'cours' ? '' : ' hidden'}">
+          <input type="hidden" id="${id}Src${side}CoursUid" value="${esc(coursUid)}">
+          <div id="${id}Src${side}CoursChip" class="anki-src-cours-chip${!coursUid ? ' hidden' : ''}">${coursUid
+            ? '<span class="anki-link-chip" style="cursor:default;">' + esc(srcCoursLabel(coursUid)) +
+              ' <button type="button" class="anki-src-clear" onclick="window.ankiV2SrcArianeClear(\'' + esc(id) + '\',\'' + side + '\')" aria-label="Retirer">' +
+              (window.iconHtml ? window.iconHtml('x', 12) : '×') + '</button></span>'
+            : ''}</div>
+          <div id="${id}Src${side}Ariane" class="anki-src-ariane cours-bc-page"></div>
+          <div class="fg"><label>Remarque <span class="anki-mut" style="font-weight:normal;">(page, exo…)</span></label>
+            <input type="text" id="${id}Src${side}Remark" placeholder="Ex: p.12, ex.3b" value="${esc((isCours && src.details) || '')}">
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderSrcGuidanceBlock(c, prefix, summaryHtml) {
+    const open = cardHasSrcGuidance(c) ? ' open' : '';
+    const id = prefix;
+    const enonceLabels = {
+      typeLabel: id === 'devoir' ? 'Sujet · Type' : 'Énoncé · Type',
+      nomLabel: id === 'devoir' ? 'Nom' : 'Nom (livre / classeur)',
+      nomPh: id === 'devoir' ? 'Ex: Feuille distribuée en cours' : 'Ex: HPrépa MP',
+      detLabel: id === 'devoir' ? 'Détails' : 'Détails (page, exo, onglet…)',
+      detPh: id === 'devoir' ? 'Ex: p.2 ex.4 à 7' : 'Ex: p.142 ex.7'
+    };
+    const corLabels = {
+      typeLabel: 'Corrigé · Type',
+      nomLabel: 'Nom',
+      nomPh: id === 'devoir' ? 'Ex: Corrigé prof' : 'Ex: Corrigé HPrépa',
+      detLabel: 'Détails',
+      detPh: id === 'devoir' ? 'Ex: après rendu' : 'Ex: p.480, vidéo, onglet jaune'
+    };
+    return `
+      <details class="anki-src-block anki-src-fold"${open}>
+        <summary class="anki-src-fold-summary">${summaryHtml}</summary>
+        <div class="anki-src-fold-body">
+          <div class="anki-src-section">
+            <h4 class="anki-src-section-title">${id === 'devoir' ? 'Sujet' : 'Énoncé'}</h4>
+            ${renderSrcSideFields(c, id, 'Enonce', enonceLabels)}
+          </div>
+          <div class="anki-src-section">
+            <h4 class="anki-src-section-title">Corrigé</h4>
+            ${renderSrcSideFields(c, id, 'Cor', corLabels)}
+          </div>
+        </div>
+      </details>`;
+  }
+
+  function wireSrcGuidanceBlock(prefix) {
+    ['Enonce', 'Cor'].forEach(function (side) {
+      syncSrcModeVisibility(prefix, side);
+      const typeEl = $(prefix + 'Src' + side + 'Type');
+      if (typeEl && typeEl.value === 'cours') refreshSrcArianeUI(prefix, side);
+    });
   }
 
   function renderStatutChecks(c, prefix) {
@@ -3994,53 +4353,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     });
   };
 
-  function renderSrcGuidanceBlock(c, prefix, summaryHtml) {
-    const open = cardHasSrcGuidance(c) ? ' open' : '';
-    const id = prefix;
-    const enonceTypeLabel = id === 'devoir' ? 'Sujet · Type' : 'Énoncé · Type';
-    const enonceNomLabel = id === 'devoir' ? 'Nom' : 'Nom (livre / classeur)';
-    const enonceNomPh = id === 'devoir' ? 'Ex: Feuille distribuée en cours' : 'Ex: HPrépa MP';
-    const enonceDetLabel = id === 'devoir' ? 'Détails' : 'Détails (page, exo, onglet…)';
-    const enonceDetPh = id === 'devoir' ? 'Ex: p.2 ex.4 à 7' : 'Ex: p.142 ex.7';
-    return `
-      <details class="anki-src-block anki-src-fold"${open}>
-        <summary class="anki-src-fold-summary">${summaryHtml}</summary>
-        <div class="anki-src-fold-body">
-          <div class="anki-modal-row">
-            <div class="fg"><label>${enonceTypeLabel}</label>
-              <select id="${id}SrcEnonceType">
-                <option value="">— Aucun —</option>
-                <option value="livre"    ${(c.sourceEnonce && c.sourceEnonce.type) === 'livre'    ? 'selected' : ''}>Livre</option>
-                <option value="classeur" ${(c.sourceEnonce && c.sourceEnonce.type) === 'classeur' ? 'selected' : ''}>Classeur</option>
-              </select>
-            </div>
-            <div class="fg"><label>${enonceNomLabel}</label>
-              <input type="text" id="${id}SrcEnonceNom" ${id === 'exo' ? 'data-testid="src-enonce-nom"' : ''} placeholder="${enonceNomPh}" value="${esc((c.sourceEnonce && c.sourceEnonce.nom) || '')}">
-            </div>
-            <div class="fg"><label>${enonceDetLabel}</label>
-              <input type="text" id="${id}SrcEnonceDet" ${id === 'exo' ? 'data-testid="src-enonce-det"' : ''} placeholder="${enonceDetPh}" value="${esc((c.sourceEnonce && c.sourceEnonce.details) || '')}">
-            </div>
-          </div>
-          <div class="anki-modal-row">
-            <div class="fg"><label>Corrigé · Type</label>
-              <select id="${id}SrcCorType">
-                <option value="">— Aucun —</option>
-                <option value="livre"    ${(c.sourceCorrection && c.sourceCorrection.type) === 'livre'    ? 'selected' : ''}>Livre</option>
-                <option value="classeur" ${(c.sourceCorrection && c.sourceCorrection.type) === 'classeur' ? 'selected' : ''}>Classeur</option>
-                <option value="app"      ${(c.sourceCorrection && c.sourceCorrection.type) === 'app'      ? 'selected' : ''}>Dans l'app</option>
-              </select>
-            </div>
-            <div class="fg"><label>Nom</label>
-              <input type="text" id="${id}SrcCorNom" ${id === 'exo' ? 'data-testid="src-cor-nom"' : ''} placeholder="${id === 'devoir' ? 'Ex: Corrigé prof' : 'Ex: Corrigé HPrépa'}" value="${esc((c.sourceCorrection && c.sourceCorrection.nom) || '')}">
-            </div>
-            <div class="fg"><label>Détails</label>
-              <input type="text" id="${id}SrcCorDet" ${id === 'exo' ? 'data-testid="src-cor-det"' : ''} placeholder="${id === 'devoir' ? 'Ex: après rendu' : 'Ex: p.480, vidéo, onglet jaune'}" value="${esc((c.sourceCorrection && c.sourceCorrection.details) || '')}">
-            </div>
-          </div>
-        </div>
-      </details>`;
-  }
-
   function showExoModal(c) {
     let ov = $("ovExo");
     if (!ov) { ov = document.createElement("div"); ov.id = "ovExo"; ov.className = "ov ov-scroll"; document.body.appendChild(ov); }
@@ -4069,21 +4381,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="exoMat">${matOpts}</select></div>
           <div class="fg"><label>Profil</label><select id="exoProf">${profileOpts}</select></div>
+        </div>
+        <div class="fg anki-duration-field anki-duration-field--hmm">
+          <label>Durée <span class="anki-mut" style="font-weight:normal;">(h:mm)</span></label>
           ${durationPickerHtml(tempsMin, {
             hId: 'exoTimeH',
             mId: 'exoTimeM',
-            totalId: 'exoTimeTotal',
-            hClass: 'anki-exo-time-h',
-            mClass: 'anki-exo-time-m',
             minTotal: 1,
-            maxTotal: 600,
-            maxHours: 10,
+            maxTotal: 540,
             minuteStep: 1,
-            editable: true,
-            label: 'Durée'
+            editable: true
           })}
         </div>
-        <p class="anki-mut anki-duration-tip">Saisie à la minute près (h / min, ou total en minutes).</p>
         <div class="anki-modal-row anki-modal-row--meta">
           <div class="fg fg-importance">
             <label>Importance</label>
@@ -4122,10 +4431,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     wireEditableDurationPicker({
       hId: 'exoTimeH',
       mId: 'exoTimeM',
-      totalId: 'exoTimeTotal',
       minTotal: 1,
-      maxTotal: 600
+      maxTotal: 540
     });
+    wireSrcGuidanceBlock('exo');
   }
 
   /** Ancien modal découpe — redirige vers l’onglet Agenda. */
@@ -4150,7 +4459,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const r = fieldVal('exoR');
     const matV = fieldVal('exoMat');
     const profil = fieldVal('exoProf') || 'COURS';
-    const tempsMin = readDurationFromPicker('exoTimeH', 'exoTimeM', null, null, 1, 600, 'exoTimeTotal');
+    const tempsMin = readDurationFromPicker('exoTimeH', 'exoTimeM', null, null, 1, 540);
     const temps = Math.round(tempsMin * 60);
     const importance = window.getStarPickerValue('exoImportance');
     const stat = fieldVal('exoStat') || 'reservoir';
@@ -4158,9 +4467,22 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
     function readSrc(prefix) {
       const type = fieldVal('exoSrc' + prefix + 'Type');
+      if (!type) return null;
+      if (type === 'cours') {
+        const coursUid = fieldVal('exoSrc' + prefix + 'CoursUid');
+        const remark = fieldVal('exoSrc' + prefix + 'Remark');
+        if (!coursUid) return null;
+        const co = (window.D.cours || []).find(function (x) { return x.uid === coursUid; });
+        return {
+          type: 'cours',
+          coursUid: coursUid,
+          nom: co ? (co.title || co.uid) : coursUid,
+          details: remark || ''
+        };
+      }
       const nom = fieldVal('exoSrc' + prefix + 'Nom');
       const det = fieldVal('exoSrc' + prefix + 'Det');
-      if (!type && !nom && !det) return null;
+      if (!nom && !det) return null;
       return { type: type || 'livre', nom: nom, details: det };
     }
     const sourceEnonce = readSrc('Enonce');

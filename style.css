@@ -2627,6 +2627,85 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .anki-src-fold-body {
   padding: 6px 0 12px;
 }
+.anki-src-section {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--bd);
+}
+.anki-src-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.anki-src-section-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+.anki-src-ariane {
+  margin: 8px 0 10px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 8px;
+  background: var(--bg);
+}
+.anki-src-ariane-bar {
+  margin-bottom: 8px !important;
+  flex-wrap: wrap;
+}
+.anki-src-ariane-grid {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+  gap: 6px !important;
+}
+.anki-src-ariane .cours-bc-tile {
+  padding: 10px 8px !important;
+  min-height: 0;
+}
+.anki-src-ariane-docs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.anki-src-ariane-doc {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  text-align: left;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  color: var(--txt);
+  cursor: pointer;
+  font-size: 13px;
+}
+.anki-src-ariane-doc:hover {
+  border-color: var(--acc);
+}
+.anki-src-ariane-doc .mono {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  color: var(--acc);
+  flex-shrink: 0;
+}
+.anki-src-cours-chip {
+  margin-bottom: 6px;
+}
+.anki-src-clear {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .anki-modal-row { display: flex; gap: 10px; align-items: flex-end; }
 .anki-modal-row--meta {
   align-items: stretch;
@@ -2654,6 +2733,45 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   border: none;
   border-radius: 0;
 }
+.anki-duration-field--hmm {
+  margin-bottom: 12px;
+}
+.anki-hmm-boxes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.anki-hmm-box {
+  width: 40px;
+  height: 44px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 2px solid var(--bd);
+  background: var(--bg);
+  color: var(--acc);
+  font-family: 'DM Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  padding: 0;
+  -moz-appearance: textfield;
+}
+.anki-hmm-box:focus {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 3px var(--glow);
+}
+.anki-hmm-sep {
+  font-family: 'DM Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--mut);
+  line-height: 1;
+  padding: 0 2px;
+  user-select: none;
+}
 .anki-modal-row .anki-duration-field .anki-time-h,
 .anki-modal-row .anki-duration-field .anki-time-m {
   flex: 1;
@@ -2670,31 +2788,6 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   border: 0.5px solid var(--bd) !important;
   line-height: 1.2;
   min-height: 0;
-}
-.anki-modal-row .anki-duration-field .anki-time-total {
-  flex: 1.2;
-  min-width: 64px;
-  width: auto !important;
-  padding: 10px 8px !important;
-  font-family: 'Inter', sans-serif !important;
-  font-size: 14px !important;
-  font-weight: 600;
-  color: var(--txt) !important;
-  text-align: center;
-  border-radius: var(--radius-control) !important;
-  background: var(--s2) !important;
-  border: 0.5px solid var(--bd) !important;
-  line-height: 1.2;
-}
-.anki-modal-row .anki-duration-field .anki-time-or {
-  flex-shrink: 0;
-  font-size: 12px;
-  padding: 0 2px;
-}
-.anki-duration-tip {
-  font-size: 11px;
-  margin: -6px 0 10px;
-  line-height: 1.35;
 }
 .anki-modal-row .anki-duration-field .anki-time-unit {
   flex-shrink: 0;
