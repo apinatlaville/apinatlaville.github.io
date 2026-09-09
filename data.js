@@ -174,6 +174,85 @@ window.isSystemClasseur = function (id) {
   return id === window.UNSORTED_CL_ID;
 };
 
+/** IDs matières liées à un classeur (vide = non restreint, visible partout s’il a des docs). */
+window.getClasseurMatIds = function (cl) {
+  if (!cl) return [];
+  if (!Array.isArray(cl.matIds)) return [];
+  return cl.matIds.map(function (id) { return String(id || ''); }).filter(Boolean);
+};
+
+/** true si le classeur est explicitement lié à cette matière (matIds non vide). */
+window.classeurIsRestricted = function (cl) {
+  return window.getClasseurMatIds(cl).length > 0;
+};
+
+/**
+ * Affichage fil d’Ariane pour une matière :
+ * - matIds vide → legacy : seulement s’il a déjà des docs dans cette matière
+ * - matIds non vide → visible pour chaque matière choisie (même vide)
+ * - multi-matières : le classeur apparaît dans chacune
+ */
+window.classeurVisibleForMat = function (cl, matId, docCount) {
+  if (!cl || !matId) return false;
+  if (window.isSystemClasseur(cl.id)) return (docCount || 0) > 0;
+  const ids = window.getClasseurMatIds(cl);
+  if (!ids.length) return (docCount || 0) > 0;
+  return ids.indexOf(matId) >= 0;
+};
+
+/** Liste { id, count } des classeurs à montrer après choix d’une matière (Ariane). */
+window.listClasseursForArianeMat = function (matId, matNodeFromTree) {
+  const counts = new Map();
+  ((matNodeFromTree && matNodeFromTree.classeurs) || []).forEach(function (c) {
+    if (c && c.id) counts.set(c.id, c.count || 0);
+  });
+  const cls = (window.D && window.D.classeurs) || [];
+  const out = [];
+  cls.forEach(function (cl) {
+    if (!cl || !cl.id) return;
+    const n = counts.get(cl.id) || 0;
+    if (!window.classeurVisibleForMat(cl, matId, n)) return;
+    out.push({ id: cl.id, count: n });
+  });
+  const clName = function (id) {
+    const co = cls.find(function (x) { return x.id === id; });
+    return (co && co.name) || id || '';
+  };
+  out.sort(function (a, b) {
+    return clName(a.id).localeCompare(clName(b.id), 'fr');
+  });
+  return out;
+};
+
+/**
+ * Matières du 1er cran Ariane : celles avec docs (tree) + celles qui ont
+ * au moins un classeur explicitement lié (même vide).
+ * Retourne { id, count } trié par nom.
+ */
+window.listMatsForAriane = function (tree) {
+  const mats = (window.D && window.D.matieres) || [];
+  const byId = new Map();
+  (tree || []).forEach(function (m) {
+    if (m && m.id) byId.set(m.id, { id: m.id, count: m.count || 0 });
+  });
+  mats.forEach(function (m) {
+    if (!m || !m.id || m._system || m.id === window.UNSORTED_MAT_ID) return;
+    if (byId.has(m.id)) return;
+    const linked = window.listClasseursForArianeMat(m.id, null);
+    if (!linked.length) return;
+    byId.set(m.id, { id: m.id, count: 0 });
+  });
+  const out = Array.from(byId.values());
+  out.sort(function (a, b) {
+    const ma = mats.find(function (x) { return x.id === a.id; });
+    const mb = mats.find(function (x) { return x.id === b.id; });
+    const na = (ma && (ma.name || ma.label)) || a.id;
+    const nb = (mb && (mb.name || mb.label)) || b.id;
+    return String(na).localeCompare(String(nb), 'fr');
+  });
+  return out;
+};
+
 window.isEditingMat = false;
 window.isEditingCl = false;
 window.currentEditClId = null;
@@ -430,9 +509,33 @@ window.renderCoursArianeHtml = function(list) {
   const js = window.escapeJsStr;
   const chev = window.iconHtml ? window.iconHtml('chevron-right', 14) : '›';
 
-  const matNode = nav.mat ? tree.find(m => m.id === nav.mat) : null;
-  const clNode = matNode && nav.cl ? matNode.classeurs.find(c => c.id === nav.cl) : null;
-  const interNode = clNode && nav.inter ? clNode.inters.find(i => i.id === nav.inter) : null;
+  let matNode = nav.mat ? tree.find(m => m.id === nav.mat) : null;
+  if (nav.mat && !matNode) {
+    const matExists = mats.some(m => m.id === nav.mat);
+    const linked = typeof window.listClasseursForArianeMat === 'function'
+      ? window.listClasseursForArianeMat(nav.mat, null)
+      : [];
+    if (matExists && linked.length) {
+      matNode = { id: nav.mat, count: 0, classeurs: linked };
+    }
+  }
+  let clNode = matNode && nav.cl ? matNode.classeurs.find(c => c.id === nav.cl) : null;
+  if (nav.mat && nav.cl && !clNode) {
+    const clObj = cls.find(x => x.id === nav.cl);
+    if (clObj && typeof window.classeurVisibleForMat === 'function'
+        && window.classeurVisibleForMat(clObj, nav.mat, 0)) {
+      clNode = { id: nav.cl, count: 0, inters: [] };
+    }
+  }
+  let interNode = clNode && nav.inter ? (clNode.inters || []).find(i => i.id === nav.inter) : null;
+  if (clNode && nav.inter && !interNode) {
+    const clObj = cls.find(x => x.id === clNode.id);
+    const max = (clObj && clObj.maxInter) || 12;
+    const n = parseInt(nav.inter, 10);
+    if (!isNaN(n) && n >= 1 && n <= max) {
+      interNode = { id: String(n).padStart(2, '0'), count: 0, cours: [] };
+    }
+  }
 
   // Si filtres ont invalidé le chemin, remonter
   if (nav.mat && !matNode) {
@@ -475,59 +578,82 @@ window.renderCoursArianeHtml = function(list) {
 
   let body = '';
   if (!nav.mat) {
-    if (!tree.length) {
+    const matList = typeof window.listMatsForAriane === 'function'
+      ? window.listMatsForAriane(tree)
+      : tree;
+    if (!matList.length) {
       body = '<div class="cours-bc-empty">Aucun document pour ces filtres.</div>';
     } else {
       body =
         '<div class="cours-bc-level-head"><h3 class="cours-bc-level-title">Choisir une matière</h3>' +
         '<p class="cours-bc-level-sub anki-mut">Puis classeur → intercalaire → documents.</p></div>' +
         '<div class="cours-bc-grid">' +
-        tree.map(m => {
+        matList.map(m => {
           const mat = mats.find(x => x.id === m.id) || { name: m.id, color: '#6a6a88' };
+          const meta = m.count
+            ? `${m.count} doc${m.count > 1 ? 's' : ''}`
+            : 'lié';
           return (
             `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(mat.color)}" onclick="window.coursArianePickMat('${js(m.id)}')">` +
               `<span class="cours-bc-tile-name">${esc(mat.name)}</span>` +
-              `<span class="cours-bc-tile-meta">${m.count} doc${m.count > 1 ? 's' : ''}</span>` +
+              `<span class="cours-bc-tile-meta">${esc(meta)}</span>` +
             `</button>`
           );
         }).join('') +
         '</div>';
     }
   } else if (!nav.cl) {
+    const clList = typeof window.listClasseursForArianeMat === 'function'
+      ? window.listClasseursForArianeMat(nav.mat, matNode)
+      : (matNode.classeurs || []);
     body =
       `<div class="cours-bc-level-head"><h3 class="cours-bc-level-title">Classeur — ${esc(mo.name)}</h3>` +
-      `<p class="cours-bc-level-sub anki-mut">${matNode.count} document${matNode.count > 1 ? 's' : ''}</p></div>`;
-    if (!matNode.classeurs.length) {
-      body += '<div class="cours-bc-empty">Aucun classeur pour cette matière.</div>';
+      `<p class="cours-bc-level-sub anki-mut">${matNode.count} document${matNode.count > 1 ? 's' : ''} · classeurs liés à cette matière</p></div>`;
+    if (!clList.length) {
+      body += '<div class="cours-bc-empty">Aucun classeur lié à cette matière. Édite un classeur et coche la/les matière(s).</div>';
     } else {
       body += '<div class="cours-bc-grid">' +
-        matNode.classeurs.map(c => {
+        clList.map(c => {
           const cl = cls.find(x => x.id === c.id) || { name: c.id, color: mo.color };
+          const meta = c.count
+            ? `${c.count} doc${c.count > 1 ? 's' : ''}`
+            : 'vide';
           return (
             `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(cl.color || mo.color)}" onclick="window.coursArianePickCl('${js(c.id)}')">` +
               `<span class="cours-bc-tile-name">${esc(cl.name)}</span>` +
-              `<span class="cours-bc-tile-meta">${c.count} doc${c.count > 1 ? 's' : ''}</span>` +
+              `<span class="cours-bc-tile-meta">${esc(meta)}</span>` +
             `</button>`
           );
         }).join('') +
         '</div>';
     }
   } else if (!nav.inter) {
+    let inters = (clNode.inters || []).slice();
+    if (!inters.length && co) {
+      const max = co.maxInter || 12;
+      inters = [];
+      for (let i = 1; i <= max; i++) {
+        inters.push({ id: String(i).padStart(2, '0'), count: 0, cours: [] });
+      }
+    }
     body =
       `<div class="cours-bc-level-head"><h3 class="cours-bc-level-title">Intercalaire — ${esc(co.name)}</h3>` +
       `<p class="cours-bc-level-sub anki-mut">${clNode.count} document${clNode.count > 1 ? 's' : ''}</p></div>`;
-    if (!clNode.inters.length) {
+    if (!inters.length) {
       body += '<div class="cours-bc-empty">Aucun intercalaire.</div>';
     } else {
       body += '<div class="cours-bc-grid">' +
-        clNode.inters.map(i => {
+        inters.map(i => {
           const label = typeof window.getInterName === 'function'
             ? window.getInterName(co, i.id)
             : i.id;
+          const meta = i.count
+            ? `${i.count} doc${i.count > 1 ? 's' : ''}`
+            : 'vide';
           return (
             `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(mo.color)}" onclick="window.coursArianePickInter('${js(i.id)}')">` +
               `<span class="cours-bc-tile-name">${esc(label)}</span>` +
-              `<span class="cours-bc-tile-meta">${i.count} doc${i.count > 1 ? 's' : ''}</span>` +
+              `<span class="cours-bc-tile-meta">${esc(meta)}</span>` +
             `</button>`
           );
         }).join('') +
@@ -1139,6 +1265,20 @@ window.updateChapitreDropdown = function(selectedId) {
   else sel.value = want;
 };
 
+/** Préremplit le chapitre selon mat/cl/inter (création uniquement). */
+window.suggestChapitreFromPlacement = function () {
+  if (window.editUid) return;
+  const mat = window.$('fMat') ? window.$('fMat').value : '';
+  const cl = window.$('fCl') ? window.$('fCl').value : '';
+  const inter = window.$('fInter') ? window.$('fInter').value : '';
+  let id = '';
+  if (typeof window.resolveChapitreForPlacement === 'function') {
+    const ch = window.resolveChapitreForPlacement(mat, cl, inter);
+    if (ch && ch.id) id = ch.id;
+  }
+  window.updateChapitreDropdown(id);
+};
+
 window.openModalCours = function(opts) {
   const o = (opts && typeof opts === 'object') ? opts : {};
   if (!window.D) return;
@@ -1212,6 +1352,11 @@ window.openModalCours = function(opts) {
   if (o.inter && window.$('fInter')) {
     if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fInter'), o.inter);
     else window.$('fInter').value = o.inter;
+  }
+  if (!o.chapitreId && typeof window.suggestChapitreFromPlacement === 'function') {
+    window.suggestChapitreFromPlacement();
+  } else if (o.chapitreId) {
+    window.updateChapitreDropdown(o.chapitreId);
   }
   
   if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
@@ -1354,7 +1499,12 @@ window.saveCours = function() {
   };
 
   const chapSel = window.$('fChapitre') ? String(window.$('fChapitre').value || '').trim() : '';
-  if (chapSel) obj.chapitreId = chapSel;
+  if (chapSel) {
+    obj.chapitreId = chapSel;
+  } else if (!window.editUid && typeof window.resolveChapitreForPlacement === 'function') {
+    const autoCh = window.resolveChapitreForPlacement(mat, cl, inter);
+    if (autoCh && autoCh.id) obj.chapitreId = autoCh.id;
+  }
   
   if (obj.type !== 'DS' && obj.type !== 'KHOLLE') {
     obj.note = '';
@@ -1512,6 +1662,7 @@ window.editClasseur = function(id) {
   if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
   window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
   window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
+  window.renderEditClMatPick(cl);
   
   window.renderEditClInters(); 
   
@@ -1593,7 +1744,16 @@ window.renderClasseurs = function() {
               <div class="cl-ico" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.38) : (cl.color + '55')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}">${window.renderClasseurIcon(cl.icon, 22, cl.color)}</div>
               <div class="cl-info" style="flex:1;">
                 <div class="cl-nm">${window.escHtml(cl.name)}${isSystem ? '<span style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : ''}</div>
-                <div class="cl-sb">${cl.maxInter || 12} inter. max</div>
+                <div class="cl-sb">${cl.maxInter || 12} inter. max${(function () {
+                  const ids = window.getClasseurMatIds(cl);
+                  if (!ids.length) return ' · toutes matières (si docs)';
+                  const mats = window.D.matieres || [];
+                  const labs = ids.map(function (id) {
+                    const m = mats.find(function (x) { return x.id === id; });
+                    return m ? (m.label || m.name || id) : id;
+                  });
+                  return ' · ' + labs.join(', ');
+                })()}</div>
               </div>
               ${editBtns}
               <div style="color:var(--mut); font-size:12px; margin-left:8px;">${window.iconHtml('chevron-down', 12, 'icon-sm')}</div>
@@ -1615,6 +1775,46 @@ window.renderClasseurs = function() {
       window.recordAppError('Crash renderClasseurs: ' + e.message, 'data.js');
     }
   }
+};
+
+window.renderEditClMatPick = function (cl) {
+  const box = window.$('eClMatList');
+  if (!box) return;
+  const mats = ((window.D && window.D.matieres) || []).filter(function (m) {
+    return m && m.id && !m._system && m.id !== window.UNSORTED_MAT_ID;
+  });
+  const selected = new Set(window.getClasseurMatIds(cl));
+  if (!mats.length) {
+    box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Aucune matière à lier — crée-en d’abord.</p>';
+    return;
+  }
+  box.innerHTML = mats.map(function (m) {
+    const on = selected.has(m.id);
+    return (
+      `<label class="cl-mat-pick-item${on ? ' is-on' : ''}">` +
+        `<input type="checkbox" data-mat-id="${window.escHtml(m.id)}" ${on ? 'checked' : ''} onchange="window.onEditClMatToggle()">` +
+        `<span class="cl-mat-pick-swatch" style="background:${window.escHtml(m.color || '#6a6a88')}"></span>` +
+        `<span class="cl-mat-pick-lbl"><b>${window.escHtml(m.label || m.id)}</b> ${window.escHtml(m.name || '')}</span>` +
+      `</label>`
+    );
+  }).join('');
+};
+
+window.onEditClMatToggle = function () {
+  const box = window.$('eClMatList');
+  if (!box) return;
+  box.querySelectorAll('.cl-mat-pick-item').forEach(function (lab) {
+    const inp = lab.querySelector('input[type="checkbox"]');
+    lab.classList.toggle('is-on', !!(inp && inp.checked));
+  });
+};
+
+window.readEditClMatIds = function () {
+  const box = window.$('eClMatList');
+  if (!box) return [];
+  return Array.from(box.querySelectorAll('input[type="checkbox"]:checked'))
+    .map(function (inp) { return inp.getAttribute('data-mat-id'); })
+    .filter(Boolean);
 };
 
 window.renderEditClInters = function() {
@@ -1696,6 +1896,7 @@ window.saveClEdit = function() {
   cl.maxInter = newMax;
   if (window.editClColor) cl.color = window.editClColor;
   if (window.editClIcon === 'book' || window.editClIcon === 'folder') cl.icon = window.editClIcon;
+  cl.matIds = window.readEditClMatIds();
   
   if(!cl.interNames) cl.interNames = {};
   for(let i=1; i<=cl.maxInter; i++) {

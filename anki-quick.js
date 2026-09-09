@@ -1229,6 +1229,8 @@
     typed: '',
     check: null,
     results: {},
+    srsApplied: {},
+    srsPending: {},
     _bound: false
   };
 
@@ -1277,12 +1279,13 @@
   }
 
   function drillCounts() {
-    let ok = 0, bad = 0;
+    let ok = 0, mid = 0, bad = 0;
     Object.keys(DRILL.results).forEach(function (id) {
       if (DRILL.results[id] === 'ok') ok++;
+      else if (DRILL.results[id] === 'mid') mid++;
       else if (DRILL.results[id] === 'bad') bad++;
     });
-    return { ok: ok, bad: bad, done: ok + bad, total: DRILL.queue.length };
+    return { ok: ok, mid: mid, bad: bad, done: ok + mid + bad, total: DRILL.queue.length };
   }
 
   function ensureDrillOverlay() {
@@ -1328,9 +1331,38 @@
     DRILL.queue = DRILL.random ? shuffleCards(src) : src.slice();
     DRILL.idx = 0;
     DRILL.results = {};
+    DRILL.srsApplied = {};
+    DRILL.srsPending = {};
     DRILL.revealed = false;
     DRILL.typed = '';
     DRILL.check = null;
+  }
+
+  function verdictToQScore(verdict) {
+    if (verdict === 'ok') return 9;
+    if (verdict === 'mid') return 6;
+    return 2;
+  }
+
+  /** Enregistre la révision dans le moteur Synchrotron (SRS + file du soir). */
+  function applyDrillSrs(c, verdict) {
+    if (!c || !c.id) return;
+    if (DRILL.srsApplied[c.id]) return;
+    const fn = window.ankiV2ApplyStandaloneEval;
+    if (typeof fn !== 'function') return;
+    const res = fn(c.id, verdictToQScore(verdict), { mode: 'rapide', source: 'quick-drill' });
+    if (res && res.ok) {
+      DRILL.srsApplied[c.id] = verdict;
+      delete DRILL.srsPending[c.id];
+    }
+  }
+
+  function flushPendingDrillSrs(c) {
+    if (!c || !c.id) return;
+    if (DRILL.srsApplied[c.id]) return;
+    const pending = DRILL.srsPending[c.id] || DRILL.results[c.id];
+    if (!pending) return;
+    applyDrillSrs(c, pending);
   }
 
   function optChip(on, icon, label, onclick) {
@@ -1369,7 +1401,8 @@
         <h2 id="qkDrillTitle">${window.iconLabel('target', 'Bilan')}</h2>
         <p class="qk-drill-sub">${esc(DRILL.label)}</p>
         <div class="qk-drill-score">
-          <div class="qk-drill-score-ok"><b>${cts.ok}</b><span>juste${cts.ok > 1 ? 's' : ''}</span></div>
+          <div class="qk-drill-score-ok"><b>${cts.ok}</b><span>bon${cts.ok > 1 ? 's' : ''}</span></div>
+          <div class="qk-drill-score-mid"><b>${cts.mid}</b><span>étourderie${cts.mid > 1 ? 's' : ''}</span></div>
           <div class="qk-drill-score-bad"><b>${cts.bad}</b><span>ratée${cts.bad > 1 ? 's' : ''}</span></div>
         </div>
         <div class="qk-drill-acts qk-drill-acts-col">
@@ -1396,7 +1429,8 @@
         </div>
         <div class="qk-drill-progress">
           <span>${DRILL.idx + 1} / ${DRILL.queue.length}</span>
-          <span class="qk-drill-mini-ok">${cts.ok} juste${cts.ok > 1 ? 's' : ''}</span>
+          <span class="qk-drill-mini-ok">${cts.ok} bon${cts.ok > 1 ? 's' : ''}</span>
+          <span class="qk-drill-mini-mid">${cts.mid} étourd.</span>
           <span class="qk-drill-mini-bad">${cts.bad} ratée${cts.bad > 1 ? 's' : ''}</span>
         </div>
         <p class="qk-drill-hint">${DRILL.swap ? 'Verso → recto (ex. EN → FR).' : 'Recto → verso (ex. FR → EN).'}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
@@ -1448,9 +1482,10 @@
                      <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`)
                 : `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>
                    <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`)
-              : `<button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark(false)">${window.iconLabel('x', 'Raté')}</button>
-                 <button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark(true)">${window.iconLabel('check', 'Je savais')}</button>
-                 <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`))}
+              : `<button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark('bad')">${window.iconLabel('x', 'Raté')}</button>
+                 <button type="button" class="bs" style="border-color:var(--gold);color:var(--gold);" onclick="window.quickDrillMark('mid')">${window.iconLabel('circle-minus', 'Étourderie')}</button>
+                 <button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark('ok')">${window.iconLabel('check', 'Bon')}</button>
+                 <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconHtml('x', 14)}</button>`))}
         </div>
       `;
     }
@@ -1494,18 +1529,26 @@
     DRILL.revealed = true;
     DRILL.check = { ok: false, got: DRILL.typed };
     DRILL.results[c.id] = 'bad';
+    // Différé : permet « C’était bon » avant d’écrire le SRS
+    DRILL.srsPending[c.id] = 'bad';
     renderDrill();
   };
 
-  window.quickDrillMark = function (ok) {
+  window.quickDrillMark = function (verdict) {
     const c = drillLiveCard();
     if (!c) return;
-    DRILL.results[c.id] = ok ? 'ok' : 'bad';
-    if (ok) {
+    // Compat ancien appel boolean + 3 issues : ok / mid / bad
+    let key = verdict;
+    if (verdict === true) key = 'ok';
+    else if (verdict === false) key = 'bad';
+    if (key !== 'ok' && key !== 'mid' && key !== 'bad') key = 'bad';
+    DRILL.results[c.id] = key;
+    applyDrillSrs(c, key);
+    if (key === 'ok' || key === 'mid') {
       DRILL.revealed = true;
-      DRILL.check = { ok: true, glowOnly: true };
+      DRILL.check = { ok: true, glowOnly: key === 'ok', mid: key === 'mid' };
       renderDrill();
-      scheduleOkAdvance(c, 500);
+      scheduleOkAdvance(c, key === 'mid' ? 700 : 500);
       return;
     }
     window.quickDrillAdvance();
@@ -1536,14 +1579,22 @@
     DRILL.check = { ok: ok, got: got };
     DRILL.revealed = true;
     DRILL.results[c.id] = ok ? 'ok' : 'bad';
-    renderDrill();
-    if (ok) scheduleOkAdvance(c);
+    if (ok) {
+      applyDrillSrs(c, 'ok');
+      renderDrill();
+      scheduleOkAdvance(c);
+    } else {
+      DRILL.srsPending[c.id] = 'bad';
+      renderDrill();
+    }
   };
 
   window.quickDrillOverrideOk = function () {
     const c = drillLiveCard();
     if (!c) return;
     DRILL.results[c.id] = 'ok';
+    delete DRILL.srsPending[c.id];
+    applyDrillSrs(c, 'ok');
     DRILL.check = { ok: true, got: DRILL.typed };
     DRILL.revealed = true;
     renderDrill();
@@ -1551,6 +1602,8 @@
   };
 
   window.quickDrillAdvance = function () {
+    const cur = drillLiveCard();
+    if (cur) flushPendingDrillSrs(cur);
     DRILL.idx += 1;
     DRILL.revealed = false;
     DRILL.typed = '';
@@ -1572,6 +1625,8 @@
   };
 
   window.quickDrillClose = function () {
+    const cur = drillLiveCard();
+    if (cur) flushPendingDrillSrs(cur);
     const ov = document.getElementById('ovQuickDrill');
     if (ov) ov.classList.add('hidden');
     DRILL.phase = 'setup';

@@ -565,7 +565,16 @@ body.theme-light .cours-create-item:focus-visible {
   function listClasseurs() {
     if (!window.D || !window.D.classeurs) return [];
     return window.D.classeurs.filter(function (c) {
-      return c && c.id && !c._system && c.id !== window.UNSORTED_CL_ID;
+      if (!c || !c.id || c._system || c.id === window.UNSORTED_CL_ID) return false;
+      if (!STATE.mat) return true;
+      if (typeof window.classeurVisibleForMat === 'function') {
+        const n = countDocs(STATE.mat, c.id);
+        // En création : montrer aussi les classeurs restreints liés, et les non restreints
+        const ids = typeof window.getClasseurMatIds === 'function' ? window.getClasseurMatIds(c) : [];
+        if (ids.length) return ids.indexOf(STATE.mat) >= 0;
+        return true;
+      }
+      return true;
     });
   }
 

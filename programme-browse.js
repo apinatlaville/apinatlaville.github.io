@@ -176,9 +176,10 @@
 
     var rows = list.length
       ? list.map(function (ch, i) {
-        var loc = ch.cl
-          ? esc(clObj(ch.cl).name) + ' · ' + esc(interLabel(ch.cl, ch.inter))
-          : '—';
+        var locRaw = typeof window.formatChapitreLoc === 'function'
+          ? window.formatChapitreLoc(ch)
+          : (ch.cl ? (clObj(ch.cl).name + ' · ' + interLabel(ch.cl, ch.inter)) : '—');
+        var loc = locRaw === '—' ? '—' : esc(locRaw);
         var label = typeof window.formatChapitreLabel === 'function'
           ? window.formatChapitreLabel(ch, true)
           : esc(ch.title);

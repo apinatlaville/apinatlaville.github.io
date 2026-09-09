@@ -1582,7 +1582,8 @@ bindChange('fType', () => window.toggleNoteField());
 
 bindChange('fMat', () => {
   if (typeof window.updateUidPrefix === 'function') window.updateUidPrefix();
-  if (typeof window.updateChapitreDropdown === 'function') window.updateChapitreDropdown();
+  if (typeof window.suggestChapitreFromPlacement === 'function') window.suggestChapitreFromPlacement();
+  else if (typeof window.updateChapitreDropdown === 'function') window.updateChapitreDropdown();
 });
 
 bindChange('fMoveCl', () => { if(typeof window.updateMoveIntercalairesDropdown === 'function') window.updateMoveIntercalairesDropdown(); });
@@ -1621,7 +1622,13 @@ bindClick('btnMarkOnePrinted', () => window.markOnePrinted());
 bindClick('btnCloseQR', () => window.closeQRModal());
 bindClick('btnDlQR', () => window.dlQR());
 
-bindChange('fCl', () => window.updateIntercalairesDropdown());
+bindChange('fCl', () => {
+  window.updateIntercalairesDropdown();
+  if (typeof window.suggestChapitreFromPlacement === 'function') window.suggestChapitreFromPlacement();
+});
+bindChange('fInter', () => {
+  if (typeof window.suggestChapitreFromPlacement === 'function') window.suggestChapitreFromPlacement();
+});
 
 bindInput('nMlbl', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 4); });
 bindInput('manualCamInput', (e) => { window.doAutoFmtScan(e.target); });

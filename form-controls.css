@@ -154,10 +154,31 @@ span.flatpickr-weekday {
 }
 
 /* Filtres compacts */
+.filters .choices.fc-choices {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 140px;
+  margin-bottom: 0;
+}
+.filters .choices.fc-choices.is-open {
+  z-index: 60;
+}
 .filters .choices.fc-choices .choices__inner {
   min-height: 36px;
   padding: 4px 8px;
   font-size: 12px;
+}
+.filters .choices.fc-choices .choices__list--dropdown,
+.filters .choices.fc-choices .choices__list[aria-expanded] {
+  min-width: 100%;
+  width: max-content;
+  max-width: min(92vw, 280px);
+  z-index: 70;
+}
+.filters .choices.fc-choices .choices__list--dropdown .choices__item,
+.filters .choices.fc-choices .choices__list[aria-expanded] .choices__item {
+  white-space: nowrap;
 }
 .quick-filters .choices.fc-choices .choices__inner,
 .quick-create-row .choices.fc-choices .choices__inner {

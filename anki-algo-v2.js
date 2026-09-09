@@ -23,8 +23,12 @@
   V2.getImportance = function (c) { return needA1().getImportance(c); };
   V2.getProfile = function (p) { return needA1().getProfile(p); };
   V2.getQuickStarProfile = function (imp) { return needA1().getQuickStarProfile(imp); };
+  V2.getMainStarProfile = function (imp) { return needA1().getMainStarProfile(imp); };
+  V2.getQuickDefaultProfile = function () { return needA1().getQuickDefaultProfile(); };
   V2.DEFAULT_PROFILES = needA1().DEFAULT_PROFILES;
+  V2.DEFAULT_MAIN_STAR_STEPS = needA1().DEFAULT_MAIN_STAR_STEPS;
   V2.DEFAULT_QUICK_STAR_STEPS = needA1().DEFAULT_QUICK_STAR_STEPS;
+  V2.DEFAULT_QUICK_STEPS = needA1().DEFAULT_QUICK_STEPS;
   V2.DEFAULT_COEFS = needA1().DEFAULT_COEFS;
   V2.todayISO = function () { return needA1().todayISO(); };
   V2.addDays = function (d, n) { return needA1().addDays(d, n); };

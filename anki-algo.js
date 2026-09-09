@@ -19,14 +19,19 @@
     EXO:      { steps: [1, 2, 5, 12, 25, 50], ease: 2.4, label: "Exercice type" }
   };
 
-  /** Paliers SM-2 pour cartes rapides Y- (selon ★, pas le profil Cours/Anglais). */
-  ALGO.DEFAULT_QUICK_STAR_STEPS = {
+  /** Paliers SM-2 pour cartes principales X- (selon ★ d'importance). */
+  ALGO.DEFAULT_MAIN_STAR_STEPS = {
     1: { steps: [1, 4, 10, 21, 45], ease: 2.2, label: "★1 — faible" },
     2: { steps: [1, 3, 7, 14, 30], ease: 2.3, label: "★2" },
     3: { steps: [1, 2, 4, 8, 15], ease: 2.3, label: "★3 — standard" },
     4: { steps: [1, 2, 3, 6, 12], ease: 2.4, label: "★4" },
     5: { steps: [1, 1, 2, 4, 8], ease: 2.5, label: "★5 — prioritaire" }
   };
+  /** Alias legacy (anciennement Y-) — mêmes défauts que les X-. */
+  ALGO.DEFAULT_QUICK_STAR_STEPS = ALGO.DEFAULT_MAIN_STAR_STEPS;
+
+  /** Palier unique pour cartes rapides Y- (plus d'étoiles sur les Y). */
+  ALGO.DEFAULT_QUICK_STEPS = { steps: [1, 2, 4, 8, 15, 30], ease: 2.3, label: "Rapide Y-" };
 
   // ===== Coefficients du score d'urgence (modifiables dans Réglages) =====
   // v4 : refonte autour de l'Index de Délai Relatif I_R = joursÉcoulés / intervallePrévu
@@ -94,10 +99,30 @@
     const user = (window.D && window.D.settings && window.D.settings.ankiProfiles) || {};
     return user[name] || ALGO.DEFAULT_PROFILES[name] || ALGO.DEFAULT_PROFILES.COURS;
   };
-  ALGO.getQuickStarProfile = function (importance) {
+  /** Paliers SM-2 X- selon ★ (réglages Synchrotron). */
+  ALGO.getMainStarProfile = function (importance) {
     const imp = Math.max(1, Math.min(5, importance || ALGO.DEFAULT_IMPORTANCE));
-    const user = (window.D && window.D.settings && window.D.settings.ankiQuickStarSteps) || {};
-    return user[imp] || user[String(imp)] || ALGO.DEFAULT_QUICK_STAR_STEPS[imp] || ALGO.DEFAULT_QUICK_STAR_STEPS[3];
+    const st = (window.D && window.D.settings) || {};
+    const user = st.ankiMainStarSteps || st.ankiQuickStarSteps || {};
+    return user[imp] || user[String(imp)]
+      || ALGO.DEFAULT_MAIN_STAR_STEPS[imp]
+      || ALGO.DEFAULT_MAIN_STAR_STEPS[3];
+  };
+  /** @deprecated alias — les paliers ★ servent aux X-, pas aux Y- */
+  ALGO.getQuickStarProfile = function (importance) {
+    return ALGO.getMainStarProfile(importance);
+  };
+  /** Palier unique Y- (sans ★). */
+  ALGO.getQuickDefaultProfile = function () {
+    const user = (window.D && window.D.settings && window.D.settings.ankiQuickDefaultSteps) || null;
+    if (user && Array.isArray(user.steps) && user.steps.length) {
+      return {
+        steps: user.steps,
+        ease: user.ease != null ? user.ease : ALGO.DEFAULT_QUICK_STEPS.ease,
+        label: user.label || ALGO.DEFAULT_QUICK_STEPS.label
+      };
+    }
+    return ALGO.DEFAULT_QUICK_STEPS;
   };
   ALGO.getCoefs = function () {
     const user = (window.D && window.D.settings && window.D.settings.ankiCoefs) || {};
@@ -186,13 +211,19 @@
     let steps;
     let ease;
     if (ALGO.cardKind(card) === "quick") {
-      const qs = ALGO.getQuickStarProfile(ALGO.getImportance(card));
+      // Y- : un seul palier (plus d'étoiles)
+      const qs = ALGO.getQuickDefaultProfile();
       steps = qs.steps;
       ease = card.ease || qs.ease || ALGO.DEFAULT_EASE;
-    } else {
+    } else if (ALGO.cardKind(card) === "devoir") {
       const profile = ALGO.getProfile(profileName);
       steps = profile.steps;
       ease = card.ease || profile.ease || ALGO.DEFAULT_EASE;
+    } else {
+      // X- : paliers SM-2 selon ★ d'importance
+      const ms = ALGO.getMainStarProfile(ALGO.getImportance(card));
+      steps = ms.steps;
+      ease = card.ease || ms.ease || ALGO.DEFAULT_EASE;
     }
     const C = ALGO.getCoefs();
     let rep = card.repetitions || 0;

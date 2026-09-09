@@ -65,7 +65,116 @@
       window.D.chapitres = [];
       return true;
     }
+    (window.D.chapitres || []).forEach(function (ch) {
+      window.normalizeChapitreInters(ch);
+    });
     return false;
+  };
+
+  /** Slot intercalaire normalisé « 01 », « 02 », … */
+  window.normalizeInterSlot = function (inter) {
+    if (inter == null || inter === '') return '';
+    var n = parseInt(inter, 10);
+    if (!isNaN(n) && n >= 1) return String(n).padStart(2, '0');
+    return String(inter);
+  };
+
+  /**
+   * Intercalaires liés au chapitre (multi).
+   * Legacy : `inter` seul → traité comme un seul slot.
+   */
+  window.getChapitreInters = function (ch) {
+    if (!ch) return [];
+    var raw = Array.isArray(ch.inters) && ch.inters.length
+      ? ch.inters
+      : (ch.inter ? [ch.inter] : []);
+    var seen = {};
+    var out = [];
+    raw.forEach(function (i) {
+      var s = window.normalizeInterSlot(i);
+      if (!s || seen[s]) return;
+      seen[s] = true;
+      out.push(s);
+    });
+    out.sort(function (a, b) {
+      return (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0);
+    });
+    return out;
+  };
+
+  /** Écrit `inters` + miroir `inter` (1er slot) pour compat. */
+  window.normalizeChapitreInters = function (ch) {
+    if (!ch) return [];
+    var list = window.getChapitreInters(ch);
+    ch.inters = list;
+    ch.inter = list[0] || '';
+    return list;
+  };
+
+  window.chapitreCoversInter = function (ch, clId, inter) {
+    if (!ch || !clId || !inter) return false;
+    if (String(ch.cl || '') !== String(clId)) return false;
+    var slot = window.normalizeInterSlot(inter);
+    return window.getChapitreInters(ch).indexOf(slot) >= 0;
+  };
+
+  /** Libellé classeur · inter(s) pour listes Programme. */
+  window.formatChapitreLoc = function (ch) {
+    if (!ch || !ch.cl) return '—';
+    var clName = clObj(ch.cl).name;
+    var inters = window.getChapitreInters(ch);
+    if (!inters.length) return clName;
+    var parts = inters.map(function (slot) {
+      return interLabel(ch.cl, slot);
+    });
+    return clName + ' · ' + parts.join(', ');
+  };
+
+  /**
+   * Tous les slots d’un classeur (nommés ou non) pour association multi.
+   */
+  window.getClasseurInterSlots = function (clId) {
+    var cl = clObj(clId);
+    if (!cl || !clId) return [];
+    var max = cl.maxInter || 12;
+    var out = [];
+    for (var i = 1; i <= max; i++) {
+      var slot = String(i).padStart(2, '0');
+      var label = typeof window.getInterName === 'function'
+        ? window.getInterName(cl, slot)
+        : ((cl.interNames && cl.interNames[slot]) || slot);
+      out.push({ inter: slot, label: String(label || slot) });
+    }
+    return out;
+  };
+
+  /**
+   * Chapitre Programme couvrant mat + classeur + intercalaire
+   * (pour auto-lier un nouveau document). Si plusieurs → 1er par ordre.
+   */
+  window.resolveChapitreForPlacement = function (mat, cl, inter) {
+    if (!mat || !cl || !inter) return null;
+    window.ensureChapitresArray();
+    var slot = window.normalizeInterSlot(inter);
+    var list = window.listChapitres({ mat: mat });
+    for (var i = 0; i < list.length; i++) {
+      if (window.chapitreCoversInter(list[i], cl, slot)) return list[i];
+    }
+    return null;
+  };
+
+  /** Id déjà pris par un autre chapitre (même mat / cl / année / slot). */
+  window.chapitreInterSlotConflict = function (mat, cl, inter, annee, excludeId) {
+    if (!mat || !cl || !inter) return null;
+    var slot = window.normalizeInterSlot(inter);
+    var a = window.normalizeAnnee(annee);
+    var hit = (window.D.chapitres || []).find(function (ch) {
+      if (!ch || ch.id === excludeId) return false;
+      if (ch.mat !== mat) return false;
+      if (window.normalizeAnnee(ch.annee) !== a) return false;
+      return window.chapitreCoversInter(ch, cl, slot);
+    });
+    return hit || null;
   };
 
   window.getClasseurDefaultAnnee = function (clId) {
@@ -121,8 +230,8 @@
   }
 
   function chapitreFallbackCompare(a, b) {
-    var ia = parseInt(a.inter, 10) || 0;
-    var ib = parseInt(b.inter, 10) || 0;
+    var ia = parseInt((window.getChapitreInters(a)[0] || a.inter), 10) || 0;
+    var ib = parseInt((window.getChapitreInters(b)[0] || b.inter), 10) || 0;
     if (ia !== ib) return ia - ib;
     var t = String(a.title || '').localeCompare(String(b.title || ''), 'fr');
     if (t) return t;
@@ -281,7 +390,7 @@
       type: 'COURS',
       mat: ch.mat,
       cl: ch.cl || '',
-      inter: ch.inter || '',
+      inter: (window.getChapitreInters(ch)[0] || ch.inter || ''),
       stat: 'active',
       rev: 'green',
       date: todayISO(),
@@ -304,7 +413,25 @@
     if (!title) return { ok: false, error: 'Titre vide.' };
     if (/^Chap\.\s/i.test(title)) title = title.replace(/^Chap\.\s/i, '').trim();
     var annee = window.normalizeAnnee(payload.annee);
-    var inter = payload.inter != null ? String(payload.inter) : '';
+    var cl = payload.cl || '';
+    var intersRaw = Array.isArray(payload.inters)
+      ? payload.inters
+      : (payload.inter != null && payload.inter !== '' ? [payload.inter] : []);
+    var inters = window.getChapitreInters({ inters: intersRaw });
+    if (cl && inters.length) {
+      for (var i = 0; i < inters.length; i++) {
+        var conflict = window.chapitreInterSlotConflict(payload.mat, cl, inters[i], annee, null);
+        if (conflict) {
+          return {
+            ok: false,
+            error: 'Intercalaire ' + inters[i] + ' déjà lié au chapitre « ' +
+              (conflict.title || conflict.id) + ' ».'
+          };
+        }
+      }
+    } else if (!cl) {
+      inters = [];
+    }
     var id = payload.id || window.generateChapitreId(payload.mat);
     if (window.isChapitreIdTaken(id)) {
       return { ok: false, error: 'Id chapitre déjà utilisé : ' + id };
@@ -313,8 +440,9 @@
       id: id,
       mat: payload.mat,
       annee: annee,
-      cl: payload.cl || '',
-      inter: inter,
+      cl: cl,
+      inter: inters[0] || '',
+      inters: inters,
       title: title,
       order: typeof payload.order === 'number' ? payload.order : window.nextChapitreOrder(payload.mat, annee),
       created: payload.created || todayISO(),
@@ -344,8 +472,43 @@
       ch.title = t;
     }
     if (patch.notes != null) ch.notes = String(patch.notes);
-    if (patch.annee != null || patch.cl != null || patch.inter != null || patch.mat != null) {
-      return { ok: false, error: 'Année, matière, classeur et inter ne sont modifiables qu’à la création.' };
+    if (patch.annee != null || patch.mat != null) {
+      return { ok: false, error: 'Année et matière ne sont modifiables qu’à la création.' };
+    }
+    if (patch.cl != null || patch.inters != null || patch.inter != null) {
+      var newCl = patch.cl != null ? (patch.cl || '') : (ch.cl || '');
+      var intersRaw = patch.inters != null
+        ? patch.inters
+        : (patch.inter != null
+          ? (patch.inter ? [patch.inter] : [])
+          : window.getChapitreInters(ch));
+      var inters = window.getChapitreInters({ inters: intersRaw });
+      if (!newCl) inters = [];
+      if (newCl && inters.length) {
+        for (var i = 0; i < inters.length; i++) {
+          var conflict = window.chapitreInterSlotConflict(ch.mat, newCl, inters[i], ch.annee, ch.id);
+          if (conflict) {
+            return {
+              ok: false,
+              error: 'Intercalaire ' + inters[i] + ' déjà lié au chapitre « ' +
+                (conflict.title || conflict.id) + ' ».'
+            };
+          }
+        }
+      }
+      ch.cl = newCl;
+      ch.inters = inters;
+      ch.inter = inters[0] || '';
+      /* Aligner le cours unité sur le 1er intercalaire */
+      if (ch.coursUniteUid && Array.isArray(window.D.cours)) {
+        var unit = window.D.cours.find(function (c) {
+          return c && c.uid === ch.coursUniteUid;
+        });
+        if (unit) {
+          unit.cl = ch.cl || '';
+          unit.inter = ch.inter || '';
+        }
+      }
     }
     return { ok: true, chapitre: ch };
   };
@@ -396,7 +559,9 @@
         return;
       }
       var dup = (window.D.chapitres || []).some(function (ch) {
-        return ch.mat === mat && ch.cl === cl && ch.inter === slot && ch.annee === annee;
+        return ch.mat === mat
+          && window.normalizeAnnee(ch.annee) === annee
+          && window.chapitreCoversInter(ch, cl, slot);
       });
       if (dup) {
         errors.push('Chapitre déjà existant pour ' + slot);
@@ -406,6 +571,7 @@
         mat: mat,
         cl: cl,
         inter: slot,
+        inters: [slot],
         annee: annee,
         title: label,
         id: window.generateChapitreId(mat),
@@ -487,9 +653,10 @@
 
   function renderChapitreRow(ch, idx, count) {
     var m = matObj(ch.mat);
-    var loc = ch.cl
-      ? esc(clObj(ch.cl).name) + ' · ' + esc(interLabel(ch.cl, ch.inter))
-      : '—';
+    var locRaw = typeof window.formatChapitreLoc === 'function'
+      ? window.formatChapitreLoc(ch)
+      : (ch.cl ? (clObj(ch.cl).name + ' · ' + interLabel(ch.cl, ch.inter)) : '—');
+    var loc = locRaw === '—' ? '—' : esc(locRaw);
     var dragAttrs = _reorderMode
       ? ' draggable="true" class="programme-row card programme-row-draggable" data-id="' + esc(ch.id) + '"'
       : ' class="programme-row card"';
@@ -709,7 +876,7 @@
 
     if (WIZ.step === 'entry') {
       return (
-        '<p class="programme-wiz-sub">Les chapitres portent le préfixe <span class="chap-prefix">Chap.</span> en affichage. L’année est fixée à la création. Le lien classeur / intercalaire est <b>optionnel</b>.</p>' +
+        '<p class="programme-wiz-sub">Les chapitres portent le préfixe <span class="chap-prefix">Chap.</span> en affichage. L’année est fixée à la création. Tu peux lier un classeur et <b>un ou plusieurs intercalaires</b> : les nouveaux documents créés dans ces intercalaires seront associés au chapitre.</p>' +
         '<div class="programme-wiz-choices">' +
           '<button type="button" class="bp programme-wiz-choice" onclick="window.programmeWizPickMode(\'single\')">' +
             iconLabel('file-plus', 'Un chapitre (titre libre)') +
@@ -822,19 +989,38 @@
 
     if (WIZ.step === 'form') {
       var pref = '';
-      if (WIZ.inter && WIZ.cl) {
-        var cand = window.getIntercalaireCandidates(WIZ.cl).find(function (c) { return c.inter === WIZ.inter; });
-        if (cand) pref = cand.label;
+      var formInters = (WIZ.selectedInters && WIZ.selectedInters.length)
+        ? WIZ.selectedInters.slice()
+        : (WIZ.inter ? [WIZ.inter] : []);
+      if (formInters.length === 1 && WIZ.cl) {
+        var cand = window.getClasseurInterSlots(WIZ.cl).find(function (c) {
+          return c.inter === formInters[0];
+        });
+        if (cand && cand.label && cand.label !== cand.inter) pref = cand.label;
       }
       var clOpts = '<option value="">— Aucun (optionnel) —</option>' + cls.map(function (c) {
         return '<option value="' + esc(c.id) + '"' + (WIZ.cl === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>';
       }).join('');
-      var interOpts = '<option value="">— Aucun (optionnel) —</option>';
+      var interPick = '';
       if (WIZ.cl) {
-        interOpts += window.getIntercalaireCandidates(WIZ.cl).map(function (c) {
-          return '<option value="' + esc(c.inter) + '"' + (WIZ.inter === c.inter ? ' selected' : '') + '>' +
-            esc(c.inter) + ' — ' + esc(c.label) + '</option>';
-        }).join('');
+        var slots = window.getClasseurInterSlots(WIZ.cl);
+        interPick =
+          '<div class="programme-bulk-list" id="progWizInterList">' +
+            slots.map(function (c) {
+              var on = formInters.indexOf(c.inter) !== -1;
+              return (
+                '<label class="programme-bulk-row">' +
+                  '<input type="checkbox"' + (on ? ' checked' : '') +
+                  ' onchange="window.programmeWizToggleFormInter(\'' + jsStr(c.inter) + '\', this.checked)">' +
+                  '<span>' + esc(c.label) + '</span>' +
+                  '<span class="programme-bulk-slot">' + esc(c.inter) + '</span>' +
+                '</label>'
+              );
+            }).join('') +
+          '</div>' +
+          '<p class="anki-mut" style="font-size:11px;margin:6px 0 0;line-height:1.4;">Les documents créés dans ces intercalaires seront liés à ce chapitre.</p>';
+      } else {
+        interPick = '<p class="anki-mut" style="font-size:12px;margin:0;">Choisis d’abord un classeur pour lier des intercalaires.</p>';
       }
       return (
         '<div id="progWizError" class="anki-form-error" role="alert"></div>' +
@@ -852,9 +1038,8 @@
           '<select id="progWizCl" onchange="window.programmeWizFormSetCl(this.value)">' + clOpts + '</select>' +
         '</div>' +
         '<div class="fg">' +
-          '<label>Intercalaire <span class="anki-mut" style="font-weight:normal;">(optionnel)</span></label>' +
-          '<select id="progWizInter" onchange="window.programmeWizFormSetInter(this.value)"' +
-            (WIZ.cl ? '' : ' disabled') + '>' + interOpts + '</select>' +
+          '<label>Intercalaires liés <span class="anki-mut" style="font-weight:normal;">(un ou plusieurs)</span></label>' +
+          interPick +
         '</div>' +
         '<label class="programme-unite-opt">' +
           '<input type="checkbox" id="progWizCreateUnite"' + (WIZ.createUnite ? ' checked' : '') +
@@ -901,6 +1086,7 @@
     if (WIZ.mode === 'single') {
       WIZ.cl = null;
       WIZ.inter = null;
+      WIZ.selectedInters = [];
       WIZ.step = 'annee';
     } else {
       WIZ.step = 'cl';
@@ -933,12 +1119,14 @@
 
   window.programmeWizPickInter = function (inter) {
     WIZ.inter = inter;
+    WIZ.selectedInters = inter ? [inter] : [];
     WIZ.step = 'form';
     window.programmeRenderWizard();
   };
 
   window.programmeWizSkipInter = function () {
     WIZ.inter = null;
+    WIZ.selectedInters = [];
     WIZ.step = 'form';
     window.programmeRenderWizard();
   };
@@ -946,6 +1134,7 @@
   window.programmeWizFormSetCl = function (clId) {
     WIZ.cl = clId || null;
     WIZ.inter = null;
+    WIZ.selectedInters = [];
     window.programmeRenderWizard();
     var titleEl = $('progWizTitle');
     if (titleEl) {
@@ -959,6 +1148,14 @@
 
   window.programmeWizFormSetInter = function (inter) {
     WIZ.inter = inter || null;
+    WIZ.selectedInters = inter ? [inter] : [];
+  };
+
+  window.programmeWizToggleFormInter = function (inter, on) {
+    if (!WIZ.selectedInters) WIZ.selectedInters = [];
+    if (on && WIZ.selectedInters.indexOf(inter) === -1) WIZ.selectedInters.push(inter);
+    if (!on) WIZ.selectedInters = WIZ.selectedInters.filter(function (i) { return i !== inter; });
+    WIZ.inter = WIZ.selectedInters[0] || null;
   };
 
   window.programmeWizToggleInter = function (inter, on) {
@@ -1010,13 +1207,30 @@
     var uniteEl = $('progWizCreateUnite');
     if (uniteEl) WIZ.createUnite = !!uniteEl.checked;
     var clEl = $('progWizCl');
-    var interEl = $('progWizInter');
     if (clEl) WIZ.cl = clEl.value || null;
-    if (interEl) WIZ.inter = (WIZ.cl && interEl.value) ? interEl.value : null;
+    var inters = [];
+    if (WIZ.cl) {
+      var box = $('progWizInterList');
+      if (box) {
+        inters = Array.prototype.map.call(
+          box.querySelectorAll('input[type="checkbox"]:checked'),
+          function (inp) {
+            var lab = inp.closest('label');
+            var slot = lab && lab.querySelector('.programme-bulk-slot');
+            return slot ? String(slot.textContent || '').trim() : '';
+          }
+        ).filter(Boolean);
+      } else if (WIZ.selectedInters && WIZ.selectedInters.length) {
+        inters = WIZ.selectedInters.slice();
+      } else if (WIZ.inter) {
+        inters = [WIZ.inter];
+      }
+    }
     var res = window.createChapitre({
       mat: WIZ.mat,
       cl: WIZ.cl || '',
-      inter: WIZ.inter || '',
+      inter: inters[0] || '',
+      inters: inters,
       annee: WIZ.annee,
       title: title,
       notes: notes,
@@ -1055,6 +1269,7 @@
   window.programmeOpenEdit = function (id) {
     var ch = (window.D.chapitres || []).find(function (c) { return c.id === id; });
     if (!ch) return;
+    window.normalizeChapitreInters(ch);
     var ov = $('ovProgrammeEdit');
     if (!ov) return;
     $('progEditId').value = ch.id;
@@ -1062,17 +1277,68 @@
     $('progEditNotes').value = ch.notes || '';
     var meta = $('progEditMeta');
     if (meta) {
-      var locEdit = ch.cl
-        ? esc(clObj(ch.cl).name) + ' / ' + esc(interLabel(ch.cl, ch.inter))
-        : 'Sans classeur / intercalaire';
       meta.innerHTML =
         window.formatChapitreLabel(ch, true) + '<br>' +
         '<span class="anki-mut">' + esc(matObj(ch.mat).name) + ' · ' +
         ch.annee + (ch.annee === 1 ? 'ère' : 'ème') + ' année · ' +
-        locEdit +
-        ' (figé à la création)</span>';
+        esc(ch.id) +
+        ' (matière / année figées)</span>';
     }
+    window.programmeRenderEditInters(ch.cl || '', window.getChapitreInters(ch));
     ov.classList.remove('hidden');
+  };
+
+  window.programmeRenderEditInters = function (clId, selectedInters) {
+    var clSel = $('progEditCl');
+    var box = $('progEditInterList');
+    if (!clSel || !box) return;
+    var cls = (window.D.classeurs || []).filter(function (c) {
+      return !window.isSystemClasseur || !window.isSystemClasseur(c.id);
+    });
+    var want = clId || '';
+    clSel.innerHTML = '<option value="">— Aucun —</option>' + cls.map(function (c) {
+      return '<option value="' + esc(c.id) + '"' + (c.id === want ? ' selected' : '') + '>' +
+        esc(c.name) + '</option>';
+    }).join('');
+    clSel.value = want;
+
+    selectedInters = (selectedInters || []).map(window.normalizeInterSlot).filter(Boolean);
+    if (!want) {
+      box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Choisis un classeur pour cocher des intercalaires.</p>';
+      return;
+    }
+    var slots = window.getClasseurInterSlots(want);
+    box.innerHTML = slots.map(function (c) {
+      var on = selectedInters.indexOf(c.inter) !== -1;
+      return (
+        '<label class="programme-bulk-row">' +
+          '<input type="checkbox" data-inter="' + esc(c.inter) + '"' + (on ? ' checked' : '') + '>' +
+          '<span>' + esc(c.label) + '</span>' +
+          '<span class="programme-bulk-slot">' + esc(c.inter) + '</span>' +
+        '</label>'
+      );
+    }).join('');
+  };
+
+  window.programmeEditSetCl = function (clId) {
+    var prev = [];
+    var box = $('progEditInterList');
+    if (box) {
+      prev = Array.prototype.map.call(
+        box.querySelectorAll('input[type="checkbox"]:checked'),
+        function (inp) { return inp.getAttribute('data-inter'); }
+      ).filter(Boolean);
+    }
+    window.programmeRenderEditInters(clId || '', prev);
+  };
+
+  window.programmeReadEditInters = function () {
+    var box = $('progEditInterList');
+    if (!box) return [];
+    return Array.prototype.map.call(
+      box.querySelectorAll('input[type="checkbox"]:checked'),
+      function (inp) { return inp.getAttribute('data-inter'); }
+    ).filter(Boolean);
   };
 
   window.programmeCloseEdit = function () {
@@ -1084,8 +1350,15 @@
     var id = $('progEditId') ? $('progEditId').value : '';
     var title = $('progEditTitle') ? String($('progEditTitle').value || '').trim() : '';
     var notes = $('progEditNotes') ? String($('progEditNotes').value || '') : '';
+    var cl = $('progEditCl') ? String($('progEditCl').value || '') : '';
+    var inters = cl ? window.programmeReadEditInters() : [];
     var err = $('progEditError');
-    var res = window.updateChapitre(id, { title: title, notes: notes });
+    var res = window.updateChapitre(id, {
+      title: title,
+      notes: notes,
+      cl: cl,
+      inters: inters
+    });
     if (!res.ok) {
       if (err) err.textContent = res.error || 'Erreur';
       return;
