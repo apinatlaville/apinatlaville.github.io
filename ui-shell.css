@@ -537,6 +537,11 @@ body.nav-sidebar-left .app-workspace {
 }
 
 @media (max-width: 767px) {
+  :root {
+    /* 20 + 40 (toggle) + 14 paddings — évite que le menu passe sous Accueil */
+    --page-title-h: 80px;
+  }
+
   body.nav-sidebar-left .page-title-float,
   body.nav-chrome-sidebar .page-title-float {
     left: 0;

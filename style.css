@@ -5712,16 +5712,56 @@ body.nav-sidebar-left .nav-mobile-extras {
   body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer {
     display: flex !important;
     flex-shrink: 0;
-    padding-top: 6px;
+    /* Plus de marge auto : colle le footer au contenu (Synchrotron / actions) */
+    margin-top: 0 !important;
+    padding-top: 12px;
     padding-bottom: max(28px, calc(16px + env(safe-area-inset-bottom, 0px)));
+    gap: 10px;
   }
 
   body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .hdr-actions {
-    gap: 6px;
+    gap: 8px;
   }
 
   body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .hdr-actions-btns {
     padding-bottom: 2px;
+    gap: 10px;
+  }
+
+  /* Indicateurs de connexion / profil / rôle — plus lisibles sur téléphone */
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .cloud-status-chip,
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .profile-status-chip,
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .device-role-chip {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 14px;
+    min-height: 36px;
+    line-height: 1.2;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .cloud-status-dot {
+    width: 10px;
+    height: 10px;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer #cloudStatus {
+    max-width: min(100%, 320px);
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .profile-status-chip {
+    max-width: min(100%, 12rem);
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded .sidebar-footer .hdr-actions {
+    justify-content: flex-start;
+  }
+
+  /* Espace sous le bandeau Accueil pour que « Navigation » ne rentre pas dans le titre */
+  body.nav-sidebar-left.mobile-sidebar-expanded #appNav .search-bar {
+    padding-top: 10px;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar {
+    padding-top: 4px;
+  }
+  body.nav-sidebar-left.mobile-sidebar-expanded #tabsBar .nav-group:first-child {
+    margin-top: 2px;
   }
 
   body.nav-sidebar-left .nav-mobile-extras {
@@ -5894,6 +5934,46 @@ body.nav-sidebar-left .nav-mobile-extras {
   }
   body.nav-sidebar-left .sync-dock-bar {
     left: 16px;
+  }
+
+  /* File Synchrotron : titre + meta en pleine largeur (évite le texte vertical) */
+  .anki-q-row {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+  .anki-q-handle,
+  .anki-q-num,
+  .anki-q-mat,
+  .anki-q-row .card-type-badge,
+  .anki-q-time,
+  .anki-q-go,
+  .anki-q-remove {
+    flex-shrink: 0;
+  }
+  .anki-q-body {
+    flex: 1 1 100%;
+    order: 20;
+    min-width: 0;
+    width: 100%;
+  }
+  .anki-q-title {
+    font-size: 14px;
+    line-height: 1.35;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+  .anki-q-meta {
+    white-space: normal;
+    overflow-wrap: break-word;
+    line-height: 1.4;
+  }
+  .anki-q-time {
+    margin-left: auto;
+  }
+  .anki-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
