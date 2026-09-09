@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 9;
+  var UI_REV = 10;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -999,10 +999,12 @@
   function latexBuildInline(before, latex, after) {
     var math = (latex || '').trim() ? '\\(' + String(latex).trim() + '\\)' : '';
     var parts = [];
-    if (before) parts.push(String(before));
+    if (before) parts.push(String(before).replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').trim());
     if (math) parts.push(math);
-    if (after) parts.push(String(after));
-    return parts.join(' ').replace(/\s+/g, ' ').trim();
+    if (after) parts.push(String(after).replace(/[ \t]+\n/g, '\n').replace(/\n[ \t]+/g, '\n').trim());
+    if (!parts.length) return '';
+    /* Espaces autour de la formule, mais on garde les retours ligne du texte */
+    return parts.join('\n').replace(/[ \t]{2,}/g, ' ').replace(/ *\n */g, '\n').trim();
   }
 
   /** Phrase complète : texte + \( latex \) + texte */
@@ -1056,18 +1058,59 @@
 
   /** Aperçu lab / Easy : texte échappé + formule markup (une seule voie). */
   function formatLatexPreviewHtml(before, latex, after) {
+    function textHtml(t) {
+      return escHtml(t).replace(/\r\n|\r|\n/g, '<br>');
+    }
     var html = '<div class="latex-lab-preview-stack">';
     if (before) {
-      html += '<div class="latex-lab-preview-text latex-lab-preview-before">' + escHtml(before) + '</div>';
+      html += '<div class="latex-lab-preview-text latex-lab-preview-before">' + textHtml(before) + '</div>';
     }
     if (latex) {
       html += '<div class="latex-lab-preview-math">' + latexToMarkup(latex) + '</div>';
     }
     if (after) {
-      html += '<div class="latex-lab-preview-text latex-lab-preview-after">' + escHtml(after) + '</div>';
+      html += '<div class="latex-lab-preview-text latex-lab-preview-after">' + textHtml(after) + '</div>';
     }
     html += '</div>';
     return html;
+  }
+
+  function insertNewlineInTextField(el) {
+    if (!el) return;
+    var start = typeof el.selectionStart === 'number' ? el.selectionStart : (el.value || '').length;
+    var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
+    var val = el.value || '';
+    el.value = val.slice(0, start) + '\n' + val.slice(end);
+    try {
+      el.selectionStart = el.selectionEnd = start + 1;
+    } catch (e) { /* ignore */ }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    try { el.focus(); } catch (e2) { /* ignore */ }
+  }
+
+  function wireLatexTextField(el, onInput) {
+    if (!el) return;
+    el.addEventListener('input', function () {
+      if (typeof onInput === 'function') onInput();
+    });
+    /* Entrée = nouvelle ligne (pas de validation ici) ; Maj+Entrée aussi */
+    el.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== 'NumpadEnter') return;
+      if (e.isComposing || e.repeat) return;
+      /* Laisser le comportement textarea natif (saut de ligne) */
+    });
+  }
+
+  function latexTextFieldRowHtml(id, placeholder, value) {
+    var v = value != null ? escHtml(value) : '';
+    return (
+      '<div class="latex-lab-text-row">' +
+        '<textarea id="' + id + '" class="latex-lab-text-field" rows="1" ' +
+          'placeholder="' + escHtml(placeholder) + '" autocomplete="off" spellcheck="true">' + v + '</textarea>' +
+        '<button type="button" class="bs latex-lab-nl-btn" data-nl-for="' + escHtml(id) + '" ' +
+          'title="Saut de ligne (Entrée)" aria-label="Saut de ligne">↵</button>' +
+      '</div>'
+    );
   }
 
   /** Segments texte / math pour faces carte (plusieurs \\( … \\) OK). */
@@ -1437,8 +1480,13 @@
     }
 
     ['latexTestBefore', 'latexTestAfter'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('input', syncPreview);
+      wireLatexTextField(document.getElementById(id), syncPreview);
+    });
+    root.querySelectorAll('[data-nl-for]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        insertNewlineInTextField(document.getElementById(btn.getAttribute('data-nl-for')));
+        syncPreview();
+      });
     });
 
     if (!_mf.value) {
@@ -1472,19 +1520,13 @@
 
         '<div class="latex-lab-work">' +
           '<div class="latex-lab-compose">' +
-            '<section class="latex-lab-panel latex-lab-panel-preview">' +
-              '<div class="latex-lab-panel-label">Aperçu <span class="anki-mut">· texte + formule</span></div>' +
-              '<div class="latex-lab-preview-wrap" id="latexTestPreviewWrap"></div>' +
-            '</section>' +
             '<section class="latex-lab-panel latex-lab-panel-editor">' +
-              '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">· Tab = case suivante · Espace = espacement</span></div>' +
-              '<input type="text" id="latexTestBefore" class="latex-lab-text-field" ' +
-                'placeholder="Texte avant (ex. On a donc)" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">· Entrée = ligne · Tab = case suivante</span></div>' +
+              latexTextFieldRowHtml('latexTestBefore', 'Texte avant (ex. On a donc)', '') +
               '<div class="latex-lab-field-wrap">' +
                 '<math-field id="latexTestField" class="latex-lab-field"></math-field>' +
               '</div>' +
-              '<input type="text" id="latexTestAfter" class="latex-lab-text-field" ' +
-                'placeholder="Texte après (ex. d’où le résultat.)" autocomplete="off" spellcheck="true">' +
+              latexTextFieldRowHtml('latexTestAfter', 'Texte après (ex. d’où le résultat.)', '') +
               '<div class="latex-lab-quickbar" role="toolbar" aria-label="Insertions rapides">' +
                 '<button type="button" class="latex-lab-quick" data-space="thin" title="Espace fin (touche Espace)">␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
@@ -1495,6 +1537,10 @@
                   '<input type="checkbox" id="latexTestSpaceMode" checked> Espace auto' +
                 '</label>' +
               '</div>' +
+            '</section>' +
+            '<section class="latex-lab-panel latex-lab-panel-preview">' +
+              '<div class="latex-lab-panel-label">Aperçu <span class="anki-mut">· texte + formule</span></div>' +
+              '<div class="latex-lab-preview-wrap" id="latexTestPreviewWrap"></div>' +
             '</section>' +
           '</div>' +
 
@@ -1808,19 +1854,13 @@
         '</header>' +
         '<div class="latex-lab-work">' +
           '<div class="latex-lab-compose">' +
-            '<section class="latex-lab-panel latex-lab-panel-preview">' +
-              '<div class="latex-lab-panel-label">Aperçu <span class="anki-mut">· texte + formule</span></div>' +
-              '<div class="latex-lab-preview-wrap" id="' + pid('PreviewWrap') + '"></div>' +
-            '</section>' +
             '<section class="latex-lab-panel latex-lab-panel-editor">' +
-              '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">· Tab = case suivante · Espace = espacement</span></div>' +
-              '<input type="text" id="' + pid('Before') + '" class="latex-lab-text-field" ' +
-                'placeholder="Texte avant" autocomplete="off" spellcheck="true">' +
+              '<div class="latex-lab-panel-label">Éditeur <span class="anki-mut">· Entrée = ligne · Tab = case suivante</span></div>' +
+              latexTextFieldRowHtml(pid('Before'), 'Texte avant', '') +
               '<div class="latex-lab-field-wrap">' +
                 '<math-field id="' + pid('Field') + '" class="latex-lab-field"></math-field>' +
               '</div>' +
-              '<input type="text" id="' + pid('After') + '" class="latex-lab-text-field" ' +
-                'placeholder="Texte après" autocomplete="off" spellcheck="true">' +
+              latexTextFieldRowHtml(pid('After'), 'Texte après', '') +
               '<div class="latex-lab-quickbar" role="toolbar" aria-label="Insertions rapides">' +
                 '<button type="button" class="latex-lab-quick" data-space="thin" title="Espace fin">␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
@@ -1831,6 +1871,10 @@
                   '<input type="checkbox" id="' + pid('SpaceMode') + '" checked> Espace auto' +
                 '</label>' +
               '</div>' +
+            '</section>' +
+            '<section class="latex-lab-panel latex-lab-panel-preview">' +
+              '<div class="latex-lab-panel-label">Aperçu <span class="anki-mut">· texte + formule</span></div>' +
+              '<div class="latex-lab-preview-wrap" id="' + pid('PreviewWrap') + '"></div>' +
             '</section>' +
           '</div>' +
           '<section class="latex-lab-palette">' +
@@ -1910,8 +1954,13 @@
         });
       }
       ['Before', 'After'].forEach(function (suf) {
-        var el = gel(suf);
-        if (el) el.addEventListener('input', syncPreview);
+        wireLatexTextField(gel(suf), syncPreview);
+      });
+      host.querySelectorAll('[data-nl-for]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          insertNewlineInTextField(document.getElementById(btn.getAttribute('data-nl-for')));
+          syncPreview();
+        });
       });
 
       if (opts.seedInline != null) {

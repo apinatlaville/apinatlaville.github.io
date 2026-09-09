@@ -2772,6 +2772,36 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   padding: 0 2px;
   user-select: none;
 }
+.anki-statut-duration {
+  margin-bottom: 10px;
+}
+.anki-statut-duration > label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+.anki-hmm-boxes--compact {
+  gap: 4px;
+}
+.anki-hmm-boxes--compact .anki-hmm-box {
+  width: 28px;
+  height: 32px;
+  border-radius: 8px;
+  border-width: 1.5px;
+  font-size: 15px;
+}
+.anki-hmm-boxes--compact .anki-hmm-sep {
+  font-size: 15px;
+  padding: 0 1px;
+}
+.anki-modal-row--meta .fg-statut {
+  display: flex;
+  flex-direction: column;
+}
 .anki-modal-row .anki-duration-field .anki-time-h,
 .anki-modal-row .anki-duration-field .anki-time-m {
   flex: 1;
@@ -2959,14 +2989,12 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .ql-easy-pane .latex-lab-work {
  max-height: none;
 }
-/* Création de carte : aperçu empilé (texte avant / formule / texte après), pas côte à côte */
+/* Création de carte LaTeX : éditeur à gauche, aperçu à droite (comme le labo) */
 #ovQuickLatex .latex-lab-compose,
 .ql-easy-pane .latex-lab-compose {
-  grid-template-columns: 1fr;
-  grid-template-areas:
-    "editor"
-    "preview";
-  min-height: 0;
+  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-areas: "editor preview";
+  min-height: 220px;
 }
 .ql-card-lab .ql-meta {
  display: grid;
@@ -5038,14 +5066,21 @@ body.theme-light .anki-stars-display .anki-star.off {
 }
 .anki-session-bar {
  display: flex;
- flex-wrap: wrap;
+ flex-wrap: nowrap;
  align-items: center;
- gap: 10px 14px;
+ gap: 8px 10px;
  margin-bottom: 16px;
  padding: 10px 12px;
  background: var(--s2);
  border: 0.5px solid var(--bd);
  border-radius: var(--radius-surface);
+ overflow-x: auto;
+ -webkit-overflow-scrolling: touch;
+}
+.anki-session-bar-label {
+ flex: 0 0 auto;
+ white-space: nowrap;
+ font-size: 12px;
 }
 .anki-session-bar-sep {
   width: 1px;
@@ -5055,25 +5090,43 @@ body.theme-light .anki-stars-display .anki-star.off {
   opacity: 0.7;
 }
 .anki-max-quick-input {
-  width: 64px !important;
-  min-width: 64px;
+  width: 42px !important;
+  min-width: 42px !important;
+  max-width: 48px !important;
+  flex: 0 0 42px !important;
   text-align: center;
   font-family: 'DM Mono', monospace;
   font-size: 13px;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
 }
 .anki-session-presets {
  display: flex;
- flex-wrap: wrap;
- gap: 6px;
+ flex-wrap: nowrap;
+ gap: 5px;
+ flex: 0 0 auto;
+}
+.anki-quick-presets {
+  flex: 0 0 auto;
 }
 .anki-preset-time {
- padding: 4px 10px !important;
+ padding: 4px 8px !important;
  font-size: 11px !important;
+ flex: 0 0 auto;
 }
 .anki-preset-time.on {
  background: rgba(91, 154, 255, 0.22);
  border-color: rgba(91, 154, 255, 0.38);
  color: var(--txt);
+}
+@media (max-width: 720px) {
+  .anki-session-bar {
+    flex-wrap: wrap;
+  }
+  .anki-session-presets,
+  .anki-quick-presets {
+    flex-wrap: wrap;
+  }
 }
 .anki-session-time select.anki-time-h,
 .anki-session-time select.anki-time-m,
@@ -5985,6 +6038,29 @@ body.nav-sidebar-left #paneLatexTest.on {
   background: color-mix(in oklab, var(--s2) 80%, transparent);
   color: var(--txt);
   flex: 0 0 auto;
+  resize: none;
+  min-height: 34px;
+  max-height: 96px;
+  line-height: 1.35;
+  field-sizing: content;
+}
+.latex-lab-text-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+.latex-lab-text-row .latex-lab-text-field {
+  flex: 1;
+  min-width: 0;
+}
+.latex-lab-nl-btn {
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 15px;
+  line-height: 1;
+  align-self: flex-start;
 }
 .latex-lab-text-field:focus {
   outline: none;

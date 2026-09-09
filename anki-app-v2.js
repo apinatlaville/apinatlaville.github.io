@@ -787,8 +787,9 @@
     let picker;
     if (editable) {
       const mm = String(m).padStart(2, '0');
+      const hmmClass = opts.wrapClass || 'anki-hmm-boxes';
       picker = `
-      <div class="anki-hmm-boxes" role="group" aria-label="Durée h:mm">
+      <div class="${hmmClass}" role="group" aria-label="Durée h:mm">
         <input type="text" class="anki-hmm-box anki-hmm-h" ${hId ? `id="${hId}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${h}" aria-label="Heures" autocomplete="off">
         <span class="anki-hmm-sep" aria-hidden="true">:</span>
         <input type="text" class="anki-hmm-box anki-hmm-m0" ${m0Id ? `id="${m0Id}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${mm.charAt(0)}" aria-label="Dizaines de minutes" autocomplete="off">
@@ -4382,17 +4383,6 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div class="fg"><label>Matière *</label><select id="exoMat">${matOpts}</select></div>
           <div class="fg"><label>Profil</label><select id="exoProf">${profileOpts}</select></div>
         </div>
-        <div class="fg anki-duration-field anki-duration-field--hmm">
-          <label>Durée <span class="anki-mut" style="font-weight:normal;">(h:mm)</span></label>
-          ${durationPickerHtml(tempsMin, {
-            hId: 'exoTimeH',
-            mId: 'exoTimeM',
-            minTotal: 1,
-            maxTotal: 540,
-            minuteStep: 1,
-            editable: true
-          })}
-        </div>
         <div class="anki-modal-row anki-modal-row--meta">
           <div class="fg fg-importance">
             <label>Importance</label>
@@ -4402,6 +4392,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
             </div>
           </div>
           <div class="fg fg-statut">
+            <div class="anki-statut-duration">
+              <label>Durée <span class="anki-mut" style="font-weight:normal;">(h:mm)</span></label>
+              ${durationPickerHtml(tempsMin, {
+                hId: 'exoTimeH',
+                mId: 'exoTimeM',
+                minTotal: 1,
+                maxTotal: 540,
+                minuteStep: 1,
+                editable: true,
+                wrapClass: 'anki-hmm-boxes anki-hmm-boxes--compact'
+              })}
+            </div>
             <label>Statut</label>
             ${renderStatutChecks(c, 'exo')}
           </div>
