@@ -281,13 +281,19 @@
     if (!host) return;
     host.querySelectorAll('.qk-q, .qk-r').forEach(function (el) {
       el.style.fontSize = '';
+      el.querySelectorAll('.latex-lab-preview-math').forEach(function (m) {
+        m.style.fontSize = '';
+      });
       var base = parseFloat(window.getComputedStyle(el).fontSize) || 15;
       var size = base;
       var min = 10;
       el.style.fontSize = size + 'px';
-      /* Limite de sécurité anti-boucle */
+      /* MathLive en rem absolu sinon : forcer em pour suivre le parent */
+      el.querySelectorAll('.latex-lab-preview-math').forEach(function (m) {
+        m.style.fontSize = '1.05em';
+      });
       var guard = 0;
-      while (guard < 24 && size > min && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
+      while (guard < 28 && size > min && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
         size -= 0.5;
         el.style.fontSize = size + 'px';
         guard++;
@@ -355,6 +361,12 @@
       paintFaces(false);
       /* Si MathLive a échoué silencieusement, éviter le placeholder éternel */
       if (!mathLiveReady()) paintFaces(true);
+      var refit = function () { fitQuickCardFaces(host); };
+      if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+        document.fonts.ready.then(refit).catch(function () {});
+      }
+      setTimeout(refit, 120);
+      setTimeout(refit, 400);
     }).catch(function (err) {
       if (typeof console !== 'undefined' && console.warn) {
         console.warn('[Rapide] hydrate LaTeX', err);

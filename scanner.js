@@ -164,30 +164,86 @@ window.executePrint = function() {
   if (!window.D || !Array.isArray(window.D.cours)) return;
   const sel = window.D.cours.filter(c => window.printSel.has(c.uid));
   if (!sel.length) {
-    if(typeof window.sysAlert === 'function') window.sysAlert('Sélectionne au moins un document pour pouvoir imprimer !', 'Impression impossible');
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Sélectionne au moins un document pour pouvoir imprimer !', 'Impression impossible');
+    }
     return;
   }
-  
-  const pz = window.$('printZone');
-  if(!pz) return;
-  
-  pz.innerHTML = '';
-  sel.forEach(c => {
-    pz.innerHTML += `
-      <div class="print-label">
-        <img src="${window.getBarcodeURL(c.uid)}">
-        <div class="pl-uid">${window.escHtml(c.uid)}</div>
-        <div class="pl-title">${window.escHtml(String(c.title || '').substring(0,35))}</div>
-      </div>`;
+
+  const prep = typeof window.ensureScannerLibs === 'function'
+    ? window.ensureScannerLibs()
+    : Promise.resolve();
+
+  return Promise.resolve(prep).then(function () {
+    if (typeof window.JsBarcode !== 'function') {
+      if (typeof window.sysAlert === 'function') {
+        window.sysAlert(
+          'Bibliothèque code-barres indisponible. Recharge la page puis réessaie.',
+          'Impression impossible'
+        );
+      }
+      return;
+    }
+
+    const pz = window.$('printZone');
+    if (!pz) return;
+
+    pz.innerHTML = sel.map(function (c) {
+      const src = window.getBarcodeURL(c.uid) || '';
+      return (
+        '<div class="print-label">' +
+          (src ? '<img src="' + src + '" alt="">' : '') +
+          '<div class="pl-uid">' + window.escHtml(c.uid) + '</div>' +
+          '<div class="pl-title">' + window.escHtml(String(c.title || '').substring(0, 35)) + '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    const imgs = Array.prototype.slice.call(pz.querySelectorAll('img'));
+    const waitImgs = Promise.all(imgs.map(function (img) {
+      if (img.complete && img.naturalWidth) return Promise.resolve();
+      return new Promise(function (resolve) {
+        var done = false;
+        var finish = function () {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        img.addEventListener('load', finish);
+        img.addEventListener('error', finish);
+        setTimeout(finish, 2500);
+      });
+    }));
+
+    return waitImgs.then(function () {
+      var finished = false;
+      var finishPrintFlow = function () {
+        if (finished) return;
+        finished = true;
+        window.removeEventListener('afterprint', finishPrintFlow);
+        /* Ne vider qu’après la fin réelle de l’aperçu / dialog d’impression */
+        if (window.$('ovPrintConfirm')) window.$('ovPrintConfirm').classList.remove('hidden');
+        setTimeout(function () {
+          if (pz) pz.innerHTML = '';
+        }, 50);
+      };
+
+      window.addEventListener('afterprint', finishPrintFlow);
+      try {
+        window.print();
+      } catch (err) {
+        finishPrintFlow();
+        return;
+      }
+      /* Secours si afterprint n’est jamais émis (rares navigateurs) */
+      setTimeout(finishPrintFlow, 120000);
+    });
+  }).catch(function (err) {
+    if (typeof console !== 'undefined' && console.warn) console.warn('executePrint:', err);
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Impossible de préparer l’impression. Recharge la page.', 'Impression');
+    }
   });
-  
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => {
-      pz.innerHTML = '';
-      if(window.$('ovPrintConfirm')) window.$('ovPrintConfirm').classList.remove('hidden');
-    }, 500);
-  }, 1000);
 };
 
 window.confirmPrintSuccess = function(success) {
