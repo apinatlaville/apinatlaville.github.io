@@ -1418,16 +1418,19 @@ body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
 .fab-mini { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--s2); border: 1px solid var(--bd); color: var(--txt); display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer; transition: transform 0.2s; outline: none; }
 .fab-mini:hover { transform: scale(1.1); background: var(--s3); }
 
-/* Zone d'impression : hors écran, visible uniquement en @media print */
+/* Zone d'impression : hors écran mais PAS display:none (sinon images/data-URL
+   parfois jamais décodées, et certains moteurs d’impression voient une page vide). */
 #printZone {
-  display: none;
-  position: absolute;
+  position: fixed;
   left: 0;
   top: 0;
-  width: 0;
-  height: 0;
-  overflow: hidden;
+  width: 210mm;
+  max-width: 100vw;
+  transform: translateX(-120%);
+  visibility: hidden;
   pointer-events: none;
+  z-index: -1;
+  overflow: visible;
 }
 
 @media print {
@@ -1451,6 +1454,7 @@ body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
  #printZone { 
  display: flex !important; 
  visibility: visible !important;
+ transform: none !important;
  flex-wrap: wrap !important; 
  justify-content: flex-start !important; 
  align-content: flex-start !important; 
@@ -1460,9 +1464,11 @@ body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
  left: auto !important;
  top: auto !important;
  width: 100% !important; 
+ max-width: none !important;
  height: auto !important;
  overflow: visible !important;
  pointer-events: auto !important;
+ z-index: auto !important;
  background: #ffffff !important; 
  }
  

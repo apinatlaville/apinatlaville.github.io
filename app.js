@@ -1613,7 +1613,9 @@ bindClick('btnResetFilters', () => window.resetFilters());
 bindClick('btnSelPending', () => window.selPending());
 bindClick('btnSelAll', () => window.selAll());
 bindClick('btnDesel', () => window.selNone());
-bindClick('btnDoPrint', () => window.executePrint());
+bindClick('btnDoPrint', () => {
+  if (typeof window.executePrint === 'function') window.executePrint();
+});
 bindClick('btnConfirmPrintYes', () => window.confirmPrintSuccess(true));
 bindClick('btnConfirmPrintNo', () => window.confirmPrintSuccess(false));
 

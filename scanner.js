@@ -170,26 +170,37 @@ window.executePrint = function() {
     return;
   }
 
+  const pz = window.$('printZone');
+  if (!pz) {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Zone d’impression introuvable. Recharge la page.', 'Impression');
+    }
+    return;
+  }
+
   const prep = typeof window.ensureScannerLibs === 'function'
     ? window.ensureScannerLibs()
     : Promise.resolve();
 
+  const btn = window.$('btnDoPrint');
+  if (btn) {
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+  }
+
+  const unlockBtn = function () {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+  };
+
   return Promise.resolve(prep).then(function () {
-    if (typeof window.JsBarcode !== 'function') {
-      if (typeof window.sysAlert === 'function') {
-        window.sysAlert(
-          'Bibliothèque code-barres indisponible. Recharge la page puis réessaie.',
-          'Impression impossible'
-        );
-      }
-      return;
-    }
-
-    const pz = window.$('printZone');
-    if (!pz) return;
-
+    /* JsBarcode optionnel : sans lui on imprime quand même uid + titre */
     pz.innerHTML = sel.map(function (c) {
-      const src = window.getBarcodeURL(c.uid) || '';
+      var src = '';
+      try {
+        if (typeof window.getBarcodeURL === 'function') src = window.getBarcodeURL(c.uid) || '';
+      } catch (e) { src = ''; }
       return (
         '<div class="print-label">' +
           (src ? '<img src="' + src + '" alt="">' : '') +
@@ -199,46 +210,58 @@ window.executePrint = function() {
       );
     }).join('');
 
-    const imgs = Array.prototype.slice.call(pz.querySelectorAll('img'));
-    const waitImgs = Promise.all(imgs.map(function (img) {
-      if (img.complete && img.naturalWidth) return Promise.resolve();
-      return new Promise(function (resolve) {
-        var done = false;
-        var finish = function () {
-          if (done) return;
-          done = true;
-          resolve();
-        };
-        img.addEventListener('load', finish);
-        img.addEventListener('error', finish);
-        setTimeout(finish, 2500);
-      });
-    }));
+    var finished = false;
+    var confirmShown = false;
 
-    return waitImgs.then(function () {
-      var finished = false;
-      var finishPrintFlow = function () {
-        if (finished) return;
-        finished = true;
-        window.removeEventListener('afterprint', finishPrintFlow);
-        /* Ne vider qu’après la fin réelle de l’aperçu / dialog d’impression */
-        if (window.$('ovPrintConfirm')) window.$('ovPrintConfirm').classList.remove('hidden');
+    var showConfirm = function () {
+      if (confirmShown) return;
+      confirmShown = true;
+      unlockBtn();
+      if (window.$('ovPrintConfirm')) window.$('ovPrintConfirm').classList.remove('hidden');
+    };
+
+    var clearZone = function () {
+      if (pz) pz.innerHTML = '';
+    };
+
+    var onAfterPrint = function () {
+      if (finished) return;
+      finished = true;
+      window.removeEventListener('afterprint', onAfterPrint);
+      showConfirm();
+      /* Laisser le spooler / aperçu terminer avant de vider */
+      setTimeout(clearZone, 400);
+    };
+
+    window.addEventListener('afterprint', onAfterPrint);
+
+    /* Deux frames : laisser le navigateur peindre les data-URL avant print() */
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        try {
+          window.print();
+        } catch (err) {
+          onAfterPrint();
+          return;
+        }
+        /*
+         * Si afterprint n’arrive pas (webview, impression bloquée, etc.),
+         * afficher quand même la conf — sans vider tout de suite la zone.
+         */
         setTimeout(function () {
-          if (pz) pz.innerHTML = '';
-        }, 50);
-      };
-
-      window.addEventListener('afterprint', finishPrintFlow);
-      try {
-        window.print();
-      } catch (err) {
-        finishPrintFlow();
-        return;
-      }
-      /* Secours si afterprint n’est jamais émis (rares navigateurs) */
-      setTimeout(finishPrintFlow, 120000);
+          showConfirm();
+        }, 1800);
+        setTimeout(function () {
+          if (!finished) {
+            finished = true;
+            window.removeEventListener('afterprint', onAfterPrint);
+            clearZone();
+          }
+        }, 60000);
+      });
     });
   }).catch(function (err) {
+    unlockBtn();
     if (typeof console !== 'undefined' && console.warn) console.warn('executePrint:', err);
     if (typeof window.sysAlert === 'function') {
       window.sysAlert('Impossible de préparer l’impression. Recharge la page.', 'Impression');
