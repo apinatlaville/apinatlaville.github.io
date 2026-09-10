@@ -244,13 +244,20 @@ window.updateHeaderCountdown = function () {
       daysEl.className = 'page-title-countdown-days is-past';
       return;
     }
-    const parts = [];
-    if (bd.months > 0) parts.push(bd.months + ' mois');
-    if (bd.days > 0 || bd.months > 0) parts.push(bd.days + ' j');
-    parts.push(bd.hours + ' h');
-    parts.push(bd.minutes + ' min');
-    parts.push(bd.seconds + ' s');
-    daysEl.textContent = parts.join(' ');
+    const crit = [];
+    if (bd.months > 0) crit.push(bd.months + ' mois');
+    if (bd.days > 0 || bd.months > 0) crit.push(bd.days + ' j');
+    const clock = [
+      pad2(bd.hours) + ' h',
+      pad2(bd.minutes) + ' min',
+      pad2(bd.seconds) + ' s'
+    ].join(' ');
+    let html = '';
+    if (crit.length) {
+      html += '<span class="cd-crit">' + crit.join(' ') + '</span>';
+    }
+    html += (html ? ' ' : '') + '<span class="cd-clock">' + clock + '</span>';
+    daysEl.innerHTML = html;
     const soon = bd.totalMs <= 14 * 86400000;
     const today = bd.totalMs < 86400000;
     daysEl.className = 'page-title-countdown-days'

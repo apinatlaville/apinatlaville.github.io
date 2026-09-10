@@ -317,6 +317,17 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   white-space: nowrap;
 }
 
+.page-title-countdown-days .cd-crit {
+  color: var(--gold, #ffc050);
+  font-weight: 700;
+}
+
+.page-title-countdown-days .cd-clock {
+  color: var(--txt);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .page-title-countdown-hms {
   display: none !important;
 }
@@ -325,15 +336,19 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   min-width: 0;
 }
 
-.page-title-countdown-days.is-soon {
+.page-title-countdown-days.is-soon,
+.page-title-countdown-days.is-soon .cd-crit {
   color: #ff9a4a;
 }
 
-.page-title-countdown-days.is-today {
+.page-title-countdown-days.is-today,
+.page-title-countdown-days.is-today .cd-crit {
   color: var(--grn, #5cd49a);
 }
 
-.page-title-countdown-days.is-past {
+.page-title-countdown-days.is-past,
+.page-title-countdown-days.is-past .cd-crit,
+.page-title-countdown-days.is-past .cd-clock {
   color: var(--mut);
 }
 
