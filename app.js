@@ -228,12 +228,13 @@ window.updateHeaderCountdown = function () {
   const fmt = st.headerCountdownFormat === 'full' ? 'full' : 'jdays';
   if (lblEl) lblEl.textContent = label;
 
+  if (hmsEl) { hmsEl.hidden = true; hmsEl.textContent = ''; }
+
   if (fmt === 'full') {
     const target = window.headerCountdownTargetDate();
     if (!target) {
       daysEl.textContent = '—';
       daysEl.className = 'page-title-countdown-days';
-      if (hmsEl) { hmsEl.hidden = true; hmsEl.textContent = ''; }
       return;
     }
     const bd = window.headerCountdownBreakdown(target);
@@ -241,28 +242,23 @@ window.updateHeaderCountdown = function () {
     if (bd.past) {
       daysEl.textContent = 'Terminé';
       daysEl.className = 'page-title-countdown-days is-past';
-      if (hmsEl) { hmsEl.hidden = true; hmsEl.textContent = ''; }
       return;
     }
     const parts = [];
     if (bd.months > 0) parts.push(bd.months + ' mois');
     if (bd.days > 0 || bd.months > 0) parts.push(bd.days + ' j');
-    else if (bd.months === 0 && bd.days === 0) { /* only hms */ }
-    else parts.push(bd.days + ' j');
-    daysEl.textContent = parts.length ? parts.join(' ') : '0 j';
+    parts.push(bd.hours + ' h');
+    parts.push(bd.minutes + ' min');
+    parts.push(bd.seconds + ' s');
+    daysEl.textContent = parts.join(' ');
     const soon = bd.totalMs <= 14 * 86400000;
     const today = bd.totalMs < 86400000;
     daysEl.className = 'page-title-countdown-days'
       + (soon ? ' is-soon' : '')
       + (today ? ' is-today' : '');
-    if (hmsEl) {
-      hmsEl.hidden = false;
-      hmsEl.textContent = pad2(bd.hours) + ':' + pad2(bd.minutes) + ':' + pad2(bd.seconds);
-    }
     return;
   }
 
-  if (hmsEl) { hmsEl.hidden = true; hmsEl.textContent = ''; }
   const left = window.headerCountdownDaysLeft(iso);
   if (left == null) {
     daysEl.textContent = '—';
@@ -292,6 +288,43 @@ window.applyHeaderCountdown = function () {
   if (show) window.updateHeaderCountdown();
 };
 
+/** Date concours : Flatpickr sans altInput (valeur ISO), calendrier hors panneau. */
+window.initHeaderCountdownDatePicker = function () {
+  const el = window.$('setHeaderCountdownDate');
+  if (!el || !window.flatpickr) return;
+  if (el._flatpickr) return;
+  const locale = (window.flatpickr.l10ns && window.flatpickr.l10ns.fr) || 'default';
+  const initial = (window.D && window.D.settings && window.D.settings.headerCountdownDate) || el.value || '';
+  el._flatpickr = window.flatpickr(el, {
+    locale: locale,
+    dateFormat: 'Y-m-d',
+    altInput: false,
+    allowInput: false,
+    disableMobile: true,
+    appendTo: document.body,
+    defaultDate: /^\d{4}-\d{2}-\d{2}$/.test(initial) ? initial : null,
+    onChange: function (selectedDates, dateStr) {
+      if (!window.D || !window.D.settings) return;
+      window.D.settings.headerCountdownDate = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? dateStr : '';
+      window.save();
+      if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
+      if (typeof window.syncHeaderCountdownSettingsUI === 'function') window.syncHeaderCountdownSettingsUI();
+    }
+  });
+};
+
+window.ensureHeaderCountdownDatePicker = function () {
+  if (window.$('setHeaderCountdownDate') && window.$('setHeaderCountdownDate')._flatpickr) return;
+  const run = function () { window.initHeaderCountdownDatePicker(); };
+  if (window.flatpickr) {
+    run();
+    return;
+  }
+  if (typeof window.ensureFormLibs === 'function') {
+    Promise.resolve(window.ensureFormLibs()).then(run).catch(function () {});
+  }
+};
+
 window.syncHeaderCountdownSettingsUI = function () {
   if (!window.D || !window.D.settings) return;
   const st = window.D.settings;
@@ -299,11 +332,19 @@ window.syncHeaderCountdownSettingsUI = function () {
   if (window.$('btnHeaderCountdownToggle')) {
     window.$('btnHeaderCountdownToggle').textContent = cdOn ? 'Activé' : 'Désactivé';
   }
+  window.ensureHeaderCountdownDatePicker();
   const cdDate = window.$('setHeaderCountdownDate');
   if (cdDate) {
     cdDate.disabled = !cdOn;
     const v = st.headerCountdownDate || '';
-    if (cdDate.value !== v) cdDate.value = v;
+    if (cdDate._flatpickr) {
+      const cur = cdDate._flatpickr.input.value || '';
+      if (v && cur !== v) cdDate._flatpickr.setDate(v, false);
+      else if (!v && cur) cdDate._flatpickr.clear();
+      try { cdDate._flatpickr.altInput && (cdDate._flatpickr.altInput.disabled = !cdOn); } catch (e) { /* ignore */ }
+    } else if (cdDate.value !== v) {
+      cdDate.value = v;
+    }
   }
   const cdTime = window.$('setHeaderCountdownTime');
   if (cdTime) {
@@ -328,6 +369,8 @@ window.syncHeaderCountdownSettingsUI = function () {
     btnF.disabled = !cdOn;
     btnF.classList.toggle('on', fmt === 'full');
   }
+  const timeRow = window.$('headerCountdownTimeRow');
+  if (timeRow) timeRow.hidden = fmt !== 'full';
   ['headerCountdownDateRow', 'headerCountdownTimeRow', 'headerCountdownLabelRow', 'headerCountdownFormatRow'].forEach(function (id) {
     const row = window.$(id);
     if (row) row.style.opacity = cdOn ? '' : '0.45';
@@ -1609,7 +1652,6 @@ bindClick('btnHeaderCountdownToggle', withD(() => {
 function saveHeaderCountdownDateFromInput(el) {
   if (!el || !window.D || !window.D.settings) return;
   let v = (el.value || '').trim();
-  /* Normalise éventuel format flatpickr / locale */
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
     const p = v.split('/');
     v = p[2] + '-' + p[1] + '-' + p[0];
@@ -1619,16 +1661,16 @@ function saveHeaderCountdownDateFromInput(el) {
   if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
   if (typeof window.syncHeaderCountdownSettingsUI === 'function') window.syncHeaderCountdownSettingsUI();
 }
-bindInput('setHeaderCountdownDate', withD((e) => saveHeaderCountdownDateFromInput(e.target)));
 const cdDateEl = window.$('setHeaderCountdownDate');
 if (cdDateEl) {
-  /* Détache un éventuel Flatpickr déjà posé avant data-fc-skip */
   if (cdDateEl._flatpickr) {
     try { cdDateEl._flatpickr.destroy(); } catch (e) { /* ignore */ }
     cdDateEl._flatpickr = null;
   }
   cdDateEl.addEventListener('change', withD((e) => saveHeaderCountdownDateFromInput(e.target)));
-  cdDateEl.addEventListener('blur', withD((e) => saveHeaderCountdownDateFromInput(e.target)));
+}
+if (typeof window.ensureHeaderCountdownDatePicker === 'function') {
+  window.ensureHeaderCountdownDatePicker();
 }
 bindInput('setHeaderCountdownTime', withD((e) => {
   let t = (e.target.value || '').trim();

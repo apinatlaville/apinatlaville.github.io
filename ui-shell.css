@@ -308,32 +308,21 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
 
 .page-title-countdown-days {
   font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   color: var(--gold, #ffc050);
-  line-height: 1.05;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
 .page-title-countdown-hms {
-  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  color: var(--txt);
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.page-title-countdown-hms[hidden] {
   display: none !important;
 }
 
 .page-title-countdown--full {
-  min-width: 88px;
+  min-width: 0;
 }
 
 .page-title-countdown-days.is-soon {
@@ -354,20 +343,38 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   color: var(--mut);
   line-height: 1.15;
   white-space: nowrap;
-  max-width: 110px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .hdr-cd-fmt-btns {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.hdr-cd-fmt-btn {
+  text-align: left;
+  line-height: 1.25;
+  padding: 10px 12px !important;
+  white-space: normal;
+}
+.hdr-cd-fmt-ex {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--mut);
 }
 .hdr-cd-fmt-btns .cbt.on {
   border-color: var(--acc);
   color: var(--acc);
   background: rgba(91, 154, 255, 0.12);
+}
+.hdr-cd-fmt-btns .cbt.on .hdr-cd-fmt-ex {
+  color: var(--acc);
+  opacity: 0.85;
 }
 
 body.tmpl-glass.theme-light .page-title-countdown {

@@ -11,8 +11,18 @@
   font-family: 'Inter', sans-serif !important;
   backdrop-filter: blur(32px) saturate(1.85);
   -webkit-backdrop-filter: blur(32px) saturate(1.85);
-  overflow: hidden;
+  /* visible : sinon le menu mois/année passe derrière la grille des jours */
+  overflow: visible;
   z-index: 10050 !important;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+  position: relative;
+  z-index: 5;
+  color: var(--txt) !important;
+}
+.flatpickr-current-month input.cur-year {
+  position: relative;
+  z-index: 5;
 }
 .flatpickr-months .flatpickr-month,
 .flatpickr-current-month .flatpickr-monthDropdown-months,
@@ -61,9 +71,6 @@ span.flatpickr-weekday {
 .flatpickr-current-month {
   color: var(--txt) !important;
   font-weight: 600;
-}
-.flatpickr-current-month .flatpickr-monthDropdown-months {
-  color: var(--txt) !important;
 }
 .numInputWrapper span.arrowUp:after { border-bottom-color: var(--mut) !important; }
 .numInputWrapper span.arrowDown:after { border-top-color: var(--mut) !important; }
