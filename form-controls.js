@@ -58,10 +58,6 @@
 
   window.fcEnhanceSelect = function (sel) {
     if (!sel || sel.tagName !== 'SELECT' || sel.multiple || sel.dataset.fcSkip !== undefined) return;
-    // Durée session Synchrotron : native (Choices est coupé par overflow des panes)
-    if (sel.closest('.anki-session-time') || sel.classList.contains('anki-session-time-h')
-        || sel.classList.contains('anki-session-time-m') || sel.classList.contains('anki-time-h')
-        || sel.classList.contains('anki-time-m')) return;
     if (!window.Choices) return;
     if (sel._choices) return;
 

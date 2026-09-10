@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260910a';
+  window.__BOOT_CACHE_V = '20260910j';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -127,9 +127,15 @@
   <div class="page-title-float hidden" id="pageTitleFloat" aria-hidden="true">
     <div class="page-title-float-inner">
       <h2 class="page-title-float-txt" id="hdrPageTitle">Accueil</h2>
-      <div class="page-title-clock" id="pageTitleClock" hidden aria-live="polite" aria-hidden="true">
-        <span class="page-title-clock-time" id="hdrClockTime">--:--</span>
-        <span class="page-title-clock-date" id="hdrClockDate"></span>
+      <div class="page-title-meta" id="pageTitleMeta">
+        <div class="page-title-countdown" id="pageTitleCountdown" hidden aria-live="polite" aria-hidden="true">
+          <span class="page-title-countdown-days" id="hdrCountdownDays">—</span>
+          <span class="page-title-countdown-lbl" id="hdrCountdownLabel">Concours</span>
+        </div>
+        <div class="page-title-clock" id="pageTitleClock" hidden aria-live="polite" aria-hidden="true">
+          <span class="page-title-clock-time" id="hdrClockTime">--:--</span>
+          <span class="page-title-clock-date" id="hdrClockDate"></span>
+        </div>
       </div>
       <button type="button" class="page-title-nav-toggle" id="btnSidebarMobileToggle" aria-expanded="false" aria-controls="appSidebar" aria-label="Ouvrir la navigation" hidden>
         <span data-icon="chevron-down" data-icon-size="22" aria-hidden="true"></span>
@@ -439,6 +445,15 @@
   <div class="set-row"><div><div class="set-lbl">Barre latérale</div><div class="set-sub">Navigation à gauche ou barre du haut</div></div><button class="toggle-btn" id="btnNavLayoutToggle" type="button">Barre latérale</button></div>
   <div class="set-row"><div><div class="set-lbl">Horloge du bandeau</div><div class="set-sub">Heure et date à droite du titre de page</div></div><button class="toggle-btn" id="btnHeaderClockToggle" type="button">Désactivé</button></div>
   <div class="set-row"><div><div class="set-lbl">Secondes (horloge)</div><div class="set-sub">Afficher les secondes dans l'horloge du bandeau</div></div><button class="toggle-btn" id="btnHeaderClockSecondsToggle" type="button">Affichées</button></div>
+  <div class="set-row"><div><div class="set-lbl">Compte à rebours concours</div><div class="set-sub">À côté de l’horloge — grands écrans uniquement</div></div><button class="toggle-btn" id="btnHeaderCountdownToggle" type="button">Désactivé</button></div>
+  <div class="set-row" id="headerCountdownDateRow" style="opacity:0.45">
+    <div><div class="set-lbl">Date des concours</div><div class="set-sub">Jour J du compte à rebours</div></div>
+    <input type="date" id="setHeaderCountdownDate" class="fi" style="max-width:168px" aria-label="Date des concours">
+  </div>
+  <div class="set-row" id="headerCountdownLabelRow" style="opacity:0.45">
+    <div><div class="set-lbl">Libellé du compte à rebours</div><div class="set-sub">Ex. Concours, Écrits, Oraux…</div></div>
+    <input type="text" id="setHeaderCountdownLabel" class="fi" maxlength="24" placeholder="Concours" style="max-width:140px" aria-label="Libellé">
+  </div>
   <div class="set-row"><div><div class="set-lbl">Bandeau statistiques</div><div class="set-sub">Compteurs docs / classeurs en haut</div></div><button class="toggle-btn" id="btnStatsToggle" type="button">Masqué</button></div>
   <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
   <div class="set-row"><div><div class="set-lbl">Filtres rapides (Bulles)</div><div class="set-sub">Affiche les boutons matières</div></div><button class="toggle-btn" id="btnChipsToggle">Affiché</button></div>

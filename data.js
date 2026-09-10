@@ -9,7 +9,7 @@ window.localDateISO = window.localDateISO || function(d) {
 };
 
 window.emptyData = {
-  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, ankiQuotaMin: 90 },
+  settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, showHeaderCountdown: false, headerCountdownDate: '', headerCountdownLabel: 'Concours', ankiQuotaMin: 90 },
   matieres: [
     {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
     {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},

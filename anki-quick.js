@@ -1327,15 +1327,32 @@
     return ov;
   }
 
+  /** Charge l’UI Synchrotron (ankiV2ApplyStandaloneEval) avant d’enregistrer les SRS. */
+  function ensureDrillEngine() {
+    if (typeof window.ankiV2ApplyStandaloneEval === 'function') {
+      return Promise.resolve(true);
+    }
+    const load = typeof window.ensureAnkiUi === 'function'
+      ? window.ensureAnkiUi()
+      : (typeof window.ensureScriptsForTab === 'function'
+        ? window.ensureScriptsForTab('ankiV2')
+        : Promise.resolve());
+    return Promise.resolve(load).then(function () {
+      return typeof window.ankiV2ApplyStandaloneEval === 'function';
+    }).catch(function () { return false; });
+  }
+
   function openQuickDrill(cards, label) {
-    readDrillPrefs();
-    DRILL.pool = cards.slice();
-    DRILL.label = label || 'Groupe';
-    buildDrillQueue(DRILL.pool);
-    DRILL.phase = 'card';
-    const ov = ensureDrillOverlay();
-    ov.classList.remove('hidden');
-    renderDrill();
+    ensureDrillEngine().then(function () {
+      readDrillPrefs();
+      DRILL.pool = cards.slice();
+      DRILL.label = label || 'Groupe';
+      buildDrillQueue(DRILL.pool);
+      DRILL.phase = 'card';
+      const ov = ensureDrillOverlay();
+      ov.classList.remove('hidden');
+      renderDrill();
+    });
   }
 
   function buildDrillQueue(subset) {
@@ -1356,12 +1373,27 @@
     return 2;
   }
 
-  /** Enregistre la révision dans le moteur Synchrotron (SRS + file du soir). */
+  function refreshSynchrotronAfterDrill() {
+    try {
+      if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
+    } catch (e) { /* dock optionnel */ }
+    try {
+      if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2();
+    } catch (e2) { /* vue optionnelle */ }
+  }
+
+  /** Enregistre la révision dans le moteur Synchrotron (SRS + historique + file). */
   function applyDrillSrs(c, verdict) {
     if (!c || !c.id) return;
     if (DRILL.srsApplied[c.id]) return;
+    DRILL.srsPending[c.id] = verdict;
     const fn = window.ankiV2ApplyStandaloneEval;
-    if (typeof fn !== 'function') return;
+    if (typeof fn !== 'function') {
+      ensureDrillEngine().then(function (ok) {
+        if (ok) applyDrillSrs(c, verdict);
+      });
+      return;
+    }
     const res = fn(c.id, verdictToQScore(verdict), { mode: 'rapide', source: 'quick-drill' });
     if (res && res.ok) {
       DRILL.srsApplied[c.id] = verdict;
@@ -1375,6 +1407,24 @@
     const pending = DRILL.srsPending[c.id] || DRILL.results[c.id];
     if (!pending) return;
     applyDrillSrs(c, pending);
+  }
+
+  /** Comme le Synchrotron : toute notation déjà faite (ou en attente) est persistée. */
+  function flushAllDrillSrs() {
+    (DRILL.queue || []).forEach(function (c) {
+      flushPendingDrillSrs(c);
+    });
+    Object.keys(DRILL.srsPending || {}).forEach(function (id) {
+      if (DRILL.srsApplied[id]) return;
+      const verdict = DRILL.srsPending[id];
+      if (!verdict) return;
+      let c = (DRILL.queue || []).find(function (x) { return x && x.id === id; });
+      if (!c && window.AnkiAlgoV2 && typeof window.AnkiAlgoV2.findCard === 'function') {
+        c = window.AnkiAlgoV2.findCard(window.D, id);
+      }
+      if (!c) c = ((window.D && window.D.exercices) || []).find(function (x) { return x && x.id === id; });
+      if (c) applyDrillSrs(c, verdict);
+    });
   }
 
   function optChip(on, icon, label, onclick) {
@@ -1409,9 +1459,13 @@
     if (DRILL.phase === 'done') {
       const cts = drillCounts();
       const missed = DRILL.queue.filter(function (c) { return DRILL.results[c.id] === 'bad'; });
+      const partial = cts.done > 0 && cts.done < cts.total;
       body = `
         <h2 id="qkDrillTitle">${window.iconLabel('target', 'Bilan')}</h2>
-        <p class="qk-drill-sub">${esc(DRILL.label)}</p>
+        <p class="qk-drill-sub">${esc(DRILL.label)}${partial ? ' · session interrompue' : ''}</p>
+        <p class="qk-drill-hint">${cts.done
+          ? 'Révisions enregistrées dans le Synchrotron (SRS + stats du jour).'
+          : 'Aucune carte notée.'}</p>
         <div class="qk-drill-score">
           <div class="qk-drill-score-ok"><b>${cts.ok}</b><span>bon${cts.ok > 1 ? 's' : ''}</span></div>
           <div class="qk-drill-score-mid"><b>${cts.mid}</b><span>étourderie${cts.mid > 1 ? 's' : ''}</span></div>
@@ -1420,7 +1474,7 @@
         <div class="qk-drill-acts qk-drill-acts-col">
           <button type="button" class="bp" onclick="window.quickDrillRetry('all')">${window.iconLabel('refresh-cw', 'Tout revoir')}</button>
           <button type="button" class="bs" ${missed.length ? '' : 'disabled'} onclick="window.quickDrillRetry('missed')">${window.iconLabel('circle-x', 'Revoir les ratées' + (missed.length ? ' (' + missed.length + ')' : ''))}</button>
-          <button type="button" class="bs" onclick="window.quickDrillClose()">Fermer</button>
+          <button type="button" class="bs" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Fermer')}</button>
         </div>
       `;
     } else {
@@ -1481,22 +1535,22 @@
         ` : ''}
         <div class="qk-drill-acts">
           ${canType && !DRILL.revealed
-            ? `<button type="button" class="bs" onclick="window.quickDrillGiveUp()">${window.iconLabel('book-open', 'Je ne sais pas')}</button>
-               <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`
+            ? `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
+               <button type="button" class="bs" onclick="window.quickDrillGiveUp()">${window.iconLabel('book-open', 'Je ne sais pas')}</button>`
             : (!DRILL.revealed
-            ? `<button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>
-               <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`
+            ? `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
+               <button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>`
             : (DRILL.check
               ? (DRILL.check.ok
                 ? (DRILL.check.glowOnly
                   ? ''
-                  : `<p class="qk-drill-ok-wait" aria-live="polite">Passage automatique…</p>
-                     <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`)
-                : `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>
-                   <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>`)
-              : `<button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark('bad')">${window.iconLabel('x', 'Raté')}</button>
+                  : `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
+                     <p class="qk-drill-ok-wait" aria-live="polite">Passage automatique…</p>`)
+                : `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
+                   <button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>`)
+              : `<button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark('ok')">${window.iconLabel('check', 'Bon')}</button>
                  <button type="button" class="bs" style="border-color:var(--gold);color:var(--gold);" onclick="window.quickDrillMark('mid')">${window.iconLabel('circle-minus', 'Étourderie')}</button>
-                 <button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark('ok')">${window.iconLabel('check', 'Bon')}</button>
+                 <button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark('bad')">${window.iconLabel('x', 'Raté')}</button>
                  <button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconHtml('x', 14)}</button>`))}
         </div>
       `;
@@ -1637,11 +1691,24 @@
   };
 
   window.quickDrillClose = function () {
-    const cur = drillLiveCard();
-    if (cur) flushPendingDrillSrs(cur);
+    // Comme le Synchrotron : les cartes déjà notées restent enregistrées même si on quitte au milieu.
+    flushAllDrillSrs();
+    if (DRILL.phase === 'card' && drillCounts().done > 0) {
+      DRILL.phase = 'done';
+      DRILL.revealed = false;
+      DRILL.typed = '';
+      DRILL.check = null;
+      renderDrill();
+      refreshSynchrotronAfterDrill();
+      return;
+    }
     const ov = document.getElementById('ovQuickDrill');
     if (ov) ov.classList.add('hidden');
     DRILL.phase = 'setup';
     DRILL.queue = [];
+    DRILL.results = {};
+    DRILL.srsApplied = {};
+    DRILL.srsPending = {};
+    refreshSynchrotronAfterDrill();
   };
 })();

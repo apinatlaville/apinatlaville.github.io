@@ -274,6 +274,79 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   min-width: 0;
 }
 
+.page-title-meta {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 10px;
+}
+
+.page-title-countdown {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(255, 200, 80, 0.12) 0%, transparent 48%),
+    rgba(155, 185, 255, 0.06);
+  border: 0.5px solid rgba(255, 190, 90, 0.28);
+  backdrop-filter: blur(24px) saturate(1.25);
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.page-title-countdown[hidden] {
+  display: none !important;
+}
+
+.page-title-countdown-days {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--gold, #ffc050);
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.page-title-countdown-days.is-soon {
+  color: #ff9a4a;
+}
+
+.page-title-countdown-days.is-today {
+  color: var(--grn, #5cd49a);
+}
+
+.page-title-countdown-days.is-past {
+  color: var(--mut);
+}
+
+.page-title-countdown-lbl {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--mut);
+  line-height: 1.15;
+  white-space: nowrap;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.tmpl-glass.theme-light .page-title-countdown {
+  background:
+    linear-gradient(145deg, rgba(255, 220, 140, 0.35) 0%, transparent 52%),
+    rgba(255, 255, 255, 0.45);
+  border-color: rgba(220, 170, 60, 0.35);
+}
+
 .page-title-clock {
   flex-shrink: 0;
   display: flex;
@@ -281,7 +354,7 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   align-items: flex-end;
   gap: 1px;
   padding: 5px 10px;
-  margin-left: 10px;
+  margin-left: 0;
   border-radius: 10px;
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0%, transparent 48%),
@@ -571,7 +644,18 @@ body.nav-sidebar-left .app-workspace {
   body.nav-sidebar-left .page-title-clock,
   body.nav-chrome-sidebar .page-title-clock {
     padding: 4px 8px;
+    margin-left: 0;
+  }
+
+  body.nav-sidebar-left .page-title-meta,
+  body.nav-chrome-sidebar .page-title-meta {
     margin-left: 6px;
+    gap: 6px;
+  }
+
+  /* Compte à rebours : réservé aux grands écrans */
+  .page-title-countdown {
+    display: none !important;
   }
 
   body.nav-sidebar-left .page-title-clock-time,

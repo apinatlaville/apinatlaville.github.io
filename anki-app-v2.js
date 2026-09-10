@@ -52,11 +52,12 @@
     sessionUI: 'mini',                   // 'full' | 'dock' | 'mini' — panneau Synchrotron
     dockShowCardDetail: false,
     cockpitMode: 'auto',                   // 'auto' | 'manual'
+    cockpitPickKind: '',                   // '' | 'main' (X-) | 'quick' (Y-)
     cockpitFilterMat: '',
-    cockpitFilterCours: '',
+    cockpitFilterCours: '',                // X: chapitre uid · Y: groupId
   };
 
-  /** Fil d’Ariane pick Cockpit : cartes sans chapitre rattaché */
+  /** Fil d’Ariane pick Cockpit : cartes sans chapitre / sans dossier Rapide */
   const COCKPIT_PICK_NONE = '__none__';
 
   function jsPick(s) {
@@ -65,10 +66,22 @@
       : String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   }
 
+  /** 0 = X|Y · 1 = matière · 2 = chapitre|groupe · 3 = cartes */
   function getCockpitPickNavLevel() {
-    if (!S.cockpitFilterMat) return 0;
-    if (!S.cockpitFilterCours) return 1;
-    return 2;
+    if (!S.cockpitPickKind) return 0;
+    if (!S.cockpitFilterMat) return 1;
+    if (!S.cockpitFilterCours) return 2;
+    return 3;
+  }
+
+  function isCockpitPickQuick() {
+    return S.cockpitPickKind === 'quick';
+  }
+
+  function cardMatchesPickKind(c) {
+    if (!S.cockpitPickKind) return true;
+    const q = isQuickCard(c);
+    return S.cockpitPickKind === 'quick' ? q : !q;
   }
 
   function chapterUnitUidsForMat(matId) {
@@ -114,7 +127,9 @@
       return { ...c, _prio: sc.total, _prioFile: sc.file || (isQuickCard(c) ? 'quick' : 'main') };
     }) : candidatsX.concat(candidatsY);
 
-    if (cockpitSearch && getCockpitPickNavLevel() >= 2) {
+    list = list.filter(cardMatchesPickKind);
+
+    if (cockpitSearch && getCockpitPickNavLevel() >= 3) {
       list = list.filter(c => {
         const blob = [
           c.titre || '',
@@ -146,9 +161,15 @@
 
   function getCockpitDisplayList() {
     const level = getCockpitPickNavLevel();
-    if (level < 2) return [];
+    if (level < 3) return [];
     let list = getCockpitPickBaseList().filter(c => c.mat === S.cockpitFilterMat);
-    if (S.cockpitFilterCours === COCKPIT_PICK_NONE) {
+    if (isCockpitPickQuick()) {
+      if (S.cockpitFilterCours === COCKPIT_PICK_NONE) {
+        list = list.filter(c => !c.groupId);
+      } else if (S.cockpitFilterCours) {
+        list = list.filter(c => c.groupId === S.cockpitFilterCours);
+      }
+    } else if (S.cockpitFilterCours === COCKPIT_PICK_NONE) {
       const uids = chapterUnitUidsForMat(S.cockpitFilterMat);
       list = list.filter(c => cardSansChapitreForMat(c, S.cockpitFilterMat, uids));
     } else if (S.cockpitFilterCours) {
@@ -157,32 +178,95 @@
     return list;
   }
 
+  function cockpitGroupCards(matId, groupKey) {
+    let list = getCockpitPickBaseList().filter(c => c.mat === matId && isQuickCard(c));
+    if (groupKey === COCKPIT_PICK_NONE) list = list.filter(c => !c.groupId);
+    else list = list.filter(c => c.groupId === groupKey);
+    return list;
+  }
+
   function renderCockpitPickBreadcrumb(isManualTab) {
     const chev = window.iconHtml ? window.iconHtml('chevron-right', 14) : '›';
     const pickLabel = isManualTab ? 'Choisir mes cartes' : 'Ajouter des cartes';
-    let crumbs = `<button type="button" class="cours-bc-crumb${!S.cockpitFilterMat ? ' is-current' : ''}" onclick="window.ankiV2CockpitPickReset()">${window.iconLabel('search', pickLabel)}</button>`;
+    let crumbs = `<button type="button" class="cours-bc-crumb${!S.cockpitPickKind ? ' is-current' : ''}" onclick="window.ankiV2CockpitPickReset()">${window.iconLabel('search', pickLabel)}</button>`;
+    if (S.cockpitPickKind) {
+      const kindLabel = isCockpitPickQuick()
+        ? (window.iconLabel ? window.iconLabel('zap', 'Rapides Y-') : 'Rapides Y-')
+        : (window.iconLabel ? window.iconLabel('book-open', 'Principales X-') : 'Principales X-');
+      crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
+      crumbs += `<button type="button" class="cours-bc-crumb${!S.cockpitFilterMat ? ' is-current' : ''}" onclick="window.ankiV2CockpitPickKind('${jsPick(S.cockpitPickKind)}')">${kindLabel}</button>`;
+    }
     if (S.cockpitFilterMat) {
       const m = mat(S.cockpitFilterMat);
       crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
       crumbs += `<button type="button" class="cours-bc-crumb${!S.cockpitFilterCours ? ' is-current' : ''}" onclick="window.ankiV2CockpitPickMat('${jsPick(S.cockpitFilterMat)}')">${esc(m.name || m.label || S.cockpitFilterMat)}</button>`;
     }
     if (S.cockpitFilterCours) {
-      let chapLabel = 'Sans chapitre';
+      let leafLabel = isCockpitPickQuick() ? 'Sans dossier' : 'Sans chapitre';
       if (S.cockpitFilterCours !== COCKPIT_PICK_NONE) {
-        const co = (window.D.cours || []).find(x => x.uid === S.cockpitFilterCours);
-        if (co) chapLabel = co.title || co.uid;
-        else if (typeof window.listChapitres === 'function') {
-          const ch = window.listChapitres({ mat: S.cockpitFilterMat }).find(c =>
-            (c.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
-              ? window.resolveChapitreCoursUid(c.id) : '')) === S.cockpitFilterCours
-          );
-          if (ch) chapLabel = ch.title || ch.id;
+        if (isCockpitPickQuick()) {
+          const g = ((window.D.quickGroups || []).find(x => x.id === S.cockpitFilterCours));
+          leafLabel = (g && g.name) || S.cockpitFilterCours;
+        } else {
+          const co = (window.D.cours || []).find(x => x.uid === S.cockpitFilterCours);
+          if (co) leafLabel = co.title || co.uid;
+          else if (typeof window.listChapitres === 'function') {
+            const ch = window.listChapitres({ mat: S.cockpitFilterMat }).find(c =>
+              (c.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
+                ? window.resolveChapitreCoursUid(c.id) : '')) === S.cockpitFilterCours
+            );
+            if (ch) leafLabel = ch.title || ch.id;
+          }
         }
       }
       crumbs += `<span class="cours-bc-sep" aria-hidden="true">${chev}</span>`;
-      crumbs += `<span class="cours-bc-crumb is-current">${esc(chapLabel)}</span>`;
+      crumbs += `<span class="cours-bc-crumb is-current">${esc(leafLabel)}</span>`;
     }
     return `<nav class="cours-bc-bar" aria-label="Fil d’Ariane — ajout à la session">${crumbs}</nav>`;
+  }
+
+  function renderCockpitPickKindTiles(baseList) {
+    void baseList;
+    const isManualTab = S.cockpitMode === 'manual';
+    let countX, countY;
+    if (isManualTab) {
+      const allCards = (window.D.exercices || []).filter(c =>
+        (c.statut === 'actif' || c.statut === 'attente' || c.statut === 'reservoir') && !isDevoirCard(c)
+      );
+      countX = allCards.filter(c => !isQuickCard(c)).length;
+      countY = allCards.filter(c => isQuickCard(c)).length;
+    } else {
+      countX = (window.AnkiAlgoV2.getCandidates(window.D.exercices) || []).length;
+      countY = (window.AnkiAlgoV2.getQuickCandidates
+        ? window.AnkiAlgoV2.getQuickCandidates(window.D.exercices) : []).length;
+    }
+    if (!countX && !countY) {
+      return `<div class="cours-bc-empty">${isManualTabEmptyHint()}</div>`;
+    }
+    let tiles = '';
+    if (countX) {
+      tiles += (
+        `<button type="button" class="cours-bc-tile" style="--mat-color:#5b8def" onclick="window.ankiV2CockpitPickKind('main')">` +
+          `<span class="cours-bc-tile-name">${window.iconLabel('book-open', 'Principales X-')}</span>` +
+          `<span class="cours-bc-tile-meta">${countX} carte${countX > 1 ? 's' : ''} · chapitres</span>` +
+        `</button>`
+      );
+    }
+    if (countY) {
+      tiles += (
+        `<button type="button" class="cours-bc-tile" style="--mat-color:#5cd49a" onclick="window.ankiV2CockpitPickKind('quick')">` +
+          `<span class="cours-bc-tile-name">${window.iconLabel('zap', 'Rapides Y-')}</span>` +
+          `<span class="cours-bc-tile-meta">${countY} carte${countY > 1 ? 's' : ''} · dossiers</span>` +
+        `</button>`
+      );
+    }
+    return (
+      '<div class="cours-bc-level-head">' +
+        '<h3 class="cours-bc-level-title">Type de cartes</h3>' +
+        '<p class="cours-bc-level-sub anki-mut">X- = exos principaux (chapitres) · Y- = rapides (dossiers). Tu peux sélectionner un dossier Y- entier.</p>' +
+      '</div>' +
+      `<div class="cours-bc-grid">${tiles}</div>`
+    );
   }
 
   function renderCockpitPickMatTiles(baseList) {
@@ -200,10 +284,13 @@
     if (!tiles) {
       return `<div class="cours-bc-empty">${isManualTabEmptyHint()}</div>`;
     }
+    const sub = isCockpitPickQuick()
+      ? 'Puis dossier Rapide → cartes (ou sélectionne un dossier entier).'
+      : 'Puis chapitre Programme → cartes à ajouter à la session.';
     return (
       '<div class="cours-bc-level-head">' +
-        '<h3 class="cours-bc-level-title">Choisir une matière</h3>' +
-        '<p class="cours-bc-level-sub anki-mut">Puis chapitre Programme → cartes à ajouter à la session.</p>' +
+        `<h3 class="cours-bc-level-title">Choisir une matière — ${isCockpitPickQuick() ? 'Y-' : 'X-'}</h3>` +
+        `<p class="cours-bc-level-sub anki-mut">${sub}</p>` +
       '</div>' +
       `<div class="cours-bc-grid">${tiles}</div>`
     );
@@ -246,12 +333,64 @@
       );
     }
     if (!tiles) {
-      return `<div class="cours-bc-empty">Aucune carte pour ${esc(m.name || m.label)} avec les filtres actuels.</div>`;
+      return `<div class="cours-bc-empty">Aucune carte X- pour ${esc(m.name || m.label)} avec les filtres actuels.</div>`;
     }
     return (
       '<div class="cours-bc-level-head">' +
         `<h3 class="cours-bc-level-title">Chapitres — ${esc(m.name || m.label)}</h3>` +
         `<p class="cours-bc-level-sub anki-mut">${matCards.length} carte${matCards.length > 1 ? 's' : ''} · ordre Programme</p>` +
+      '</div>' +
+      `<div class="cours-bc-grid">${tiles}</div>`
+    );
+  }
+
+  function renderCockpitPickGroupTiles(baseList) {
+    const matId = S.cockpitFilterMat;
+    const m = mat(matId);
+    const matCards = baseList.filter(c => c.mat === matId);
+    const groups = ((window.D.quickGroups || []).slice()).filter(g => {
+      if (g.mat && g.mat !== matId) return false;
+      return matCards.some(c => c.groupId === g.id);
+    }).sort((a, b) => {
+      const ao = a.order != null ? Number(a.order) : 0;
+      const bo = b.order != null ? Number(b.order) : 0;
+      if (ao !== bo) return ao - bo;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'fr');
+    });
+    let tiles = '';
+    groups.forEach(g => {
+      const n = matCards.filter(c => c.groupId === g.id).length;
+      if (!n) return;
+      const color = g.color || m.color || '#5cd49a';
+      tiles += (
+        `<div class="cours-bc-tile-wrap">` +
+          `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(color)}" onclick="window.ankiV2CockpitPickChapter('${jsPick(g.id)}')">` +
+            `<span class="cours-bc-tile-name">${esc(g.name || g.id)}</span>` +
+            `<span class="cours-bc-tile-meta">${n} carte${n > 1 ? 's' : ''}</span>` +
+          `</button>` +
+          `<button type="button" class="bs cours-bc-tile-sel" onclick="event.stopPropagation();window.ankiV2SelectCockpitGroup('${jsPick(g.id)}')" title="Ajouter tout le dossier à la session">${window.iconLabel('plus', 'Groupe')}</button>` +
+        `</div>`
+      );
+    });
+    const noneCount = matCards.filter(c => !c.groupId).length;
+    if (noneCount) {
+      tiles += (
+        `<div class="cours-bc-tile-wrap">` +
+          `<button type="button" class="cours-bc-tile" style="--mat-color:#6a7088" onclick="window.ankiV2CockpitPickChapter('${jsPick(COCKPIT_PICK_NONE)}')">` +
+            `<span class="cours-bc-tile-name">Sans dossier</span>` +
+            `<span class="cours-bc-tile-meta">${noneCount} carte${noneCount > 1 ? 's' : ''}</span>` +
+          `</button>` +
+          `<button type="button" class="bs cours-bc-tile-sel" onclick="event.stopPropagation();window.ankiV2SelectCockpitGroup('${jsPick(COCKPIT_PICK_NONE)}')" title="Ajouter toutes les cartes sans dossier">${window.iconLabel('plus', 'Groupe')}</button>` +
+        `</div>`
+      );
+    }
+    if (!tiles) {
+      return `<div class="cours-bc-empty">Aucune carte Y- pour ${esc(m.name || m.label)}.</div>`;
+    }
+    return (
+      '<div class="cours-bc-level-head">' +
+        `<h3 class="cours-bc-level-title">Dossiers Rapide — ${esc(m.name || m.label)}</h3>` +
+        `<p class="cours-bc-level-sub anki-mut">${matCards.length} carte${matCards.length > 1 ? 's' : ''} · ouvre un dossier ou ajoute-le entier via « Groupe »</p>` +
       '</div>' +
       `<div class="cours-bc-grid">${tiles}</div>`
     );
@@ -279,8 +418,13 @@
   function renderCockpitPickBody(isManualTab) {
     const baseList = getCockpitPickBaseList();
     const level = getCockpitPickNavLevel();
-    if (level === 0) return renderCockpitPickMatTiles(baseList);
-    if (level === 1) return renderCockpitPickChapterTiles(baseList);
+    if (level === 0) return renderCockpitPickKindTiles(baseList);
+    if (level === 1) return renderCockpitPickMatTiles(baseList);
+    if (level === 2) {
+      return isCockpitPickQuick()
+        ? renderCockpitPickGroupTiles(baseList)
+        : renderCockpitPickChapterTiles(baseList);
+    }
     return renderCockpitPickGridArea(isManualTab, getCockpitDisplayList());
   }
 
@@ -290,7 +434,9 @@
     const pickStats = isManualTabLocal
       ? `${S.selectionIds.size} sélectionnée(s)`
       : `${S.pinnedIds.size} ajoutée(s) · ${S.excludedIds.size} retirée(s)`;
-    const canPlayChapter = level >= 2 && S.cockpitFilterCours && S.cockpitFilterCours !== COCKPIT_PICK_NONE;
+    const canPlayChapter = level >= 3 && !isCockpitPickQuick()
+      && S.cockpitFilterCours && S.cockpitFilterCours !== COCKPIT_PICK_NONE;
+    const canSelGroup = level >= 3 && isCockpitPickQuick() && S.cockpitFilterCours;
     return `
       <div class="anki-card-block anki-cockpit-pick" id="ankiPickSection">
         <div class="pbar">
@@ -300,8 +446,9 @@
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${canPlayChapter ? `<button type="button" class="bp" onclick="window.ankiV2PlayChapter('${esc(S.cockpitFilterCours)}')" title="Réviser toutes les cartes actives du chapitre">${window.iconLabel('play', 'Play chapitre')}</button>` : ''}
-            ${level >= 2 ? (isManualTabLocal ? `<button class="cbt" type="button" onclick="window.ankiV2SelectAllPick()">Sél. toutes</button>` : `<button class="cbt" type="button" onclick="window.ankiV2ResetAutoAdjust()">Réinit. algo</button>`) : ''}
-            ${level >= 2 ? `<button class="cbt" type="button" onclick="window.ankiV2SelectClear()">Vider</button>` : ''}
+            ${canSelGroup ? `<button type="button" class="bp" onclick="window.ankiV2SelectCockpitGroup('${jsPick(S.cockpitFilterCours)}')">${window.iconLabel('plus', 'Sél. groupe')}</button>` : ''}
+            ${level >= 3 ? (isManualTabLocal ? `<button class="cbt" type="button" onclick="window.ankiV2SelectAllPick()">Sél. toutes</button>` : `<button class="cbt" type="button" onclick="window.ankiV2ResetAutoAdjust()">Réinit. algo</button>`) : ''}
+            ${level >= 3 ? `<button class="cbt" type="button" onclick="window.ankiV2SelectClear()">Vider</button>` : ''}
           </div>
         </div>
         <div class="cours-bc-page anki-cockpit-pick-bc">
@@ -329,6 +476,15 @@
   }
 
   window.ankiV2CockpitPickReset = function () {
+    S.cockpitPickKind = '';
+    S.cockpitFilterMat = '';
+    S.cockpitFilterCours = '';
+    S.cockpitSearch = '';
+    refreshCockpitPickSection();
+  };
+
+  window.ankiV2CockpitPickKind = function (kind) {
+    S.cockpitPickKind = kind === 'quick' ? 'quick' : 'main';
     S.cockpitFilterMat = '';
     S.cockpitFilterCours = '';
     S.cockpitSearch = '';
@@ -346,6 +502,44 @@
     S.cockpitFilterCours = uid || '';
     S.cockpitSearch = '';
     refreshCockpitPickSection();
+  };
+
+  /** Ajoute toutes les cartes Y- d’un dossier (groupe) à la session. */
+  window.ankiV2SelectCockpitGroup = function (groupKey) {
+    const key = groupKey || COCKPIT_PICK_NONE;
+    const matId = S.cockpitFilterMat;
+    if (!matId) return;
+    const cards = cockpitGroupCards(matId, key);
+    if (!cards.length) {
+      if (typeof window.showToast === 'function') {
+        window.showToast('Aucune carte dans ce dossier.', { type: 'warn' });
+      }
+      return;
+    }
+    if (S.cockpitMode === 'manual') {
+      cards.forEach(function (c) {
+        if (!c || !c.id) return;
+        if (!S.selectionIds.has(c.id)) {
+          S.selectionIds.add(c.id);
+          S.selectionOrder.push(c.id);
+        }
+      });
+      S.manualOrder = null;
+    } else {
+      cards.forEach(function (c) {
+        if (!c || !c.id) return;
+        const base = cardBaseId(c.id);
+        S.excludedIds.delete(base);
+        S.pinnedIds.add(base);
+      });
+    }
+    S.cockpitFilterCours = key;
+    S.cockpitSearch = '';
+    refreshCockpitPickSection();
+    refreshQueueOnly();
+    if (typeof window.showToast === 'function') {
+      window.showToast(cards.length + ' carte' + (cards.length > 1 ? 's' : '') + ' du dossier ajoutée' + (cards.length > 1 ? 's' : '') + '.', { type: 'ok' });
+    }
   };
   function stopChronoInterval() {
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
@@ -819,21 +1013,17 @@
         <input type="text" class="anki-hmm-box anki-hmm-m1" ${m1Id ? `id="${m1Id}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${mm.charAt(1)}" aria-label="Unités de minutes" autocomplete="off">
       </div>`;
     } else {
-      const hourOpts = Array.from({ length: maxHours + 1 }, (_, i) => i).map(hh =>
-        `<option value="${hh}"${hh === h ? ' selected' : ''}>${hh}</option>`
-      ).join('');
-      const minValues = [];
-      for (let mm = 0; mm < 60; mm += minuteStep) minValues.push(mm);
-      if (minValues.indexOf(m) < 0) minValues.push(m);
-      minValues.sort(function (a, b) { return a - b; });
-      const minOpts = minValues.map(mm =>
-        `<option value="${mm}"${mm === m ? ' selected' : ''}>${String(mm).padStart(2, '0')}</option>`
-      ).join('');
+      /* Boutons site + menu fixe (pas de <select> natif Apple, pas de Choices coupé) */
       picker = `
-      <div class="${wrapClass}">
-        <select class="${hClass} fi" ${hId ? `id="${hId}"` : ''} data-fc-skip aria-label="Heures"${onChange}>${hourOpts}</select>
+      <div class="${wrapClass}" data-anki-duration-picker
+           data-min-total="${minTotal}" data-max-total="${maxTotal}"
+           data-max-hours="${maxHours}" data-minute-step="${minuteStep}"
+           ${opts.onChange ? `data-onchange="${String(opts.onChange).replace(/"/g, '&quot;')}"` : ''}>
+        <input type="hidden" class="${hClass}" ${hId ? `id="${hId}"` : ''} value="${h}" data-anki-dur-val="h">
+        <input type="hidden" class="${mClass}" ${mId ? `id="${mId}"` : ''} value="${m}" data-anki-dur-val="m">
+        <button type="button" class="anki-time-btn" data-anki-dur="h" aria-label="Heures" aria-haspopup="listbox" aria-expanded="false">${h}</button>
         <span class="anki-time-unit">h</span>
-        <select class="${mClass} fi" ${mId ? `id="${mId}"` : ''} data-fc-skip aria-label="Minutes"${onChange}>${minOpts}</select>
+        <button type="button" class="anki-time-btn" data-anki-dur="m" aria-label="Minutes" aria-haspopup="listbox" aria-expanded="false">${String(m).padStart(2, '0')}</button>
         <span class="anki-time-unit">min</span>
       </div>`;
     }
@@ -890,10 +1080,148 @@
     if (!hEl || !mEl) return;
     hEl.value = String(h);
     mEl.value = String(m);
+    const wrap = hEl.closest('[data-anki-duration-picker]');
+    if (wrap) {
+      const hb = wrap.querySelector('[data-anki-dur="h"]');
+      const mb = wrap.querySelector('[data-anki-dur="m"]');
+      if (hb) hb.textContent = String(h);
+      if (mb) mb.textContent = String(Math.min(59, m)).padStart(2, '0');
+    }
     if (totalId) {
       const tEl = $(totalId);
       if (tEl) tEl.value = String(total);
     }
+  }
+
+  /** Menu durée site (position:fixed) — évite le picker Apple et le clip Choices. */
+  function ensureAnkiDurationMenu() {
+    let menu = document.getElementById('ankiDurationMenu');
+    if (menu) return menu;
+    menu = document.createElement('div');
+    menu.id = 'ankiDurationMenu';
+    menu.className = 'anki-duration-menu hidden';
+    menu.setAttribute('role', 'listbox');
+    document.body.appendChild(menu);
+
+    function closeMenu() {
+      menu.classList.add('hidden');
+      menu.innerHTML = '';
+      menu._anchorBtn = null;
+      menu._wrap = null;
+      document.querySelectorAll('.anki-time-btn[aria-expanded="true"]').forEach(function (b) {
+        b.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    menu.addEventListener('click', function (e) {
+      const opt = e.target.closest('[data-anki-dur-opt]');
+      if (!opt || !menu._wrap) return;
+      e.preventDefault();
+      const part = menu._part;
+      const val = parseInt(opt.getAttribute('data-anki-dur-opt'), 10);
+      const wrap = menu._wrap;
+      const hInp = wrap.querySelector('[data-anki-dur-val="h"]');
+      const mInp = wrap.querySelector('[data-anki-dur-val="m"]');
+      if (part === 'h' && hInp) hInp.value = String(val);
+      if (part === 'm' && mInp) mInp.value = String(val);
+      const hb = wrap.querySelector('[data-anki-dur="h"]');
+      const mb = wrap.querySelector('[data-anki-dur="m"]');
+      if (hb && hInp) hb.textContent = String(parseInt(hInp.value, 10) || 0);
+      if (mb && mInp) mb.textContent = String(parseInt(mInp.value, 10) || 0).padStart(2, '0');
+      const cb = wrap.getAttribute('data-onchange') || '';
+      closeMenu();
+      const fnMatch = cb.match(/window\.([A-Za-z0-9_]+)\s*\(\s*\)/);
+      if (fnMatch && typeof window[fnMatch[1]] === 'function') {
+        window[fnMatch[1]]();
+      } else if (typeof window.ankiV2SetSessionTime === 'function') {
+        window.ankiV2SetSessionTime();
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (menu.classList.contains('hidden')) return;
+      if (menu.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('[data-anki-dur]')) return;
+      closeMenu();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !menu.classList.contains('hidden')) closeMenu();
+    });
+    window.addEventListener('scroll', function (e) {
+      if (menu.classList.contains('hidden')) return;
+      if (menu.contains(e.target)) return;
+      closeMenu();
+    }, true);
+    window.addEventListener('resize', function () {
+      if (!menu.classList.contains('hidden')) closeMenu();
+    });
+
+    menu._close = closeMenu;
+    return menu;
+  }
+
+  function openAnkiDurationPart(btn) {
+    const wrap = btn.closest('[data-anki-duration-picker]');
+    if (!wrap) return;
+    const part = btn.getAttribute('data-anki-dur');
+    const menu = ensureAnkiDurationMenu();
+    if (menu._anchorBtn === btn && !menu.classList.contains('hidden')) {
+      menu._close();
+      return;
+    }
+    const maxHours = parseInt(wrap.getAttribute('data-max-hours'), 10) || 5;
+    const minuteStep = parseInt(wrap.getAttribute('data-minute-step'), 10) || 5;
+    const hInp = wrap.querySelector('[data-anki-dur-val="h"]');
+    const mInp = wrap.querySelector('[data-anki-dur-val="m"]');
+    const cur = part === 'h'
+      ? (parseInt(hInp && hInp.value, 10) || 0)
+      : (parseInt(mInp && mInp.value, 10) || 0);
+
+    let values = [];
+    if (part === 'h') {
+      for (let i = 0; i <= maxHours; i++) values.push(i);
+    } else {
+      for (let mm = 0; mm < 60; mm += minuteStep) values.push(mm);
+      if (values.indexOf(cur) < 0) values.push(cur);
+      values.sort(function (a, b) { return a - b; });
+    }
+
+    menu.innerHTML = values.map(function (v) {
+      const label = part === 'm' ? String(v).padStart(2, '0') : String(v);
+      const on = v === cur ? ' is-selected' : '';
+      return `<button type="button" class="anki-duration-opt${on}" role="option" data-anki-dur-opt="${v}" aria-selected="${v === cur ? 'true' : 'false'}">${label}</button>`;
+    }).join('');
+
+    document.querySelectorAll('.anki-time-btn[aria-expanded="true"]').forEach(function (b) {
+      b.setAttribute('aria-expanded', 'false');
+    });
+    btn.setAttribute('aria-expanded', 'true');
+    menu._anchorBtn = btn;
+    menu._wrap = wrap;
+    menu._part = part;
+    menu.classList.remove('hidden');
+
+    const rect = btn.getBoundingClientRect();
+    const menuW = Math.max(56, rect.width);
+    menu.style.minWidth = menuW + 'px';
+    menu.style.left = Math.max(8, Math.min(window.innerWidth - menuW - 8, rect.left)) + 'px';
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const approxH = Math.min(240, values.length * 40 + 8);
+    if (spaceBelow < approxH && rect.top > spaceBelow) {
+      menu.style.top = Math.max(8, rect.top - approxH - 6) + 'px';
+    } else {
+      menu.style.top = (rect.bottom + 6) + 'px';
+    }
+  }
+
+  if (!window._ankiDurationPickerBound) {
+    window._ankiDurationPickerBound = true;
+    document.addEventListener('click', function (e) {
+      const btn = e.target.closest && e.target.closest('[data-anki-dur]');
+      if (!btn || !btn.closest('[data-anki-duration-picker]')) return;
+      e.preventDefault();
+      openAnkiDurationPart(btn);
+    });
   }
 
   /** Cases h:mm façon recherche code dashboard (auto-avance). */
@@ -1089,6 +1417,7 @@
       S.excludedIds.clear();
       S.manualOrder = null;
       S.cockpitSearch = '';
+      S.cockpitPickKind = '';
       S.cockpitFilterMat = '';
       S.cockpitFilterCours = '';
     }
@@ -1331,6 +1660,19 @@
     window.renderAnkiV2();
   };
 
+  window.ankiV2SetMaxIntervalDays = function (val) {
+    if (window.AnkiAlgoV2 && typeof window.AnkiAlgoV2.setMaxIntervalDays === 'function') {
+      window.AnkiAlgoV2.setMaxIntervalDays(val);
+    } else if (window.AnkiAlgo && typeof window.AnkiAlgo.setMaxIntervalDays === 'function') {
+      window.AnkiAlgo.setMaxIntervalDays(val);
+    } else {
+      if (!window.D.settings) window.D.settings = {};
+      window.D.settings.ankiMaxIntervalDays = Math.max(7, Math.min(730, parseInt(val, 10) || 180));
+    }
+    window.save();
+    window.renderAnkiV2();
+  };
+
   window.ankiV2SetMaxQuickFill = function (val) {
     setMaxQuickFill(val);
     window.save();
@@ -1533,7 +1875,7 @@
 
   window.ankiV2CockpitSearch = function (v) {
     S.cockpitSearch = v;
-    if (getCockpitPickNavLevel() < 2) return;
+    if (getCockpitPickNavLevel() < 3) return;
     keepPageScroll(function () {
       renderPickGridOnly();
       const input = document.querySelector('#ankiPickSection .anki-search-input');
@@ -1562,6 +1904,7 @@
     S.excludedIds.clear();
     S.manualOrder = null;
     S.cockpitSearch = '';
+    S.cockpitPickKind = '';
     S.cockpitFilterMat = '';
     S.cockpitFilterCours = '';
     renderActiveView();
@@ -1601,7 +1944,7 @@
   }
 
   function renderPickGridOnly() {
-    if (getCockpitPickNavLevel() < 2) {
+    if (getCockpitPickNavLevel() < 3) {
       keepPageScroll(refreshCockpitPickSection);
       return;
     }
@@ -2776,6 +3119,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <input type="number" class="fi" min="5" max="300" step="5" value="${av2.sessionMinDefault || st.ankiSessionMin || 90}" onchange="window.ankiV2ApplySessionMinSetting(this.value)">
           <p class="anki-mut" style="font-size:11px;margin-top:4px;">Même réglage que la barre « Durée session » en haut du Synchrotron (max 5 h).</p>
         </div>
+        <div class="anki-set-row">
+          <label>Intervalle max de répétition (jours)</label>
+          <input type="number" class="fi" data-testid="input-max-interval" min="7" max="730" step="1" value="${st.ankiMaxIntervalDays != null ? st.ankiMaxIntervalDays : (window.AnkiAlgoV2.DEFAULT_MAX_INTERVAL_DAYS || 180)}" onchange="window.ankiV2SetMaxIntervalDays(this.value)">
+          <p class="anki-mut" style="font-size:11px;margin-top:4px;">Plafond après les paliers (X- et Y-) : l’écart entre deux révisions ne dépasse pas cette valeur (défaut 180 j). Adapte selon ta période (concours, semestre…).</p>
+        </div>
         <label class="anki-check-row">
           <input type="checkbox" ${av2.pullForward !== false ? 'checked' : ''} onchange="window.D.settings.algoV2=window.D.settings.algoV2||{};window.D.settings.algoV2.pullForward=this.checked;window.save();window.renderAnkiV2();">
           <span>Avancer des cartes « bientôt due » si la session a du budget (soirées longues)</span>
@@ -2843,14 +3191,14 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
       <div class="anki-card-block">
         <h3>${window.iconLabel('star', 'Cartes principales (X-) — intervalles par ★')}</h3>
-        <p class="anki-mut">Chaque carte X- suit le palier SM-2 de son nombre d'étoiles (plus de ★ → révisions plus serrées en apprentissage). Les fenêtres mature sont dans le bloc ci-dessus.</p>
+        <p class="anki-mut">Chaque carte X- suit le palier SM-2 de son nombre d'étoiles (plus de ★ → paliers plus courts, mais <b>toujours ≥ 2 jours</b> : jamais deux fois le même jour après un succès). Ease initiale identique pour tous (2,5) — les ★ font la différence via les étapes. Calibré pour exos classiques PC* (~15–20 min).</p>
         <div class="anki-prof-grid">${mainStarHtml}</div>
         <button class="bs" onclick="window.ankiV2ResetMainStarSteps()" style="margin-top:10px;">${window.iconLabel('refresh-cw', 'Intervalles par défaut')}</button>
       </div>
 
       <div class="anki-card-block">
         <h3>${window.iconLabel('zap', 'Cartes rapides (Y-) — palier unique')}</h3>
-        <p class="anki-mut">Les Y- n'ont plus d'étoiles : un seul enchaînement d'intervalles pour toutes.</p>
+        <p class="anki-mut">Style Anki vocabulaire : paliers fixes puis × ease. L’écart est plafonné par l’<b>intervalle max</b> (Réglages → Algorithme Synchrotron).</p>
         <div class="anki-set-row">
           <label>Étapes (jours)</label>
           <input class="fi" id="qdef_steps" value="${(qDef.steps || []).join(', ')}" oninput="window.ankiV2SaveQuickDefaultSteps()">
@@ -2876,7 +3224,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const k = Math.max(1, Math.min(5, parseInt(stars, 10) || 3));
     const stepsRaw = $("mstar_" + k + "_steps").value;
     const easeRaw = parseFloat($("mstar_" + k + "_ease").value);
-    const steps = stepsRaw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0);
+    const steps = stepsRaw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 1);
     if (!window.D.settings.ankiMainStarSteps) window.D.settings.ankiMainStarSteps = {};
     const def = window.AnkiAlgoV2.DEFAULT_MAIN_STAR_STEPS[k] || window.AnkiAlgoV2.DEFAULT_MAIN_STAR_STEPS[3];
     window.D.settings.ankiMainStarSteps[k] = {
@@ -2893,7 +3241,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   window.ankiV2SaveQuickDefaultSteps = function () {
     const stepsRaw = ($("qdef_steps") && $("qdef_steps").value) || '';
     const easeRaw = parseFloat($("qdef_ease") && $("qdef_ease").value);
-    const steps = stepsRaw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 0);
+    const steps = stepsRaw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n >= 1);
     const def = window.AnkiAlgoV2.DEFAULT_QUICK_STEPS;
     window.D.settings.ankiQuickDefaultSteps = {
       steps: steps.length ? steps : def.steps.slice(),
@@ -5196,7 +5544,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       source: opts.source || 'quick-drill'
     });
 
-    // Retirer de la session Synchrotron en cours (déjà révisée)
+    // Retirer de la session Synchrotron en cours (déjà révisée) + compter dans S.stats
     let removedFromSession = false;
     if (S.current && S.current.id === card.id) {
       S.current = null;
@@ -5206,6 +5554,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const before = S.queue.length;
       S.queue = S.queue.filter(c => c && c.id !== card.id);
       if (S.queue.length !== before) removedFromSession = true;
+    }
+    if (removedFromSession && S.stats) {
+      const btn = window.AnkiAlgoV2.qScoreToButton(qScore);
+      if (btn === 0) S.stats.bad++;
+      else if (btn === 1) S.stats.mid++;
+      else S.stats.ok++;
     }
     if (removedFromSession) {
       try { persistSession(); } catch (e) { /* non bloquant */ }

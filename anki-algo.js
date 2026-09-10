@@ -19,19 +19,39 @@
     EXO:      { steps: [1, 2, 5, 12, 25, 50], ease: 2.4, label: "Exercice type" }
   };
 
-  /** Paliers SM-2 pour cartes principales X- (selon ★ d'importance). */
+  /**
+   * Paliers SM-2 pour cartes principales X- (selon ★ d'importance).
+   * Calibrés pour exos classiques PC* (~15–20 min) :
+   * ~150–250 classiques / an · 5–7 exos/soir max → paliers larges, jamais 2× le même jour
+   * (chaque étape ≥ 2 j). Ease initiale unique (= DEFAULT_EASE) : les ★ différencient
+   * déjà via les étapes (+ léger multiplicateur d'intervalle).
+   */
   ALGO.DEFAULT_MAIN_STAR_STEPS = {
-    1: { steps: [1, 4, 10, 21, 45], ease: 2.2, label: "★1 — faible" },
-    2: { steps: [1, 3, 7, 14, 30], ease: 2.3, label: "★2" },
-    3: { steps: [1, 2, 4, 8, 15], ease: 2.3, label: "★3 — standard" },
-    4: { steps: [1, 2, 3, 6, 12], ease: 2.4, label: "★4" },
-    5: { steps: [1, 1, 2, 4, 8], ease: 2.5, label: "★5 — prioritaire" }
+    1: { steps: [3, 9, 21, 45, 90], ease: 2.5, label: "★1 — faible" },
+    2: { steps: [3, 7, 16, 35, 70], ease: 2.5, label: "★2" },
+    3: { steps: [2, 6, 14, 30, 60], ease: 2.5, label: "★3 — standard" },
+    4: { steps: [2, 5, 11, 24, 48], ease: 2.5, label: "★4" },
+    5: { steps: [2, 4, 9, 18, 36], ease: 2.5, label: "★5 — prioritaire" }
+  };
+  /** Anciens défauts (migration one-shot si l’utilisateur n’a jamais personnalisé). */
+  ALGO.LEGACY_MAIN_STAR_STEPS = {
+    1: { steps: [1, 4, 10, 21, 45], ease: 2.2 },
+    2: { steps: [1, 3, 7, 14, 30], ease: 2.3 },
+    3: { steps: [1, 2, 4, 8, 15], ease: 2.3 },
+    4: { steps: [1, 2, 3, 6, 12], ease: 2.4 },
+    5: { steps: [1, 1, 2, 4, 8], ease: 2.5 }
   };
   /** Alias legacy (anciennement Y-) — mêmes défauts que les X-. */
   ALGO.DEFAULT_QUICK_STAR_STEPS = ALGO.DEFAULT_MAIN_STAR_STEPS;
 
-  /** Palier unique pour cartes rapides Y- (plus d'étoiles sur les Y). */
-  ALGO.DEFAULT_QUICK_STEPS = { steps: [1, 2, 4, 8, 15, 30], ease: 2.3, label: "Rapide Y-" };
+  /** Palier unique pour cartes rapides Y- (style Anki vocabulaire). */
+  ALGO.DEFAULT_QUICK_STEPS = { steps: [1, 3, 7, 14, 30, 60], ease: 2.5, label: "Rapide Y-" };
+  ALGO.LEGACY_QUICK_STEPS = { steps: [1, 2, 4, 8, 15, 30], ease: 2.3 };
+
+  /** Plafond d’intervalle SM-2 (jours) — réglable, défaut 180. */
+  ALGO.DEFAULT_MAX_INTERVAL_DAYS = 180;
+  ALGO.MIN_MAX_INTERVAL_DAYS = 7;
+  ALGO.MAX_MAX_INTERVAL_DAYS = 730;
 
   // ===== Coefficients du score d'urgence (modifiables dans Réglages) =====
   // v4 : refonte autour de l'Index de Délai Relatif I_R = joursÉcoulés / intervallePrévu
@@ -83,10 +103,13 @@
     return 0.35 + (imp - 1) * 0.4125;
   };
 
-  /** Multiplicateur d'intervalle : plus d'étoiles → révisions plus serrées. */
+  /**
+   * Multiplicateur d'intervalle léger (les paliers ★ portent déjà l'écart).
+   * 1★→1.12 · 3★→1.00 · 5★→0.88 — plus de ×0.55 qui écrasait les ★5.
+   */
   ALGO.importanceIntervalMult = function (importance) {
     const imp = Math.max(1, Math.min(5, importance || ALGO.DEFAULT_IMPORTANCE));
-    return 1.35 - (imp - 1) * 0.2;
+    return 1.12 - (imp - 1) * 0.06;
   };
 
   /** Boost léger des devoirs selon l'importance. */
@@ -148,9 +171,40 @@
     return _localISO(d);
   };
   ALGO.daysBetween = function (a, b) {
-    const da = new Date(a + (a.length === 10 ? "T00:00:00" : ""));
-    const db = new Date(b + (b.length === 10 ? "T00:00:00" : ""));
+    const da = new Date((a || ALGO.todayISO()) + "T12:00:00");
+    const db = new Date((b || ALGO.todayISO()) + "T12:00:00");
     return Math.round((db - da) / 86400000);
+  };
+
+  /**
+   * Intervalle max de répétition (jours), réglable dans Synchrotron → Réglages.
+   * Évite des écarts trop longs après les paliers (× ease).
+   */
+  ALGO.getMaxIntervalDays = function () {
+    const st = (window.D && window.D.settings) || {};
+    let n = st.ankiMaxIntervalDays;
+    if (n == null && st.algoV2 && st.algoV2.maxIntervalDays != null) {
+      n = st.algoV2.maxIntervalDays;
+    }
+    n = parseInt(n, 10);
+    if (!Number.isFinite(n)) n = ALGO.DEFAULT_MAX_INTERVAL_DAYS;
+    return Math.max(ALGO.MIN_MAX_INTERVAL_DAYS, Math.min(ALGO.MAX_MAX_INTERVAL_DAYS, n));
+  };
+
+  ALGO.setMaxIntervalDays = function (val) {
+    if (!window.D) return ALGO.DEFAULT_MAX_INTERVAL_DAYS;
+    if (!window.D.settings) window.D.settings = {};
+    const n = Math.max(
+      ALGO.MIN_MAX_INTERVAL_DAYS,
+      Math.min(ALGO.MAX_MAX_INTERVAL_DAYS, parseInt(val, 10) || ALGO.DEFAULT_MAX_INTERVAL_DAYS)
+    );
+    window.D.settings.ankiMaxIntervalDays = n;
+    return n;
+  };
+
+  /** @deprecated alias — utilisait un plafond calendaire ; désormais = getMaxIntervalDays */
+  ALGO.maxIntervalToYearEnd = function () {
+    return ALGO.getMaxIntervalDays();
   };
 
   // ===== UID flashcards / exercices : W-XXX | X-XXX | Y-XXX (1 lettre + 3 alphanum) =====
@@ -253,9 +307,9 @@
       blocageActif    = true;
       blocageRevCount = blocageActif === card._blocageActif ? (blocageRevCount + 1) : 1;
     } else {
-      // Succès gradué
-      if (rep < steps.length) intervalle = steps[rep];
-      else intervalle = Math.round(intervalle * ease);
+      // Succès gradué — paliers en jours entiers (≥1) : jamais 2× le même jour après un succès
+      if (rep < steps.length) intervalle = Math.max(1, Number(steps[rep]) || 1);
+      else intervalle = Math.max(1, Math.round(intervalle * ease));
       rep += 1;
       // qScore 4 → 0.45 · 7 → 1.0 · 10 → 1.4
       qFactor = 0.45 + (qScore - 4) * (0.95 / 6);
@@ -292,6 +346,8 @@
     if (intervalle > 0) {
       const impMult = ALGO.importanceIntervalMult(ALGO.getImportance(card));
       intervalle = Math.max(1, Math.round(intervalle * impMult));
+      const maxI = ALGO.getMaxIntervalDays();
+      if (intervalle > maxI) intervalle = maxI;
     }
 
     return {
@@ -1114,12 +1170,50 @@
     delete card.priorite;
   };
 
+  /** True si les paliers stockés correspondent encore à l’ancienne usine. */
+  ALGO._isLegacyMainStarSteps = function (stored) {
+    if (!stored || typeof stored !== 'object') return false;
+    const leg = ALGO.LEGACY_MAIN_STAR_STEPS;
+    for (let s = 1; s <= 5; s++) {
+      const a = stored[s] || stored[String(s)];
+      const b = leg[s];
+      if (!a || !b || !Array.isArray(a.steps)) return false;
+      if (a.steps.length !== b.steps.length) return false;
+      for (let i = 0; i < b.steps.length; i++) {
+        if (Number(a.steps[i]) !== b.steps[i]) return false;
+      }
+      if (a.ease != null && Number(a.ease) !== b.ease) return false;
+    }
+    return true;
+  };
+
   /** Migration données : W- → devoirs, attente → reservoir, priorite → importance. */
   ALGO.migrateData = function (D) {
     if (!D) return;
     if (!Array.isArray(D.exercices)) D.exercices = [];
     if (!Array.isArray(D.devoirs)) D.devoirs = [];
     if (!Array.isArray(D.quickGroups)) D.quickGroups = [];
+    if (!D.settings) D.settings = {};
+    /* Paliers X- usine 2026-09 : exos 15–20 min, ease unique, pas de 1,1 */
+    if (!D.settings._mainStarStepsV20260910) {
+      const cur = D.settings.ankiMainStarSteps || D.settings.ankiQuickStarSteps;
+      if (!cur || ALGO._isLegacyMainStarSteps(cur)) {
+        D.settings.ankiMainStarSteps = JSON.parse(JSON.stringify(ALGO.DEFAULT_MAIN_STAR_STEPS));
+      }
+      D.settings._mainStarStepsV20260910 = true;
+    }
+    /* Y- : paliers type Anki (migration one-shot si usine ancienne) */
+    if (!D.settings._quickStepsV20260910) {
+      const q = D.settings.ankiQuickDefaultSteps;
+      const leg = ALGO.LEGACY_QUICK_STEPS;
+      const isLegacy = q && Array.isArray(q.steps)
+        && q.steps.length === leg.steps.length
+        && q.steps.every(function (n, i) { return Number(n) === leg.steps[i]; });
+      if (!q || isLegacy) {
+        D.settings.ankiQuickDefaultSteps = JSON.parse(JSON.stringify(ALGO.DEFAULT_QUICK_STEPS));
+      }
+      D.settings._quickStepsV20260910 = true;
+    }
     D.quickGroups = D.quickGroups
       .filter(g => g && g.id && String(g.name || '').trim())
       .map((g, i) => ({

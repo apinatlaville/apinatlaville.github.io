@@ -30,6 +30,9 @@
   V2.DEFAULT_QUICK_STAR_STEPS = needA1().DEFAULT_QUICK_STAR_STEPS;
   V2.DEFAULT_QUICK_STEPS = needA1().DEFAULT_QUICK_STEPS;
   V2.DEFAULT_COEFS = needA1().DEFAULT_COEFS;
+  V2.DEFAULT_MAX_INTERVAL_DAYS = needA1().DEFAULT_MAX_INTERVAL_DAYS;
+  V2.getMaxIntervalDays = function () { return needA1().getMaxIntervalDays(); };
+  V2.setMaxIntervalDays = function (v) { return needA1().setMaxIntervalDays(v); };
   V2.todayISO = function () { return needA1().todayISO(); };
   V2.addDays = function (d, n) { return needA1().addDays(d, n); };
   V2.fmtDur = function (s) { return needA1().fmtDur(s); };
@@ -505,9 +508,16 @@
 
     if (phase === "mature" && base.intervalle > 0 && qScore > 3) {
       const w = V2.scaledWindow(imp);
-      const openAfter = Math.max(w.openAfter, Math.min(base.intervalle, w.openAfter + 5));
+      let openAfter = Math.max(w.openAfter, Math.min(base.intervalle, w.openAfter + 5));
+      const maxI = needA1().getMaxIntervalDays
+        ? needA1().getMaxIntervalDays()
+        : null;
+      if (maxI != null && openAfter > maxI) openAfter = maxI;
       base._v2WindowOpen = V2.addDays(today, openAfter);
-      base._v2WindowClose = V2.addDays(today, openAfter + w.width);
+      const closeSpan = Math.max(1, w.width);
+      let closeAfter = openAfter + closeSpan;
+      if (maxI != null && closeAfter > maxI) closeAfter = maxI;
+      base._v2WindowClose = V2.addDays(today, closeAfter);
       base.dateProchaineRevision = base._v2WindowOpen;
       base._v2Phase = "mature";
     } else {

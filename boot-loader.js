@@ -149,6 +149,17 @@
     return window._scannerLibsReady;
   };
 
+  /** JsBarcode seul — pour l’impression (évite d’attendre html5-qrcode ~375 Ko). */
+  window.ensureJsBarcode = function () {
+    if (typeof window.JsBarcode === 'function') return Promise.resolve({ ok: true });
+    if (window._jsBarcodeReady) return window._jsBarcodeReady;
+    window._jsBarcodeReady = loadScript('JsBarcode.all.min.js').then(function (r) {
+      if (!r || !r.ok) window._jsBarcodeReady = null;
+      return r;
+    });
+    return window._jsBarcodeReady;
+  };
+
   window.ensureScanner = function () {
     if (_lazyLoading.scannerBundle) return _lazyLoading.scannerBundle;
     _lazyLoading.scannerBundle = window.ensureScannerLibs().then(function () {

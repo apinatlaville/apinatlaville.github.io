@@ -139,6 +139,7 @@ window.updateClock = function() {
   let dtStr = now.toLocaleString('fr-FR', options);
   const el = window.$('dateTimeDisp');
   if (el) el.textContent = dtStr.charAt(0).toUpperCase() + dtStr.slice(1);
+  if (typeof window.updateHeaderCountdown === 'function') window.updateHeaderCountdown();
 };
 
 window.applyHeaderClock = function() {
@@ -152,7 +153,54 @@ window.applyHeaderClock = function() {
   box.classList.toggle('page-title-clock--no-sec', !showSec);
   if (on && typeof window.updateClock === 'function') window.updateClock();
 };
-setInterval(window.updateClock, 1000); 
+
+/** Jours restants jusqu’à une date ISO (YYYY-MM-DD), calendaire local. */
+window.headerCountdownDaysLeft = function (iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(String(iso) + 'T12:00:00');
+  if (isNaN(target.getTime())) return null;
+  target.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+};
+
+window.updateHeaderCountdown = function () {
+  const daysEl = window.$('hdrCountdownDays');
+  const lblEl = window.$('hdrCountdownLabel');
+  if (!daysEl) return;
+  const st = (window.D && window.D.settings) || {};
+  const iso = st.headerCountdownDate || '';
+  const label = (st.headerCountdownLabel || 'Concours').trim() || 'Concours';
+  if (lblEl) lblEl.textContent = label;
+  const left = window.headerCountdownDaysLeft(iso);
+  if (left == null) {
+    daysEl.textContent = '—';
+    daysEl.className = 'page-title-countdown-days';
+    return;
+  }
+  daysEl.className = 'page-title-countdown-days'
+    + (left < 0 ? ' is-past' : '')
+    + (left === 0 ? ' is-today' : '')
+    + (left > 0 && left <= 14 ? ' is-soon' : '');
+  if (left > 0) daysEl.textContent = 'J−' + left;
+  else if (left === 0) daysEl.textContent = 'Jour J';
+  else daysEl.textContent = 'J+' + Math.abs(left);
+};
+
+window.applyHeaderCountdown = function () {
+  const st = (window.D && window.D.settings) || {};
+  const on = !!st.showHeaderCountdown;
+  const hasDate = !!(st.headerCountdownDate && /^\d{4}-\d{2}-\d{2}$/.test(String(st.headerCountdownDate)));
+  const box = document.getElementById('pageTitleCountdown');
+  if (!box) return;
+  const show = on && hasDate;
+  box.hidden = !show;
+  box.setAttribute('aria-hidden', show ? 'false' : 'true');
+  if (show) window.updateHeaderCountdown();
+};
+
+setInterval(window.updateClock, 1000);
 window.updateClock();
 
 window.closeLocPopup = function() { 
@@ -253,6 +301,23 @@ window.applySettings = function() {
   const secRow = secBtn && secBtn.closest('.set-row');
   if (secRow) secRow.style.opacity = window.D.settings.showHeaderClock ? '' : '0.45';
   if (typeof window.applyHeaderClock === 'function') window.applyHeaderClock();
+
+  if (window.$('btnHeaderCountdownToggle')) {
+    window.$('btnHeaderCountdownToggle').textContent = window.D.settings.showHeaderCountdown ? 'Activé' : 'Désactivé';
+  }
+  const cdOn = !!window.D.settings.showHeaderCountdown;
+  const cdDate = window.$('setHeaderCountdownDate');
+  if (cdDate) cdDate.value = window.D.settings.headerCountdownDate || '';
+  const cdLbl = window.$('setHeaderCountdownLabel');
+  if (cdLbl) cdLbl.value = window.D.settings.headerCountdownLabel || 'Concours';
+  ['headerCountdownDateRow', 'headerCountdownLabelRow'].forEach(function (id) {
+    const row = window.$(id);
+    if (row) row.style.opacity = cdOn ? '' : '0.45';
+  });
+  if (cdDate) cdDate.disabled = !cdOn;
+  if (cdLbl) cdLbl.disabled = !cdOn;
+  if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
+
   if (typeof window.hydrateAppLogos === 'function') window.hydrateAppLogos();
   if(window.$('btnStatsToggle')) window.$('btnStatsToggle').textContent = window.D.settings.showStats ? 'Affiché' : 'Masqué';
   if(window.$('btnChipsToggle')) window.$('btnChipsToggle').textContent = window.D.settings.showChips ? 'Affiché' : 'Masqué';
@@ -1416,6 +1481,29 @@ bindClick('btnHeaderClockSecondsToggle', withD(() => {
   window.save();
   window.applySettings();
 }));
+bindClick('btnHeaderCountdownToggle', withD(() => {
+  window.D.settings.showHeaderCountdown = !window.D.settings.showHeaderCountdown;
+  window.save();
+  window.applySettings();
+}));
+bindInput('setHeaderCountdownDate', withD((e) => {
+  window.D.settings.headerCountdownDate = (e.target.value || '').trim();
+  window.save();
+  if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
+}));
+const cdDateEl = window.$('setHeaderCountdownDate');
+if (cdDateEl) {
+  cdDateEl.addEventListener('change', withD((e) => {
+    window.D.settings.headerCountdownDate = (e.target.value || '').trim();
+    window.save();
+    if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
+  }));
+}
+bindInput('setHeaderCountdownLabel', withD((e) => {
+  window.D.settings.headerCountdownLabel = (e.target.value || '').trim() || 'Concours';
+  window.save();
+  if (typeof window.updateHeaderCountdown === 'function') window.updateHeaderCountdown();
+}));
 bindClick('btnCompactToggle', withD(() => { window.D.settings.compact = !window.D.settings.compact; window.save(); window.applySettings(); }));
 bindClick('btnStatsToggle', withD(() => { window.D.settings.showStats = !window.D.settings.showStats; window.save(); window.applySettings(); }));
 bindClick('btnChipsToggle', withD(() => { window.D.settings.showChips = !window.D.settings.showChips; window.save(); window.applySettings(); }));
@@ -2057,6 +2145,9 @@ async function initApp(user) {
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(window.D.settings.showHeaderClock === undefined) window.D.settings.showHeaderClock = false;
   if(window.D.settings.headerClockSeconds === undefined) window.D.settings.headerClockSeconds = true;
+  if(window.D.settings.showHeaderCountdown === undefined) window.D.settings.showHeaderCountdown = false;
+  if(window.D.settings.headerCountdownDate === undefined) window.D.settings.headerCountdownDate = '';
+  if(window.D.settings.headerCountdownLabel === undefined) window.D.settings.headerCountdownLabel = 'Concours';
   if(!window.D.settings.navLayout) window.D.settings.navLayout = 'sidebar-left';
   if (!window.D.settings.navLayoutVersion) {
     window.D.settings.navLayout = 'sidebar-left';

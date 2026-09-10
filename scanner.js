@@ -178,9 +178,10 @@ window.executePrint = function() {
     return;
   }
 
-  const prep = typeof window.ensureScannerLibs === 'function'
-    ? window.ensureScannerLibs()
-    : Promise.resolve();
+  /* JsBarcode seul — ne pas attendre html5-qrcode (~375 Ko) */
+  const prep = typeof window.ensureJsBarcode === 'function'
+    ? window.ensureJsBarcode()
+    : (typeof window.ensureScannerLibs === 'function' ? window.ensureScannerLibs() : Promise.resolve());
 
   const btn = window.$('btnDoPrint');
   if (btn) {
@@ -195,7 +196,6 @@ window.executePrint = function() {
   };
 
   return Promise.resolve(prep).then(function () {
-    /* JsBarcode optionnel : sans lui on imprime quand même uid + titre */
     pz.innerHTML = sel.map(function (c) {
       var src = '';
       try {
@@ -229,36 +229,28 @@ window.executePrint = function() {
       finished = true;
       window.removeEventListener('afterprint', onAfterPrint);
       showConfirm();
-      /* Laisser le spooler / aperçu terminer avant de vider */
-      setTimeout(clearZone, 400);
+      setTimeout(clearZone, 300);
     };
 
     window.addEventListener('afterprint', onAfterPrint);
 
-    /* Deux frames : laisser le navigateur peindre les data-URL avant print() */
+    /* Laisser peindre les data-URL (canvas→img) puis imprimer tout de suite */
     requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        try {
-          window.print();
-        } catch (err) {
-          onAfterPrint();
-          return;
+      try {
+        window.print();
+      } catch (err) {
+        onAfterPrint();
+        return;
+      }
+      /* Secours UI si afterprint n’arrive pas */
+      setTimeout(showConfirm, 1200);
+      setTimeout(function () {
+        if (!finished) {
+          finished = true;
+          window.removeEventListener('afterprint', onAfterPrint);
+          clearZone();
         }
-        /*
-         * Si afterprint n’arrive pas (webview, impression bloquée, etc.),
-         * afficher quand même la conf — sans vider tout de suite la zone.
-         */
-        setTimeout(function () {
-          showConfirm();
-        }, 1800);
-        setTimeout(function () {
-          if (!finished) {
-            finished = true;
-            window.removeEventListener('afterprint', onAfterPrint);
-            clearZone();
-          }
-        }, 60000);
-      });
+      }, 60000);
     });
   }).catch(function (err) {
     unlockBtn();
