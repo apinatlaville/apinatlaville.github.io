@@ -317,6 +317,25 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   white-space: nowrap;
 }
 
+.page-title-countdown-hms {
+  font-family: var(--font-mono, 'DM Mono', ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  color: var(--txt);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.page-title-countdown-hms[hidden] {
+  display: none !important;
+}
+
+.page-title-countdown--full {
+  min-width: 88px;
+}
+
 .page-title-countdown-days.is-soon {
   color: #ff9a4a;
 }
@@ -338,6 +357,17 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   max-width: 110px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.hdr-cd-fmt-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.hdr-cd-fmt-btns .cbt.on {
+  border-color: var(--acc);
+  color: var(--acc);
+  background: rgba(91, 154, 255, 0.12);
 }
 
 body.tmpl-glass.theme-light .page-title-countdown {

@@ -154,7 +154,19 @@ window.applyHeaderClock = function() {
   if (on && typeof window.updateClock === 'function') window.updateClock();
 };
 
-/** Jours restants jusqu’à une date ISO (YYYY-MM-DD), calendaire local. */
+/** Cible concours : date (YYYY-MM-DD) + heure optionnelle (HH:MM). */
+window.headerCountdownTargetDate = function () {
+  const st = (window.D && window.D.settings) || {};
+  const iso = String(st.headerCountdownDate || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  let hm = String(st.headerCountdownTime || '08:00').trim();
+  if (!/^\d{2}:\d{2}$/.test(hm)) hm = '08:00';
+  const d = new Date(iso + 'T' + hm + ':00');
+  if (isNaN(d.getTime())) return null;
+  return d;
+};
+
+/** Jours calendaires restants (mode J−jours). */
 window.headerCountdownDaysLeft = function (iso) {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return null;
   const today = new Date();
@@ -165,14 +177,92 @@ window.headerCountdownDaysLeft = function (iso) {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 };
 
+/** Décomposition mois / jours / h:min:s jusqu’à la cible. */
+window.headerCountdownBreakdown = function (target) {
+  if (!target || !(target instanceof Date) || isNaN(target.getTime())) return null;
+  const now = new Date();
+  const ms = target.getTime() - now.getTime();
+  if (ms <= 0) {
+    return { past: true, months: 0, days: 0, hours: 0, minutes: 0, seconds: 0, totalMs: ms };
+  }
+  let months = (target.getFullYear() - now.getFullYear()) * 12
+    + (target.getMonth() - now.getMonth());
+  const anchor = new Date(now.getTime());
+  anchor.setMonth(anchor.getMonth() + months);
+  if (anchor.getTime() > target.getTime()) {
+    months -= 1;
+    anchor.setTime(now.getTime());
+    anchor.setMonth(anchor.getMonth() + months);
+  }
+  let rem = Math.max(0, target.getTime() - anchor.getTime());
+  const days = Math.floor(rem / 86400000);
+  rem -= days * 86400000;
+  const hours = Math.floor(rem / 3600000);
+  rem -= hours * 3600000;
+  const minutes = Math.floor(rem / 60000);
+  rem -= minutes * 60000;
+  const seconds = Math.floor(rem / 1000);
+  return {
+    past: false,
+    months: Math.max(0, months),
+    days: days,
+    hours: hours,
+    minutes: minutes,
+    seconds: seconds,
+    totalMs: ms
+  };
+};
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
+}
+
 window.updateHeaderCountdown = function () {
   const daysEl = window.$('hdrCountdownDays');
+  const hmsEl = window.$('hdrCountdownHms');
   const lblEl = window.$('hdrCountdownLabel');
   if (!daysEl) return;
   const st = (window.D && window.D.settings) || {};
   const iso = st.headerCountdownDate || '';
   const label = (st.headerCountdownLabel || 'Concours').trim() || 'Concours';
+  const fmt = st.headerCountdownFormat === 'full' ? 'full' : 'jdays';
   if (lblEl) lblEl.textContent = label;
+
+  if (fmt === 'full') {
+    const target = window.headerCountdownTargetDate();
+    if (!target) {
+      daysEl.textContent = '—';
+      daysEl.className = 'page-title-countdown-days';
+      if (hmsEl) { hmsEl.hidden = true; hmsEl.textContent = ''; }
+      return;
+    }
+    const bd = window.headerCountdownBreakdown(target);
+    if (!bd) return;
+    if (bd.past) {
+      daysEl.textContent = 'Terminé';
+      daysEl.className = 'page-title-countdown-days is-past';
+      if (hmsEl) { hmsEl.hidden = true; hmsEl.textContent = ''; }
+      return;
+    }
+    const parts = [];
+    if (bd.months > 0) parts.push(bd.months + ' mois');
+    if (bd.days > 0 || bd.months > 0) parts.push(bd.days + ' j');
+    else if (bd.months === 0 && bd.days === 0) { /* only hms */ }
+    else parts.push(bd.days + ' j');
+    daysEl.textContent = parts.length ? parts.join(' ') : '0 j';
+    const soon = bd.totalMs <= 14 * 86400000;
+    const today = bd.totalMs < 86400000;
+    daysEl.className = 'page-title-countdown-days'
+      + (soon ? ' is-soon' : '')
+      + (today ? ' is-today' : '');
+    if (hmsEl) {
+      hmsEl.hidden = false;
+      hmsEl.textContent = pad2(bd.hours) + ':' + pad2(bd.minutes) + ':' + pad2(bd.seconds);
+    }
+    return;
+  }
+
+  if (hmsEl) { hmsEl.hidden = true; hmsEl.textContent = ''; }
   const left = window.headerCountdownDaysLeft(iso);
   if (left == null) {
     daysEl.textContent = '—';
@@ -197,7 +287,51 @@ window.applyHeaderCountdown = function () {
   const show = on && hasDate;
   box.hidden = !show;
   box.setAttribute('aria-hidden', show ? 'false' : 'true');
+  box.classList.toggle('page-title-countdown--full', st.headerCountdownFormat === 'full');
+  box.classList.toggle('page-title-countdown--jdays', st.headerCountdownFormat !== 'full');
   if (show) window.updateHeaderCountdown();
+};
+
+window.syncHeaderCountdownSettingsUI = function () {
+  if (!window.D || !window.D.settings) return;
+  const st = window.D.settings;
+  const cdOn = !!st.showHeaderCountdown;
+  if (window.$('btnHeaderCountdownToggle')) {
+    window.$('btnHeaderCountdownToggle').textContent = cdOn ? 'Activé' : 'Désactivé';
+  }
+  const cdDate = window.$('setHeaderCountdownDate');
+  if (cdDate) {
+    cdDate.disabled = !cdOn;
+    const v = st.headerCountdownDate || '';
+    if (cdDate.value !== v) cdDate.value = v;
+  }
+  const cdTime = window.$('setHeaderCountdownTime');
+  if (cdTime) {
+    cdTime.disabled = !cdOn;
+    const tv = st.headerCountdownTime || '08:00';
+    if (cdTime.value !== tv) cdTime.value = tv;
+  }
+  const cdLbl = window.$('setHeaderCountdownLabel');
+  if (cdLbl) {
+    cdLbl.disabled = !cdOn;
+    const lv = st.headerCountdownLabel || 'Concours';
+    if (cdLbl.value !== lv) cdLbl.value = lv;
+  }
+  const fmt = st.headerCountdownFormat === 'full' ? 'full' : 'jdays';
+  const btnJ = window.$('btnHeaderCountdownFmtJdays');
+  const btnF = window.$('btnHeaderCountdownFmtFull');
+  if (btnJ) {
+    btnJ.disabled = !cdOn;
+    btnJ.classList.toggle('on', fmt === 'jdays');
+  }
+  if (btnF) {
+    btnF.disabled = !cdOn;
+    btnF.classList.toggle('on', fmt === 'full');
+  }
+  ['headerCountdownDateRow', 'headerCountdownTimeRow', 'headerCountdownLabelRow', 'headerCountdownFormatRow'].forEach(function (id) {
+    const row = window.$(id);
+    if (row) row.style.opacity = cdOn ? '' : '0.45';
+  });
 };
 
 setInterval(window.updateClock, 1000);
@@ -301,21 +435,7 @@ window.applySettings = function() {
   const secRow = secBtn && secBtn.closest('.set-row');
   if (secRow) secRow.style.opacity = window.D.settings.showHeaderClock ? '' : '0.45';
   if (typeof window.applyHeaderClock === 'function') window.applyHeaderClock();
-
-  if (window.$('btnHeaderCountdownToggle')) {
-    window.$('btnHeaderCountdownToggle').textContent = window.D.settings.showHeaderCountdown ? 'Activé' : 'Désactivé';
-  }
-  const cdOn = !!window.D.settings.showHeaderCountdown;
-  const cdDate = window.$('setHeaderCountdownDate');
-  if (cdDate) cdDate.value = window.D.settings.headerCountdownDate || '';
-  const cdLbl = window.$('setHeaderCountdownLabel');
-  if (cdLbl) cdLbl.value = window.D.settings.headerCountdownLabel || 'Concours';
-  ['headerCountdownDateRow', 'headerCountdownLabelRow'].forEach(function (id) {
-    const row = window.$(id);
-    if (row) row.style.opacity = cdOn ? '' : '0.45';
-  });
-  if (cdDate) cdDate.disabled = !cdOn;
-  if (cdLbl) cdLbl.disabled = !cdOn;
+  if (typeof window.syncHeaderCountdownSettingsUI === 'function') window.syncHeaderCountdownSettingsUI();
   if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
 
   if (typeof window.hydrateAppLogos === 'function') window.hydrateAppLogos();
@@ -1486,23 +1606,63 @@ bindClick('btnHeaderCountdownToggle', withD(() => {
   window.save();
   window.applySettings();
 }));
-bindInput('setHeaderCountdownDate', withD((e) => {
-  window.D.settings.headerCountdownDate = (e.target.value || '').trim();
+function saveHeaderCountdownDateFromInput(el) {
+  if (!el || !window.D || !window.D.settings) return;
+  let v = (el.value || '').trim();
+  /* Normalise éventuel format flatpickr / locale */
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) {
+    const p = v.split('/');
+    v = p[2] + '-' + p[1] + '-' + p[0];
+  }
+  window.D.settings.headerCountdownDate = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
   window.save();
   if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
-}));
+  if (typeof window.syncHeaderCountdownSettingsUI === 'function') window.syncHeaderCountdownSettingsUI();
+}
+bindInput('setHeaderCountdownDate', withD((e) => saveHeaderCountdownDateFromInput(e.target)));
 const cdDateEl = window.$('setHeaderCountdownDate');
 if (cdDateEl) {
-  cdDateEl.addEventListener('change', withD((e) => {
-    window.D.settings.headerCountdownDate = (e.target.value || '').trim();
+  /* Détache un éventuel Flatpickr déjà posé avant data-fc-skip */
+  if (cdDateEl._flatpickr) {
+    try { cdDateEl._flatpickr.destroy(); } catch (e) { /* ignore */ }
+    cdDateEl._flatpickr = null;
+  }
+  cdDateEl.addEventListener('change', withD((e) => saveHeaderCountdownDateFromInput(e.target)));
+  cdDateEl.addEventListener('blur', withD((e) => saveHeaderCountdownDateFromInput(e.target)));
+}
+bindInput('setHeaderCountdownTime', withD((e) => {
+  let t = (e.target.value || '').trim();
+  if (!/^\d{2}:\d{2}$/.test(t)) t = '08:00';
+  window.D.settings.headerCountdownTime = t;
+  window.save();
+  if (typeof window.updateHeaderCountdown === 'function') window.updateHeaderCountdown();
+}));
+const cdTimeEl = window.$('setHeaderCountdownTime');
+if (cdTimeEl) {
+  cdTimeEl.addEventListener('change', withD((e) => {
+    let t = (e.target.value || '').trim();
+    if (!/^\d{2}:\d{2}$/.test(t)) t = '08:00';
+    window.D.settings.headerCountdownTime = t;
     window.save();
-    if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
+    if (typeof window.updateHeaderCountdown === 'function') window.updateHeaderCountdown();
   }));
 }
 bindInput('setHeaderCountdownLabel', withD((e) => {
   window.D.settings.headerCountdownLabel = (e.target.value || '').trim() || 'Concours';
   window.save();
   if (typeof window.updateHeaderCountdown === 'function') window.updateHeaderCountdown();
+}));
+bindClick('btnHeaderCountdownFmtJdays', withD(() => {
+  window.D.settings.headerCountdownFormat = 'jdays';
+  window.save();
+  if (typeof window.syncHeaderCountdownSettingsUI === 'function') window.syncHeaderCountdownSettingsUI();
+  if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
+}));
+bindClick('btnHeaderCountdownFmtFull', withD(() => {
+  window.D.settings.headerCountdownFormat = 'full';
+  window.save();
+  if (typeof window.syncHeaderCountdownSettingsUI === 'function') window.syncHeaderCountdownSettingsUI();
+  if (typeof window.applyHeaderCountdown === 'function') window.applyHeaderCountdown();
 }));
 bindClick('btnCompactToggle', withD(() => { window.D.settings.compact = !window.D.settings.compact; window.save(); window.applySettings(); }));
 bindClick('btnStatsToggle', withD(() => { window.D.settings.showStats = !window.D.settings.showStats; window.save(); window.applySettings(); }));
@@ -2147,7 +2307,9 @@ async function initApp(user) {
   if(window.D.settings.headerClockSeconds === undefined) window.D.settings.headerClockSeconds = true;
   if(window.D.settings.showHeaderCountdown === undefined) window.D.settings.showHeaderCountdown = false;
   if(window.D.settings.headerCountdownDate === undefined) window.D.settings.headerCountdownDate = '';
+  if(window.D.settings.headerCountdownTime === undefined) window.D.settings.headerCountdownTime = '08:00';
   if(window.D.settings.headerCountdownLabel === undefined) window.D.settings.headerCountdownLabel = 'Concours';
+  if(window.D.settings.headerCountdownFormat === undefined) window.D.settings.headerCountdownFormat = 'jdays';
   if(!window.D.settings.navLayout) window.D.settings.navLayout = 'sidebar-left';
   if (!window.D.settings.navLayoutVersion) {
     window.D.settings.navLayout = 'sidebar-left';

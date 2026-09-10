@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260910j';
+  window.__BOOT_CACHE_V = '20260910k';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -130,6 +130,7 @@
       <div class="page-title-meta" id="pageTitleMeta">
         <div class="page-title-countdown" id="pageTitleCountdown" hidden aria-live="polite" aria-hidden="true">
           <span class="page-title-countdown-days" id="hdrCountdownDays">—</span>
+          <span class="page-title-countdown-hms" id="hdrCountdownHms" hidden></span>
           <span class="page-title-countdown-lbl" id="hdrCountdownLabel">Concours</span>
         </div>
         <div class="page-title-clock" id="pageTitleClock" hidden aria-live="polite" aria-hidden="true">
@@ -448,11 +449,22 @@
   <div class="set-row"><div><div class="set-lbl">Compte à rebours concours</div><div class="set-sub">À côté de l’horloge — grands écrans uniquement</div></div><button class="toggle-btn" id="btnHeaderCountdownToggle" type="button">Désactivé</button></div>
   <div class="set-row" id="headerCountdownDateRow" style="opacity:0.45">
     <div><div class="set-lbl">Date des concours</div><div class="set-sub">Jour J du compte à rebours</div></div>
-    <input type="date" id="setHeaderCountdownDate" class="fi" style="max-width:168px" aria-label="Date des concours">
+    <input type="date" id="setHeaderCountdownDate" class="fi" data-fc-skip style="max-width:168px" aria-label="Date des concours">
+  </div>
+  <div class="set-row" id="headerCountdownTimeRow" style="opacity:0.45">
+    <div><div class="set-lbl">Heure (mode détaillé)</div><div class="set-sub">Cible pour h:min:s — défaut 08:00</div></div>
+    <input type="time" id="setHeaderCountdownTime" class="fi" data-fc-skip style="max-width:140px" value="08:00" aria-label="Heure des concours">
   </div>
   <div class="set-row" id="headerCountdownLabelRow" style="opacity:0.45">
     <div><div class="set-lbl">Libellé du compte à rebours</div><div class="set-sub">Ex. Concours, Écrits, Oraux…</div></div>
     <input type="text" id="setHeaderCountdownLabel" class="fi" maxlength="24" placeholder="Concours" style="max-width:140px" aria-label="Libellé">
+  </div>
+  <div class="set-row" id="headerCountdownFormatRow" style="opacity:0.45">
+    <div><div class="set-lbl">Affichage du compte à rebours</div><div class="set-sub">J−jours simple, ou mois / jours / h:min:s</div></div>
+    <div class="hdr-cd-fmt-btns" role="group" aria-label="Format compte à rebours">
+      <button type="button" class="cbt" id="btnHeaderCountdownFmtJdays">J−jours</button>
+      <button type="button" class="cbt" id="btnHeaderCountdownFmtFull">Détaillé</button>
+    </div>
   </div>
   <div class="set-row"><div><div class="set-lbl">Bandeau statistiques</div><div class="set-sub">Compteurs docs / classeurs en haut</div></div><button class="toggle-btn" id="btnStatsToggle" type="button">Masqué</button></div>
   <div class="set-row"><div><div class="set-lbl">Mode Compact</div></div><button class="toggle-btn" id="btnCompactToggle">Désactivé</button></div>
