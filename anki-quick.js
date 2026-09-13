@@ -119,13 +119,16 @@
   function renderGroupColorDots(gid, currentColor, opts) {
     opts = opts || {};
     const forNew = !!opts.forNew;
-    const onclick = forNew
-      ? function (col) { return `window.quickPickNewGroupColor('${col}')`; }
-      : function (col) { return `window.quickPickGroupColor('${jsStr(gid)}','${col}')`; };
+    const forEdit = !!opts.forEdit;
+    const onclick = forEdit
+      ? function (col) { return `window.quickPickEditGroupColor('${col}')`; }
+      : forNew
+        ? function (col) { return `window.quickPickNewGroupColor('${col}')`; }
+        : function (col) { return `window.quickPickGroupColor('${jsStr(gid)}','${col}')`; };
     return `<div class="qk-color-dots" role="radiogroup" aria-label="Couleur du dossier">` +
       GROUP_COLORS.map(col =>
         `<button type="button" class="qk-color-dot${currentColor === col ? ' is-on' : ''}" ` +
-        `style="background:${col}" ${forNew ? '' : `data-gid="${esc(gid)}" `}data-color="${col}" ` +
+        `style="background:${col}" ${forNew || forEdit ? '' : `data-gid="${esc(gid)}" `}data-color="${col}" ` +
         `aria-label="Couleur" aria-pressed="${currentColor === col ? 'true' : 'false'}" ` +
         `onclick="${onclick(col)}"></button>`
       ).join('') +
@@ -414,7 +417,6 @@
     const btnSingle = document.getElementById('btnQuickCreateSingle');
     const btnBatch = document.getElementById('btnQuickCreateBatch');
     const btnFolder = document.getElementById('btnQuickCreateFolder');
-    const btnManageFolders = document.getElementById('btnQuickManageFolders');
     if (trigger && trigger.dataset.bound !== '1') {
       trigger.dataset.bound = '1';
       trigger.addEventListener('click', function (e) {
@@ -441,13 +443,6 @@
       btnFolder.addEventListener('click', function () {
         window.closeQuickCreateMenu();
         window.quickOpenCreateFolder();
-      });
-    }
-    if (btnManageFolders && btnManageFolders.dataset.bound !== '1') {
-      btnManageFolders.dataset.bound = '1';
-      btnManageFolders.addEventListener('click', function () {
-        window.closeQuickCreateMenu();
-        window.quickArianeManageGroups();
       });
     }
     if (!window._quickCreateMenuDocBound) {
@@ -582,10 +577,6 @@
                 <strong><span data-icon="folder" data-icon-size="14"></span> Créer un dossier</strong>
                 <span class="hint">Classer tes cartes Y- par matière</span>
               </button>
-              <button type="button" class="cours-create-item" id="btnQuickManageFolders" role="menuitem">
-                <strong><span data-icon="folder" data-icon-size="14"></span> Gérer les dossiers</strong>
-                <span class="hint">Renommer, couleurs, ordre</span>
-              </button>
             </div>
           </div>
         </div>
@@ -627,7 +618,146 @@
   };
 
   window.quickArianeManageGroups = function () {
-    window.quickOpenGroupsModal({ mode: 'manage', focusMat: Q.mat || '' });
+    const mats = window.D.matieres || [];
+    const mat = Q.mat || (mats[0] && mats[0].id) || '';
+    const g = groupsForMat(mat)[0];
+    if (g) window.quickEditGroup(g.id);
+    else window.quickOpenCreateFolder();
+  };
+
+  window.quickEditGroup = function (gid) {
+    ensure();
+    const g = groupInfo(gid);
+    if (!g) return;
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : édition de dossier indisponible.')) {
+      return;
+    }
+    Q.editGroupId = gid;
+    Q.editGroupColor = g.color || defaultGroupColor(inferGroupMat(g));
+    let ov = $('ovQuickEditGroup');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'ovQuickEditGroup';
+      ov.className = 'ov ov-scroll';
+      document.body.appendChild(ov);
+    }
+    const matId = inferGroupMat(g);
+    const mats = window.D.matieres || [];
+    const matOpts = mats.map(function (m) {
+      return '<option value="' + esc(m.id) + '"' + (m.id === matId ? ' selected' : '') + '>' +
+        esc(m.label) + ' — ' + esc(m.name) + '</option>';
+    }).join('');
+    ov.classList.remove('hidden');
+    ov.innerHTML =
+      '<div class="modal qk-groups-modal">' +
+        '<h2>' + window.iconLabel('settings', 'Paramètres du dossier') + '</h2>' +
+        '<p class="anki-mut qk-groups-intro">Nom, matière, chapitre Programme et couleur.</p>' +
+        '<div class="qk-group-create">' +
+          '<label class="qk-group-create-lbl" for="qkEditGroupName">Nom</label>' +
+          '<input type="text" id="qkEditGroupName" class="fi" maxlength="40" value="' + esc(g.name) + '">' +
+          '<label class="qk-group-create-lbl" for="qkEditGroupMat">Matière</label>' +
+          '<select id="qkEditGroupMat" class="fi" onchange="window.quickEditGroupMatChanged(this.value)">' + matOpts + '</select>' +
+          '<label class="qk-group-create-lbl" for="qkEditGroupChapitre">Chapitre</label>' +
+          renderGroupsChapitreSelect(matId, g.chapitreId || '', 'qkEditGroupChapitre') +
+          '<label class="qk-group-create-lbl">Couleur</label>' +
+          renderGroupColorDots('edit', Q.editGroupColor, { forEdit: true }) +
+        '</div>' +
+        '<div class="macts" style="flex-wrap:wrap;gap:8px;">' +
+          '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);margin-right:auto" ' +
+            'onclick="window.quickEditGroupDelete()">' + window.iconLabel('trash-2', 'Supprimer') + '</button>' +
+          '<button type="button" class="bs" onclick="window.quickCloseEditGroup()">Annuler</button>' +
+          '<button type="button" class="bp" onclick="window.quickSaveEditGroup()">Enregistrer</button>' +
+        '</div>' +
+      '</div>';
+    if (window.hydrateIcons) window.hydrateIcons(ov);
+  };
+
+  window.quickCloseEditGroup = function () {
+    const ov = $('ovQuickEditGroup');
+    if (ov) ov.classList.add('hidden');
+    Q.editGroupId = '';
+  };
+
+  window.quickEditGroupMatChanged = function (matId) {
+    const body = $('ovQuickEditGroup');
+    if (!body) return;
+    const wrap = body.querySelector('.qk-group-create');
+    if (!wrap) return;
+    const chLabel = wrap.querySelector('label[for="qkEditGroupChapitre"]');
+    const oldSel = $('qkEditGroupChapitre');
+    if (oldSel) oldSel.remove();
+    const html = renderGroupsChapitreSelect(matId || '', '', 'qkEditGroupChapitre');
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const neu = tmp.firstChild;
+    if (chLabel && neu) chLabel.insertAdjacentElement('afterend', neu);
+  };
+
+  window.quickPickEditGroupColor = function (color) {
+    if (!color) return;
+    Q.editGroupColor = color;
+    const ov = $('ovQuickEditGroup');
+    if (!ov) return;
+    ov.querySelectorAll('.qk-color-dot').forEach(function (btn) {
+      const on = btn.getAttribute('data-color') === color;
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  };
+
+  window.quickSaveEditGroup = function () {
+    ensure();
+    const g = groupInfo(Q.editGroupId);
+    if (!g) { window.quickCloseEditGroup(); return; }
+    const nameEl = $('qkEditGroupName');
+    const name = (nameEl && nameEl.value || '').trim();
+    if (!name) {
+      if (typeof window.showToast === 'function') window.showToast('Indique un nom.', { type: 'error' });
+      if (nameEl) nameEl.focus();
+      return;
+    }
+    const matSel = $('qkEditGroupMat');
+    const mat = (matSel && matSel.value) || inferGroupMat(g);
+    const chSel = $('qkEditGroupChapitre');
+    g.name = name;
+    g.mat = mat;
+    g.chapitreId = (chSel && chSel.value) ? String(chSel.value) : '';
+    g.color = Q.editGroupColor || g.color || defaultGroupColor(mat);
+    if (typeof window.save === 'function') window.save();
+    window.quickCloseEditGroup();
+    window.renderFlashcards();
+    if (typeof window.showToast === 'function') window.showToast('Dossier mis à jour.', { type: 'ok' });
+  };
+
+  window.quickEditGroupDelete = function () {
+    const id = Q.editGroupId;
+    if (!id) return;
+    window.quickCloseEditGroup();
+    const after = function () {
+      if (typeof window.save === 'function') window.save();
+      window.renderFlashcards();
+    };
+    const g = groupInfo(id);
+    if (!g) { after(); return; }
+    const count = (window.D.exercices || []).filter(c => isQuickCard(c) && c.groupId === id).length;
+    const msg = count
+      ? 'Supprimer le dossier « ' + g.name + ' » ? ' + count + ' carte(s) passeront en « Sans dossier ».'
+      : 'Supprimer le dossier « ' + g.name + ' » ?';
+    const doDel = function () {
+      window.D.quickGroups = (window.D.quickGroups || []).filter(x => x.id !== id);
+      (window.D.exercices || []).forEach(c => {
+        if (c && c.groupId === id) delete c.groupId;
+      });
+      window.D.quickGroups.forEach((x, i) => { x.order = i; });
+      if (Q.nav.group === id) Q.nav.group = '';
+      after();
+    };
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm(msg, doDel, 'Dossier');
+    } else {
+      doDel();
+    }
   };
 
   window.quickActivate = function (id) {
@@ -781,13 +911,18 @@
         const m = sec.mat;
         const tiles = sec.groups.map(g => {
           const stats = countGroupCards(g.id);
+          const gear = window.iconHtml ? window.iconHtml('settings', 14, 'icon-sm') : '⚙';
           return (
-            `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(g.color || m.color)}" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
-              `<span class="cours-bc-tile-name">${esc(g.name)}</span>` +
-              `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
-                (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
-              `</span>` +
-            `</button>`
+            `<div class="cours-bc-tile-wrap" style="--mat-color:${esc(g.color || m.color)}">` +
+              `<button type="button" class="cours-bc-tile" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
+                `<span class="cours-bc-tile-name">${esc(g.name)}</span>` +
+                `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
+                  (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
+                `</span>` +
+              `</button>` +
+              `<button type="button" class="bs cours-bc-tile-gear" title="Paramètres du dossier" ` +
+                `aria-label="Paramètres du dossier" onclick="event.stopPropagation();window.quickEditGroup('${jsStr(g.id)}')">${gear}</button>` +
+            `</div>`
           );
         }).join('');
         return (
@@ -847,13 +982,22 @@
       ? allQuickCards().filter(c => !c.groupId)
       : allQuickCards().filter(c => c.groupId === Q.nav.group);
     const totalSplit = splitActiveReservoir(allInGroup);
+    const gearBtn = (Q.nav.group && Q.nav.group !== UNGROUPED)
+      ? `<button type="button" class="bs" style="margin-left:auto" title="Paramètres du dossier" ` +
+          `onclick="window.quickEditGroup('${jsStr(Q.nav.group)}')">` +
+          (window.iconHtml ? window.iconHtml('settings', 14, 'icon-sm') : '⚙') +
+          ` Paramètres</button>`
+      : '';
 
     return (
-      '<div class="cours-bc-level-head">' +
-        `<h3 class="cours-bc-level-title">${esc(g.name)}</h3>` +
-        `<p class="cours-bc-level-sub anki-mut">${totalSplit.active.length} active${totalSplit.active.length > 1 ? 's' : ''}` +
-          (totalSplit.reservoir ? ` · ${totalSplit.reservoir} réservoir` : '') +
-        '</p>' +
+      '<div class="cours-bc-level-head" style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;">' +
+        '<div style="flex:1;min-width:140px;">' +
+          `<h3 class="cours-bc-level-title">${esc(g.name)}</h3>` +
+          `<p class="cours-bc-level-sub anki-mut">${totalSplit.active.length} active${totalSplit.active.length > 1 ? 's' : ''}` +
+            (totalSplit.reservoir ? ` · ${totalSplit.reservoir} réservoir` : '') +
+          '</p>' +
+        '</div>' +
+        gearBtn +
       '</div>' +
       renderBucketBody(split, null)
     );
@@ -944,6 +1088,27 @@
     return (mats[0] && mats[0].id) || '';
   }
 
+  function renderGroupsChapitreSelect(matId, selectedId, selectId) {
+    const sid = selectId || 'qkNewGroupChapitre';
+    const chaps = (window.D.chapitres || [])
+      .filter(function (ch) { return ch && ch.mat === matId; })
+      .slice()
+      .sort(function (a, b) {
+        return (Number(a.order) || 0) - (Number(b.order) || 0)
+          || String(a.title || '').localeCompare(String(b.title || ''), 'fr');
+      });
+    let opts = '<option value="">— Aucun chapitre —</option>';
+    opts += chaps.map(function (ch) {
+      const lab = typeof window.formatChapitreLabel === 'function'
+        ? window.formatChapitreLabel(ch, false)
+        : (ch.title || ch.id);
+      return '<option value="' + esc(ch.id) + '"' + (ch.id === selectedId ? ' selected' : '') + '>' +
+        esc(lab) + '</option>';
+    }).join('');
+    return '<select id="' + esc(sid) + '" class="fi qk-new-group-chapitre" aria-label="Chapitre du dossier">' +
+      opts + '</select>';
+  }
+
   function renderGroupsMatSelect(selectedId) {
     const mats = window.D.matieres || [];
     return `<select id="qkNewGroupMat" class="fi qk-new-group-mat" aria-label="Matière du dossier" onchange="window.quickGroupsMatChanged(this.value)">` +
@@ -970,6 +1135,8 @@
           <input type="text" id="qkNewGroupName" class="fi qk-new-group-name" placeholder="Nom du dossier…" maxlength="40" autocomplete="off">
           <button type="button" class="bp qk-group-add-btn" onclick="window.quickAddGroup()">${window.iconLabel('plus', 'Ajouter')}</button>
         </div>
+        <label class="qk-group-create-lbl" for="qkNewGroupChapitre">Chapitre (optionnel)</label>
+        ${renderGroupsChapitreSelect(mat.id, '', 'qkNewGroupChapitre')}
         <label class="qk-group-create-lbl">Couleur</label>
         ${renderGroupColorDots('new', Q.newGroupColor, { forNew: true })}
       </div>
@@ -1118,13 +1285,17 @@
     }
     Q.groupsModalFocusMat = mat;
     const id = genGroupId();
+    const chSel = $('qkNewGroupChapitre');
+    const chapitreId = (chSel && chSel.value) ? String(chSel.value) : '';
     window.D.quickGroups.push({
       id,
       name,
       color: Q.newGroupColor || defaultGroupColor(mat),
       order: groupsForMat(mat).length,
-      mat: mat
+      mat: mat,
+      chapitreId: chapitreId
     });
+    if (typeof window.save === 'function') window.save();
     if (el) el.value = '';
     Q.newGroupColor = defaultGroupColor(mat);
     refreshGroupsModalBody();

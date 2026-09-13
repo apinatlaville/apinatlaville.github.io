@@ -1021,6 +1021,7 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 .cours-bc-tile-name { font-size: 14px; font-weight: 600; }
 .cours-bc-tile-meta { font-size: 11px; color: var(--mut); }
 .cours-bc-tile-wrap {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1029,6 +1030,16 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 .cours-bc-tile-wrap .cours-bc-tile {
   flex: 1 1 auto;
   width: 100%;
+  padding-right: 40px;
+}
+.cours-bc-tile-gear {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 4px 6px !important;
+  min-width: 0;
+  line-height: 1;
 }
 .cours-bc-tile-sel {
   width: 100%;
@@ -4038,6 +4049,76 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .programme-badge-muted { color: var(--mut); }
 .programme-row-notes { font-size: 12px; color: var(--mut); margin-top: 6px; }
+.programme-row-block { display: flex; flex-direction: column; gap: 0; }
+.programme-row.is-open {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.programme-row:not(.programme-row-draggable) { cursor: pointer; }
+.programme-chapter-detail {
+  background: var(--s2);
+  border: 1px solid var(--bd);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  padding: 12px 14px 14px;
+  margin-bottom: 8px;
+}
+.programme-detail-section { margin-bottom: 14px; }
+.programme-detail-section:last-child { margin-bottom: 0; }
+.programme-detail-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mut);
+  margin: 0 0 8px;
+}
+.programme-detail-y {
+  padding-top: 10px;
+  border-top: 1px dashed var(--bd);
+}
+.programme-type-block { margin-bottom: 10px; }
+.programme-type-hdr { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.programme-doc-list { display: flex; flex-direction: column; gap: 4px; }
+.programme-doc-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--bd);
+  background: var(--s1);
+  color: var(--txt);
+  cursor: pointer;
+}
+.programme-doc-pill:hover { border-color: var(--acc); }
+.programme-doc-uid { font-size: 11px; color: var(--mut); flex-shrink: 0; }
+.programme-doc-title { font-size: 13px; font-weight: 500; }
+.programme-detail-empty { font-size: 12px; margin: 0; }
+.programme-y-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.programme-y-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  border-left: 3px solid var(--mat-color, var(--acc));
+  background: var(--s1);
+  color: var(--txt);
+  cursor: pointer;
+}
+.programme-y-tile:hover { border-color: var(--mat-color, var(--acc)); }
+.programme-y-name { font-size: 13px; font-weight: 600; }
+.programme-y-meta { font-size: 11px; color: var(--mut); }
 .programme-wiz-modal { max-width: 520px; width: min(520px, 94vw); }
 .programme-wiz-modal.card-type-surface {
   display: flex;
@@ -6190,6 +6271,51 @@ body.nav-sidebar-left #paneLatexTest.on {
   gap: 8px;
   overflow: hidden;
 }
+.latex-help {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 0 32px;
+}
+.latex-help-head { margin-bottom: 16px; }
+.latex-help-head p { font-size: 13px; line-height: 1.45; margin: 8px 0 0; }
+.latex-help-head code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--acc);
+}
+.latex-help-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  background: var(--s1);
+}
+.latex-help-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.latex-help-table th,
+.latex-help-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--bd);
+  vertical-align: top;
+}
+.latex-help-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mut);
+  background: var(--s2);
+  position: sticky;
+  top: 0;
+}
+.latex-help-cmd code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--acc);
+}
+.latex-help-sym { font-weight: 600; white-space: nowrap; }
 .latex-lab-loading {
   align-items: center;
   justify-content: center;
@@ -6287,6 +6413,9 @@ body.nav-sidebar-left #paneLatexTest.on {
   height: auto;
   overflow-x: auto;
   overflow-y: auto;
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior: contain;
 }
 .latex-lab-panel-label {
   font-size: 10px;
@@ -6349,19 +6478,26 @@ body.nav-sidebar-left #paneLatexTest.on {
   overflow-y: auto;
   height: fit-content;
   max-height: 280px;
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior: contain;
 }
 .latex-lab-preview-wrap {
   flex: 1 1 auto;
   min-height: 96px;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: 0;
   padding: 14px 16px;
   border-radius: 10px;
   border: 1px solid var(--bd);
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background:
     radial-gradient(ellipse 80% 60% at 50% 40%, rgba(91, 154, 255, 0.08), transparent 70%),
     var(--s2);
@@ -6373,11 +6509,12 @@ body.nav-sidebar-left #paneLatexTest.on {
 .latex-lab-preview-stack {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   gap: 0.55rem;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
 }
 .latex-lab-preview-before,
 .latex-lab-preview-after {
@@ -6390,13 +6527,29 @@ body.nav-sidebar-left #paneLatexTest.on {
   font-size: 1.05rem;
   color: var(--txt);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 .latex-lab-preview-math {
-  display: inline-block;
-  /* Alignement texte+formule via baseline du wrap — ne pas toucher .ML__base. */
-  vertical-align: baseline;
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+  text-align: center;
   font-size: 1.45rem;
   line-height: normal;
+}
+.latex-lab-preview-math.is-fitted {
+  overflow: hidden;
+  margin-inline: auto;
+}
+.latex-lab-preview-math .ML__mathlive,
+.latex-lab-preview-math .ML__content,
+.latex-lab-preview-math .katex-display,
+.latex-lab-preview-math .katex {
+  max-width: none;
 }
 /* Cartes / Rapide : taille relative au texte de la carte (pas le 1.45rem du labo) */
 .qk-q .latex-lab-preview-math,
@@ -6808,6 +6961,12 @@ body.nav-sidebar-left #paneLatexTest.on {
   border: none;
   outline: none;
   color: var(--txt);
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
 }
 .latex-lab math-field::part(menu-toggle),
 .latex-lab math-field::part(virtual-keyboard-toggle) {

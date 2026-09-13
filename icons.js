@@ -268,11 +268,63 @@
     return 'folder';
   };
 
+  window.DEFAULT_DOC_TYPES = [
+    { id: 'COURS', label: 'Cours' },
+    { id: 'TD', label: 'TD' },
+    { id: 'DS', label: 'DS' },
+    { id: 'KHOLLE', label: 'Khôlle' },
+    { id: 'FICHE', label: 'Fiche' }
+  ];
+
+  window.getDocTypes = function () {
+    const st = window.D && window.D.settings;
+    const raw = st && Array.isArray(st.docTypes) ? st.docTypes : null;
+    if (raw && raw.length) {
+      return raw.map(function (t) {
+        const id = String((t && t.id) || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+        const label = String((t && t.label) || id).trim() || id;
+        return { id: id, label: label };
+      }).filter(function (t) { return t.id; });
+    }
+    return window.DEFAULT_DOC_TYPES.map(function (t) { return { id: t.id, label: t.label }; });
+  };
+
+  window.ensureDocTypesSetting = function () {
+    if (!window.D || !window.D.settings) return;
+    if (!Array.isArray(window.D.settings.docTypes) || !window.D.settings.docTypes.length) {
+      window.D.settings.docTypes = window.DEFAULT_DOC_TYPES.map(function (t) {
+        return { id: t.id, label: t.label };
+      });
+    }
+  };
+
+  window.fillDocTypeSelect = function (sel, opts) {
+    if (!sel) return;
+    opts = opts || {};
+    const cur = sel.value;
+    const types = window.getDocTypes();
+    let html = '';
+    if (opts.includeAll) {
+      html += '<option value="">' + (opts.allLabel || 'Tous les types') + '</option>';
+    }
+    html += types.map(function (t) {
+      return '<option value="' + t.id + '">' + t.label + '</option>';
+    }).join('');
+    sel.innerHTML = html;
+    if (cur && Array.prototype.some.call(sel.options, function (o) { return o.value === cur; })) {
+      sel.value = cur;
+    } else if (!opts.includeAll && types[0]) {
+      sel.value = types[0].id;
+    }
+  };
+
   window.docTypeLabel = function (type) {
+    const types = window.getDocTypes();
+    const found = types.find(function (t) { return t.id === type; });
+    const label = found ? found.label : (type || 'Cours');
     const map = { COURS: 'cours', TD: 'td', DS: 'ds', KHOLLE: 'kholle', FICHE: 'fiche' };
-    const labels = { COURS: 'Cours', TD: 'TD', DS: 'DS', KHOLLE: 'Khôlle', FICHE: 'Fiche' };
     const cls = map[type] || 'cours';
-    return `<span class="badge-type-${cls}"><span class="badge-type-dot"></span>${labels[type] || type}</span>`;
+    return `<span class="badge-type-${cls}"><span class="badge-type-dot"></span>${label}</span>`;
   };
 
   /* dismissSplash → core-utils.js (ne pas redéfinir ici) */

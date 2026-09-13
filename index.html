@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260910o';
+  window.__BOOT_CACHE_V = '20260913c';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -472,6 +472,20 @@
   
   <div class="set-row"><div><div class="set-lbl">Alerte d'Initialisation</div><div class="set-sub">Affiche les pastilles rouges (À imprimer/Scanner)</div></div><button class="toggle-btn" id="btnInitWarnToggle">Activé</button></div>
 
+  <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Base Doc</h3>
+  <div class="set-row" style="flex-direction:column; align-items:stretch; gap:10px;">
+    <div>
+      <div class="set-lbl">Types de documents</div>
+      <div class="set-sub">Cours, TD, DS… — utilisés dans Base Doc (création et filtres)</div>
+    </div>
+    <div id="docTypesEditor" class="doc-types-editor" aria-live="polite"></div>
+    <div class="doc-types-add">
+      <input type="text" id="docTypeNewId" class="fi" placeholder="ID (ex. TP)" maxlength="12" style="max-width:110px" aria-label="Identifiant type">
+      <input type="text" id="docTypeNewLabel" class="fi" placeholder="Libellé (ex. TP)" maxlength="24" style="max-width:160px" aria-label="Libellé type">
+      <button type="button" class="bp" id="btnDocTypeAdd">Ajouter</button>
+    </div>
+  </div>
+
   <h3 style="font-family:'Inter'; margin-top:25px; margin-bottom:15px; color:var(--txt); font-size:15px;">Appareils connectés</h3>
   <div class="set-row" style="flex-direction:column; align-items:stretch;">
     <div style="margin-bottom:12px;">
@@ -539,6 +553,7 @@
 </div>
 
 <div class="pane ui-pane" id="paneLatexTest"></div>
+<div class="pane ui-pane" id="paneLatexShortcuts"></div>
 <div class="pane ui-pane" id="paneQuickLatex"></div>
 
   </div><!-- .app-content -->

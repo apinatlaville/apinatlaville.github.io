@@ -497,6 +497,11 @@ window.applySettings = function() {
   if(window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
   if (typeof window.updateCloudIndicator === 'function') window.updateCloudIndicator();
   if(window.$('btnInitWarnToggle')) window.$('btnInitWarnToggle').textContent = window.D.settings.showInitWarn ? 'Activé' : 'Désactivé';
+  if (typeof window.renderDocTypesEditor === 'function') window.renderDocTypesEditor();
+  if (typeof window.fillDocTypeSelect === 'function') {
+    window.fillDocTypeSelect(window.$('fltType'), { includeAll: true, allLabel: 'Tous les types' });
+    window.fillDocTypeSelect(window.$('fType'), {});
+  }
 
   var activeTheme = window.D.settings.themePreset || 'minimaliste';
   if (activeTheme !== 'minimaliste' && activeTheme !== 'classique'
@@ -1014,6 +1019,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'logs': window.renderErrorLogs(); break;
     case 'test': break;
     case 'latexTest': if (typeof window.renderLatexTest === 'function') window.renderLatexTest(); break;
+    case 'latexShortcuts': if (typeof window.renderLatexShortcutsHelp === 'function') window.renderLatexShortcutsHelp(); break;
     case 'quickLatex': if (typeof window.renderQuickLatexCard === 'function') window.renderQuickLatexCard(); break;
     default: break;
   }
@@ -1720,6 +1726,85 @@ bindClick('btnDashHeroToggle', withD(() => { window.D.settings.showDashHero = !w
 bindClick('btnDashOverToggle', withD(() => { window.D.settings.showDashOver = !window.D.settings.showDashOver; window.save(); window.applySettings(); }));
 bindClick('btnInitWarnToggle', withD(() => { window.D.settings.showInitWarn = !window.D.settings.showInitWarn; window.save(); window.applySettings(); }));
 
+window.renderDocTypesEditor = function () {
+  const host = window.$('docTypesEditor');
+  if (!host || !window.D || !window.D.settings) return;
+  if (typeof window.ensureDocTypesSetting === 'function') window.ensureDocTypesSetting();
+  const types = window.getDocTypes();
+  host.innerHTML = types.map(function (t, i) {
+    return (
+      '<div class="doc-type-row" data-idx="' + i + '">' +
+        '<code class="doc-type-id">' + String(t.id).replace(/</g, '&lt;') + '</code>' +
+        '<input type="text" class="fi doc-type-label" data-idx="' + i + '" value="' +
+          String(t.label).replace(/"/g, '&quot;') + '" maxlength="24" aria-label="Libellé">' +
+        '<button type="button" class="bs" data-act="up" data-idx="' + i + '"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+        '<button type="button" class="bs" data-act="down" data-idx="' + i + '"' + (i >= types.length - 1 ? ' disabled' : '') + '>↓</button>' +
+        '<button type="button" class="bs" data-act="del" data-idx="' + i + '" style="color:var(--red);border-color:var(--red)">×</button>' +
+      '</div>'
+    );
+  }).join('');
+  host.querySelectorAll('.doc-type-label').forEach(function (inp) {
+    inp.addEventListener('change', function () {
+      const idx = Number(inp.getAttribute('data-idx'));
+      const list = window.getDocTypes();
+      if (!list[idx]) return;
+      list[idx].label = (inp.value || '').trim() || list[idx].id;
+      window.D.settings.docTypes = list;
+      window.save();
+      window.applySettings();
+    });
+  });
+  host.querySelectorAll('button[data-act]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const act = btn.getAttribute('data-act');
+      const idx = Number(btn.getAttribute('data-idx'));
+      const list = window.getDocTypes();
+      if (act === 'del') {
+        if (list.length <= 1) {
+          if (typeof window.showToast === 'function') window.showToast('Il faut au moins un type.', { type: 'error' });
+          return;
+        }
+        list.splice(idx, 1);
+      } else if (act === 'up' && idx > 0) {
+        const tmp = list[idx - 1]; list[idx - 1] = list[idx]; list[idx] = tmp;
+      } else if (act === 'down' && idx < list.length - 1) {
+        const tmp = list[idx + 1]; list[idx + 1] = list[idx]; list[idx] = tmp;
+      } else return;
+      window.D.settings.docTypes = list;
+      window.save();
+      window.renderDocTypesEditor();
+      if (typeof window.fillDocTypeSelect === 'function') {
+        window.fillDocTypeSelect(window.$('fltType'), { includeAll: true, allLabel: 'Tous les types' });
+        window.fillDocTypeSelect(window.$('fType'), {});
+      }
+    });
+  });
+};
+
+bindClick('btnDocTypeAdd', withD(() => {
+  if (typeof window.ensureDocTypesSetting === 'function') window.ensureDocTypesSetting();
+  const idEl = window.$('docTypeNewId');
+  const labEl = window.$('docTypeNewLabel');
+  let id = ((idEl && idEl.value) || '').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '');
+  let label = ((labEl && labEl.value) || '').trim() || id;
+  if (!id) {
+    if (typeof window.showToast === 'function') window.showToast('Indique un identifiant (lettres/chiffres).', { type: 'error' });
+    return;
+  }
+  const list = window.getDocTypes();
+  if (list.some(function (t) { return t.id === id; })) {
+    if (typeof window.showToast === 'function') window.showToast('Cet identifiant existe déjà.', { type: 'error' });
+    return;
+  }
+  list.push({ id: id, label: label });
+  window.D.settings.docTypes = list;
+  if (idEl) idEl.value = '';
+  if (labEl) labEl.value = '';
+  window.save();
+  window.renderDocTypesEditor();
+  window.applySettings();
+}));
+
 bindInput('setUserName', withD((e) => { window.D.settings.userName = e.target.value.trim() || "Étudiant"; window.save(); window.applySettings(); }));
 
 if (typeof window.bindSettingsThemePicker === 'function') window.bindSettingsThemePicker();
@@ -2359,6 +2444,7 @@ async function initApp(user) {
   if(window.D.settings.headerCountdownTime === undefined) window.D.settings.headerCountdownTime = '08:00';
   if(window.D.settings.headerCountdownLabel === undefined) window.D.settings.headerCountdownLabel = 'Concours';
   if(window.D.settings.headerCountdownFormat === undefined) window.D.settings.headerCountdownFormat = 'jdays';
+  if (typeof window.ensureDocTypesSetting === 'function') window.ensureDocTypesSetting();
   if(!window.D.settings.navLayout) window.D.settings.navLayout = 'sidebar-left';
   if (!window.D.settings.navLayoutVersion) {
     window.D.settings.navLayout = 'sidebar-left';

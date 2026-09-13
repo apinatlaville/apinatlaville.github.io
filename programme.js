@@ -20,6 +20,7 @@
   var _filterMat = '';
   var _filterAnnee = '';
   var _reorderMode = false;
+  var _openChapitreId = '';
 
   function $(id) { return document.getElementById(id); }
 
@@ -651,15 +652,111 @@
     else done();
   }
 
+  function docsForChapitre(chapitreId) {
+    return (window.D.cours || []).filter(function (c) {
+      return c && c.chapitreId === chapitreId && !(typeof window.isCoursUnite === 'function' && window.isCoursUnite(c));
+    });
+  }
+
+  function groupsForChapitre(chapitreId) {
+    return (window.D.quickGroups || []).filter(function (g) {
+      return g && g.chapitreId === chapitreId;
+    });
+  }
+
+  function docTypeOrder() {
+    var types = (typeof window.getDocTypes === 'function') ? window.getDocTypes() : null;
+    if (types && types.length) return types.map(function (t) { return t.id; });
+    return ['COURS', 'TD', 'DS', 'KHOLLE', 'FICHE'];
+  }
+
+  function typeLabelPlain(type) {
+    if (typeof window.getDocTypes === 'function') {
+      var t = window.getDocTypes().find(function (x) { return x.id === type; });
+      if (t) return t.label;
+    }
+    var labels = { COURS: 'Cours', TD: 'TD', DS: 'DS', KHOLLE: 'Khôlle', FICHE: 'Fiche' };
+    return labels[type] || type || 'Autre';
+  }
+
+  function renderChapitreDetail(ch) {
+    var docs = docsForChapitre(ch.id);
+    var byType = {};
+    docs.forEach(function (d) {
+      var t = d.type || 'COURS';
+      if (!byType[t]) byType[t] = [];
+      byType[t].push(d);
+    });
+    var order = docTypeOrder();
+    var typeKeys = order.filter(function (t) { return byType[t] && byType[t].length; });
+    Object.keys(byType).forEach(function (t) {
+      if (typeKeys.indexOf(t) === -1) typeKeys.push(t);
+    });
+
+    var docsHtml = typeKeys.length
+      ? typeKeys.map(function (t) {
+        var items = byType[t].map(function (d) {
+          var title = esc(d.title || d.uid || 'Document');
+          var uid = esc(d.uid || '');
+          var click = d.uid
+            ? ' onclick="event.stopPropagation();if(window.doLocate)window.doLocate(\'' + jsStr(d.uid) + '\')"'
+            : '';
+          return '<button type="button" class="programme-doc-pill"' + click + '>' +
+            '<span class="mono programme-doc-uid">' + uid + '</span>' +
+            '<span class="programme-doc-title">' + title + '</span>' +
+          '</button>';
+        }).join('');
+        return (
+          '<div class="programme-type-block">' +
+            '<div class="programme-type-hdr">' + esc(typeLabelPlain(t)) +
+              ' <span class="anki-mut">(' + byType[t].length + ')</span></div>' +
+            '<div class="programme-doc-list">' + items + '</div>' +
+          '</div>'
+        );
+      }).join('')
+      : '<p class="anki-mut programme-detail-empty">Aucun document Base Doc rattaché.</p>';
+
+    var yGroups = groupsForChapitre(ch.id);
+    var yHtml = yGroups.length
+      ? '<div class="programme-y-grid">' + yGroups.map(function (g) {
+        var n = (window.D.exercices || []).filter(function (c) {
+          return c && c.groupId === g.id;
+        }).length;
+        return (
+          '<button type="button" class="programme-y-tile" style="--mat-color:' + esc(g.color || '#6a7088') + '" ' +
+            'onclick="event.stopPropagation();window.programmeOpenYGroup(\'' + jsStr(g.id) + '\')">' +
+            '<span class="programme-y-name">' + esc(g.name) + '</span>' +
+            '<span class="programme-y-meta">' + n + ' carte' + (n > 1 ? 's' : '') + '</span>' +
+          '</button>'
+        );
+      }).join('') + '</div>'
+      : '<p class="anki-mut programme-detail-empty">Aucun dossier Y- lié à ce chapitre.</p>';
+
+    return (
+      '<div class="programme-chapter-detail" onclick="event.stopPropagation()">' +
+        '<div class="programme-detail-section">' +
+          '<h4 class="programme-detail-title">Documents</h4>' +
+          docsHtml +
+        '</div>' +
+        '<div class="programme-detail-section programme-detail-y">' +
+          '<h4 class="programme-detail-title">Dossiers Y- (Rapide)</h4>' +
+          yHtml +
+        '</div>' +
+      '</div>'
+    );
+  }
+
   function renderChapitreRow(ch, idx, count) {
     var m = matObj(ch.mat);
     var locRaw = typeof window.formatChapitreLoc === 'function'
       ? window.formatChapitreLoc(ch)
       : (ch.cl ? (clObj(ch.cl).name + ' · ' + interLabel(ch.cl, ch.inter)) : '—');
     var loc = locRaw === '—' ? '—' : esc(locRaw);
+    var open = !_reorderMode && _openChapitreId === ch.id;
     var dragAttrs = _reorderMode
       ? ' draggable="true" class="programme-row card programme-row-draggable" data-id="' + esc(ch.id) + '"'
-      : ' class="programme-row card"';
+      : ' class="programme-row card' + (open ? ' is-open' : '') + '" data-id="' + esc(ch.id) + '"' +
+        ' onclick="window.programmeToggleChapitre(\'' + jsStr(ch.id) + '\')"';
     var grip = _reorderMode
       ? '<div class="programme-row-grip" title="Glisser pour réordonner" aria-hidden="true">' +
           (window.iconHtml ? window.iconHtml('move-vertical', 16) : '⋮⋮') +
@@ -668,7 +765,7 @@
     var actions = _reorderMode
       ? ''
       : (
-        '<div class="programme-row-actions">' +
+        '<div class="programme-row-actions" onclick="event.stopPropagation()">' +
           '<button type="button" class="bs" title="Modifier" onclick="window.programmeOpenEdit(\'' + jsStr(ch.id) + '\')">' +
             (window.iconHtml ? window.iconHtml('pencil', 16) : '✎') +
           '</button>' +
@@ -677,23 +774,50 @@
           '</button>' +
         '</div>'
       );
+    var nDocs = docsForChapitre(ch.id).length;
+    var nY = groupsForChapitre(ch.id).length;
     return (
-      '<div' + dragAttrs + ' style="--mat-color:' + esc(m.color) + '">' +
-        grip +
-        '<div class="programme-row-main">' +
-          '<div class="programme-row-title">' + window.formatChapitreLabel(ch, true) + '</div>' +
-          '<div class="programme-row-meta">' +
-            '<span class="programme-badge">' + esc(m.name) + '</span>' +
-            '<span class="programme-badge">' + ch.annee + (ch.annee === 1 ? 'ère' : 'ème') + ' année</span>' +
-            '<span class="programme-badge programme-badge-muted">' + loc + '</span>' +
-            '<span class="programme-badge programme-badge-muted mono">' + esc(ch.id) + '</span>' +
+      '<div class="programme-row-block">' +
+        '<div' + dragAttrs + ' style="--mat-color:' + esc(m.color) + '">' +
+          grip +
+          '<div class="programme-row-main">' +
+            '<div class="programme-row-title">' + window.formatChapitreLabel(ch, true) + '</div>' +
+            '<div class="programme-row-meta">' +
+              '<span class="programme-badge">' + esc(m.name) + '</span>' +
+              '<span class="programme-badge">' + ch.annee + (ch.annee === 1 ? 'ère' : 'ème') + ' année</span>' +
+              '<span class="programme-badge programme-badge-muted">' + loc + '</span>' +
+              '<span class="programme-badge programme-badge-muted mono">' + esc(ch.id) + '</span>' +
+              (!_reorderMode
+                ? '<span class="programme-badge programme-badge-muted">' + nDocs + ' doc' + (nDocs > 1 ? 's' : '') +
+                    (nY ? ' · ' + nY + ' Y-' : '') + '</span>'
+                : '') +
+            '</div>' +
+            (ch.notes ? '<div class="programme-row-notes">' + esc(ch.notes) + '</div>' : '') +
           '</div>' +
-          (ch.notes ? '<div class="programme-row-notes">' + esc(ch.notes) + '</div>' : '') +
+          actions +
         '</div>' +
-        actions +
+        (open ? renderChapitreDetail(ch) : '') +
       '</div>'
     );
   }
+
+  window.programmeToggleChapitre = function (id) {
+    if (_reorderMode) return;
+    _openChapitreId = (_openChapitreId === id) ? '' : (id || '');
+    window.renderProgramme();
+  };
+
+  window.programmeOpenYGroup = function (groupId) {
+    if (!groupId) return;
+    if (typeof window.switchTab === 'function') {
+      window.switchTab('flashcards');
+    }
+    setTimeout(function () {
+      if (typeof window.quickArianePickGroup === 'function') {
+        window.quickArianePickGroup(groupId);
+      }
+    }, 120);
+  };
 
   function bindProgrammeDragDrop(pane) {
     if (!_reorderMode || !pane) return;

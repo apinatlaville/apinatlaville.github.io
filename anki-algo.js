@@ -1221,7 +1221,8 @@
         name: String(g.name).trim(),
         color: g.color || '#6a7088',
         order: g.order != null ? Number(g.order) : i,
-        mat: g.mat ? String(g.mat) : ''
+        mat: g.mat ? String(g.mat) : '',
+        chapitreId: g.chapitreId ? String(g.chapitreId) : ''
       }));
     /* Inférer matière des cartes Y- si absente */
     D.quickGroups.forEach(function (g) {

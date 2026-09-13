@@ -25,6 +25,7 @@ window.APP_TAB_REGISTRY = {
   logs:        { pane: 'paneLogs',        label: 'Logs',          icon: 'bug',            needsData: false, onShow: 'logs',          className: 'tab-logs' },
   test:        { pane: 'paneTest',        label: 'Diagnostic Scanner', icon: 'camera',    needsData: false, onShow: 'test',          className: 'tab-test' },
   latexTest:   { pane: 'paneLatexTest',  label: 'Labo LaTeX',    icon: 'flask-conical', needsData: false, onShow: 'latexTest',     className: 'tab-latex-test' },
+  latexShortcuts: { pane: 'paneLatexShortcuts', label: 'Raccourcis LaTeX', icon: 'keyboard', needsData: false, onShow: 'latexShortcuts', className: 'tab-latex-help' },
   quickLatex:  { pane: 'paneQuickLatex', label: 'Carte LaTeX',   icon: 'sigma',         needsData: true,  onShow: 'quickLatex',    nav: false }
 };
 
@@ -47,7 +48,7 @@ window.APP_NAV_GROUPS = [
   {
     label: 'Système',
     className: 'nav-group-tools',
-    tabs: ['logs', 'test', 'latexTest']
+    tabs: ['logs', 'test', 'latexTest', 'latexShortcuts']
   }
 ];
 

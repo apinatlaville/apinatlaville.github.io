@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 10;
+  var UI_REV = 11;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -1038,7 +1038,7 @@
   function latexToMarkup(latex) {
     if (!latex) return '';
     var normalized = promoteFractionsToDisplay(normalizeVectorLatex(latex));
-    var opts = { defaultMode: 'displaystyle' };
+    var opts = { defaultMode: 'displaystyle', letterShapeStyle: 'french' };
     try {
       if (window.MathfieldElement && typeof window.MathfieldElement.convertLatexToMarkup === 'function') {
         return window.MathfieldElement.convertLatexToMarkup(normalized, opts);
@@ -1165,12 +1165,66 @@
     }).join('');
   }
 
+  function fitLatexPreviewMath(root) {
+    if (!root) return;
+    var boxes = root.querySelectorAll('.latex-lab-preview-math');
+    if (!boxes.length) return;
+    boxes.forEach(function (box) {
+      box.classList.remove('is-fitted');
+      box.style.transform = '';
+      box.style.height = '';
+      box.style.width = '';
+      box.style.maxWidth = '';
+      box.style.marginLeft = '';
+      box.style.marginRight = '';
+    });
+    /* Mesure après reset (frame suivante si besoin) */
+    requestAnimationFrame(function () {
+      boxes.forEach(function (box) {
+        var host = box.closest('.latex-lab-preview-wrap') || box.parentElement;
+        var avail = host ? host.clientWidth : 0;
+        if (avail <= 8) return;
+        avail -= 8;
+        var need = Math.max(box.scrollWidth, box.offsetWidth);
+        if (need <= avail + 1) return;
+        var s = Math.max(0.5, avail / need);
+        var naturalH = box.offsetHeight;
+        box.style.transformOrigin = 'top center';
+        box.style.transform = 'scale(' + s + ')';
+        box.style.height = (naturalH * s) + 'px';
+        box.classList.add('is-fitted');
+      });
+    });
+  }
+
+  function insertMathNewline(mf) {
+    if (!mf) return;
+    try {
+      if (typeof mf.executeCommand === 'function') {
+        try {
+          mf.executeCommand('addRow');
+          return;
+        } catch (e0) { /* ignore */ }
+        try {
+          mf.executeCommand(['insert', '\\\\']);
+          return;
+        } catch (e1) { /* ignore */ }
+      }
+    } catch (e) { /* ignore */ }
+    try {
+      if (typeof mf.executeCommand === 'function') {
+        mf.executeCommand(['insert', '\\newline ']);
+      }
+    } catch (e2) { /* ignore */ }
+  }
+
   function syncPreview() {
     var wrap = document.getElementById('latexTestPreviewWrap');
     if (!wrap) return;
     var html = formatLatexPreviewHtml(getTextBefore(), getEditorLatex(), getTextAfter());
     if (!html) html = '<span class="anki-mut">Aperçu vide — tape une formule ou du texte</span>';
     wrap.innerHTML = html;
+    fitLatexPreviewMath(wrap);
   }
 
   function syncFromEditor() {
@@ -1444,15 +1498,78 @@
       mf.menuItems = [];
       mf.mathVirtualKeyboardPolicy = 'manual';
       mf.defaultMode = 'math';
+      /* Pas de raccourcis lettre (int→∫) : le texte reste du texte ; utiliser \int, \alpha… */
+      mf.inlineShortcuts = {};
+      /* Grec droit (norme FR) : ν ne ressemble plus à un v italique TeX */
+      mf.letterShapeStyle = 'french';
     } catch (e) { /* ignore */ }
     mf.setAttribute('virtual-keyboard-mode', 'manual');
     mf.setAttribute('math-virtual-keyboard-policy', 'manual');
+    mf.setAttribute('letter-shape-style', 'french');
     try {
-      /* Éditeur : fractions en taille display pour la lisibilité */
       if ('defaultMode' in mf) mf.defaultMode = 'math';
       mf.setAttribute('default-mode', 'math');
     } catch (e2) { /* ignore */ }
   }
+
+  function latexPrimaryCmd(latex) {
+    var m = String(latex || '').match(/\\([a-zA-Z]+)/);
+    return m ? ('\\' + m[1]) : '';
+  }
+
+  window.getLatexShortcutHelpRows = function () {
+    var rows = [];
+    var seen = {};
+    SNIP_GROUPS.forEach(function (group) {
+      (group.items || []).forEach(function (item) {
+        var cmd = latexPrimaryCmd(item.latex);
+        if (!cmd || seen[cmd + '|' + (item.title || item.label)]) return;
+        seen[cmd + '|' + (item.title || item.label)] = true;
+        rows.push({
+          cmd: cmd,
+          label: item.label || '',
+          title: item.title || item.label || '',
+          group: group.label || group.id || ''
+        });
+      });
+    });
+    rows.sort(function (a, b) {
+      return a.cmd.localeCompare(b.cmd) || a.title.localeCompare(b.title, 'fr');
+    });
+    return rows;
+  };
+
+  window.renderLatexShortcutsHelp = function () {
+    var pane = document.getElementById('paneLatexShortcuts');
+    if (!pane) return;
+    var rows = window.getLatexShortcutHelpRows();
+    var body = rows.map(function (r) {
+      return (
+        '<tr>' +
+          '<td class="latex-help-cmd"><code>' + escHtml(r.cmd) + '</code></td>' +
+          '<td class="latex-help-sym">' + escHtml(r.label) + '</td>' +
+          '<td class="latex-help-desc">' + escHtml(r.title) + '</td>' +
+          '<td class="latex-help-grp anki-mut">' + escHtml(r.group) + '</td>' +
+        '</tr>'
+      );
+    }).join('');
+    pane.innerHTML =
+      '<div class="latex-help">' +
+        '<header class="latex-help-head">' +
+          '<h2 class="latex-lab-title"><span data-icon="keyboard"></span> Raccourcis LaTeX</h2>' +
+          '<p class="anki-mut">Les lettres restent du texte (tu peux écrire « intervalle »). ' +
+            'Pour un symbole, tape une commande avec barre oblique inversée, ex. <code>\\int</code>, <code>\\alpha</code>. ' +
+            '<b>^</b> et <b>_</b> restent pour exposant et indice.</p>' +
+        '</header>' +
+        '<div class="latex-help-table-wrap">' +
+          '<table class="latex-help-table">' +
+            '<thead><tr><th>Commande</th><th>Aperçu</th><th>Effet</th><th>Palette</th></tr></thead>' +
+            '<tbody>' + body + '</tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>';
+    if (window.hydrateIcons) window.hydrateIcons(pane);
+  };
 
   function wireFields() {
     _mf = document.getElementById('latexTestField');
@@ -1531,6 +1648,7 @@
                 '<button type="button" class="latex-lab-quick" data-space="thin" title="Espace fin (touche Espace)">␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="quad" title="Grand espace (Maj+Espace)">□</button>' +
+                '<button type="button" class="latex-lab-quick" id="latexTestInsertBreak" title="Nouvelle ligne dans la formule (Entrée)">↵ ligne</button>' +
                 '<button type="button" class="latex-lab-quick" id="latexTestInsertText" title="Insérer du texte dans la formule">\\text{}</button>' +
                 '<button type="button" class="latex-lab-quick" id="latexTestInsertCancel" title="Barré en diagonale">\\cancel{}</button>' +
                 '<label class="latex-lab-space-toggle" title="Espace clavier → espacement LaTeX">' +
@@ -1587,6 +1705,21 @@
     if (textBtn) textBtn.addEventListener('click', insertTextBox);
     var cancelBtn = document.getElementById('latexTestInsertCancel');
     if (cancelBtn) cancelBtn.addEventListener('click', insertCancelBox);
+    var breakBtn = document.getElementById('latexTestInsertBreak');
+    if (breakBtn) breakBtn.addEventListener('click', function () {
+      insertMathNewline(_mf);
+      syncFromEditor();
+      try { if (_mf) _mf.focus(); } catch (e) { /* ignore */ }
+    });
+
+    if (!window._latexPreviewFitBound) {
+      window._latexPreviewFitBound = true;
+      window.addEventListener('resize', function () {
+        document.querySelectorAll('.latex-lab-preview-wrap').forEach(function (w) {
+          fitLatexPreviewMath(w);
+        });
+      });
+    }
 
     var spaceToggle = document.getElementById('latexTestSpaceMode');
     if (spaceToggle) {
@@ -1657,6 +1790,7 @@
   window.formatQuickCardHtml = formatCardFaceHtml; /* alias Rapide */
   window.parseLatexInlineForEditor = parseLatexInlineForEditor;
   window.parseLatexInlineSegments = parseLatexInlineSegments;
+  window.fitLatexPreviewMath = fitLatexPreviewMath;
 
   /**
    * Monte une instance « LaTeX Easy » (même modèle que le labo) dans host.
@@ -1690,6 +1824,7 @@
       var html = formatLatexPreviewHtml(getBefore(), getLatex(), getAfter());
       if (!html) html = '<span class="anki-mut">Aperçu vide — tape une formule ou du texte</span>';
       wrap.innerHTML = html;
+      fitLatexPreviewMath(wrap);
     }
 
     function syncFromEditor() {
@@ -1865,6 +2000,7 @@
                 '<button type="button" class="latex-lab-quick" data-space="thin" title="Espace fin">␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="med" title="Espace moyen">␣␣</button>' +
                 '<button type="button" class="latex-lab-quick" data-space="quad" title="Grand espace">□</button>' +
+                '<button type="button" class="latex-lab-quick" id="' + pid('InsertBreak') + '" title="Nouvelle ligne (Entrée)">↵ ligne</button>' +
                 '<button type="button" class="latex-lab-quick" id="' + pid('InsertText') + '" title="Texte dans la formule">\\text{}</button>' +
                 '<button type="button" class="latex-lab-quick" id="' + pid('InsertCancel') + '" title="Barré en diagonale">\\cancel{}</button>' +
                 '<label class="latex-lab-space-toggle" title="Espace clavier → espacement LaTeX">' +
@@ -1910,6 +2046,12 @@
     if (textBtn) textBtn.addEventListener('click', function () { insertSnipLocal('\\text{#0}'); });
     var cancelBtn = gel('InsertCancel');
     if (cancelBtn) cancelBtn.addEventListener('click', function () { insertSnipLocal('\\cancel{#0}'); });
+    var breakBtn = gel('InsertBreak');
+    if (breakBtn) breakBtn.addEventListener('click', function () {
+      insertMathNewline(mf);
+      syncFromEditor();
+      try { if (mf) mf.focus(); } catch (e) { /* ignore */ }
+    });
     var spaceToggle = gel('SpaceMode');
     if (spaceToggle) spaceToggle.addEventListener('change', function () { spaceMode = !!spaceToggle.checked; });
     var clearBtn = gel('Clear');

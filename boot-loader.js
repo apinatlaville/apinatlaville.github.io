@@ -32,6 +32,7 @@
     programme: ['programme.js'],
     programmeBrowse: ['programme-browse.js'],
     latexTest: ['latex-test.js'],
+    latexShortcuts: ['latex-test.js'],
     quickLatex: ['latex-test.js', 'anki-quick-latex.js']
   };
 

@@ -392,6 +392,35 @@ body.theme-light.ui-finder.nav-chrome-sidebar .page-title-float {
   opacity: 0.85;
 }
 
+.doc-types-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.doc-type-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.doc-type-id {
+  font-size: 11px;
+  min-width: 64px;
+  color: var(--mut);
+}
+.doc-type-label {
+  flex: 1;
+  min-width: 100px;
+  max-width: 200px;
+}
+.doc-types-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 body.tmpl-glass.theme-light .page-title-countdown {
   background:
     linear-gradient(145deg, rgba(255, 220, 140, 0.35) 0%, transparent 52%),
