@@ -2452,7 +2452,9 @@ async function initApp(user) {
   }
   if(!window.D.settings.appColor) window.D.settings.appColor = '#5b9aff';
   if(!window.D.settings.ankiQuotaMin) window.D.settings.ankiQuotaMin = 90;
-  if(window.D.settings.ankiIncludeNew === undefined) window.D.settings.ankiIncludeNew = 5;
+  // V2 : réservoir = activation manuelle uniquement (plus d’auto-pioche « nouvelles »).
+  window.D.settings.ankiIncludeNew = 0;
+  window.D.settings._synchrotronNoAutoNew = true;
   if(window.D.settings.ankiMaxAnglaisFill === undefined) window.D.settings.ankiMaxAnglaisFill = 5;
   if(!window.D.settings.ankiMaxPerDay) window.D.settings.ankiMaxPerDay = 75;
 

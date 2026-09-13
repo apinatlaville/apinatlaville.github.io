@@ -1534,7 +1534,8 @@
   function computeCockpitPlan() {
     const settings = window.D.settings || {};
     const sessionMin = getSessionMinutesV2();
-    const includeNew = settings.ankiIncludeNew !== undefined ? settings.ankiIncludeNew : 0;
+    // Réservoir = activation manuelle uniquement (ne pas auto-piocher via includeNew).
+    const includeNew = 0;
     const isManualTab = S.cockpitMode === 'manual';
 
     if (isManualTab) {
@@ -2228,9 +2229,7 @@
   function togglePickAuto(id) {
     const base = window.AnkiAlgoV2.buildSession(ankSessionPool(), {
       sessionMinutes: getSessionMinutesV2(),
-      includeNew: (window.D.settings && window.D.settings.ankiIncludeNew !== undefined)
-        ? window.D.settings.ankiIncludeNew
-        : 0,
+      includeNew: 0,
       selectedIds: null,
       manualOrder: null
     });
@@ -3139,8 +3138,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       <div class="anki-card-block">
         <h3>Session</h3>
         <div class="anki-set-row">
-          <label>Nouvelles cartes / session (legacy — réservoir activé manuellement)</label>
-          <input type="number" class="fi" min="0" max="30" value="${st.ankiIncludeNew !== undefined ? st.ankiIncludeNew : 0}" onchange="window.D.settings.ankiIncludeNew=parseInt(this.value)||0;window.save();window.renderAnkiV2();">
+          <label>Nouvelles cartes / session</label>
+          <p class="anki-mut" style="font-size:12px;margin:0;">Désactivé : les cartes du <b>Réservoir</b> n’entrent jamais seules dans la session. Active-les depuis l’onglet Réservoir (ou choisis « Actif » à la création).</p>
         </div>
         <div class="anki-set-row">
           <label>Charge max / jour (min)</label>
