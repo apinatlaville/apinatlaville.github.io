@@ -5505,11 +5505,27 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!id) return { ok: false, error: 'NO_ID' };
     const loc = ankLocate(id);
     if (!loc) return { ok: false, error: 'NOT_FOUND' };
-    const card = loc.list[loc.idx];
+    let card = loc.list[loc.idx];
     if (!card || isDevoirCard(card)) return { ok: false, error: 'UNSUPPORTED' };
 
     qScore = Math.max(0, Math.min(10, Number(qScore)));
     if (!Number.isFinite(qScore)) return { ok: false, error: 'BAD_SCORE' };
+
+    // Écraser une note précédente (Rapide undo / re-note) sans empiler 2 révisions
+    if (opts.replacePrevious) {
+      window.ankiV2RevertStandaloneEval(id, { silent: true });
+      const loc2 = ankLocate(id);
+      if (!loc2) return { ok: false, error: 'NOT_FOUND' };
+      card = loc2.list[loc2.idx];
+    }
+
+    if (!S._standaloneSnaps) S._standaloneSnaps = {};
+    S._standaloneSnaps[id] = {
+      card: cloneCard(card),
+      qScore: qScore,
+      statBucket: null,
+      removedFromSession: false
+    };
 
     const easeAvant = card.ease || 2.5;
     const intAvant = card.intervalle || 0;
@@ -5555,11 +5571,16 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       S.queue = S.queue.filter(c => c && c.id !== card.id);
       if (S.queue.length !== before) removedFromSession = true;
     }
+    let statBucket = null;
     if (removedFromSession && S.stats) {
       const btn = window.AnkiAlgoV2.qScoreToButton(qScore);
-      if (btn === 0) S.stats.bad++;
-      else if (btn === 1) S.stats.mid++;
-      else S.stats.ok++;
+      if (btn === 0) { S.stats.bad++; statBucket = 'bad'; }
+      else if (btn === 1) { S.stats.mid++; statBucket = 'mid'; }
+      else { S.stats.ok++; statBucket = 'ok'; }
+    }
+    if (S._standaloneSnaps[id]) {
+      S._standaloneSnaps[id].removedFromSession = removedFromSession;
+      S._standaloneSnaps[id].statBucket = statBucket;
     }
     if (removedFromSession) {
       try { persistSession(); } catch (e) { /* non bloquant */ }
@@ -5571,6 +5592,47 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       try { window.save(); } catch (e3) { /* local */ }
     }
     return { ok: true, out: out, card: card, removedFromSession: removedFromSession };
+  };
+
+  /**
+   * Annule une notation standalone (Rapide) en restaurant l’état pré-note.
+   * N’ajoute pas d’entrée « undo » dans l’historique : la prochaine note remplace vraiment.
+   */
+  window.ankiV2RevertStandaloneEval = function (cardId, opts) {
+    opts = opts || {};
+    if (!cardId || !S._standaloneSnaps || !S._standaloneSnaps[cardId]) {
+      return { ok: false, error: 'NO_SNAP' };
+    }
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : annulation indisponible.')) {
+      return { ok: false, error: 'SECONDARY_READ_ONLY' };
+    }
+    const meta = S._standaloneSnaps[cardId];
+    const loc = ankLocate(cardId);
+    if (!loc || !meta.card) {
+      delete S._standaloneSnaps[cardId];
+      return { ok: false, error: 'NOT_FOUND' };
+    }
+    const restored = cloneCard(meta.card);
+    loc.list[loc.idx] = restored;
+
+    if (meta.removedFromSession && S.stats && meta.statBucket) {
+      if (meta.statBucket === 'ok') S.stats.ok = Math.max(0, S.stats.ok - 1);
+      if (meta.statBucket === 'mid') S.stats.mid = Math.max(0, S.stats.mid - 1);
+      if (meta.statBucket === 'bad') S.stats.bad = Math.max(0, S.stats.bad - 1);
+      try { persistSession(); } catch (e) { /* ignore */ }
+      try { renderSyncSessionDock(); } catch (e2) { /* ignore */ }
+    }
+
+    delete S._standaloneSnaps[cardId];
+    if (S.dernierExerciceModifie && S.dernierExerciceModifie.card && S.dernierExerciceModifie.card.id === cardId) {
+      S.dernierExerciceModifie = null;
+    }
+    window.AnkiAlgoV2.log('revert-rapide', { id: cardId, silent: !!opts.silent });
+    if (typeof window.save === 'function') {
+      try { window.save(); } catch (e3) { /* local */ }
+    }
+    return { ok: true, card: restored };
   };
 
   window.editExo = window.ankiV2EditExo;

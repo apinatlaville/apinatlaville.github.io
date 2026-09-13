@@ -108,7 +108,9 @@
 
     if (_crumbAnnee) {
       parts.push('<span class="prog-bc-sep" aria-hidden="true">' + chevron + '</span>');
-      parts.push('<span class="prog-bc-crumb is-current">' + esc(anneeLabel(_crumbAnnee)) + '</span>');
+      parts.push('<span class="prog-bc-crumb">' + esc(anneeLabel(_crumbAnnee)) + '</span>');
+      parts.push('<span class="prog-bc-sep" aria-hidden="true">' + chevron + '</span>');
+      parts.push('<span class="prog-bc-crumb is-current">Chapitres</span>');
     }
 
     return '<nav class="prog-bc-bar" aria-label="Fil d’Ariane">' + parts.join('') + '</nav>';

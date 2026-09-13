@@ -1788,32 +1788,35 @@ window.renderEditClMatPick = function (cl) {
     box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Aucune matière à lier — crée-en d’abord.</p>';
     return;
   }
+  // Boutons type Actif/Réservoir (cartes X) — pas de checkbox → pas de gros toggles Flatpickr
   box.innerHTML = mats.map(function (m) {
     const on = selected.has(m.id);
+    const col = m.color || '#6a6a88';
     return (
-      `<label class="cl-mat-pick-item${on ? ' is-on' : ''}">` +
-        `<input type="checkbox" data-mat-id="${window.escHtml(m.id)}" ${on ? 'checked' : ''} onchange="window.onEditClMatToggle()">` +
-        `<span class="cl-mat-pick-swatch" style="background:${window.escHtml(m.color || '#6a6a88')}"></span>` +
-        `<span class="cl-mat-pick-lbl"><b>${window.escHtml(m.label || m.id)}</b> ${window.escHtml(m.name || '')}</span>` +
-      `</label>`
+      `<button type="button" class="cl-mat-pick-item${on ? ' is-on' : ''}" data-mat-id="${window.escHtml(m.id)}" ` +
+        `aria-pressed="${on ? 'true' : 'false'}" onclick="window.onEditClMatToggle(this)" title="${window.escHtml(m.name || m.label || m.id)}">` +
+        `<span class="cl-mat-pick-swatch" style="background:${window.escHtml(col)}"></span>` +
+        `<span class="cl-mat-pick-lbl">` +
+          `<span class="cl-mat-pick-title">${window.escHtml(m.label || m.id)}</span>` +
+          (m.name ? `<span class="cl-mat-pick-hint">${window.escHtml(m.name)}</span>` : '') +
+        `</span>` +
+      `</button>`
     );
   }).join('');
 };
 
-window.onEditClMatToggle = function () {
-  const box = window.$('eClMatList');
-  if (!box) return;
-  box.querySelectorAll('.cl-mat-pick-item').forEach(function (lab) {
-    const inp = lab.querySelector('input[type="checkbox"]');
-    lab.classList.toggle('is-on', !!(inp && inp.checked));
-  });
+window.onEditClMatToggle = function (btn) {
+  if (!btn) return;
+  const on = !btn.classList.contains('is-on');
+  btn.classList.toggle('is-on', on);
+  btn.setAttribute('aria-pressed', on ? 'true' : 'false');
 };
 
 window.readEditClMatIds = function () {
   const box = window.$('eClMatList');
   if (!box) return [];
-  return Array.from(box.querySelectorAll('input[type="checkbox"]:checked'))
-    .map(function (inp) { return inp.getAttribute('data-mat-id'); })
+  return Array.from(box.querySelectorAll('.cl-mat-pick-item.is-on'))
+    .map(function (el) { return el.getAttribute('data-mat-id'); })
     .filter(Boolean);
 };
 

@@ -17,8 +17,8 @@
     createUnite: true
   };
 
-  var _filterMat = '';
-  var _filterAnnee = '';
+  var _navMat = '';
+  var _navAnnee = '';
   var _reorderMode = false;
   var _openChapitreId = '';
 
@@ -643,6 +643,63 @@
     return n ? (ns + ' — ' + n) : ns;
   }
 
+  /** Fil matière › classeur › intercalaire (sélection Programme). */
+  window.formatProgInterCrumbHtml = function (matId, clId, inter) {
+    var mat = matObj(matId);
+    var cl = clObj(clId);
+    var slot = window.normalizeInterSlot(inter);
+    var raw = typeof window.getInterRawName === 'function' ? window.getInterRawName(cl, slot) : '';
+    var interTxt = raw ? (slot + ' — ' + raw) : ('Intercalaire ' + slot);
+    return (
+      '<span class="programme-inter-crumb">' +
+        '<span class="programme-inter-crumb-seg">' + esc(mat.label || mat.id || '?') + '</span>' +
+        '<span class="programme-inter-crumb-sep" aria-hidden="true">›</span>' +
+        '<span class="programme-inter-crumb-seg">' + esc(cl.name || clId || '?') + '</span>' +
+        '<span class="programme-inter-crumb-sep" aria-hidden="true">›</span>' +
+        '<span class="programme-inter-crumb-seg is-last">' + esc(interTxt) + '</span>' +
+      '</span>'
+    );
+  };
+
+  /** Boutons multi-sélection (style Actif/Réservoir) avec fil d’Ariane. */
+  window.renderProgInterPickButtons = function (matId, clId, selectedInters, onToggleFn) {
+    var slots = window.getClasseurInterSlots(clId);
+    var selected = (selectedInters || []).map(window.normalizeInterSlot).filter(Boolean);
+    if (!slots.length) {
+      return '<p class="anki-mut" style="font-size:12px;margin:0;">Aucun intercalaire dans ce classeur.</p>';
+    }
+    var toggle = onToggleFn || 'window.programmeToggleInterPick(this)';
+    return (
+      '<div class="programme-inter-pick" role="group" aria-label="Intercalaires liés">' +
+        slots.map(function (c) {
+          var on = selected.indexOf(c.inter) !== -1;
+          return (
+            '<button type="button" class="programme-inter-card' + (on ? ' is-on' : '') + '" ' +
+              'data-inter="' + esc(c.inter) + '" aria-pressed="' + (on ? 'true' : 'false') + '" ' +
+              'onclick="' + toggle + '">' +
+              window.formatProgInterCrumbHtml(matId, clId, c.inter) +
+            '</button>'
+          );
+        }).join('') +
+      '</div>'
+    );
+  };
+
+  window.programmeToggleInterPick = function (btn) {
+    if (!btn) return;
+    var on = !btn.classList.contains('is-on');
+    btn.classList.toggle('is-on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  };
+
+  window.programmeReadInterPick = function (root) {
+    if (!root) return [];
+    return Array.prototype.map.call(
+      root.querySelectorAll('.programme-inter-card.is-on'),
+      function (el) { return el.getAttribute('data-inter'); }
+    ).filter(Boolean);
+  };
+
   function saveAndRefresh() {
     var p = typeof window.save === 'function' ? window.save() : null;
     var done = function () {
@@ -870,83 +927,206 @@
     });
   }
 
-  window.renderProgramme = function () {
-    window.ensureChapitresArray();
-    var pane = $('paneProgramme');
-    if (!pane) return;
+  function anneeLabel(a) {
+    var n = parseInt(a, 10) || 1;
+    return n + (n === 1 ? 'ère' : 'ème') + ' année';
+  }
 
+  function countChapitresNav(mat, annee) {
+    return window.listChapitres({
+      mat: mat || undefined,
+      annee: annee != null && annee !== '' ? annee : undefined
+    }).length;
+  }
+
+  function renderProgrammeBreadcrumb() {
+    var chevron = window.iconHtml ? window.iconHtml('chevron-right', 14) : '›';
+    var parts = [];
+    var atRoot = !_navMat;
+    var atMat = !!_navMat && !_navAnnee;
+    var atChaps = !!_navMat && !!_navAnnee;
+
+    parts.push(
+      '<button type="button" class="prog-bc-crumb' + (atRoot ? ' is-current' : '') + '"' +
+        (_reorderMode ? ' disabled' : ' onclick="window.programmeNavReset()"') + '>' +
+        (window.iconHtml ? window.iconHtml('home', 14) : '') +
+        ' Programme' +
+      '</button>'
+    );
+
+    if (_navMat) {
+      parts.push('<span class="prog-bc-sep" aria-hidden="true">' + chevron + '</span>');
+      parts.push(
+        '<button type="button" class="prog-bc-crumb' + (atMat ? ' is-current' : '') + '"' +
+          (_reorderMode ? ' disabled' : ' onclick="window.programmeNavMat(\'' + jsStr(_navMat) + '\')"') + '>' +
+          esc(matObj(_navMat).name) +
+        '</button>'
+      );
+    }
+
+    if (_navAnnee) {
+      parts.push('<span class="prog-bc-sep" aria-hidden="true">' + chevron + '</span>');
+      parts.push(
+        '<button type="button" class="prog-bc-crumb' + (atChaps ? '' : ' is-current') + '"' +
+          (_reorderMode || atChaps ? ' disabled' : ' onclick="window.programmeNavAnnee(\'' + jsStr(_navAnnee) + '\')"') + '>' +
+          esc(anneeLabel(_navAnnee)) +
+        '</button>'
+      );
+    }
+
+    if (atChaps) {
+      parts.push('<span class="prog-bc-sep" aria-hidden="true">' + chevron + '</span>');
+      parts.push('<span class="prog-bc-crumb is-current">Chapitres</span>');
+    }
+
+    return '<nav class="prog-bc-bar" aria-label="Fil d’Ariane">' + parts.join('') + '</nav>';
+  }
+
+  function renderProgrammeMatLevel() {
     var mats = (window.D.matieres || []).filter(function (m) {
       return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
     });
-    var matOpts = '<option value="">Toutes matières</option>' +
-      mats.map(function (m) {
-        var sel = _filterMat === m.id ? ' selected' : '';
-        return '<option value="' + esc(m.id) + '"' + sel + '>' + esc(m.name) + '</option>';
-      }).join('');
-    var anOpts = ['<option value="">Toutes années</option>',
-      '<option value="1"' + (_filterAnnee === '1' ? ' selected' : '') + '>1ère année</option>',
-      '<option value="2"' + (_filterAnnee === '2' ? ' selected' : '') + '>2ème année</option>'
-    ].join('');
+    if (!mats.length) {
+      return '<div class="prog-bc-empty">Aucune matière. Crée-en dans Organisation → Matières.</div>';
+    }
+    return (
+      '<div class="prog-bc-level-head">' +
+        '<h3 class="prog-bc-level-title">Choisir une matière</h3>' +
+        '<p class="prog-bc-level-sub anki-mut">Puis l’année, puis les chapitres.</p>' +
+      '</div>' +
+      '<div class="prog-bc-grid">' +
+        mats.map(function (m) {
+          var n = countChapitresNav(m.id);
+          return (
+            '<button type="button" class="prog-bc-tile" style="--mat-color:' + esc(m.color || '#666') + '" ' +
+              'onclick="window.programmeNavMat(\'' + jsStr(m.id) + '\')">' +
+              '<span class="prog-bc-tile-name">' + esc(m.name) + '</span>' +
+              '<span class="prog-bc-tile-meta">' + n + ' chapitre' + (n === 1 ? '' : 's') + '</span>' +
+            '</button>'
+          );
+        }).join('') +
+      '</div>'
+    );
+  }
 
-    var groups = window.listChapitresGrouped({
-      mat: _filterMat || undefined,
-      annee: _filterAnnee !== '' ? _filterAnnee : undefined
-    });
-    var total = groups.reduce(function (n, g) { return n + g.items.length; }, 0);
+  function renderProgrammeAnneeLevel() {
+    var m = matObj(_navMat);
+    return (
+      '<div class="prog-bc-level-head">' +
+        '<h3 class="prog-bc-level-title">Choisir une année</h3>' +
+        '<p class="prog-bc-level-sub anki-mut">' + esc(m.name) + ' — les chapitres sont rangés par année (figée à la création).</p>' +
+      '</div>' +
+      '<div class="prog-bc-grid prog-bc-grid-2">' +
+        [1, 2].map(function (a) {
+          var n = countChapitresNav(_navMat, a);
+          return (
+            '<button type="button" class="prog-bc-tile" style="--mat-color:' + esc(m.color || '#666') + '" ' +
+              'onclick="window.programmeNavAnnee(\'' + a + '\')">' +
+              '<span class="prog-bc-tile-name">' + esc(anneeLabel(a)) + '</span>' +
+              '<span class="prog-bc-tile-meta">' + n + ' chapitre' + (n === 1 ? '' : 's') + '</span>' +
+            '</button>'
+          );
+        }).join('') +
+      '</div>'
+    );
+  }
 
-    var body = groups.length
-      ? groups.map(function (g) {
-        return (
-          '<section class="programme-group' + (_reorderMode ? ' programme-group-reorder' : '') + '">' +
-            '<h3 class="programme-group-title">' + esc(g.matName) +
-              ' <span class="programme-group-sub">· ' + g.annee + (g.annee === 1 ? 'ère' : 'ème') + ' année</span></h3>' +
-            '<div class="programme-list" data-mat="' + esc(g.mat) + '" data-annee="' + g.annee + '">' +
-              g.items.map(function (ch, i) { return renderChapitreRow(ch, i, g.items.length); }).join('') +
-            '</div>' +
-          '</section>'
-        );
-      }).join('')
-      : '<div class="anki-empty">Aucun chapitre. Créez-en un ou importez depuis les intercalaires d’un classeur.</div>';
+  function renderProgrammeChapLevel() {
+    var list = window.listChapitres({ mat: _navMat, annee: _navAnnee });
+    var body = list.length
+      ? '<div class="programme-list" data-mat="' + esc(_navMat) + '" data-annee="' + esc(String(_navAnnee)) + '">' +
+          list.map(function (ch, i) { return renderChapitreRow(ch, i, list.length); }).join('') +
+        '</div>'
+      : '<div class="anki-empty">Aucun chapitre dans cette année. Crée-en un ou importe depuis les intercalaires.</div>';
 
-    var canReorder = groups.some(function (g) { return g.items.length >= 2; });
+    var canReorder = list.length >= 2;
     var reorderBtn = _reorderMode
       ? '<button type="button" class="bp" onclick="window.programmeToggleReorder()">' +
           iconLabel('check', 'Terminer') +
         '</button>'
       : '<button type="button" class="bs" onclick="window.programmeToggleReorder()"' +
-          (canReorder ? '' : ' disabled title="Au moins 2 chapitres dans un même groupe"') + '>' +
+          (canReorder ? '' : ' disabled title="Au moins 2 chapitres"') + '>' +
           iconLabel('move-vertical', 'Réorganiser') +
         '</button>';
+
+    return (
+      '<div class="prog-bc-level-head prog-bc-level-head-row">' +
+        '<div>' +
+          '<h3 class="prog-bc-level-title">Chapitres</h3>' +
+          '<p class="prog-bc-level-sub anki-mut">' + list.length + ' chapitre' + (list.length === 1 ? '' : 's') +
+            ' · ' + esc(matObj(_navMat).name) + ' · ' + esc(anneeLabel(_navAnnee)) + '</p>' +
+        '</div>' +
+        '<div class="programme-toolbar-actions">' +
+          reorderBtn +
+          (_reorderMode
+            ? ''
+            : '<button type="button" class="bp" onclick="window.programmeOpenWizard()">' +
+                iconLabel('plus', 'Créer un chapitre') +
+              '</button>') +
+        '</div>' +
+      '</div>' +
+      (_reorderMode
+        ? '<p class="programme-reorder-hint">Glissez-déposez les chapitres. L’ordre est enregistré automatiquement.</p>'
+        : '') +
+      body
+    );
+  }
+
+  window.renderProgramme = function () {
+    window.ensureChapitresArray();
+    var pane = $('paneProgramme');
+    if (!pane) return;
+
+    var levelBody = !_navMat
+      ? renderProgrammeMatLevel()
+      : (!_navAnnee ? renderProgrammeAnneeLevel() : renderProgrammeChapLevel());
+
+    var topActions = (!_navMat || !_navAnnee) && !_reorderMode
+      ? '<div class="programme-toolbar programme-toolbar-top">' +
+          '<div class="programme-toolbar-actions" style="margin-left:auto">' +
+            '<button type="button" class="bp" onclick="window.programmeOpenWizard()">' +
+              iconLabel('plus', 'Créer un chapitre') +
+            '</button>' +
+          '</div>' +
+        '</div>'
+      : '';
 
     pane.innerHTML =
       '<div class="programme-page' + (_reorderMode ? ' programme-page-reorder' : '') + '">' +
         (typeof window.uiSection === 'function'
           ? window.uiSection('Programme', 'Chapitres logiques (plan de cours). Les documents papier restent dans Base Doc.', 'book-open')
           : '<h2>Programme</h2><p class="anki-mut">Chapitres logiques — documents papier dans Base Doc.</p>') +
-        '<div class="programme-toolbar">' +
-          '<div class="programme-filters">' +
-            '<label>Matière <select id="progFltMat" onchange="window.programmeSetFilter(\'mat\', this.value)"' +
-              (_reorderMode ? ' disabled' : '') + '>' + matOpts + '</select></label>' +
-            '<label>Année <select id="progFltAnnee" onchange="window.programmeSetFilter(\'annee\', this.value)"' +
-              (_reorderMode ? ' disabled' : '') + '>' + anOpts + '</select></label>' +
-          '</div>' +
-          '<div class="programme-toolbar-actions">' +
-            reorderBtn +
-            (_reorderMode
-              ? ''
-              : '<button type="button" class="bp" onclick="window.programmeOpenWizard()">' +
-                  iconLabel('plus', 'Créer un chapitre') +
-                '</button>') +
-          '</div>' +
-        '</div>' +
-        (_reorderMode
-          ? '<p class="programme-reorder-hint">Glissez-déposez les chapitres dans chaque groupe (matière · année). L’ordre est enregistré automatiquement.</p>'
-          : '<p class="programme-count anki-mut">' + total + ' chapitre(s) · triés par matière et année</p>') +
-        body +
+        renderProgrammeBreadcrumb() +
+        topActions +
+        '<div class="prog-bc-body">' + levelBody + '</div>' +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(pane);
     bindProgrammeDragDrop(pane);
+  };
+
+  window.programmeNavReset = function () {
+    if (_reorderMode) return;
+    _navMat = '';
+    _navAnnee = '';
+    _openChapitreId = '';
+    window.renderProgramme();
+  };
+
+  window.programmeNavMat = function (matId) {
+    if (_reorderMode) return;
+    _navMat = matId || '';
+    _navAnnee = '';
+    _openChapitreId = '';
+    window.renderProgramme();
+  };
+
+  window.programmeNavAnnee = function (annee) {
+    if (_reorderMode) return;
+    if (!_navMat) return;
+    _navAnnee = String(annee === 2 || annee === '2' ? 2 : 1);
+    _openChapitreId = '';
+    window.renderProgramme();
   };
 
   window.programmeToggleReorder = function () {
@@ -973,9 +1153,16 @@
     window.renderProgramme();
   };
 
+  /** @deprecated filtres remplacés par le fil d’Ariane — conservé si ancien HTML */
   window.programmeSetFilter = function (key, val) {
-    if (key === 'mat') _filterMat = val || '';
-    if (key === 'annee') _filterAnnee = val || '';
+    if (key === 'mat') {
+      _navMat = val || '';
+      _navAnnee = '';
+    }
+    if (key === 'annee') {
+      _navAnnee = val || '';
+      if (_navAnnee && !_navMat) _navAnnee = '';
+    }
     window.renderProgramme();
   };
 
@@ -1083,17 +1270,17 @@
         return bulkCands.some(function (c) { return c.inter === i; });
       });
       return (
-        '<p class="programme-wiz-sub">Coche les intercalaires à créer en chapitres (prévisualisation <span class="chap-prefix">Chap.</span>).</p>' +
-        '<div class="programme-bulk-list">' +
+        '<p class="programme-wiz-sub">Sélectionne les intercalaires à créer en chapitres (prévisualisation <span class="chap-prefix">Chap.</span>).</p>' +
+        '<div class="programme-inter-pick" id="progWizBulkList" role="group">' +
           bulkCands.map(function (c) {
             var on = WIZ.selectedInters.indexOf(c.inter) !== -1;
             return (
-              '<label class="programme-bulk-row">' +
-                '<input type="checkbox"' + (on ? ' checked' : '') +
-                ' onchange="window.programmeWizToggleInter(\'' + jsStr(c.inter) + '\', this.checked)">' +
-                '<span class="chap-prefix">Chap.</span> ' + esc(c.label) +
-                '<span class="programme-bulk-slot">' + esc(c.inter) + '</span>' +
-              '</label>'
+              '<button type="button" class="programme-inter-card' + (on ? ' is-on' : '') + '" ' +
+                'data-inter="' + esc(c.inter) + '" aria-pressed="' + (on ? 'true' : 'false') + '" ' +
+                'onclick="window.programmeWizToggleBulkInterPick(this)">' +
+                '<span class="programme-inter-card-title"><span class="chap-prefix">Chap.</span> ' + esc(c.label) + '</span>' +
+                window.formatProgInterCrumbHtml(WIZ.mat, WIZ.cl, c.inter) +
+              '</button>'
             );
           }).join('') +
           (bulkCands.length ? '' : '<p class="anki-empty">Aucun intercalaire nommé.</p>') +
@@ -1117,32 +1304,25 @@
         ? WIZ.selectedInters.slice()
         : (WIZ.inter ? [WIZ.inter] : []);
       if (formInters.length === 1 && WIZ.cl) {
-        var cand = window.getClasseurInterSlots(WIZ.cl).find(function (c) {
-          return c.inter === formInters[0];
-        });
-        if (cand && cand.label && cand.label !== cand.inter) pref = cand.label;
+        var clForPref = clObj(WIZ.cl);
+        var rawPref = typeof window.getInterRawName === 'function'
+          ? window.getInterRawName(clForPref, formInters[0])
+          : '';
+        if (rawPref) pref = rawPref;
       }
       var clOpts = '<option value="">— Aucun (optionnel) —</option>' + cls.map(function (c) {
         return '<option value="' + esc(c.id) + '"' + (WIZ.cl === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>';
       }).join('');
       var interPick = '';
       if (WIZ.cl) {
-        var slots = window.getClasseurInterSlots(WIZ.cl);
         interPick =
-          '<div class="programme-bulk-list" id="progWizInterList">' +
-            slots.map(function (c) {
-              var on = formInters.indexOf(c.inter) !== -1;
-              return (
-                '<label class="programme-bulk-row">' +
-                  '<input type="checkbox"' + (on ? ' checked' : '') +
-                  ' onchange="window.programmeWizToggleFormInter(\'' + jsStr(c.inter) + '\', this.checked)">' +
-                  '<span>' + esc(c.label) + '</span>' +
-                  '<span class="programme-bulk-slot">' + esc(c.inter) + '</span>' +
-                '</label>'
-              );
-            }).join('') +
-          '</div>' +
-          '<p class="anki-mut" style="font-size:11px;margin:6px 0 0;line-height:1.4;">Les documents créés dans ces intercalaires seront liés à ce chapitre.</p>';
+          window.renderProgInterPickButtons(
+            WIZ.mat,
+            WIZ.cl,
+            formInters,
+            'window.programmeWizToggleFormInterPick(this)'
+          ) +
+          '<p class="anki-mut" style="font-size:11px;margin:8px 0 0;line-height:1.4;">Les documents créés dans ces intercalaires seront liés à ce chapitre.</p>';
       } else {
         interPick = '<p class="anki-mut" style="font-size:12px;margin:0;">Choisis d’abord un classeur pour lier des intercalaires.</p>';
       }
@@ -1282,6 +1462,20 @@
     WIZ.inter = WIZ.selectedInters[0] || null;
   };
 
+  window.programmeWizToggleFormInterPick = function (btn) {
+    window.programmeToggleInterPick(btn);
+    var inter = btn && btn.getAttribute('data-inter');
+    if (!inter) return;
+    window.programmeWizToggleFormInter(inter, btn.classList.contains('is-on'));
+  };
+
+  window.programmeWizToggleBulkInterPick = function (btn) {
+    window.programmeToggleInterPick(btn);
+    var inter = btn && btn.getAttribute('data-inter');
+    if (!inter) return;
+    window.programmeWizToggleInter(inter, btn.classList.contains('is-on'));
+  };
+
   window.programmeWizToggleInter = function (inter, on) {
     if (on && WIZ.selectedInters.indexOf(inter) === -1) WIZ.selectedInters.push(inter);
     if (!on) WIZ.selectedInters = WIZ.selectedInters.filter(function (i) { return i !== inter; });
@@ -1334,17 +1528,7 @@
     if (clEl) WIZ.cl = clEl.value || null;
     var inters = [];
     if (WIZ.cl) {
-      var box = $('progWizInterList');
-      if (box) {
-        inters = Array.prototype.map.call(
-          box.querySelectorAll('input[type="checkbox"]:checked'),
-          function (inp) {
-            var lab = inp.closest('label');
-            var slot = lab && lab.querySelector('.programme-bulk-slot');
-            return slot ? String(slot.textContent || '').trim() : '';
-          }
-        ).filter(Boolean);
-      } else if (WIZ.selectedInters && WIZ.selectedInters.length) {
+      if (WIZ.selectedInters && WIZ.selectedInters.length) {
         inters = WIZ.selectedInters.slice();
       } else if (WIZ.inter) {
         inters = [WIZ.inter];
@@ -1365,6 +1549,10 @@
       return;
     }
     window.programmeCloseWizard();
+    if (WIZ.mat) {
+      _navMat = WIZ.mat;
+      _navAnnee = String(window.normalizeAnnee(WIZ.annee));
+    }
     saveAndRefresh();
     if (typeof window.showToast === 'function') {
       window.showToast(res.unite ? 'Chapitre + cours unité créés.' : 'Chapitre créé.');
@@ -1383,6 +1571,10 @@
       createUnite: !!WIZ.createUnite
     });
     window.programmeCloseWizard();
+    if (WIZ.mat) {
+      _navMat = WIZ.mat;
+      _navAnnee = String(window.normalizeAnnee(WIZ.annee));
+    }
     saveAndRefresh();
     var msg = res.created.length + ' chapitre(s) créé(s).';
     if (WIZ.createUnite && res.created.length) msg += ' Cours unités associés.';
@@ -1416,10 +1608,22 @@
     var clSel = $('progEditCl');
     var box = $('progEditInterList');
     if (!clSel || !box) return;
+    var editId = $('progEditId') ? $('progEditId').value : '';
+    var ch = (window.D.chapitres || []).find(function (c) { return c.id === editId; });
+    var matId = ch && ch.mat ? ch.mat : '';
     var cls = (window.D.classeurs || []).filter(function (c) {
-      return !window.isSystemClasseur || !window.isSystemClasseur(c.id);
+      if (!c || !c.id) return false;
+      if (window.isSystemClasseur && window.isSystemClasseur(c.id)) return false;
+      if (!matId) return true;
+      var ids = typeof window.getClasseurMatIds === 'function' ? window.getClasseurMatIds(c) : [];
+      if (ids.length) return ids.indexOf(matId) >= 0;
+      return true;
     });
     var want = clId || '';
+    if (want && !cls.some(function (c) { return c.id === want; })) {
+      var orphan = clObj(want);
+      cls = cls.concat([{ id: want, name: (orphan && orphan.name) || want }]);
+    }
     clSel.innerHTML = '<option value="">— Aucun —</option>' + cls.map(function (c) {
       return '<option value="' + esc(c.id) + '"' + (c.id === want ? ' selected' : '') + '>' +
         esc(c.name) + '</option>';
@@ -1428,41 +1632,19 @@
 
     selectedInters = (selectedInters || []).map(window.normalizeInterSlot).filter(Boolean);
     if (!want) {
-      box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Choisis un classeur pour cocher des intercalaires.</p>';
+      box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Choisis un classeur pour lier des intercalaires.</p>';
       return;
     }
-    var slots = window.getClasseurInterSlots(want);
-    box.innerHTML = slots.map(function (c) {
-      var on = selectedInters.indexOf(c.inter) !== -1;
-      return (
-        '<label class="programme-bulk-row">' +
-          '<input type="checkbox" data-inter="' + esc(c.inter) + '"' + (on ? ' checked' : '') + '>' +
-          '<span>' + esc(c.label) + '</span>' +
-          '<span class="programme-bulk-slot">' + esc(c.inter) + '</span>' +
-        '</label>'
-      );
-    }).join('');
+    box.innerHTML = window.renderProgInterPickButtons(matId, want, selectedInters);
   };
 
   window.programmeEditSetCl = function (clId) {
-    var prev = [];
-    var box = $('progEditInterList');
-    if (box) {
-      prev = Array.prototype.map.call(
-        box.querySelectorAll('input[type="checkbox"]:checked'),
-        function (inp) { return inp.getAttribute('data-inter'); }
-      ).filter(Boolean);
-    }
+    var prev = window.programmeReadEditInters();
     window.programmeRenderEditInters(clId || '', prev);
   };
 
   window.programmeReadEditInters = function () {
-    var box = $('progEditInterList');
-    if (!box) return [];
-    return Array.prototype.map.call(
-      box.querySelectorAll('input[type="checkbox"]:checked'),
-      function (inp) { return inp.getAttribute('data-inter'); }
-    ).filter(Boolean);
+    return window.programmeReadInterPick($('progEditInterList'));
   };
 
   window.programmeCloseEdit = function () {

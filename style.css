@@ -994,6 +994,37 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 .cours-bc-level-head { margin-bottom: 12px; }
 .cours-bc-level-title { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
 .cours-bc-level-sub { margin: 0; font-size: 12px; }
+.qk-group-subline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.qk-group-sub-sep { opacity: 0.55; }
+.qk-group-settings {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--mut);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: pointer;
+  opacity: 0.85;
+}
+.qk-group-settings:hover {
+  color: var(--acc);
+  opacity: 1;
+}
+.qk-group-settings .icon,
+.qk-group-settings .icon-sm {
+  width: 12px;
+  height: 12px;
+}
 .cours-bc-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1190,57 +1221,76 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 }
 .cl-icon-opt .icon { flex-shrink: 0; }
 
+/* Matières liées — même langage UI que Actif/Réservoir (cartes X) */
 .cl-mat-pick {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 200px;
-  overflow-y: auto;
-  padding: 8px;
-  border-radius: 10px;
-  border: 1px solid var(--bd);
-  background: var(--s2);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
+@media (max-width: 520px) {
+  .cl-mat-pick { grid-template-columns: 1fr; }
 }
 .cl-mat-pick-item {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 0.5px solid transparent;
-  cursor: pointer;
-  font-size: 13px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  text-align: left;
+  font-family: 'Inter', sans-serif;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 0.5px solid var(--bd);
+  background: rgba(120, 120, 128, 0.1);
   color: var(--txt);
-  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+  min-height: 52px;
+  position: relative;
 }
 .cl-mat-pick-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(120, 120, 128, 0.16);
 }
 .cl-mat-pick-item.is-on {
-  border-color: rgba(91, 154, 255, 0.35);
-  background: rgba(91, 154, 255, 0.1);
-}
-.cl-mat-pick-item input {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  accent-color: var(--acc);
+  background: color-mix(in srgb, var(--acc) 14%, rgba(120, 120, 128, 0.12));
+  border-color: color-mix(in srgb, var(--acc) 42%, var(--bd));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 24%, transparent);
 }
 .cl-mat-pick-swatch {
-  width: 12px;
-  height: 12px;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 0 2px color-mix(in oklab, currentColor 30%, transparent);
 }
 .cl-mat-pick-lbl {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   min-width: 0;
-  line-height: 1.25;
+  padding-right: 16px;
 }
-.cl-mat-pick-lbl b {
+.cl-mat-pick-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt);
+  line-height: 1.2;
   font-family: 'DM Mono', monospace;
-  font-size: 11px;
-  margin-right: 4px;
+  letter-spacing: 0.02em;
+}
+.cl-mat-pick-hint {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--mut);
 }
 
 .set-row { display: flex; justify-content: space-between; align-items: center; background: var(--s1); border: 1px solid var(--bd); padding: 14px; border-radius: 10px; margin-bottom: 10px; }
@@ -3501,6 +3551,22 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
     0 18px 48px rgba(0, 0, 0, 0.28);
   animation: qk-drill-ok-modal 0.9s ease-out;
 }
+.qk-drill-modal.is-mid-flash {
+  background: color-mix(in srgb, var(--gold) 14%, var(--s1));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent),
+    0 0 42px color-mix(in srgb, var(--gold) 38%, transparent),
+    0 18px 48px rgba(0, 0, 0, 0.28);
+  animation: qk-drill-mid-modal 0.9s ease-out;
+}
+.qk-drill-modal.is-bad-flash {
+  background: color-mix(in srgb, var(--red) 14%, var(--s1));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent),
+    0 0 42px color-mix(in srgb, var(--red) 38%, transparent),
+    0 18px 48px rgba(0, 0, 0, 0.28);
+  animation: qk-drill-bad-modal 0.9s ease-out;
+}
 .qk-drill-ok-wash {
   pointer-events: none;
   position: absolute;
@@ -3513,6 +3579,22 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   );
   animation: qk-drill-ok-wash 0.95s ease-out forwards;
   z-index: 0;
+}
+.qk-drill-ok-wash.qk-drill-flash--mid {
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    color-mix(in srgb, var(--gold) 42%, transparent) 0%,
+    color-mix(in srgb, var(--gold) 16%, transparent) 38%,
+    transparent 68%
+  );
+}
+.qk-drill-ok-wash.qk-drill-flash--bad {
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    color-mix(in srgb, var(--red) 42%, transparent) 0%,
+    color-mix(in srgb, var(--red) 16%, transparent) 38%,
+    transparent 68%
+  );
 }
 .qk-drill-modal > *:not(.qk-drill-ok-wash) {
   position: relative;
@@ -3533,6 +3615,36 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
       0 18px 48px rgba(0, 0, 0, 0.28);
   }
 }
+@keyframes qk-drill-mid-modal {
+  0% {
+    background: color-mix(in srgb, var(--gold) 28%, var(--s1));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent),
+      0 0 64px color-mix(in srgb, var(--gold) 55%, transparent);
+  }
+  100% {
+    background: color-mix(in srgb, var(--gold) 14%, var(--s1));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent),
+      0 0 42px color-mix(in srgb, var(--gold) 38%, transparent),
+      0 18px 48px rgba(0, 0, 0, 0.28);
+  }
+}
+@keyframes qk-drill-bad-modal {
+  0% {
+    background: color-mix(in srgb, var(--red) 28%, var(--s1));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--red) 55%, transparent),
+      0 0 64px color-mix(in srgb, var(--red) 55%, transparent);
+  }
+  100% {
+    background: color-mix(in srgb, var(--red) 14%, var(--s1));
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--red) 45%, transparent),
+      0 0 42px color-mix(in srgb, var(--red) 38%, transparent),
+      0 18px 48px rgba(0, 0, 0, 0.28);
+  }
+}
 @keyframes qk-drill-ok-wash {
   0% { opacity: 0.2; transform: scale(0.88); }
   35% { opacity: 1; transform: scale(1.02); }
@@ -3545,7 +3657,15 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   gap: 8px;
   margin-bottom: 4px;
 }
-.qk-drill-top h2 { margin: 0; text-align: left; justify-content: flex-start; font-size: 16px; }
+.qk-drill-top h2 {
+  margin: 0;
+  text-align: left;
+  justify-content: flex-start;
+  font-size: 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.qk-drill-back,
 .qk-drill-x {
   background: var(--s2);
   border: 1px solid var(--bd);
@@ -3559,6 +3679,15 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.qk-drill-back:hover {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+.qk-drill-back-spacer {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
 }
 .qk-drill-quit {
   width: 100%;
@@ -3737,6 +3866,8 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 @media (prefers-reduced-motion: reduce) {
   .qk-drill-modal.is-ok-flash,
+  .qk-drill-modal.is-mid-flash,
+  .qk-drill-modal.is-bad-flash,
   .qk-drill-ok-wash,
   .qk-drill-verdict.ok {
     animation: none;
@@ -3966,7 +4097,14 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   font-size: 0.92em;
   user-select: none;
 }
-.programme-page { padding: 0 0 24px; }
+.programme-toolbar-top {
+  margin-top: -4px;
+  margin-bottom: 8px;
+}
+.prog-bc-crumb:disabled {
+  opacity: 1;
+  cursor: default;
+}
 .programme-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -4142,7 +4280,17 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .programme-wiz-choice { width: 100%; justify-content: flex-start; }
 .programme-wiz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
 .programme-wiz-tile { text-align: left; padding: 10px 12px; }
-.programme-wiz-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; }
+.programme-wiz-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 14px;
+  padding: 10px 0 2px;
+  background: linear-gradient(to bottom, transparent, var(--s1) 28%);
+}
 .programme-phase2-hint,
 .programme-unite-opt {
   font-size: 11px;
@@ -4205,8 +4353,92 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   flex-shrink: 0;
 }
 .programme-bulk-slot { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--mut); }
+
+/* Intercalaires liés — cartes + fil matière › classeur › inter */
+.programme-inter-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.programme-inter-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  font-family: 'Inter', sans-serif;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 0.5px solid var(--bd);
+  background: rgba(120, 120, 128, 0.1);
+  color: var(--txt);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.programme-inter-card:hover {
+  background: rgba(120, 120, 128, 0.16);
+}
+.programme-inter-card.is-on {
+  background: color-mix(in srgb, var(--acc) 14%, rgba(120, 120, 128, 0.12));
+  border-color: color-mix(in srgb, var(--acc) 42%, var(--bd));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 24%, transparent);
+}
+.programme-inter-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt);
+  line-height: 1.25;
+}
+.programme-inter-crumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--mut);
+}
+.programme-inter-crumb-seg {
+  color: var(--mut);
+}
+.programme-inter-crumb-seg.is-last {
+  color: var(--txt);
+  font-weight: 600;
+}
+.programme-inter-card.is-on .programme-inter-crumb-seg.is-last {
+  color: var(--txt);
+}
+.programme-inter-crumb-sep {
+  color: var(--mut);
+  opacity: 0.7;
+  padding: 0 2px;
+  user-select: none;
+}
 .programme-title-preview { margin-bottom: 8px; font-weight: 600; }
-.programme-edit-modal { max-width: 440px; }
+.programme-edit-modal {
+  max-width: 440px;
+  width: min(440px, 94vw);
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 720px);
+  overflow: hidden;
+}
+.programme-edit-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+.programme-edit-actions {
+  flex-shrink: 0;
+  margin-top: 12px;
+  padding-top: 4px;
+  background: var(--s1);
+}
 .programme-edit-meta { margin-bottom: 12px; font-size: 13px; }
 
 /* Fil d’Ariane — parcourir le Programme */
