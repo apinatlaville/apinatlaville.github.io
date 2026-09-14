@@ -81,14 +81,21 @@ const env = loadDataJs();
 
 console.log('Matière / classeur — couleur & renommage');
 
-// Création matière avec couleur
-env.newColor = '#f06060';
-env.$('nMlbl').value = 'INFO';
-env.$('nMname').value = 'Informatique';
-env.addMat();
+// Matières canoniques : upsert INFO/FRAN sans écraser PHYS custom
+assert(typeof env.ensureCanonicalMatieres === 'function', 'ensureCanonicalMatieres exposé');
+env.ensureCanonicalMatieres();
 const info = env.D.matieres.find((m) => m.id === 'INFO');
-assert(!!info && info.color === '#f06060', 'création matière prend la couleur choisie');
-assert(info.id === 'INFO' && info.label === 'INFO', 'id matière = code 4 lettres');
+assert(!!info && info.name === 'Informatique', 'ensure ajoute INFO');
+assert(!!env.D.matieres.find((m) => m.id === 'FRAN'), 'ensure ajoute FRAN');
+assert(env.D.matieres.find((m) => m.id === 'PHYS').name === 'Physique', 'ensure ne remplace pas name PHYS');
+env.addMat(); // no-op création libre
+assert(env.D.matieres.filter((m) => m.id === 'INFO').length === 1, 'addMat ne crée plus de matières libres');
+assert(typeof env.isCanonicalMatiere === 'function' && env.isCanonicalMatiere('PHYS'), 'PHYS est canonique');
+assert(!env.listSelectableMatieres || env.listSelectableMatieres().some((m) => m.id === 'PHYS'), 'PHYS sélectionnable');
+info.enabled = false;
+assert(env.listSelectableMatieres().every((m) => m.id !== 'INFO'), 'INFO désactivée hors selects');
+assert(env.listSelectableMatieres({ includeId: 'INFO' }).some((m) => m.id === 'INFO'), 'includeId force INFO désactivée');
+info.enabled = true;
 
 // Création classeur avec couleur
 env.newColorCl = '#50d890';

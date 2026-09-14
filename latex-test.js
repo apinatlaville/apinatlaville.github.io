@@ -419,6 +419,8 @@
         { label: 'ℚ', latex: '\\mathbb{Q}', title: 'Rationnels' },
         { label: 'ℝ', latex: '\\mathbb{R}', title: 'Réels' },
         { label: 'ℂ', latex: '\\mathbb{C}', title: 'Complexes' },
+        { label: '𝕂', latex: '\\mathbb{K}', title: 'Corps K (ℝ ou ℂ)' },
+        { label: '𝕂=ℝ|ℂ', latex: '\\mathbb{K}=\\mathbb{R}\\text{ ou }\\mathbb{C}', title: 'K égal à ℝ ou ℂ' },
         { label: '∅', latex: '\\emptyset', title: 'Ensemble vide' },
         { label: '𝒫', latex: '\\mathcal{P}\\left(#0\\right)', title: 'Parties' },
         { label: '×', latex: '#0\\times#1', title: 'Produit cartésien' },
@@ -435,7 +437,6 @@
         { label: '#', latex: '\\#', title: 'Cardinal (sharp)' },
         { label: 'U', latex: 'U', title: 'Univers' },
         { label: 'F', latex: '\\mathbb{F}_{#0}', title: 'Corps fini' },
-        { label: 'K', latex: 'K', title: 'Corps' },
         { label: 'GL_n', latex: 'GL_n\\left(#0\\right)', title: 'Groupe linéaire' },
         { label: 'O_n', latex: 'O_n\\left(#0\\right)', title: 'Groupe orthogonal' },
         { label: 'SO_n', latex: 'SO_n\\left(#0\\right)', title: 'Groupe spécial orthogonal' },
@@ -749,8 +750,8 @@
     if (/\bimplique\b|\bequivalence\b/.test(t) || (/\bfleche\b/.test(t) && !/\bvecteur\b/.test(t))) {
       extras.push('implique', 'equivalence', 'fleche');
     }
-    if (/\bappartient\b|\binclus\b|\bensemble\b|\bnaturels\b|\breels\b|\bcomplexes\b/.test(t)) {
-      extras.push('ensemble', 'appartient', 'inclusion');
+    if (/\bappartient\b|\binclus\b|\bensemble\b|\bnaturels\b|\breels\b|\bcomplexes\b|\bcorps\b/.test(t)) {
+      extras.push('ensemble', 'appartient', 'inclusion', 'corps', 'reel', 'complexe', 'K');
     }
     if (/\bsinus\b|\bcosinus\b|\btangente\b|\blogarithme\b|\bexponentielle\b/.test(t)) {
       extras.push('fonction', 'trigo', 'logarithme');

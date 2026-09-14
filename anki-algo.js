@@ -45,7 +45,7 @@
   ALGO.DEFAULT_QUICK_STAR_STEPS = ALGO.DEFAULT_MAIN_STAR_STEPS;
 
   /** Palier unique pour cartes rapides Y- (style Anki vocabulaire). */
-  ALGO.DEFAULT_QUICK_STEPS = { steps: [1, 3, 7, 14, 30, 60], ease: 2.5, label: "Rapide Y-" };
+  ALGO.DEFAULT_QUICK_STEPS = { steps: [1, 3, 7, 14, 30, 60], ease: 2.3, label: "Rapide Y-" };
   ALGO.LEGACY_QUICK_STEPS = { steps: [1, 2, 4, 8, 15, 30], ease: 2.3 };
 
   /** Plafond d’intervalle SM-2 (jours) — réglable, défaut 180. */
@@ -1213,6 +1213,17 @@
         D.settings.ankiQuickDefaultSteps = JSON.parse(JSON.stringify(ALGO.DEFAULT_QUICK_STEPS));
       }
       D.settings._quickStepsV20260910 = true;
+    }
+    /* Ease initiale Y- : 2.5 → 2.3 (usine), sans écraser un réglage perso hors paliers défaut. */
+    if (!D.settings._quickEase230) {
+      const qe = D.settings.ankiQuickDefaultSteps;
+      const defSteps = ALGO.DEFAULT_QUICK_STEPS.steps;
+      if (qe && Number(qe.ease) === 2.5 && Array.isArray(qe.steps)
+          && qe.steps.length === defSteps.length
+          && qe.steps.every(function (n, i) { return Number(n) === defSteps[i]; })) {
+        qe.ease = 2.3;
+      }
+      D.settings._quickEase230 = true;
     }
     D.quickGroups = D.quickGroups
       .filter(g => g && g.id && String(g.name || '').trim())

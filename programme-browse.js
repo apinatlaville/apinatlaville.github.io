@@ -46,7 +46,10 @@
 
   function userMatieres() {
     return (window.D.matieres || []).filter(function (m) {
-      return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
+      if (!m || !m.id) return false;
+      if (window.isSystemMatiere && window.isSystemMatiere(m.id)) return false;
+      if (m.enabled === false) return countChapitres(m.id) > 0;
+      return true;
     });
   }
 

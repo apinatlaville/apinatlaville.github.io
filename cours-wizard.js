@@ -556,6 +556,9 @@ body.theme-light .cours-create-item:focus-visible {
   }
 
   function listMatieres() {
+    if (typeof window.listSelectableMatieres === 'function') {
+      return window.listSelectableMatieres({ includeId: STATE.mat || '' });
+    }
     if (!window.D || !window.D.matieres) return [];
     return window.D.matieres.filter(function (m) {
       return m && m.id && !m._system && m.id !== window.UNSORTED_MAT_ID;

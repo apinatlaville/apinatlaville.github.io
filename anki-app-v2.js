@@ -2037,7 +2037,10 @@
       const la = (mat(a).label || a), lb = (mat(b).label || b);
       return la.localeCompare(lb);
     });
-    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${S.reservoirFilter.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const matOpts = (typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: S.reservoirFilter.mat || '' })
+      : (window.D.matieres || [])
+    ).map(m => `<option value="${m.id}" ${S.reservoirFilter.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const selCount = S.reservoirSel.size;
 
     let html = `
@@ -2382,7 +2385,10 @@
     const matOrder = (window.D.matieres || []).map(m => m.id).filter(id => byMat[id]);
     Object.keys(byMat).forEach(id => { if (!matOrder.includes(id)) matOrder.push(id); });
 
-    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${S.libFilter.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const matOpts = (typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: S.libFilter.mat || '' })
+      : (window.D.matieres || [])
+    ).map(m => `<option value="${m.id}" ${S.libFilter.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const profOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${S.libFilter.profil === p ? 'selected' : ''}>${esc(window.AnkiAlgoV2.DEFAULT_PROFILES[p].label)}</option>`).join('');
     const matChips = (window.D.matieres || []).map(m => {
       const n = (byMat[m.id] && Object.values(byMat[m.id]).reduce((s, a) => s + a.length, 0)) || 0;
@@ -4824,7 +4830,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (!ov) { ov = document.createElement("div"); ov.id = "ovExo"; ov.className = "ov ov-scroll"; document.body.appendChild(ov); }
     ov.classList.add('ov-scroll');
     ov.classList.remove("hidden");
-    const matOpts = '<option value="">— Choisir —</option>' + (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const matOpts = '<option value="">— Choisir —</option>' + (typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: c.mat || '' })
+      : (window.D.matieres || [])
+    ).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const profileOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${(c.profil || 'COURS') === p ? 'selected' : ''}>${esc(window.AnkiAlgoV2.DEFAULT_PROFILES[p].label)}</option>`).join('');
     const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 1;
 
@@ -5187,7 +5196,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     ov.classList.remove("hidden");
     const batch = !editingQuickId && window._quickCreateMode === 'batch';
     const count = Number(window._quickCreateCount) || 0;
-    const matOpts = (window.D.matieres || []).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
+    const matOpts = '<option value="">— Choisir —</option>' + (typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: c.mat || '' })
+      : (window.D.matieres || [])
+    ).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const groupOpts = typeof window.quickGroupOptionsHtml === 'function'
       ? window.quickGroupOptionsHtml(c.groupId || '', { noneLabel: 'Sans dossier', matFilter: c.mat || '' })
       : '<option value="">Sans dossier</option>' + ((window.D.quickGroups || []).map(g =>
@@ -5384,12 +5396,17 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         setQuickSaveBusy(false);
         return showFormError('quickFormError', 'Carte introuvable.');
       }
+      const prevGroup = card.groupId || '';
       card.question = q;
       card.reponse = r;
       card.mat = mat;
       card.coursIds = coursIds;
       if (groupId) card.groupId = groupId;
       else delete card.groupId;
+      if (typeof window.quickMarkGroupLocalDirty === 'function') {
+        if (groupId) window.quickMarkGroupLocalDirty(groupId);
+        if (prevGroup && prevGroup !== groupId) window.quickMarkGroupLocalDirty(prevGroup);
+      }
       Promise.resolve(window.save()).then(function () {
         finishOk(card, true);
       }).catch(function (err) {
@@ -5415,6 +5432,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       coursIds
     })).then(function (card) {
       if (!card) return;
+      if (groupId && typeof window.quickMarkGroupLocalDirty === 'function') {
+        window.quickMarkGroupLocalDirty(groupId);
+      }
       finishOk(card, false);
     }).catch(function (err) {
       const msg = String(err && err.message || err || '');

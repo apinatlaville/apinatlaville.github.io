@@ -11,10 +11,12 @@ window.localDateISO = window.localDateISO || function(d) {
 window.emptyData = {
   settings: { userName: "Étudiant", theme: 'dark', template: 'glass', themePreset: 'minimaliste', appearanceVersion: 2, navLayout: 'sidebar-left', appColor: '#5b9aff', compact: false, showStats: false, showChips: true, showDashHero: true, showDashOver: true, showHeaderClock: false, headerClockSeconds: true, showHeaderCountdown: false, headerCountdownDate: '', headerCountdownTime: '08:00', headerCountdownLabel: 'Concours', headerCountdownFormat: 'jdays', ankiQuotaMin: 90, docTypes: [{ id: 'COURS', label: 'Cours' }, { id: 'TD', label: 'TD' }, { id: 'DS', label: 'DS' }, { id: 'KHOLLE', label: 'Khôlle' }, { id: 'FICHE', label: 'Fiche' }] },
   matieres: [
-    {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7'},
-    {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060'},
-    {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890'},
-    {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3'},
+    {id:'PHYS', label:'PHYS', name:'Physique', color:'#5b8df7', enabled:true, _canonical:true},
+    {id:'MATH', label:'MATH', name:'Mathématiques', color:'#f0c060', enabled:true, _canonical:true},
+    {id:'CHIM', label:'CHIM', name:'Chimie', color:'#50d890', enabled:true, _canonical:true},
+    {id:'ANGL', label:'ANGL', name:'Anglais', color:'#e07ab3', enabled:true, _canonical:true},
+    {id:'FRAN', label:'FRAN', name:'Français', color:'#f97316', enabled:true, _canonical:true},
+    {id:'INFO', label:'INFO', name:'Informatique', color:'#06b6d4', enabled:true, _canonical:true},
   ],
   classeurs: [
     {id:'A', name:'Classeur Phys A', icon:'book-blue', color:'#5b8df7', maxInter: 12, defaultAnnee: 1, interNames: {}},
@@ -28,6 +30,117 @@ window.emptyData = {
   devoirs: [],
   /** Groupes / catégories des cartes Rapide (Y-). Cartes : champ optionnel groupId. */
   quickGroups: []
+};
+
+/** Catalogue fixe PC* — IDs stables pour partage / filtres (tout le monde les mêmes). */
+window.CANONICAL_MATIERES = [
+  { id: 'PHYS', label: 'PHYS', name: 'Physique', color: '#5b8df7' },
+  { id: 'MATH', label: 'MATH', name: 'Mathématiques', color: '#f0c060' },
+  { id: 'CHIM', label: 'CHIM', name: 'Chimie', color: '#50d890' },
+  { id: 'ANGL', label: 'ANGL', name: 'Anglais', color: '#e07ab3' },
+  { id: 'FRAN', label: 'FRAN', name: 'Français', color: '#f97316' },
+  { id: 'INFO', label: 'INFO', name: 'Informatique', color: '#06b6d4' }
+];
+
+window.isCanonicalMatiere = function (id) {
+  if (!id) return false;
+  return (window.CANONICAL_MATIERES || []).some(function (m) { return m.id === id; });
+};
+
+/**
+ * Upsert les matières canoniques sans écraser name/color custom ni supprimer les perso.
+ * @returns {boolean} true si D.matieres a changé
+ */
+window.ensureCanonicalMatieres = function () {
+  if (!window.D) return false;
+  if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
+  var byId = {};
+  window.D.matieres.forEach(function (m) {
+    if (m && m.id) byId[m.id] = m;
+  });
+  var changed = false;
+  (window.CANONICAL_MATIERES || []).forEach(function (canon) {
+    var existing = byId[canon.id];
+    if (!existing) {
+      window.D.matieres.push({
+        id: canon.id,
+        label: canon.label,
+        name: canon.name,
+        color: canon.color,
+        enabled: true,
+        _canonical: true
+      });
+      changed = true;
+      return;
+    }
+    if (!existing.label) { existing.label = canon.label; changed = true; }
+    if (!existing.name) { existing.name = canon.name; changed = true; }
+    if (!existing.color) { existing.color = canon.color; changed = true; }
+    if (existing.enabled === undefined) { existing.enabled = true; changed = true; }
+    if (!existing._canonical) { existing._canonical = true; changed = true; }
+  });
+  // Ordre : canoniques dans l’ordre du catalogue, puis legacy, puis UNTRI
+  var order = {};
+  (window.CANONICAL_MATIERES || []).forEach(function (c, i) { order[c.id] = i; });
+  window.D.matieres.sort(function (a, b) {
+    if (!a || !b) return 0;
+    if (a.id === window.UNSORTED_MAT_ID) return 1;
+    if (b.id === window.UNSORTED_MAT_ID) return -1;
+    var oa = order[a.id];
+    var ob = order[b.id];
+    if (oa != null && ob != null) return oa - ob;
+    if (oa != null) return -1;
+    if (ob != null) return 1;
+    return String(a.label || a.id).localeCompare(String(b.label || b.id), 'fr');
+  });
+  return changed;
+};
+
+/** Matières pour selects / filtres : activées, hors système ; includeId forcé si désactivée. */
+window.listSelectableMatieres = function (opts) {
+  opts = opts || {};
+  var includeId = opts.includeId || '';
+  var includeSystem = !!opts.includeSystem;
+  return (window.D && window.D.matieres || []).filter(function (m) {
+    if (!m || !m.id) return false;
+    if (!includeSystem && typeof window.isSystemMatiere === 'function' && window.isSystemMatiere(m.id)) {
+      return false;
+    }
+    if (m.enabled === false && m.id !== includeId) return false;
+    return true;
+  });
+};
+
+window.matiereLabel = function (id) {
+  var m = (window.D && window.D.matieres || []).find(function (x) { return x && x.id === id; });
+  if (m) return (m.label || m.id) + (m.name ? ' — ' + m.name : '');
+  var c = (window.CANONICAL_MATIERES || []).find(function (x) { return x.id === id; });
+  if (c) return c.label + ' — ' + c.name;
+  return id || '?';
+};
+
+/** Options HTML pour un <select> matière. */
+window.matiereOptionsHtml = function (selectedId, opts) {
+  opts = opts || {};
+  var esc = typeof window.escHtml === 'function'
+    ? window.escHtml
+    : function (s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+  var mats = window.listSelectableMatieres({ includeId: selectedId || opts.includeId });
+  var html = '';
+  if (opts.emptyLabel !== false) {
+    var empty = opts.emptyLabel != null ? opts.emptyLabel : '— Choisir —';
+    html += '<option value="">' + esc(empty) + '</option>';
+  }
+  mats.forEach(function (m) {
+    html += '<option value="' + esc(m.id) + '"' +
+      (m.id === selectedId ? ' selected' : '') + '>' +
+      esc(m.label) + ' — ' + esc(m.name) + '</option>';
+  });
+  return html;
 };
 
 /** Matière système pour documents sans matière valide (créée / supprimée automatiquement). */
@@ -1297,8 +1410,7 @@ window.openModalCours = function(opts) {
   if(window.$('fDesc')) window.$('fDesc').value = ''; 
   
   if(window.$('fMat')) {
-    const matHtml = '<option value="">— Choisir —</option>' + 
-    window.D.matieres.map(m => `<option value="${m.id}">${window.escHtml(m.label)} — ${window.escHtml(m.name)}</option>`).join('');
+    const matHtml = window.matiereOptionsHtml('', { emptyLabel: '— Choisir —' });
     if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(window.$('fMat'), matHtml);
     else window.$('fMat').innerHTML = matHtml;
   }
@@ -1393,9 +1505,7 @@ window.editCours = function(uid, opts) {
   if(window.$('fEffectif')) window.$('fEffectif').value = c.effectif != null && c.effectif !== '' ? c.effectif : '';
   
   if(window.$('fMat')) {
-    const matHtml = window.D.matieres.map(m =>
-      `<option value="${m.id}">${window.escHtml(m.label)} — ${window.escHtml(m.name || '')}</option>`
-    ).join('');
+    const matHtml = window.matiereOptionsHtml(c.mat || '', { emptyLabel: false });
     if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(window.$('fMat'), matHtml);
     else window.$('fMat').innerHTML = matHtml;
     if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(window.$('fMat'), c.mat || '');
@@ -1780,12 +1890,14 @@ window.renderClasseurs = function() {
 window.renderEditClMatPick = function (cl) {
   const box = window.$('eClMatList');
   if (!box) return;
-  const mats = ((window.D && window.D.matieres) || []).filter(function (m) {
-    return m && m.id && !m._system && m.id !== window.UNSORTED_MAT_ID;
-  });
+  const mats = typeof window.listSelectableMatieres === 'function'
+    ? window.listSelectableMatieres()
+    : ((window.D && window.D.matieres) || []).filter(function (m) {
+      return m && m.id && !m._system && m.id !== window.UNSORTED_MAT_ID;
+    });
   const selected = new Set(window.getClasseurMatIds(cl));
   if (!mats.length) {
-    box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Aucune matière à lier — crée-en d’abord.</p>';
+    box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Aucune matière active — active-en dans Organisation → Matières.</p>';
     return;
   }
   // Boutons type Actif/Réservoir (cartes X) — pas de checkbox → pas de gros toggles Flatpickr
@@ -1924,6 +2036,11 @@ window.renderMatieres = function() {
   if(!el) return;
   if (!window.D || !Array.isArray(window.D.matieres)) return;
 
+  const mats = window.D.matieres;
+  const canon = mats.filter(m => m && window.isCanonicalMatiere(m.id));
+  const legacy = mats.filter(m => m && !window.isCanonicalMatiere(m.id) && !window.isSystemMatiere(m.id));
+  const system = mats.filter(m => m && window.isSystemMatiere(m.id));
+
   let html = `
     <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
       <button class="bs" onclick="window.toggleEditMat()" style="padding:6px 12px; font-size:12px; border-color:var(--bd);">
@@ -1932,32 +2049,82 @@ window.renderMatieres = function() {
     </div>
   `;
 
-  html += window.D.matieres.map(m => {
-    const isSystem = window.isSystemMatiere(m.id);
-    let editBtns = '';
-    if (window.isEditingMat && !isSystem) {
-      editBtns = `
-        <button class="cbt" style="padding:4px 8px; margin-left:8px; background:var(--acc); color:#fff; border:none;"
-          onclick="window.editMatiere('${m.id}')">${window.iconLabel('pencil', 'Éditer')}</button>
-        <button class="mdel" onclick="window.delMat('${m.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>`;
+  function rowHtml(m, opts) {
+    opts = opts || {};
+    const isSystem = !!opts.system;
+    const isCanon = !!opts.canonical;
+    const enabled = m.enabled !== false;
+    let right = '';
+    if (isCanon) {
+      right =
+        `<button type="button" class="anki-overflow-switch${enabled ? ' is-on' : ''}" ` +
+          `role="switch" aria-checked="${enabled ? 'true' : 'false'}" ` +
+          `title="${enabled ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}" ` +
+          `onclick="window.toggleMatEnabled('${m.id}')">` +
+          `<span class="anki-overflow-switch-track"><span class="anki-overflow-switch-thumb"></span></span>` +
+          `<span class="anki-mut" style="font-size:11px;margin-left:6px;">${enabled ? 'Actif' : 'Inactif'}</span>` +
+        `</button>`;
+      if (window.isEditingMat) {
+        right +=
+          `<button class="cbt" style="padding:4px 8px; margin-left:8px; background:var(--acc); color:#fff; border:none;" ` +
+            `onclick="window.editMatiere('${m.id}')">${window.iconLabel('pencil', 'Éditer')}</button>`;
+      }
+    } else if (!isSystem && window.isEditingMat) {
+      right =
+        `<button class="cbt" style="padding:4px 8px; margin-left:8px; background:var(--acc); color:#fff; border:none;" ` +
+          `onclick="window.editMatiere('${m.id}')">${window.iconLabel('pencil', 'Éditer')}</button>` +
+        `<button class="mdel" onclick="window.delMat('${m.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>`;
     }
-    const hint = isSystem ? '<span class="mnm" style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : '';
+    const hint = isSystem
+      ? '<span class="mnm" style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>'
+      : (!enabled && isCanon
+        ? '<span class="mnm" style="font-size:11px;color:var(--mut);margin-left:8px;">masquée dans les listes</span>'
+        : '');
+    const opacity = (!enabled && isCanon) ? ' style="opacity:0.55;"' : '';
     return `
-    <div class="mr">
+    <div class="mr"${opacity}>
       <div class="mdot" style="background:${typeof window.intensifyColor === 'function' ? window.intensifyColor(m.color) : m.color}; color:${m.color}"></div>
       <div class="mlbl">${window.escHtml(m.label)}</div><div class="mnm" style="flex:1;">${window.escHtml(m.name)}${hint}</div>
-      ${editBtns}
+      ${right}
     </div>`;
-  }).join('');
-  
+  }
+
+  html += '<h4 style="font-family:Inter,sans-serif;font-size:13px;margin:0 0 8px;color:var(--acc);">Matières PC*</h4>';
+  html += canon.map(m => rowHtml(m, { canonical: true })).join('') ||
+    '<p class="anki-mut" style="font-size:12px;">Aucune matière canonique — recharge la page.</p>';
+
+  if (legacy.length) {
+    html += '<h4 style="font-family:Inter,sans-serif;font-size:13px;margin:18px 0 8px;color:var(--mut);">Autres (anciennes)</h4>';
+    html += '<p style="font-size:11px;color:var(--mut);margin:0 0 8px;line-height:1.4;">Codes perso déjà créés — utilisables pour les docs liés. Suppression → Non trié.</p>';
+    html += legacy.map(m => rowHtml(m, { legacy: true })).join('');
+  }
+
+  if (system.length) {
+    html += '<h4 style="font-family:Inter,sans-serif;font-size:13px;margin:18px 0 8px;color:var(--mut);">Système</h4>';
+    html += system.map(m => rowHtml(m, { system: true })).join('');
+  }
+
   el.innerHTML = html;
-  
-  window.renderColorSwatches('swMat', window.newColor, 'window.setNewColor', 'nMatColorPreview');
+  if (typeof window.hydrateIcons === 'function') window.hydrateIcons(el);
 };
 
 window.setNewColor = function(col) {
   window.newColor = col;
+};
+
+window.toggleMatEnabled = function (id) {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : modification des matières indisponible.')) {
+    return;
+  }
+  if (!window.isCanonicalMatiere(id)) return;
+  const m = (window.D.matieres || []).find(x => x.id === id);
+  if (!m) return;
+  m.enabled = !(m.enabled !== false);
+  window.save();
   window.renderMatieres();
+  if (typeof window.renderCours === 'function') window.renderCours();
+  if (typeof window.renderDashboard === 'function') window.renderDashboard();
 };
 
 window.editMatiere = function(id) {
@@ -2007,45 +2174,18 @@ window.saveMatEdit = function() {
 // =========================================================
 // 📁 GESTION DES MATIÈRES (VERSION CORRIGÉE AVEC BORDURE ROUGE)
 // =========================================================
+/** Création libre désactivée — matières PC* fixes (activer / désactiver). */
 window.addMat = function() {
   if (typeof window.refuseSecondaryFullMutation === 'function'
       && window.refuseSecondaryFullMutation('Appareil secondaire : modification des matières indisponible.')) {
     return;
   }
-  const lblInput = window.$('nMlbl');
-  const nameInput = window.$('nMname');
-  if (!lblInput || !nameInput) return;
-
-  const lbl = lblInput.value.trim().toUpperCase();
-  const name = nameInput.value.trim();
-  const showError = typeof window.showInlineError === 'function'
-    ? window.showInlineError
-    : function () {};
-
-  if (lbl.length !== 4) {
-    showError(lblInput, "Le code matière doit faire exactement 4 lettres.");
-    return;
+  if (typeof window.sysAlert === 'function') {
+    window.sysAlert(
+      'Les matières PC* sont fixes (PHYS, MATH, CHIM, ANGL, FRAN, INFO). Active ou désactive-les dans Organisation → Matières.',
+      'Matières'
+    );
   }
-  if (lbl === 'UNTR' || lbl === window.UNSORTED_MAT_ID) {
-    showError(lblInput, "Ce code est réservé (matière « Non trié »).");
-    return;
-  }
-  if (window.D.matieres.find(m => m.id === lbl)) {
-    showError(lblInput, "Ce code matière existe déjà !");
-    return;
-  }
-  if (name.length === 0) {
-    showError(nameInput, "Tu dois donner un nom complet à ta matière.");
-    return;
-  }
-  
-  window.D.matieres.push({id:lbl, label:lbl, name:name, color:window.newColor}); 
-  window.save(); 
-  window.renderMatieres(); 
-  window.renderCours();
-  
-  lblInput.value = ''; 
-  nameInput.value = '';
 };
 
 // =========================================================
@@ -2094,6 +2234,12 @@ window.delMat = function(id) {
     return;
   }
   if (window.isSystemMatiere(id)) return;
+  if (window.isCanonicalMatiere(id)) {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Les matières PC* ne peuvent pas être supprimées — désactive-les à la place.', 'Matières');
+    }
+    return;
+  }
 
   const count = window.D.cours.filter(c => c.mat === id).length;
   const ankiCount = window._ankiCardsUsingMat(id).length;
@@ -2328,10 +2474,12 @@ window.openOrphanAssign = function () {
   }
 
   const needs = window._orphanAssignNeeds();
-  const mats = (window.D.matieres || []).filter(m => m.id !== window.UNSORTED_MAT_ID);
+  const mats = typeof window.listSelectableMatieres === 'function'
+    ? window.listSelectableMatieres()
+    : (window.D.matieres || []).filter(m => m.id !== window.UNSORTED_MAT_ID);
   const cls = (window.D.classeurs || []).filter(c => c.id !== window.UNSORTED_CL_ID);
   if (needs.needMat && !mats.length) {
-    return window.sysAlert('Crée d\'abord une matière (hors « Non trié ») pour pouvoir ranger.', 'À ranger');
+    return window.sysAlert('Active d\'abord une matière PC* (Organisation → Matières) pour pouvoir ranger.', 'À ranger');
   }
   if (needs.needCl && !cls.length) {
     return window.sysAlert('Crée d\'abord un classeur (hors « Non classé ») pour ranger des documents.', 'À ranger');

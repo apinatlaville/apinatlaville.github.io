@@ -984,10 +984,13 @@
 
   function renderProgrammeMatLevel() {
     var mats = (window.D.matieres || []).filter(function (m) {
-      return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
+      if (!m || !m.id) return false;
+      if (window.isSystemMatiere && window.isSystemMatiere(m.id)) return false;
+      if (m.enabled === false) return countChapitresNav(m.id) > 0;
+      return true;
     });
     if (!mats.length) {
-      return '<div class="prog-bc-empty">Aucune matière. Crée-en dans Organisation → Matières.</div>';
+      return '<div class="prog-bc-empty">Aucune matière active. Active-en dans Organisation → Matières.</div>';
     }
     return (
       '<div class="prog-bc-level-head">' +
@@ -1178,9 +1181,11 @@
   }
 
   function wizardBody() {
-    var mats = (window.D.matieres || []).filter(function (m) {
-      return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
-    });
+    var mats = typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: WIZ.mat || '' })
+      : (window.D.matieres || []).filter(function (m) {
+        return !window.isSystemMatiere || !window.isSystemMatiere(m.id);
+      });
     var cls = (window.D.classeurs || []).filter(function (c) {
       return !window.isSystemClasseur || !window.isSystemClasseur(c.id);
     });

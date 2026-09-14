@@ -284,7 +284,9 @@
   function showModal(c) {
     var ov = ensureOverlay();
     ov.classList.remove('hidden');
-    var matieres = window.D.matieres || [];
+    var matieres = typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: c.mat || '' })
+      : (window.D.matieres || []);
     var defaultMat = c.mat || (matieres[0] && matieres[0].id) || '';
     var matOpts = (matieres.length
       ? '<option value="">— Choisir —</option>'
@@ -306,7 +308,7 @@
         '<div class="modal-body-scroll">' +
           '<div id="agendaFormError" class="anki-form-error" role="alert"></div>' +
           (!matieres.length
-            ? '<div class="anki-form-error visible">Crée d\'abord une matière (onglet Matières).</div>'
+            ? '<div class="anki-form-error visible">Active d\'abord une matière PC* (Organisation → Matières).</div>'
             : '') +
           '<div class="fg"><label>Titre *</label>' +
             '<input type="text" id="agendaTitre" placeholder="Ex: DM Mécanique n°3" value="' + esc(c.titre || '') + '">' +
@@ -360,7 +362,10 @@
     var notes = fieldVal('agendaNotes');
     var duree = parseInt(fieldVal('agendaDuree'), 10);
 
-    if (!matV && (window.D.matieres || []).length === 1) matV = window.D.matieres[0].id;
+    if (!matV && typeof window.listSelectableMatieres === 'function') {
+      var only = window.listSelectableMatieres();
+      if (only.length === 1) matV = only[0].id;
+    } else if (!matV && (window.D.matieres || []).length === 1) matV = window.D.matieres[0].id;
     if (!titre && notes) titre = notes.slice(0, 80);
     if (!notes && titre) notes = titre;
 
@@ -368,8 +373,10 @@
       if (typeof window.showFormError === 'function') window.showFormError('agendaFormError', msg);
     }
 
-    if (!(window.D.matieres || []).length) {
-      err('Crée d\'abord une matière.');
+    if (typeof window.listSelectableMatieres === 'function'
+        ? !window.listSelectableMatieres({ includeId: matV || '' }).length
+        : !(window.D.matieres || []).length) {
+      err('Active d\'abord une matière PC*.');
       return;
     }
     if (!matV) { err('Choisis une matière.'); return; }

@@ -14,6 +14,7 @@
     view: 'catalog', // catalog | mine | detail
     packId: '',
     q: '',
+    matFilter: '', // id canonique or '' = toutes
     catalog: null,
     detail: null,
     versions: null,
@@ -206,6 +207,17 @@
     return snap.data();
   }
 
+  function sortVersionsDesc(list) {
+    return (list || []).slice().sort(function (a, b) {
+      var ta = a && a.publishedAt ? Date.parse(a.publishedAt) : NaN;
+      var tb = b && b.publishedAt ? Date.parse(b.publishedAt) : NaN;
+      var na = isNaN(ta) ? 0 : ta;
+      var nb = isNaN(tb) ? 0 : tb;
+      if (nb !== na) return nb - na;
+      return (Number(b && b.version) || 0) - (Number(a && a.version) || 0);
+    });
+  }
+
   async function cloudListVersions(packId) {
     if (!window.collection || !window.getDocs) return [];
     var col = window.collection(window.db, COLLECTION, packId, 'versions');
@@ -216,8 +228,7 @@
       data.version = data.version != null ? data.version : parseInt(d.id, 10);
       list.push(data);
     });
-    list.sort(function (a, b) { return (b.version || 0) - (a.version || 0); });
-    return list;
+    return sortVersionsDesc(list);
   }
 
   async function cloudPublish(meta, versionDoc) {
@@ -262,9 +273,9 @@
       if (canUseCloud()) return cloudListVersions(packId);
       var p = localGetPack(packId);
       if (!p || !p.versions) return [];
-      return Object.keys(p.versions).map(function (k) {
+      return sortVersionsDesc(Object.keys(p.versions).map(function (k) {
         return p.versions[k];
-      }).sort(function (a, b) { return (b.version || 0) - (a.version || 0); });
+      }));
     },
 
     /** Construit le payload contenu depuis un dossier local (assigne contentIds si besoin). */
@@ -327,7 +338,9 @@
         publishedVersion: nextVersion,
         mat: g.mat || '',
         chapitreId: g.chapitreId || '',
-        color: g.color || ''
+        color: g.color || '',
+        localDirty: false,
+        imported: !!shared.imported
       };
       if (typeof window.save === 'function') window.save();
       return result;
@@ -343,6 +356,51 @@
       return (window.D.quickGroups || []).filter(function (g) {
         return g && g.shared && g.shared.packId;
       });
+    },
+
+    /** Marque un dossier lié à un pack comme modifié localement (non republie). */
+    markLocalDirty: function (groupId) {
+      if (!groupId) return false;
+      var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
+      if (!g || !g.shared || !g.shared.packId) return false;
+      if (g.shared.localDirty) return false;
+      g.shared.localDirty = true;
+      return true;
+    },
+
+    clearLocalDirty: function (groupId) {
+      var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
+      if (!g || !g.shared) return;
+      g.shared.localDirty = false;
+    },
+
+    /**
+     * État partage d’un dossier (sync).
+     * @returns {{ linked:boolean, imported:boolean, localDirty:boolean, updateAvailable:boolean,
+     *   packId:string, installedVersion:number, latestVersion:number|null }}
+     */
+    getGroupShareState: async function (groupId) {
+      var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
+      var empty = {
+        linked: false, imported: false, localDirty: false, updateAvailable: false,
+        packId: '', installedVersion: 0, latestVersion: null
+      };
+      if (!g || !g.shared || !g.shared.packId) return empty;
+      var installed = Number(g.shared.installedVersion || 0);
+      var latest = null;
+      try {
+        var meta = await window.QuickShare.getMeta(g.shared.packId);
+        if (meta && meta.latestVersion != null) latest = Number(meta.latestVersion);
+      } catch (e) { /* hors ligne / pas de catalogue */ }
+      return {
+        linked: true,
+        imported: !!g.shared.imported,
+        localDirty: !!g.shared.localDirty,
+        updateAvailable: latest != null && latest > installed,
+        packId: g.shared.packId,
+        installedVersion: installed,
+        latestVersion: latest
+      };
     },
 
     previewUpdate: function (groupId, versionDoc) {
@@ -422,10 +480,10 @@
           : (window.AnkiAlgo && window.AnkiAlgo.genExoUid);
         var id = gen ? gen('Y', used) : ('Y-' + Date.now().toString(36).slice(-3).toUpperCase());
         used.push(id);
-        var ease = 2.5;
+        var ease = 2.3;
         try {
           if (window.AnkiAlgoV2 && window.AnkiAlgoV2.getQuickDefaultProfile) {
-            ease = window.AnkiAlgoV2.getQuickDefaultProfile().ease || 2.5;
+            ease = window.AnkiAlgoV2.getQuickDefaultProfile().ease || 2.3;
           }
         } catch (e) { /* ignore */ }
         var today = window.AnkiAlgoV2 && window.AnkiAlgoV2.todayISO
@@ -463,6 +521,7 @@
       if (!g.shared) g.shared = {};
       g.shared.packId = opts.packId || g.shared.packId;
       g.shared.installedVersion = versionDoc.version;
+      g.shared.localDirty = false;
       if (versionDoc.name) g.name = versionDoc.name;
 
       if (typeof window.save === 'function') window.save();
@@ -480,7 +539,10 @@
 
       var usedG = new Set((window.D.quickGroups || []).map(function (x) { return x.id; }));
       var gid = genCode('QG-', 3, usedG);
-      var mat = prefs.mat || packMeta.suggestedMat || ((window.D.matieres || [])[0] && window.D.matieres[0].id) || '';
+      var mat = (prefs.mat || '').trim();
+      if (!mat) {
+        throw new Error('Une matière est obligatoire pour créer un dossier Rapide.');
+      }
       var color = prefs.color || packMeta.suggestedColor || '#5b8df7';
       var g = {
         id: gid,
@@ -494,7 +556,9 @@
           installedVersion: versionDoc.version,
           mat: mat,
           chapitreId: prefs.chapitreId || '',
-          color: color
+          color: color,
+          imported: true,
+          localDirty: false
         }
       };
       window.D.quickGroups.push(g);
@@ -566,39 +630,115 @@
     );
   }
 
+  function matiereDisplay(id) {
+    if (!id) return { id: '', label: 'Sans matière', name: 'Packs sans suggestedMat', color: '#6a6a88' };
+    var local = (window.D && window.D.matieres || []).find(function (m) { return m && m.id === id; });
+    if (local) return local;
+    var canon = (window.CANONICAL_MATIERES || []).find(function (m) { return m.id === id; });
+    if (canon) return canon;
+    return { id: id, label: id, name: id, color: '#6a6a88' };
+  }
+
+  function packRowHtml(p, installed) {
+    var local = installed[p.packId];
+    var latest = Number(p.latestVersion || 1);
+    var update = local && latest > Number(local.shared.installedVersion || 0);
+    var mat = matiereDisplay(p.suggestedMat);
+    var actionBtn;
+    if (!local) {
+      actionBtn = '<button type="button" class="bp partage-row-action" onclick="event.stopPropagation();window.partageImportFromCatalog(\'' +
+        jsStr(p.packId) + '\')">' +
+        (window.iconLabel ? window.iconLabel('download', 'Importer') : 'Importer') + '</button>';
+    } else if (update) {
+      actionBtn = '<button type="button" class="bp partage-row-action" onclick="event.stopPropagation();window.partageImportFromCatalog(\'' +
+        jsStr(p.packId) + '\')">' +
+        (window.iconLabel ? window.iconLabel('refresh-cw', 'Update') : 'Update') + '</button>';
+    } else {
+      actionBtn = '<span class="partage-badge">Installé</span>';
+    }
+    return (
+      '<div class="partage-row partage-row-static">' +
+        '<button type="button" class="partage-row-main partage-row-main-btn" onclick="window.partageOpenPack(\'' + jsStr(p.packId) + '\')" title="Voir le détail">' +
+          '<strong>' + esc(p.name || p.packId) + '</strong>' +
+          '<span class="anki-mut">' + esc(p.packId) +
+            ' · ' + esc(String(p.cardCount || 0)) + ' cartes' +
+            (p.suggestedMat ? ' · ' + esc(mat.label) : '') +
+            (p.lastPublishedBy && p.lastPublishedBy.name ? ' · ' + esc(p.lastPublishedBy.name) : '') +
+            (p.updatedAt ? ' · ' + esc(formatWhen(p.updatedAt)) : '') +
+          '</span>' +
+        '</button>' +
+        '<div class="partage-row-side">' +
+          '<span class="partage-row-ver anki-mut">v' + esc(String(latest)) + '</span>' +
+          actionBtn +
+        '</div>' +
+      '</div>'
+    );
+  }
+
   async function renderPartageCatalog(pane) {
     var list = await window.QuickShare.listPacks();
     S.catalog = list;
     var q = (S.q || '').trim().toLowerCase();
     if (q) {
       list = list.filter(function (p) {
-        return ((p.name || '') + ' ' + (p.packId || '') + ' ' + ((p.lastPublishedBy && p.lastPublishedBy.name) || ''))
+        var matLab = matiereDisplay(p.suggestedMat);
+        return ((p.name || '') + ' ' + (p.packId || '') + ' ' + (p.suggestedMat || '') + ' ' +
+          (matLab.label || '') + ' ' + (matLab.name || '') + ' ' +
+          ((p.lastPublishedBy && p.lastPublishedBy.name) || ''))
           .toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    if (S.matFilter) {
+      list = list.filter(function (p) {
+        return (p.suggestedMat || '') === S.matFilter;
       });
     }
     var links = window.QuickShare.installedLinks();
     var installed = {};
     links.forEach(function (g) { installed[g.shared.packId] = g; });
 
-    var rows = list.length ? list.map(function (p) {
-      var local = installed[p.packId];
-      var update = local && Number(p.latestVersion || 0) > Number(local.shared.installedVersion || 0);
-      var badge = '';
-      if (update) badge = '<span class="partage-badge partage-badge-upd">Update</span>';
-      else if (local) badge = '<span class="partage-badge">Installé · v' + esc(String(local.shared.installedVersion || '?')) + '</span>';
+    var order = {};
+    (window.CANONICAL_MATIERES || []).forEach(function (c, i) { order[c.id] = i; });
+    var byMat = {};
+    list.forEach(function (p) {
+      var key = p.suggestedMat || '';
+      if (!byMat[key]) byMat[key] = [];
+      byMat[key].push(p);
+    });
+    var matKeys = Object.keys(byMat).sort(function (a, b) {
+      if (!a) return 1;
+      if (!b) return -1;
+      var oa = order[a];
+      var ob = order[b];
+      if (oa != null && ob != null) return oa - ob;
+      if (oa != null) return -1;
+      if (ob != null) return 1;
+      return a.localeCompare(b, 'fr');
+    });
+
+    var rows = list.length ? matKeys.map(function (matId) {
+      var packs = byMat[matId];
+      var m = matiereDisplay(matId);
       return (
-        '<button type="button" class="partage-row" onclick="window.partageOpenPack(\'' + jsStr(p.packId) + '\')">' +
-          '<div class="partage-row-main">' +
-            '<strong>' + esc(p.name || p.packId) + '</strong>' +
-            '<span class="anki-mut">' + esc(p.packId) + ' · v' + esc(String(p.latestVersion || 1)) +
-              ' · ' + esc(String(p.cardCount || 0)) + ' cartes' +
-              (p.lastPublishedBy && p.lastPublishedBy.name ? ' · ' + esc(p.lastPublishedBy.name) : '') +
-              (p.updatedAt ? ' · ' + esc(formatWhen(p.updatedAt)) : '') +
-            '</span>' +
-          '</div>' + badge +
-        '</button>'
+        '<section class="partage-mat-block">' +
+          '<div class="anki-lib-group-hdr" style="border-left:4px solid ' + esc(m.color || '#6a6a88') + ';margin-bottom:8px;">' +
+            '<span class="anki-lib-grp-mat" style="background:' + esc(m.color || '#6a6a88') + '20;color:' + esc(m.color || '#6a6a88') + ';">' +
+              esc(m.label || '?') + '</span>' +
+            '<span class="anki-lib-grp-t">' + esc(m.name || matId || 'Sans matière') + '</span>' +
+            '<span class="anki-mut" style="margin-left:auto;">' + packs.length + ' pack' + (packs.length > 1 ? 's' : '') + '</span>' +
+          '</div>' +
+          packs.map(function (p) { return packRowHtml(p, installed); }).join('') +
+        '</section>'
       );
     }).join('') : '<div class="anki-empty">Aucun pack public pour l’instant. Partage un dossier depuis Rapide → Paramètres.</div>';
+
+    var chipMats = (window.CANONICAL_MATIERES || []).slice();
+    var matChips = '<button type="button" class="anki-lib-chip' + (!S.matFilter ? ' on' : '') +
+      '" onclick="window.partageFilterMat(\'\')">Toutes</button>' +
+      chipMats.map(function (m) {
+        return '<button type="button" class="anki-lib-chip' + (S.matFilter === m.id ? ' on' : '') +
+          '" onclick="window.partageFilterMat(\'' + jsStr(m.id) + '\')">' + esc(m.label) + '</button>';
+      }).join('');
 
     var cloudHint = canUseCloud()
       ? '<p class="anki-mut" style="font-size:12px;">Catalogue public (comptes Google). Update manuel — tes répétitions restent locales.</p>'
@@ -618,6 +758,7 @@
           '<button type="button" class="bs" onclick="window.renderPartage()">' +
             (window.iconLabel ? window.iconLabel('refresh-cw', 'Actualiser') : 'Actualiser') + '</button>' +
         '</div>' +
+        '<div class="anki-lib-chips partage-mat-chips" style="margin-top:8px;">' + matChips + '</div>' +
         '<div class="partage-list">' + rows + '</div>' +
       '</div>';
   }
@@ -659,6 +800,37 @@
       '</div>';
   }
 
+  function cardsPreviewHtml(versionDoc) {
+    var cards = (versionDoc && versionDoc.cards) || [];
+    if (!cards.length) {
+      return '<p class="anki-mut" style="margin:0;">Aucune carte dans cette version.</p>';
+    }
+    return (
+      '<div class="partage-cards-preview-hdr">' +
+        '<strong>Aperçu des cartes</strong>' +
+        '<span class="anki-mut">' + cards.length + ' carte' + (cards.length > 1 ? 's' : '') +
+          (versionDoc.version != null ? ' · v' + esc(String(versionDoc.version)) : '') +
+        '</span>' +
+      '</div>' +
+      '<div class="partage-cards-preview-list">' +
+        cards.map(function (c, i) {
+          var q = (c && (c.question || c.titre)) || '—';
+          var r = (c && c.reponse) || '';
+          return (
+            '<article class="partage-card-prev">' +
+              '<div class="partage-card-prev-q">' +
+                '<span class="partage-card-prev-n">' + (i + 1) + '.</span> ' + esc(q) +
+              '</div>' +
+              (r
+                ? '<div class="partage-card-prev-r">' + esc(r) + '</div>'
+                : '<div class="partage-card-prev-r anki-mut"><em>Pas de réponse</em></div>') +
+            '</article>'
+          );
+        }).join('') +
+      '</div>'
+    );
+  }
+
   async function renderPartageDetail(pane) {
     var meta = await window.QuickShare.getMeta(S.packId);
     if (!meta) {
@@ -673,14 +845,38 @@
     var latest = Number(meta.latestVersion || 1);
     var installed = local ? Number(local.shared.installedVersion || 0) : 0;
     var needsUpdate = local && latest > installed;
+    var selectedVer = versions.length ? Number(versions[0].version) : latest;
 
     var verOpts = versions.map(function (v) {
       return '<option value="' + esc(String(v.version)) + '"' +
-        (Number(v.version) === latest ? ' selected' : '') + '>v' + esc(String(v.version)) +
+        (Number(v.version) === selectedVer ? ' selected' : '') + '>v' + esc(String(v.version)) +
         (v.publishedAt ? ' — ' + esc(formatWhen(v.publishedAt)) : '') +
         (v.publishedBy && v.publishedBy.name ? ' · ' + esc(v.publishedBy.name) : '') +
         '</option>';
     }).join('');
+
+    var verList = versions.length ? (
+      '<div class="partage-ver-list" role="list">' +
+        versions.map(function (v) {
+          var on = Number(v.version) === selectedVer;
+          return (
+            '<button type="button" role="listitem" class="partage-ver-item' + (on ? ' is-on' : '') + '"' +
+              ' onclick="window.partageSelectVersion(\'' + jsStr(String(v.version)) + '\')">' +
+              '<span class="partage-ver-item-main">' +
+                '<strong>v' + esc(String(v.version)) + '</strong>' +
+                (Number(v.version) === latest ? ' <span class="partage-badge partage-badge-sm">dernière</span>' : '') +
+                (Number(v.version) === installed ? ' <span class="partage-badge partage-badge-sm">installée</span>' : '') +
+              '</span>' +
+              '<span class="anki-mut partage-ver-item-meta">' +
+                esc(String((v.cards && v.cards.length) || meta.cardCount || 0)) + ' cartes' +
+                (v.publishedAt ? ' · ' + esc(formatWhen(v.publishedAt)) : '') +
+                (v.publishedBy && v.publishedBy.name ? ' · ' + esc(v.publishedBy.name) : '') +
+              '</span>' +
+            '</button>'
+          );
+        }).join('') +
+      '</div>'
+    ) : '<p class="anki-mut">Aucune version.</p>';
 
     var actionBtn = '';
     if (!local) {
@@ -708,13 +904,39 @@
         '<div class="partage-detail-actions">' +
           actionBtn +
           '<label class="anki-mut" style="font-size:12px;">Version</label>' +
-          '<select id="partageVerSel" class="fi">' + verOpts + '</select>' +
+          '<select id="partageVerSel" class="fi" onchange="window.partageSelectVersion(this.value)">' + verOpts + '</select>' +
           '<button type="button" class="bs" onclick="window.partageInstallSelectedVersion()">' +
             (local ? 'Installer cette version' : 'Importer cette version') + '</button>' +
         '</div>' +
-        '<div id="partagePreview" class="anki-mut" style="margin-top:12px;font-size:12px;"></div>' +
+        '<h4 class="partage-section-title">Versions (plus récente en haut)</h4>' +
+        verList +
+        '<div id="partagePreview" class="partage-cards-preview" style="margin-top:14px;"></div>' +
       '</div>';
+
+    await window.partageSelectVersion(String(selectedVer));
   }
+
+  window.partageSelectVersion = async function (verStr) {
+    var v = parseInt(verStr, 10);
+    if (!S.packId || isNaN(v)) return;
+    var sel = $('partageVerSel');
+    if (sel && String(sel.value) !== String(v)) sel.value = String(v);
+    document.querySelectorAll('.partage-ver-item').forEach(function (btn) {
+      var strong = btn.querySelector('strong');
+      btn.classList.toggle('is-on', !!(strong && strong.textContent === 'v' + v));
+    });
+    var box = $('partagePreview');
+    if (box) box.innerHTML = '<p class="anki-mut">Chargement des cartes…</p>';
+    try {
+      var ver = (S.versions || []).find(function (x) { return Number(x.version) === v; });
+      if (!ver || !Array.isArray(ver.cards)) {
+        ver = await window.QuickShare.getVersion(S.packId, v);
+      }
+      if (box) box.innerHTML = cardsPreviewHtml(ver);
+    } catch (e) {
+      if (box) box.innerHTML = '<p class="anki-mut" style="color:var(--red);">' + esc(String(e && e.message || e)) + '</p>';
+    }
+  };
 
   window.partageSetView = function (v) {
     S.view = v === 'mine' ? 'mine' : 'catalog';
@@ -728,10 +950,37 @@
     S._filtT = setTimeout(function () { window.renderPartage(); }, 200);
   };
 
+  window.partageFilterMat = function (matId) {
+    S.matFilter = matId || '';
+    window.renderPartage();
+  };
+
   window.partageOpenPack = function (packId) {
     S.view = 'detail';
     S.packId = packId;
     window.renderPartage();
+  };
+
+  /** Import / update direct depuis le catalogue (dernière version). */
+  window.partageImportFromCatalog = async function (packId) {
+    if (!packId) return;
+    try {
+      var meta = (S.catalog || []).find(function (p) { return p && p.packId === packId; })
+        || await window.QuickShare.getMeta(packId);
+      if (!meta) return toast('Pack introuvable.', 'error');
+      S.detail = meta;
+      var local = window.QuickShare.findLocalGroupByPack(packId);
+      if (local) {
+        var ver = await window.QuickShare.getVersion(packId, meta.latestVersion);
+        if (!ver) return toast('Version introuvable.', 'error');
+        await confirmAndApply(local.id, meta, ver);
+        return;
+      }
+      openImportWizard(meta, null);
+    } catch (e) {
+      if (String(e && e.message) === 'SECONDARY_READ_ONLY') return;
+      toast(String(e && e.message || e), 'error');
+    }
   };
 
   window.partageStartImport = function () {
@@ -793,16 +1042,25 @@
   }
 
   function openImportWizard(meta, versionDoc) {
-    var mats = window.D.matieres || [];
-    var matOpts = mats.map(function (m) {
-      var sel = meta.suggestedMat && m.id === meta.suggestedMat ? ' selected' : '';
+    var suggested = meta.suggestedMat || '';
+    var mats = typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: suggested })
+      : (window.D.matieres || []);
+    var matOpts = '<option value="">— Choisir une matière —</option>' + mats.map(function (m) {
+      var sel = suggested && m.id === suggested ? ' selected' : '';
       return '<option value="' + esc(m.id) + '"' + sel + '>' + esc(m.label) + ' — ' + esc(m.name) + '</option>';
     }).join('');
+    if (!mats.length) {
+      matOpts = '<option value="">— Aucune matière active —</option>';
+    }
     var colors = ['#5b8df7', '#f0c060', '#50d890', '#e07ab3', '#f06060', '#06b6d4', '#a855f7', '#f97316'];
     var defColor = meta.suggestedColor || colors[0];
+    if (colors.indexOf(defColor) < 0) colors = [defColor].concat(colors);
     var colorDots = colors.map(function (c) {
       return '<button type="button" class="qk-color-dot' + (c === defColor ? ' is-on' : '') +
-        '" data-color="' + esc(c) + '" style="--dot:' + esc(c) + '" onclick="window.partagePickImportColor(\'' + jsStr(c) + '\')"></button>';
+        '" data-color="' + esc(c) + '" style="background:' + esc(c) + ';--dot:' + esc(c) +
+        '" aria-label="Couleur" aria-pressed="' + (c === defColor ? 'true' : 'false') +
+        '" onclick="window.partagePickImportColor(\'' + jsStr(c) + '\')"></button>';
     }).join('');
 
     var ov = $('ovPartageImport');
@@ -820,10 +1078,10 @@
         '<p class="anki-mut" style="font-size:12px;">Personnalise matière / chapitre / couleur sur <b>ton</b> compte. Le contenu vient du pack.</p>' +
         '<div class="fg"><label>Nom local</label>' +
           '<input type="text" id="partageImpName" class="fi" value="' + esc(meta.name || '') + '"></div>' +
-        '<div class="fg"><label>Matière</label>' +
-          '<select id="partageImpMat" class="fi" onchange="window.partageImportMatChanged(this.value)">' + matOpts + '</select></div>' +
+        '<div class="fg"><label>Matière *</label>' +
+          '<select id="partageImpMat" class="fi" required onchange="window.partageImportMatChanged(this.value)">' + matOpts + '</select></div>' +
         '<div class="fg"><label>Chapitre</label><div id="partageImpChapWrap"></div></div>' +
-        '<div class="fg"><label>Couleur</label><div class="qk-color-row">' + colorDots + '</div></div>' +
+        '<div class="fg"><label>Couleur</label><div class="qk-color-dots">' + colorDots + '</div></div>' +
         '<div class="macts">' +
           '<button type="button" class="bs" onclick="window.partageCloseImport()">Annuler</button>' +
           '<button type="button" class="bp" onclick="window.partageConfirmImport()">Importer</button>' +
@@ -839,7 +1097,9 @@
     var ov = $('ovPartageImport');
     if (!ov) return;
     ov.querySelectorAll('.qk-color-dot').forEach(function (btn) {
-      btn.classList.toggle('is-on', btn.getAttribute('data-color') === c);
+      var on = btn.getAttribute('data-color') === c;
+      btn.classList.toggle('is-on', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
   };
 
@@ -865,17 +1125,23 @@
     var ctx = window._partageImport;
     if (!ctx || !ctx.meta) return;
     try {
+      var nameEl = $('partageImpName');
+      var matEl = $('partageImpMat');
+      var chEl = $('partageImpChap');
+      var mat = (matEl && matEl.value) || '';
+      if (!mat) {
+        toast('Choisis une matière PC* pour ce dossier.', 'error');
+        if (matEl) matEl.focus();
+        return;
+      }
       var ver = ctx.versionDoc;
       if (!ver) {
         ver = await window.QuickShare.getVersion(ctx.meta.packId, ctx.meta.latestVersion);
       }
       if (!ver) throw new Error('Version introuvable.');
-      var nameEl = $('partageImpName');
-      var matEl = $('partageImpMat');
-      var chEl = $('partageImpChap');
       var g = window.QuickShare.createGroupFromVersion(ctx.meta, ver, {
         name: (nameEl && nameEl.value) || ctx.meta.name,
-        mat: (matEl && matEl.value) || '',
+        mat: mat,
         chapitreId: (chEl && chEl.value) || '',
         color: ctx.color
       });

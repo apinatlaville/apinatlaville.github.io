@@ -2448,6 +2448,10 @@ async function initApp(user) {
   }
   if(!window.D.classeurs) window.D.classeurs = JSON.parse(JSON.stringify(window.emptyData.classeurs));
   if(!window.D.matieres) window.D.matieres = JSON.parse(JSON.stringify(window.emptyData.matieres));
+  var _canonicalMatieresChanged = false;
+  if (typeof window.ensureCanonicalMatieres === 'function') {
+    _canonicalMatieresChanged = !!window.ensureCanonicalMatieres();
+  }
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   if(!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
 
@@ -2551,6 +2555,12 @@ async function initApp(user) {
       try { await window.save(); } catch (eSave) {
         if (!/SECONDARY_READ_ONLY/i.test(String(eSave && eSave.message))) console.warn(eSave);
       }
+    }
+  }
+
+  if (_canonicalMatieresChanged && !window._persistDisabled) {
+    try { await window.save(); } catch (eCanon) {
+      if (!/SECONDARY_READ_ONLY/i.test(String(eCanon && eCanon.message))) console.warn(eCanon);
     }
   }
 
@@ -2794,6 +2804,7 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
   if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
   _unionByKey(window.D.matieres, remote.matieres, 'id');
   _unionByKey(window.D.classeurs, remote.classeurs, 'id');
+  if (typeof window.ensureCanonicalMatieres === 'function') window.ensureCanonicalMatieres();
   if (!window.D.sessionEnCoursV2 && remote.sessionEnCoursV2) {
     window.D.sessionEnCoursV2 = remote.sessionEnCoursV2;
   }

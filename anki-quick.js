@@ -13,14 +13,144 @@
     nav: { group: "" },
     coursId: "",
     groupsModalFocusMat: "",
-    groupsModalFocusAdd: false
+    groupsModalFocusAdd: false,
+    shareBannerGroupId: "",
+    /** @type {Record<string, {linked:boolean,imported:boolean,localDirty:boolean,updateAvailable:boolean,packId:string,installedVersion:number,latestVersion:number|null,ts:number}>} */
+    shareStateCache: Object.create(null)
+  };
+
+  function shareStateFromGroup(g) {
+    if (!g || !g.shared || !g.shared.packId) {
+      return { linked: false, imported: false, localDirty: false, updateAvailable: false, packId: '', installedVersion: 0, latestVersion: null };
+    }
+    const cached = Q.shareStateCache[g.id];
+    return {
+      linked: true,
+      imported: !!g.shared.imported,
+      localDirty: !!g.shared.localDirty,
+      updateAvailable: !!(cached && cached.updateAvailable),
+      packId: g.shared.packId,
+      installedVersion: Number(g.shared.installedVersion || 0),
+      latestVersion: cached && cached.latestVersion != null ? cached.latestVersion : null
+    };
+  }
+
+  function refreshShareStateCache(groupIds) {
+    if (!window.QuickShare || typeof window.QuickShare.getGroupShareState !== 'function') return;
+    const ids = (groupIds || []).filter(Boolean);
+    if (!ids.length) return;
+    Promise.all(ids.map(function (id) {
+      return window.QuickShare.getGroupShareState(id).then(function (st) {
+        Q.shareStateCache[id] = Object.assign({ ts: Date.now() }, st);
+        return st;
+      }).catch(function () {
+        // Évite une boucle de refresh si le cloud est indisponible
+        var g = groupInfo(id);
+        Q.shareStateCache[id] = Object.assign({ ts: Date.now() }, shareStateFromGroup(g), {
+          updateAvailable: false,
+          latestVersion: null
+        });
+        return null;
+      });
+    })).then(function () {
+      if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+    });
+  }
+
+  function shareDotsHtml(st, groupId, opts) {
+    opts = opts || {};
+    if (!st || !st.linked) return '';
+    const bits = [];
+    bits.push('<span class="qk-share-dot qk-share-dot--blue" title="Dossier lié à un pack"></span>');
+    if (st.localDirty) {
+      bits.push('<span class="qk-share-dot qk-share-dot--yellow" title="Modifications locales non partagées"></span>');
+    }
+    if (st.updateAvailable) {
+      bits.push('<span class="qk-share-dot qk-share-dot--green" title="Nouvelle version disponible"></span>');
+    }
+    const cls = opts.compact ? 'qk-share-dots qk-share-dots--compact' : 'qk-share-dots';
+    return (
+      '<span class="' + cls + '" role="button" tabindex="0" title="État du partage" ' +
+        'aria-label="État du partage" onclick="event.stopPropagation();window.quickToggleShareBanner(\'' +
+        jsStr(groupId) + '\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();event.stopPropagation();window.quickToggleShareBanner(\'' +
+        jsStr(groupId) + '\');}">' + bits.join('') + '</span>'
+    );
+  }
+
+  function shareBannerHtml(groupId) {
+    if (!groupId || Q.shareBannerGroupId !== groupId) return '';
+    const g = groupInfo(groupId);
+    const st = shareStateFromGroup(g);
+    if (!st.linked) return '';
+    const lines = [];
+    lines.push('Pack <code>' + esc(st.packId) + '</code> · installé <b>v' + esc(String(st.installedVersion || '?')) + '</b>' +
+      (st.latestVersion != null ? ' · cloud <b>v' + esc(String(st.latestVersion)) + '</b>' : '') + '.');
+    if (st.imported) {
+      lines.push('Dossier <b>importé</b> : copie locale. Tes ajouts / modifications ne partent <b>pas</b> vers les autres tant que tu ne republies pas.');
+    } else {
+      lines.push('Dossier <b>lié à un pack public</b>. Les autres ne voient tes changements qu’après republier.');
+    }
+    if (st.localDirty) {
+      lines.push('<span class="qk-share-banner-flag qk-share-banner-flag--yellow">Modifié localement</span> Au moins une carte a été ajoutée ou modifiée depuis l’import / la dernière synchro.');
+    } else {
+      lines.push('<span class="qk-share-banner-flag qk-share-banner-flag--blue">À jour localement</span> Pas de modif locale détectée depuis la version installée.');
+    }
+    if (st.updateAvailable) {
+      lines.push('<span class="qk-share-banner-flag qk-share-banner-flag--green">Update dispo</span> Une version plus récente a été publiée. Mets à jour depuis Partage (tes SRS restent locaux).');
+    }
+    const actions = [];
+    if (st.updateAvailable) {
+      actions.push('<button type="button" class="bp" onclick="window.partageOpenPack && window.partageOpenPack(\'' +
+        jsStr(st.packId) + '\')">' + (window.iconLabel ? window.iconLabel('refresh-cw', 'Voir l’update') : 'Voir l’update') + '</button>');
+    }
+    actions.push('<button type="button" class="bs" onclick="window.quickEditGroup(\'' + jsStr(groupId) + '\')">' +
+      (window.iconLabel ? window.iconLabel('share-2', 'Partager / republier') : 'Partager') + '</button>');
+    actions.push('<button type="button" class="bs" onclick="window.quickToggleShareBanner(\'\')">Fermer</button>');
+    return (
+      '<div class="qk-share-banner" role="status">' +
+        '<div class="qk-share-banner-body">' + lines.map(function (l) { return '<p>' + l + '</p>'; }).join('') + '</div>' +
+        '<div class="qk-share-banner-actions">' + actions.join('') + '</div>' +
+      '</div>'
+    );
+  }
+
+  window.quickToggleShareBanner = function (groupId) {
+    Q.shareBannerGroupId = (groupId && Q.shareBannerGroupId === groupId) ? '' : (groupId || '');
+    if (Q.shareBannerGroupId) {
+      if (!Q.nav.group || Q.nav.group === UNGROUPED) {
+        Q.nav.group = Q.shareBannerGroupId;
+        const g = groupInfo(Q.shareBannerGroupId);
+        const mat = g ? inferGroupMat(g) : '';
+        if (mat) Q.mat = mat;
+      }
+      if (window.QuickShare && window.QuickShare.getGroupShareState) {
+        window.QuickShare.getGroupShareState(Q.shareBannerGroupId).then(function (st) {
+          Q.shareStateCache[Q.shareBannerGroupId] = Object.assign({ ts: Date.now() }, st);
+          window.renderFlashcards();
+        }).catch(function () { window.renderFlashcards(); });
+        return;
+      }
+    }
+    window.renderFlashcards();
+  };
+
+  window.quickMarkGroupLocalDirty = function (groupId) {
+    if (!groupId || !window.QuickShare || typeof window.QuickShare.markLocalDirty !== 'function') return;
+    if (window.QuickShare.markLocalDirty(groupId) && typeof window.save === 'function') {
+      try { window.save(); } catch (e) { /* best-effort */ }
+    }
   };
 
   function ensure() {
     if (!window.D) return;
     if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
     if (!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
-    if (!Q.mat && window.D.matieres && window.D.matieres.length) Q.mat = window.D.matieres[0].id;
+    if (!Q.mat && window.D.matieres && window.D.matieres.length) {
+      const sel = typeof window.listSelectableMatieres === 'function'
+        ? window.listSelectableMatieres()
+        : window.D.matieres;
+      Q.mat = (sel[0] && sel[0].id) || window.D.matieres[0].id;
+    }
     if (typeof window.dedupeAnkiCardArrays === 'function' && !window._qkDedupeDone) {
       const n = window.dedupeAnkiCardArrays(window.D);
       window._qkDedupeDone = true;
@@ -465,8 +595,13 @@
     const m = mode === 'batch' ? 'batch' : 'single';
     const go = function () {
       const opts = {};
-      if (Q.mat) opts.mat = Q.mat;
-      if (Q.nav.group && Q.nav.group !== UNGROUPED) opts.groupId = Q.nav.group;
+      if (Q.nav.group && Q.nav.group !== UNGROUPED) {
+        opts.groupId = Q.nav.group;
+        const g = groupInfo(Q.nav.group);
+        const gMat = g ? inferGroupMat(g) : '';
+        if (gMat) opts.mat = gMat;
+      }
+      if (!opts.mat && Q.mat) opts.mat = Q.mat;
       window._cardCreateOpts = opts;
       window._quickCreateMode = m;
       window._quickCreateCount = 0;
@@ -610,6 +745,12 @@
 
   window.quickArianePickGroup = function (groupKey) {
     Q.nav.group = groupKey || '';
+    Q.shareBannerGroupId = '';
+    if (groupKey && groupKey !== UNGROUPED) {
+      const g = groupInfo(groupKey);
+      const mat = g ? inferGroupMat(g) : '';
+      if (mat) Q.mat = mat;
+    }
     window.renderFlashcards();
   };
 
@@ -643,8 +784,10 @@
       document.body.appendChild(ov);
     }
     const matId = inferGroupMat(g);
-    const mats = window.D.matieres || [];
-    const matOpts = mats.map(function (m) {
+    const mats = typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: matId || '' })
+      : (window.D.matieres || []);
+    const matOpts = '<option value="">— Choisir une matière —</option>' + mats.map(function (m) {
       return '<option value="' + esc(m.id) + '"' + (m.id === matId ? ' selected' : '') + '>' +
         esc(m.label) + ' — ' + esc(m.name) + '</option>';
     }).join('');
@@ -656,8 +799,8 @@
         '<div class="qk-group-create">' +
           '<label class="qk-group-create-lbl" for="qkEditGroupName">Nom</label>' +
           '<input type="text" id="qkEditGroupName" class="fi" maxlength="40" value="' + esc(g.name) + '">' +
-          '<label class="qk-group-create-lbl" for="qkEditGroupMat">Matière</label>' +
-          '<select id="qkEditGroupMat" class="fi" onchange="window.quickEditGroupMatChanged(this.value)">' + matOpts + '</select>' +
+          '<label class="qk-group-create-lbl" for="qkEditGroupMat">Matière *</label>' +
+          '<select id="qkEditGroupMat" class="fi" required onchange="window.quickEditGroupMatChanged(this.value)">' + matOpts + '</select>' +
           '<label class="qk-group-create-lbl" for="qkEditGroupChapitre">Chapitre</label>' +
           renderGroupsChapitreSelect(matId, g.chapitreId || '', 'qkEditGroupChapitre') +
           '<label class="qk-group-create-lbl">Couleur</label>' +
@@ -724,7 +867,12 @@
       return;
     }
     const matSel = $('qkEditGroupMat');
-    const mat = (matSel && matSel.value) || inferGroupMat(g);
+    const mat = String((matSel && matSel.value) || '').trim();
+    if (!mat) {
+      if (typeof window.showToast === 'function') window.showToast('Choisis une matière PC* pour ce dossier.', { type: 'error' });
+      if (matSel) matSel.focus();
+      return;
+    }
     const chSel = $('qkEditGroupChapitre');
     g.name = name;
     g.mat = mat;
@@ -904,6 +1052,7 @@
     const sections = groupsByMat();
     const noneStats = countGroupCards(UNGROUPED);
     const hasGroups = sections.some(sec => sec.groups.length > 0);
+    const linkedIds = [];
 
     let bodyHtml = '';
     if (hasGroups) {
@@ -917,20 +1066,21 @@
         const m = sec.mat;
         const tiles = sec.groups.map(g => {
           const stats = countGroupCards(g.id);
-          const gear = window.iconHtml ? window.iconHtml('settings', 14, 'icon-sm') : '⚙';
-          const sharedBadge = (g.shared && g.shared.packId)
-            ? ' <span class="partage-badge partage-badge-sm">Partagé</span>'
-            : '';
+          const gear = window.iconHtml ? window.iconHtml('settings', 16, 'icon') : '⚙';
+          const st = shareStateFromGroup(g);
+          if (st.linked) linkedIds.push(g.id);
+          const dots = shareDotsHtml(st, g.id, { compact: true });
           return (
             `<div class="cours-bc-tile-wrap" style="--mat-color:${esc(g.color || m.color)}">` +
               `<button type="button" class="cours-bc-tile" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
-                `<span class="cours-bc-tile-name">${esc(g.name)}${sharedBadge}</span>` +
+                `<span class="cours-bc-tile-name">${esc(g.name)}${dots}</span>` +
                 `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
                   (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
                 `</span>` +
               `</button>` +
               `<button type="button" class="bs cours-bc-tile-gear" title="Paramètres du dossier" ` +
-                `aria-label="Paramètres du dossier" onclick="event.stopPropagation();window.quickEditGroup('${jsStr(g.id)}')">${gear}</button>` +
+                `aria-label="Paramètres du dossier" onclick="event.stopPropagation();window.quickEditGroup('${jsStr(g.id)}')">` +
+                `${gear}<span class="cours-bc-tile-gear-lbl">Paramètres</span></button>` +
             `</div>`
           );
         }).join('');
@@ -980,6 +1130,16 @@
       );
     }
 
+    // Refresh remote update flags (debounced via cache age)
+    const stale = linkedIds.filter(function (id) {
+      const c = Q.shareStateCache[id];
+      return !c || (Date.now() - (c.ts || 0) > 60000);
+    });
+    if (stale.length) {
+      clearTimeout(Q._shareRefreshT);
+      Q._shareRefreshT = setTimeout(function () { refreshShareStateCache(stale); }, 50);
+    }
+
     return bodyHtml;
   }
 
@@ -992,24 +1152,34 @@
       : allQuickCards().filter(c => c.groupId === Q.nav.group);
     const totalSplit = splitActiveReservoir(allInGroup);
     const gearBtn = (Q.nav.group && Q.nav.group !== UNGROUPED)
-      ? `<button type="button" class="qk-group-settings" title="Paramètres du dossier" ` +
+      ? `<button type="button" class="bs qk-group-settings" title="Paramètres du dossier" ` +
           `aria-label="Paramètres du dossier" onclick="window.quickEditGroup('${jsStr(Q.nav.group)}')">` +
-          (window.iconHtml ? window.iconHtml('settings', 12, 'icon-sm') : '⚙') +
-          ` Paramètres</button>`
+          (window.iconHtml ? window.iconHtml('settings', 18, 'icon') : '⚙') +
+          `<span>Paramètres</span></button>`
       : '';
-    const sharedNote = (g.shared && g.shared.packId)
-      ? `<span class="partage-badge partage-badge-sm">Partagé</span>` +
-        `<span class="anki-mut" style="font-size:11px;">${esc(g.shared.packId)} · v${esc(String(g.shared.installedVersion || '?'))}</span>`
-      : '';
+    const st = shareStateFromGroup(g);
+    const dots = shareDotsHtml(st, Q.nav.group);
+    const banner = shareBannerHtml(Q.nav.group);
+    if (st.linked) {
+      const c = Q.shareStateCache[Q.nav.group];
+      if (!c || (Date.now() - (c.ts || 0) > 60000)) {
+        clearTimeout(Q._shareRefreshT);
+        Q._shareRefreshT = setTimeout(function () { refreshShareStateCache([Q.nav.group]); }, 50);
+      }
+    }
 
     return (
-      '<div class="cours-bc-level-head">' +
-        `<h3 class="cours-bc-level-title">${esc(g.name)} ${sharedNote}</h3>` +
-        `<p class="cours-bc-level-sub anki-mut qk-group-subline">` +
-          `${totalSplit.active.length} active${totalSplit.active.length > 1 ? 's' : ''}` +
-          (totalSplit.reservoir ? ` · ${totalSplit.reservoir} réservoir` : '') +
-          (gearBtn ? `<span class="qk-group-sub-sep" aria-hidden="true">·</span>${gearBtn}` : '') +
-        `</p>` +
+      banner +
+      '<div class="cours-bc-level-head qk-group-head">' +
+        '<div class="qk-group-head-main">' +
+          `<h3 class="cours-bc-level-title">${esc(g.name)} ${dots}</h3>` +
+          `<p class="cours-bc-level-sub anki-mut qk-group-subline">` +
+            `${totalSplit.active.length} active${totalSplit.active.length > 1 ? 's' : ''}` +
+            (totalSplit.reservoir ? ` · ${totalSplit.reservoir} réservoir` : '') +
+            (st.linked ? ` · <code style="font-size:10px;">${esc(st.packId)}</code> v${esc(String(st.installedVersion || '?'))}` : '') +
+          `</p>` +
+        '</div>' +
+        (gearBtn || '') +
       '</div>' +
       renderBucketBody(split, null)
     );
@@ -1094,7 +1264,9 @@
   }
 
   function selectedGroupsMatId() {
-    const mats = window.D.matieres || [];
+    const mats = typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: Q.groupsModalFocusMat || Q.mat || '' })
+      : (window.D.matieres || []);
     const want = Q.groupsModalFocusMat || Q.mat || '';
     if (want && mats.some(m => m.id === want)) return want;
     return (mats[0] && mats[0].id) || '';
@@ -1122,38 +1294,50 @@
   }
 
   function renderGroupsMatSelect(selectedId) {
-    const mats = window.D.matieres || [];
-    return `<select id="qkNewGroupMat" class="fi qk-new-group-mat" aria-label="Matière du dossier" onchange="window.quickGroupsMatChanged(this.value)">` +
+    const mats = typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: selectedId || '' })
+      : (window.D.matieres || []);
+    return `<select id="qkNewGroupMat" class="fi qk-new-group-mat" required aria-label="Matière du dossier" onchange="window.quickGroupsMatChanged(this.value)">` +
+      `<option value="">— Choisir une matière —</option>` +
       mats.map(function (m) {
-        return `<option value="${esc(m.id)}"${m.id === selectedId ? ' selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`;
+        return `<option value="${esc(m.id)}"${selectedId && m.id === selectedId ? ' selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`;
       }).join('') +
       `</select>`;
   }
 
   function renderGroupsModalBody() {
-    const mats = (window.D.matieres || []).slice();
-    if (!mats.length) {
+    const mats = typeof window.listSelectableMatieres === 'function'
+      ? window.listSelectableMatieres({ includeId: Q.groupsModalFocusMat || Q.mat || '' })
+      : ((window.D.matieres || []).slice());
+    if (!mats.length && !(window.D.matieres || []).length) {
       return '<p class="anki-mut" style="font-size:13px;">Aucune matière configurée.</p>';
     }
-    const matId = selectedGroupsMatId();
-    const mat = mats.find(m => m.id === matId) || mats[0];
-    if (!Q.newGroupColor) Q.newGroupColor = defaultGroupColor(mat.id);
-    return `
+    if (!mats.length) {
+      return '<p class="anki-mut" style="font-size:13px;">Active au moins une matière PC* (Organisation → Matières) pour créer un dossier.</p>';
+    }
+    const matId = Q.groupsModalFocusMat || '';
+    const mat = mats.find(m => m.id === matId) || null;
+    if (!Q.newGroupColor) Q.newGroupColor = defaultGroupColor(matId || (mats[0] && mats[0].id));
+    const createForm = `
       <div class="qk-group-create">
-        <label class="qk-group-create-lbl" for="qkNewGroupMat">Matière</label>
-        ${renderGroupsMatSelect(mat.id)}
+        <label class="qk-group-create-lbl" for="qkNewGroupMat">Matière *</label>
+        ${renderGroupsMatSelect(matId)}
         <label class="qk-group-create-lbl" for="qkNewGroupName">Nouveau dossier</label>
         <div class="qk-group-add-inline">
           <input type="text" id="qkNewGroupName" class="fi qk-new-group-name" placeholder="Nom du dossier…" maxlength="40" autocomplete="off">
           <button type="button" class="bp qk-group-add-btn" onclick="window.quickAddGroup()">${window.iconLabel('plus', 'Ajouter')}</button>
         </div>
         <label class="qk-group-create-lbl" for="qkNewGroupChapitre">Chapitre (optionnel)</label>
-        ${renderGroupsChapitreSelect(mat.id, '', 'qkNewGroupChapitre')}
+        ${renderGroupsChapitreSelect(matId, '', 'qkNewGroupChapitre')}
         <label class="qk-group-create-lbl">Couleur</label>
         ${renderGroupColorDots('new', Q.newGroupColor, { forNew: true })}
-      </div>
+      </div>`;
+    // Création : formulaire seul (les dossiers se voient déjà dans l’onglet Rapide).
+    if (Q.groupsModalMode !== 'manage') return createForm;
+    const sectionMat = mat || mats[0];
+    return createForm + `
       <div class="qk-groups-sections">
-        ${renderGroupsModalSection({ mat: mat, groups: groupsForMat(mat.id) })}
+        ${renderGroupsModalSection({ mat: sectionMat, groups: groupsForMat(sectionMat.id) })}
       </div>`;
   }
 
@@ -1277,25 +1461,21 @@
       return;
     }
     const matSel = $('qkNewGroupMat');
-    const mat = matId
-      || (matSel && matSel.value)
-      || Q.groupsModalFocusMat
-      || Q.mat
-      || ((window.D.matieres || [])[0] && window.D.matieres[0].id)
-      || '';
+    const mat = String(matId || (matSel && matSel.value) || '').trim();
     const el = $('qkNewGroupName');
     const name = (el && el.value || '').trim();
+    if (!mat) {
+      if (typeof window.showToast === 'function') window.showToast('Choisis une matière PC* pour ce dossier.', { type: 'error' });
+      if (matSel) matSel.focus();
+      return;
+    }
     if (!name) {
       if (typeof window.showToast === 'function') window.showToast('Indique un nom de dossier.', { type: 'error' });
       if (el) el.focus();
       return;
     }
-    if (!mat) {
-      if (typeof window.showToast === 'function') window.showToast('Choisis une matière.', { type: 'error' });
-      if (matSel) matSel.focus();
-      return;
-    }
     Q.groupsModalFocusMat = mat;
+    Q.mat = mat;
     const id = genGroupId();
     const chSel = $('qkNewGroupChapitre');
     const chapitreId = (chSel && chSel.value) ? String(chSel.value) : '';
@@ -1887,21 +2067,16 @@
         ` : ''}
         <div class="qk-drill-acts">
           ${canType && !DRILL.revealed
-            ? `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
-               <button type="button" class="bs" onclick="window.quickDrillGiveUp()">${window.iconLabel('book-open', 'Je ne sais pas')}</button>`
+            ? `<button type="button" class="bs" onclick="window.quickDrillGiveUp()">${window.iconLabel('book-open', 'Je ne sais pas')}</button>`
             : (!DRILL.revealed
-            ? `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
-               <button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>`
+            ? `<button type="button" class="bp" onclick="window.quickDrillReveal()">${window.iconLabel('book-open', 'Voir la réponse')}</button>`
             : (DRILL.check
               ? (DRILL.check.glowOnly
                 ? ''
                 : (DRILL.check.ok
-                  ? `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
-                     <p class="qk-drill-ok-wait" aria-live="polite">Passage automatique…</p>`
-                  : `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconLabel('x', 'Quitter')}</button>
-                     <button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>`))
-              : `<button type="button" class="bs qk-drill-quit" onclick="window.quickDrillClose()">${window.iconHtml('x', 14)}</button>
-                 <button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark('bad')">${window.iconLabel('x', 'Raté')}</button>
+                  ? `<p class="qk-drill-ok-wait" aria-live="polite">Passage automatique…</p>`
+                  : `<button type="button" class="bp" onclick="window.quickDrillAdvance()">${window.iconLabel('arrow-right', DRILL.idx + 1 >= DRILL.queue.length ? 'Bilan' : 'Suivante')}</button>`))
+              : `<button type="button" class="bs" style="border-color:var(--red);color:var(--red);" onclick="window.quickDrillMark('bad')">${window.iconLabel('x', 'Raté')}</button>
                  <button type="button" class="bs" style="border-color:var(--gold);color:var(--gold);" onclick="window.quickDrillMark('mid')">${window.iconLabel('circle-minus', 'Étourderie')}</button>
                  <button type="button" class="bp" style="background:var(--grn);color:#000;" onclick="window.quickDrillMark('ok')">${window.iconLabel('check', 'Bon')}</button>`))}
         </div>
