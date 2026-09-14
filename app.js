@@ -154,16 +154,30 @@ window.applyHeaderClock = function() {
   if (on && typeof window.updateClock === 'function') window.updateClock();
 };
 
-/** Cible concours : date (YYYY-MM-DD) + heure optionnelle (HH:MM). */
+/** Cible concours : date (YYYY-MM-DD) + heure (HH:MM), en heure locale. */
+window.headerCountdownParseLocal = function (iso, hm, sec) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return null;
+  let t = String(hm || '08:00').trim();
+  if (!/^\d{2}:\d{2}$/.test(t)) t = '08:00';
+  const parts = String(iso).split('-').map(Number);
+  const hmParts = t.split(':').map(Number);
+  const y = parts[0];
+  const mo = parts[1];
+  const day = parts[2];
+  const hh = hmParts[0];
+  const mi = hmParts[1];
+  if (![y, mo, day, hh, mi].every(function (n) { return Number.isFinite(n); })) return null;
+  const d = new Date(y, mo - 1, day, hh, mi, sec == null ? 0 : sec, 0);
+  if (isNaN(d.getTime())) return null;
+  return d;
+};
+
 window.headerCountdownTargetDate = function () {
   const st = (window.D && window.D.settings) || {};
   const iso = String(st.headerCountdownDate || '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
   let hm = String(st.headerCountdownTime || '08:00').trim();
   if (!/^\d{2}:\d{2}$/.test(hm)) hm = '08:00';
-  const d = new Date(iso + 'T' + hm + ':00');
-  if (isNaN(d.getTime())) return null;
-  return d;
+  return window.headerCountdownParseLocal(iso, hm, 0);
 };
 
 /** Jours calendaires restants (mode J−jours). */
@@ -171,8 +185,8 @@ window.headerCountdownDaysLeft = function (iso) {
   if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const target = new Date(String(iso) + 'T12:00:00');
-  if (isNaN(target.getTime())) return null;
+  const target = window.headerCountdownParseLocal(String(iso), '12:00', 0);
+  if (!target) return null;
   target.setHours(0, 0, 0, 0);
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 };
