@@ -7367,3 +7367,25 @@ body.nav-sidebar-left #paneLatexTest.on {
   color: var(--acc, #5b9aff);
   border-color: color-mix(in oklab, var(--acc, #5b9aff) 40%, var(--bd));
 }
+
+/* —— Partage dossiers Rapide —— */
+.partage-page .partage-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.partage-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
+.partage-row {
+  display:flex; align-items:center; gap:12px; width:100%;
+  text-align:left; padding:12px 14px; border-radius:12px;
+  border:1px solid var(--bd); background:rgba(120,120,128,.08);
+  color:var(--txt); cursor:pointer; font:inherit;
+}
+.partage-row:hover { border-color:var(--acc); }
+.partage-row-static { cursor:default; }
+.partage-row-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.partage-row-main strong { font-size:14px; }
+.partage-badge {
+  flex:0 0 auto; font-size:11px; font-weight:600; padding:3px 8px; border-radius:999px;
+  background:rgba(91,157,255,.15); color:var(--acc); border:1px solid rgba(91,157,255,.35);
+}
+.partage-badge-upd { background:rgba(240,192,96,.18); color:var(--gold,#f0c060); border-color:rgba(240,192,96,.45); }
+.partage-badge-sm { font-size:10px; padding:1px 6px; margin-left:6px; vertical-align:middle; }
+.partage-detail-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px; }
+.partage-detail-actions .fi { max-width:280px; }

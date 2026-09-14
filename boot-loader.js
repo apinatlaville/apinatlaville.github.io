@@ -23,7 +23,8 @@
 
   /** Bundles chargés à l'ouverture d'un onglet (pas au splash) */
   var TAB_BUNDLES = {
-    flashcards: ['anki-quick.js'],
+    flashcards: ['anki-quick.js', 'quick-share.js'],
+    partage: ['anki-quick.js', 'quick-share.js'],
     agenda: ['agenda.js'],
     /* app-v2 avant card-ui : le FAB (fin de card-ui) doit trouver les modales déjà définies */
     ankiV2: ['programme.js', 'anki-app-v2.js', 'anki-card-ui.js'],
@@ -200,7 +201,7 @@
     if (tab === 'print' || tab === 'test') {
       prep = window.ensureScannerLibs();
     }
-    if (tab === 'ankiV2' || tab === 'flashcards') {
+    if (tab === 'ankiV2' || tab === 'flashcards' || tab === 'partage') {
       prep = window.ensureAnkiUi();
     }
 

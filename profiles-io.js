@@ -27,7 +27,7 @@
     { id: 'structure', label: 'Matières & classeurs', hint: 'Organisation' },
     { id: 'cours', label: 'Cours / documents', hint: 'Tous les docs (IDs conservés)' },
     { id: 'notes', label: 'Notes & rangs', hint: 'Champs note/rang/effectif des DS & Khôlles' },
-    { id: 'synchrotron', label: 'Synchrotron', hint: 'Cartes, devoirs, session en cours' },
+    { id: 'synchrotron', label: 'Synchrotron', hint: 'Cartes, devoirs, dossiers Rapide, session en cours' },
     { id: 'settings', label: 'Réglages', hint: 'Thème, quotas, préférences' }
   ];
 
@@ -1487,6 +1487,7 @@
     if (all || set.synchrotron) {
       out.exercices = deepClone(D.exercices || []);
       out.devoirs = deepClone(D.devoirs || []);
+      out.quickGroups = deepClone(D.quickGroups || []);
       if (D.sessionEnCoursV2) out.sessionEnCoursV2 = deepClone(D.sessionEnCoursV2);
     }
     if (all || set.settings) {
@@ -1601,7 +1602,7 @@
     if (data._notes || (Array.isArray(data.cours) && data.cours.some(function (c) {
       return c && (c.type === 'DS' || c.type === 'KHOLLE') && (c.note || c.rang);
     }))) s.push('notes');
-    if (data.exercices || data.devoirs || data.sessionEnCoursV2) s.push('synchrotron');
+    if (data.exercices || data.devoirs || data.quickGroups || data.sessionEnCoursV2) s.push('synchrotron');
     if (data.settings) s.push('settings');
     return s.length ? s : SECTIONS.map(function (x) { return x.id; });
   }
@@ -1681,6 +1682,7 @@
       if (want.indexOf('synchrotron') === -1) {
         target.exercices = deepClone(window.D.exercices || []);
         target.devoirs = deepClone(window.D.devoirs || []);
+        target.quickGroups = deepClone(window.D.quickGroups || []);
         if (window.D.sessionEnCoursV2) target.sessionEnCoursV2 = deepClone(window.D.sessionEnCoursV2);
       }
       if (want.indexOf('cours') === -1) {
@@ -1809,6 +1811,7 @@
     if (want.indexOf('synchrotron') !== -1) {
       upsertList('exercices', src.exercices, 'id', 'exercices');
       upsertList('devoirs', src.devoirs, 'id', 'devoirs');
+      upsertList('quickGroups', src.quickGroups, 'id', 'quickGroups');
       if (src.sessionEnCoursV2) {
         target.sessionEnCoursV2 = deepClone(src.sessionEnCoursV2);
       } else if (mode === 'replace') {

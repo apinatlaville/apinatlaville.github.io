@@ -662,10 +662,16 @@
           renderGroupsChapitreSelect(matId, g.chapitreId || '', 'qkEditGroupChapitre') +
           '<label class="qk-group-create-lbl">Couleur</label>' +
           renderGroupColorDots('edit', Q.editGroupColor, { forEdit: true }) +
+          (g.shared && g.shared.packId
+            ? '<p class="anki-mut" style="font-size:12px;margin:8px 0 0;">Pack partagé <code>' + esc(g.shared.packId) +
+              '</code> · v' + esc(String(g.shared.installedVersion || '?')) + '</p>'
+            : '') +
         '</div>' +
         '<div class="macts" style="flex-wrap:wrap;gap:8px;">' +
           '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);margin-right:auto" ' +
             'onclick="window.quickEditGroupDelete()">' + window.iconLabel('trash-2', 'Supprimer') + '</button>' +
+          '<button type="button" class="bs" onclick="window.quickSharePublishGroup(\'' + jsStr(gid) + '\')">' +
+            window.iconLabel('share-2', g.shared && g.shared.packId ? 'Republier' : 'Partager') + '</button>' +
           '<button type="button" class="bs" onclick="window.quickCloseEditGroup()">Annuler</button>' +
           '<button type="button" class="bp" onclick="window.quickSaveEditGroup()">Enregistrer</button>' +
         '</div>' +
@@ -912,10 +918,13 @@
         const tiles = sec.groups.map(g => {
           const stats = countGroupCards(g.id);
           const gear = window.iconHtml ? window.iconHtml('settings', 14, 'icon-sm') : '⚙';
+          const sharedBadge = (g.shared && g.shared.packId)
+            ? ' <span class="partage-badge partage-badge-sm">Partagé</span>'
+            : '';
           return (
             `<div class="cours-bc-tile-wrap" style="--mat-color:${esc(g.color || m.color)}">` +
               `<button type="button" class="cours-bc-tile" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
-                `<span class="cours-bc-tile-name">${esc(g.name)}</span>` +
+                `<span class="cours-bc-tile-name">${esc(g.name)}${sharedBadge}</span>` +
                 `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
                   (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
                 `</span>` +
@@ -988,10 +997,14 @@
           (window.iconHtml ? window.iconHtml('settings', 12, 'icon-sm') : '⚙') +
           ` Paramètres</button>`
       : '';
+    const sharedNote = (g.shared && g.shared.packId)
+      ? `<span class="partage-badge partage-badge-sm">Partagé</span>` +
+        `<span class="anki-mut" style="font-size:11px;">${esc(g.shared.packId)} · v${esc(String(g.shared.installedVersion || '?'))}</span>`
+      : '';
 
     return (
       '<div class="cours-bc-level-head">' +
-        `<h3 class="cours-bc-level-title">${esc(g.name)}</h3>` +
+        `<h3 class="cours-bc-level-title">${esc(g.name)} ${sharedNote}</h3>` +
         `<p class="cours-bc-level-sub anki-mut qk-group-subline">` +
           `${totalSplit.active.length} active${totalSplit.active.length > 1 ? 's' : ''}` +
           (totalSplit.reservoir ? ` · ${totalSplit.reservoir} réservoir` : '') +

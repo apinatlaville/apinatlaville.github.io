@@ -1216,14 +1216,29 @@
     }
     D.quickGroups = D.quickGroups
       .filter(g => g && g.id && String(g.name || '').trim())
-      .map((g, i) => ({
-        id: String(g.id),
-        name: String(g.name).trim(),
-        color: g.color || '#6a7088',
-        order: g.order != null ? Number(g.order) : i,
-        mat: g.mat ? String(g.mat) : '',
-        chapitreId: g.chapitreId ? String(g.chapitreId) : ''
-      }));
+      .map((g, i) => {
+        const out = {
+          id: String(g.id),
+          name: String(g.name).trim(),
+          color: g.color || '#6a7088',
+          order: g.order != null ? Number(g.order) : i,
+          mat: g.mat ? String(g.mat) : '',
+          chapitreId: g.chapitreId ? String(g.chapitreId) : ''
+        };
+        // Lien pack partagé (catalogue) — ne pas perdre au migrate
+        if (g.shared && typeof g.shared === 'object' && g.shared.packId) {
+          out.shared = {
+            packId: String(g.shared.packId),
+            installedVersion: g.shared.installedVersion != null ? Number(g.shared.installedVersion) : 0,
+            publishedVersion: g.shared.publishedVersion != null ? Number(g.shared.publishedVersion) : undefined,
+            mat: g.shared.mat ? String(g.shared.mat) : out.mat,
+            chapitreId: g.shared.chapitreId ? String(g.shared.chapitreId) : out.chapitreId,
+            color: g.shared.color || out.color
+          };
+          if (out.shared.publishedVersion == null) delete out.shared.publishedVersion;
+        }
+        return out;
+      });
     /* Inférer matière des cartes Y- si absente */
     D.quickGroups.forEach(function (g) {
       if (g.mat) return;
