@@ -1,7 +1,7 @@
 /**
  * card-create-x-lab.js — Labo UX création carte X-
- * Silhouette session + modules du modal classique (matière Choices, ★, durée h:mm,
- * statut, guidage livres). N’altère pas ovExo.
+ * Silhouette session + modules du modal classique (matière Choices, ★ bandeau,
+ * durée h:mm, statut, guidage livres). N’altère pas ovExo.
  */
 (function () {
   'use strict';
@@ -352,11 +352,6 @@
                 '</div>' +
               '</div>' +
 
-              H.renderSrcGuidanceBlock(c, 'xlab',
-                (window.iconLabel
-                  ? window.iconLabel('book-open', '<b>Guidage physique</b> <span class="anki-mut" style="font-weight:normal;">— où trouver l\'énoncé et le corrigé (facultatif)</span>')
-                  : '<b>Guidage physique</b>')) +
-
               '<button type="button" class="bp anki-reveal xlab-save-btn" onclick="window.xlabSave()">' +
                 (window.iconLabel ? window.iconLabel('check', 'Enregistrer la carte') : 'Enregistrer la carte') +
               '</button>' +
@@ -367,6 +362,19 @@
 
             '</div>' +
           '</div>' +
+
+          '<aside class="xlab-side">' +
+            '<h3 class="xlab-side-title">' +
+              (window.iconLabel ? window.iconLabel('book-open', 'Guidage') : 'Guidage') +
+            '</h3>' +
+            '<p class="anki-mut xlab-side-hint">Où trouver l\'énoncé et le corrigé (facultatif).</p>' +
+            '<div class="xlab-guidage">' +
+              H.renderSrcGuidanceBlock(c, 'xlab',
+                (window.iconLabel
+                  ? window.iconLabel('book-open', '<b>Guidage physique</b>')
+                  : '<b>Guidage physique</b>')) +
+            '</div>' +
+          '</aside>' +
         '</div>' +
       '</div>';
 
@@ -379,6 +387,8 @@
       maxTotal: 540
     });
     H.wireSrcGuidanceBlock('xlab');
+    const guidageFold = pane.querySelector('.xlab-guidage details.anki-src-fold');
+    if (guidageFold) guidageFold.open = true;
 
     const matEl = $('xlabMat');
     if (matEl && !matEl._xlabPaintBound) {

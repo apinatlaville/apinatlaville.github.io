@@ -5614,7 +5614,7 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
 
 /* Labo création carte X — silhouette session + modules modal */
 .xlab-page {
-  max-width: 820px;
+  max-width: 1180px;
   margin: 0 auto;
   padding-bottom: 40px;
 }
@@ -5628,7 +5628,10 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
   line-height: 1.45;
 }
 .xlab-shell {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: stretch;
 }
 .xlab-scene.anki-deck-scene {
   width: 100%;
@@ -5754,8 +5757,43 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
   display: flex;
   justify-content: flex-end;
 }
+.xlab-side {
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--s2);
+}
+.xlab-side-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.xlab-side-hint {
+  margin: 0 0 12px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.xlab-guidage {
+  margin-top: 0;
+}
+.xlab-guidage .anki-src-fold {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+.xlab-guidage .anki-src-fold-summary {
+  display: none;
+}
+.xlab-guidage .anki-src-fold-body {
+  padding: 0;
+}
 @media (min-width: 960px) {
-  .xlab-page { max-width: 920px; }
+  .xlab-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+    gap: 22px;
+    align-items: start;
+  }
 }
 .anki-modal-row .fg-importance {
  flex: 1.15;
