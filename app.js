@@ -1068,6 +1068,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'logs': window.renderErrorLogs(); break;
     case 'test': break;
     case 'latexTest': if (typeof window.renderLatexTest === 'function') window.renderLatexTest(); break;
+    case 'cardCreateX': if (typeof window.renderCardCreateXLab === 'function') window.renderCardCreateXLab(); break;
     case 'latexShortcuts': if (typeof window.renderLatexShortcutsHelp === 'function') window.renderLatexShortcutsHelp(); break;
     case 'quickLatex': if (typeof window.renderQuickLatexCard === 'function') window.renderQuickLatexCard(); break;
     default: break;
@@ -1135,7 +1136,7 @@ window.switchTab = function(tab, overrideResetFilters = false) {
 
   var prep = [];
   if (typeof window.ensureScriptsForTab === 'function') prep.push(window.ensureScriptsForTab(tab));
-  if (['cours', 'notes', 'settings', 'ankiV2'].indexOf(tab) >= 0 && typeof window.ensureFormLibs === 'function') {
+  if (['cours', 'notes', 'settings', 'ankiV2', 'cardCreateX'].indexOf(tab) >= 0 && typeof window.ensureFormLibs === 'function') {
     prep.push(window.ensureFormLibs());
   }
   if (prep.length) Promise.all(prep).then(runTabShowNow);

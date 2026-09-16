@@ -461,6 +461,9 @@
     });
     const hint = document.getElementById(id + "Hint");
     if (hint) hint.textContent = window.importanceHint(val);
+    if (id === "xlabImportance" && typeof window.xlabOnStarChange === "function") {
+      window.xlabOnStarChange();
+    }
   };
 
   window.getStarPickerValue = function (id) {

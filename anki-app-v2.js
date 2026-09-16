@@ -4753,7 +4753,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     return el ? String(el.value || '').trim() : '';
   }
 
-  /** Select livres (matière) pour type=livre ; texte libre sinon / legacy. */
+  /** Select livres (matière) pour type=livre — catalogue uniquement, pas de saisie libre. */
   function refreshSrcLivrePick(prefix, side) {
     if (prefix !== 'exo') return;
     const typeEl = $(prefix + 'Src' + side + 'Type');
@@ -4765,7 +4765,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const type = typeEl.value;
     const isLivre = type === 'livre';
     if (nomLab) {
-      nomLab.textContent = isLivre ? 'Nom (libre)' : (type === 'classeur' ? 'Nom (classeur)' : 'Nom (livre / classeur)');
+      nomLab.textContent = isLivre ? 'Livre' : (type === 'classeur' ? 'Nom (classeur)' : 'Nom (livre / classeur)');
     }
     if (!isLivre) {
       if (pickWrap) { pickWrap.classList.add('hidden'); pickWrap.innerHTML = ''; }
@@ -4779,20 +4779,26 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     const curNom = nomEl ? String(nomEl.value || '').trim() : '';
     const curLivreId = nomEl && nomEl.dataset ? String(nomEl.dataset.livreId || '') : '';
 
+    if (nomWrap) nomWrap.classList.add('hidden');
+
     if (!matId) {
       if (pickWrap) {
         pickWrap.classList.remove('hidden');
-        pickWrap.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0 0 8px;">Choisis d’abord une matière pour lister les livres.</p>';
+        pickWrap.innerHTML = '<p class="anki-mut anki-livre-pick-empty">Choisis d’abord une matière pour lister les livres.</p>' +
+          '<input type="hidden" id="' + prefix + 'Src' + side + 'LivreId" value="">';
       }
-      if (nomWrap) nomWrap.classList.remove('hidden');
       return;
     }
     if (!livres.length) {
       if (pickWrap) {
         pickWrap.classList.remove('hidden');
-        pickWrap.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0 0 8px;">Aucun livre pour cette matière — saisie libre (ou crée-en dans Organisation → Classeurs).</p>';
+        pickWrap.innerHTML = '<p class="anki-mut anki-livre-pick-empty">Aucun livre pour cette matière — crée-en dans Organisation → Classeurs.</p>' +
+          '<input type="hidden" id="' + prefix + 'Src' + side + 'LivreId" value="">';
       }
-      if (nomWrap) nomWrap.classList.remove('hidden');
+      if (nomEl) {
+        nomEl.value = '';
+        if (nomEl.dataset) delete nomEl.dataset.livreId;
+      }
       return;
     }
 
@@ -4803,56 +4809,82 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const byName = livres.find(function (l) {
         return String(l.name || '').trim().toLowerCase() === curNom.toLowerCase();
       });
-      selected = byName ? byName.id : '__free__';
+      selected = byName ? byName.id : '';
     }
 
-    const opts = ['<option value="">— Choisir un livre —</option>']
-      .concat(livres.map(function (l) {
-        return '<option value="' + esc(l.id) + '"' + (selected === l.id ? ' selected' : '') + '>' + esc(l.name) + '</option>';
-      }))
-      .concat(['<option value="__free__"' + (selected === '__free__' ? ' selected' : '') + '>Autre (saisie libre)…</option>']);
+    const tiles = livres.map(function (l) {
+      const on = selected === l.id;
+      const col = l.color || '#5b8df7';
+      return (
+        '<button type="button" class="anki-livre-pick-btn' + (on ? ' is-on' : '') + '" role="option" ' +
+          'aria-selected="' + (on ? 'true' : 'false') + '" data-livre-id="' + esc(l.id) + '" ' +
+          'style="--livre-color:' + esc(col) + '" ' +
+          'onclick="window.ankiV2SrcLivrePick(\'' + prefix + '\',\'' + side + '\',\'' +
+          (typeof window.escapeJsStr === 'function' ? window.escapeJsStr(l.id) : String(l.id).replace(/'/g, "\\'")) +
+          '\')">' +
+          '<span class="anki-livre-pick-name">' + esc(l.name || l.id) + '</span>' +
+        '</button>'
+      );
+    }).join('');
 
     if (pickWrap) {
       pickWrap.classList.remove('hidden');
       pickWrap.innerHTML =
-        '<div class="fg"><label>Livre</label>' +
-        '<select id="' + prefix + 'Src' + side + 'LivreId" onchange="window.ankiV2SrcLivrePick(\'' + prefix + '\',\'' + side + '\')">' +
-        opts.join('') + '</select></div>';
+        '<div class="fg anki-livre-pick-fg"><label>Livre</label>' +
+          '<div class="anki-livre-pick-grid" role="listbox" aria-label="Livres de la matière">' + tiles + '</div>' +
+          '<input type="hidden" id="' + prefix + 'Src' + side + 'LivreId" value="' + esc(selected) + '">' +
+        '</div>';
     }
-    const showFree = !selected || selected === '__free__';
-    if (nomWrap) nomWrap.classList.toggle('hidden', !showFree);
-    if (!showFree && nomEl) {
+    if (selected && nomEl) {
       const lv = livres.find(function (l) { return l.id === selected; });
       if (lv) {
         nomEl.value = lv.name || '';
         if (nomEl.dataset) nomEl.dataset.livreId = lv.id;
       }
-    } else if (nomEl && nomEl.dataset && selected === '__free__') {
-      delete nomEl.dataset.livreId;
+    } else if (nomEl) {
+      nomEl.value = '';
+      if (nomEl.dataset) delete nomEl.dataset.livreId;
     }
   }
 
-  window.ankiV2SrcLivrePick = function (prefix, side) {
-    const sel = $(prefix + 'Src' + side + 'LivreId');
+  window.ankiV2SrcLivrePick = function (prefix, side, livreId) {
+    const hid = $(prefix + 'Src' + side + 'LivreId');
     const nomEl = $(prefix + 'Src' + side + 'Nom');
     const nomWrap = $(prefix + 'Src' + side + 'NomWrap');
-    if (!sel) return;
-    const v = sel.value;
-    if (!v || v === '__free__') {
-      if (nomWrap) nomWrap.classList.remove('hidden');
-      if (nomEl && nomEl.dataset) delete nomEl.dataset.livreId;
-      if (v === '' && nomEl) nomEl.value = '';
+    const pickWrap = $(prefix + 'Src' + side + 'LivrePick');
+    const v = livreId != null ? String(livreId) : (hid ? hid.value : '');
+    if (nomWrap) nomWrap.classList.add('hidden');
+    if (!v) {
+      if (hid) hid.value = '';
+      if (nomEl) {
+        nomEl.value = '';
+        if (nomEl.dataset) delete nomEl.dataset.livreId;
+      }
+      if (pickWrap) {
+        pickWrap.querySelectorAll('.anki-livre-pick-btn').forEach(function (btn) {
+          btn.classList.remove('is-on');
+          btn.setAttribute('aria-selected', 'false');
+        });
+      }
       return;
     }
     const livres = typeof window.listLivresForMat === 'function'
       ? window.listLivresForMat(getSrcCardMat(prefix))
       : [];
     const lv = livres.find(function (l) { return l.id === v; });
-    if (lv && nomEl) {
+    if (!lv) return;
+    if (hid) hid.value = lv.id;
+    if (nomEl) {
       nomEl.value = lv.name || '';
       if (nomEl.dataset) nomEl.dataset.livreId = lv.id;
     }
-    if (nomWrap) nomWrap.classList.add('hidden');
+    if (pickWrap) {
+      pickWrap.querySelectorAll('.anki-livre-pick-btn').forEach(function (btn) {
+        const on = btn.getAttribute('data-livre-id') === lv.id;
+        btn.classList.toggle('is-on', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+    }
   };
 
   window.ankiV2SrcTypeChange = function (prefix, side) {
@@ -4922,8 +4954,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         </div>
         <div id="${id}Src${side}LivreFields" class="anki-src-livre-fields${effectiveType === 'cours' ? ' hidden' : ''}">
           <div id="${id}Src${side}LivrePick" class="anki-src-livre-pick${effectiveType === 'livre' ? '' : ' hidden'}"></div>
-          <div class="anki-modal-row">
-            <div class="fg" id="${id}Src${side}NomWrap">
+          <div class="anki-modal-row${effectiveType === 'livre' ? ' anki-modal-row--livre-det' : ''}">
+            <div class="fg${effectiveType === 'livre' ? ' hidden' : ''}" id="${id}Src${side}NomWrap">
               <label id="${id}Src${side}NomLab">${labels.nomLabel}</label>
               <input type="text" id="${id}Src${side}Nom" ${id === 'exo' && side === 'Enonce' ? 'data-testid="src-enonce-nom"' : ''}${id === 'exo' && side === 'Cor' ? 'data-testid="src-cor-nom"' : ''} placeholder="${labels.nomPh}" value="${esc(src.nom || '')}"${src.livreId ? ` data-livre-id="${esc(src.livreId)}"` : ''}>
             </div>
@@ -5116,6 +5148,13 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       maxTotal: 540
     });
     wireSrcGuidanceBlock('exo');
+    if (typeof window.ensureFormLibs === 'function') {
+      Promise.resolve(window.ensureFormLibs()).then(function () {
+        if (typeof window.enhanceFormControls === 'function') window.enhanceFormControls(ov);
+      }).catch(function () {});
+    } else if (typeof window.enhanceFormControls === 'function') {
+      window.enhanceFormControls(ov);
+    }
   }
 
   /** Ancien modal découpe — redirige vers l’onglet Agenda. */
@@ -5169,22 +5208,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         let livreId = '';
         if (livreSel && livreSel !== '__free__') livreId = livreSel;
         else if (nomEl && nomEl.dataset && nomEl.dataset.livreId) livreId = nomEl.dataset.livreId;
-        if (livreId) {
-          const lv = ((window.D && window.D.classeurs) || []).find(function (x) {
-            return x && x.id === livreId
-              && (typeof window.isLivreClasseur !== 'function' || window.isLivreClasseur(x));
-          });
-          if (lv) {
-            return {
-              type: 'livre',
-              livreId: lv.id,
-              nom: lv.name || nom || '',
-              details: det || ''
-            };
-          }
-        }
-        if (!nom && !det) return null;
-        return { type: 'livre', nom: nom, details: det };
+        if (!livreId) return null;
+        const lv = ((window.D && window.D.classeurs) || []).find(function (x) {
+          return x && x.id === livreId
+            && (typeof window.isLivreClasseur !== 'function' || window.isLivreClasseur(x));
+        });
+        if (!lv) return null;
+        return {
+          type: 'livre',
+          livreId: lv.id,
+          nom: lv.name || '',
+          details: det || ''
+        };
       }
       if (!nom && !det) return null;
       return { type: type || 'livre', nom: nom, details: det };

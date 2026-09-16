@@ -1435,6 +1435,18 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 .toggle-btn { background: var(--s3); border: 1px solid var(--bd); color: var(--txt); padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: bold; }
 
 .ov { position: fixed; inset: 0; background: rgba(10, 14, 28, 0.52); backdrop-filter: blur(40px) saturate(1.85); -webkit-backdrop-filter: blur(40px) saturate(1.85); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 14px; }
+/* Overlay ouvert : scroll uniquement dans l’overlay / le modal, pas la page derrière */
+html:has(.ov:not(.hidden)),
+body:has(.ov:not(.hidden)) {
+  overflow: hidden !important;
+}
+body:has(.ov:not(.hidden)) .app-content {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+.ov:not(.hidden) {
+  overscroll-behavior: contain;
+}
 .ov.ov-scroll,
 #ovExo.ov,
 #ovDevoir.ov,
@@ -1447,6 +1459,7 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: max(14px, 2vh) 14px max(28px, 4vh);
+  overscroll-behavior: contain;
 }
 .ov.ov-scroll > .modal,
 #ovExo.ov > .modal,
@@ -3391,7 +3404,7 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   .qk-drill-opts--toolbar { width: 100%; }
 }
 .quick-group-section { margin-bottom: 18px; }
-.quick-group-section .cours-bc-grid { margin-top: 10px; }
+.quick-group-section .cours-bc-grid { margin-top: 0; }
 .quick-group-section--orphan { margin-top: 8px; }
 .qk-groups-modal {
   max-width: 540px;
@@ -5554,6 +5567,124 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
  font-size: 11px;
  margin: 8px 0 0;
  line-height: 1.35;
+}
+.anki-livre-pick-empty {
+  font-size: 12px;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+.anki-livre-pick-fg { margin-bottom: 4px; }
+.anki-livre-pick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+.anki-livre-pick-btn {
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  border-left: 3px solid var(--livre-color, var(--acc));
+  background: var(--s2);
+  color: var(--txt);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.anki-livre-pick-btn:hover {
+  border-color: var(--livre-color, var(--acc));
+  background: rgba(255, 255, 255, 0.04);
+}
+.anki-livre-pick-btn.is-on {
+  border-color: var(--livre-color, var(--acc));
+  box-shadow: 0 0 0 1px var(--livre-color, var(--acc));
+  background: color-mix(in srgb, var(--livre-color, var(--acc)) 12%, var(--s2));
+}
+.anki-livre-pick-name {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.anki-modal-row--livre-det .fg {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Labo création carte X */
+.xlab-page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+.xlab-intro h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.xlab-intro p {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.xlab-scene {
+  width: 100%;
+}
+.xlab-card {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+}
+.xlab-sess-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.xlab-stars-inline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.xlab-stars-inline .anki-star-hint {
+  margin: 0;
+  text-align: right;
+}
+.xlab-badge {
+  font-size: 11px;
+}
+.xlab-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.xlab-col-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.xlab-guidage {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--bd);
+}
+.xlab-macts {
+  margin-top: 18px;
+}
+@media (min-width: 900px) {
+  .xlab-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+    gap: 22px 28px;
+    align-items: start;
+  }
+  .xlab-col-main .fg textarea {
+    min-height: 7rem;
+  }
 }
 .anki-modal-row .fg-importance {
  flex: 1.15;
