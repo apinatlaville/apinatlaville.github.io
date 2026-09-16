@@ -120,44 +120,59 @@
       if (wrap) wrap.innerHTML = livreTilesHtml(side, '', LAB.draft.mat);
     });
     paintCardChrome();
-    if (typeof window.enhanceFormControls === 'function') {
-      window.enhanceFormControls($('paneCardCreateX'));
-    }
+  };
+
+  window.xlabToggleMatMenu = function () {
+    const menu = $('xlabMatMenu');
+    if (!menu) return;
+    menu.classList.toggle('hidden');
+  };
+
+  window.xlabPickMat = function (matId) {
+    const hid = $('xlabMat');
+    if (hid) hid.value = matId || '';
+    const menu = $('xlabMatMenu');
+    if (menu) menu.classList.add('hidden');
+    window.xlabMatChanged();
   };
 
   window.xlabSetStat = function (v) {
     const hid = $('xlabStat');
     if (hid) hid.value = v === 'actif' ? 'actif' : 'reservoir';
-    document.querySelectorAll('#xlabStatGroup .anki-statut-card').forEach(function (btn) {
-      btn.classList.toggle('is-on', btn.getAttribute('data-stat') === (hid && hid.value));
+    document.querySelectorAll('#xlabStatGroup .xlab-foot-stat').forEach(function (btn) {
       btn.classList.toggle('is-active', btn.getAttribute('data-stat') === (hid && hid.value));
     });
-    paintCardChrome();
   };
 
   function paintCardChrome() {
-    const d = LAB.draft || blankDraft();
-    const matId = ($('xlabMat') && $('xlabMat').value) || d.mat;
+    const matId = ($('xlabMat') && $('xlabMat').value) || (LAB.draft && LAB.draft.mat) || '';
     const m = matOf(matId);
     const scene = $('xlabScene');
+    const card = document.querySelector('#paneCardCreateX .xlab-card');
     if (scene) scene.style.setProperty('--deck-accent', m.color || '#5b8df7');
+    if (card) card.style.borderTopColor = m.color || '#5b8df7';
     const tag = $('xlabMatTag');
     if (tag) {
       tag.style.background = (m.color || '#5b8df7') + '20';
       tag.style.color = m.color || '#5b8df7';
       tag.style.borderColor = m.color || '#5b8df7';
-      tag.textContent = m.label || '?';
+      tag.textContent = m.label || 'Matière';
     }
-    const starsEl = $('xlabStarsTag');
-    if (starsEl && typeof window.importanceLabel === 'function') {
-      const imp = typeof window.getStarPickerValue === 'function'
-        ? window.getStarPickerValue('xlabImportance')
-        : (d.importance || 3);
-      starsEl.innerHTML = window.importanceLabel({ importance: imp });
+    const metaMat = $('xlabMetaMatName');
+    if (metaMat) metaMat.textContent = m.name || m.label || 'choisir une matière';
+    const prof = $('xlabProf');
+    const metaProf = $('xlabMetaProf');
+    if (metaProf && prof) {
+      const opt = prof.options[prof.selectedIndex];
+      metaProf.textContent = (opt && opt.textContent) || prof.value || 'Profil';
     }
   }
 
   window.xlabOnStarChange = function () {
+    paintCardChrome();
+  };
+
+  window.xlabProfChanged = function () {
     paintCardChrome();
   };
 
@@ -270,10 +285,6 @@
     const mats = typeof window.listSelectableMatieres === 'function'
       ? window.listSelectableMatieres({ includeId: d.mat || '' })
       : (window.D && window.D.matieres || []);
-    const matOpts = '<option value="">— Matière —</option>' + mats.map(function (m) {
-      return '<option value="' + esc(m.id) + '"' + (m.id === d.mat ? ' selected' : '') + '>' +
-        esc(m.label) + ' — ' + esc(m.name) + '</option>';
-    }).join('');
     const profiles = (window.AnkiAlgoV2 && window.AnkiAlgoV2.DEFAULT_PROFILES) || { COURS: { label: 'Cours' } };
     const profOpts = Object.keys(profiles).map(function (p) {
       return '<option value="' + esc(p) + '"' + ((d.profil || 'COURS') === p ? ' selected' : '') + '>' +
@@ -286,104 +297,121 @@
     const starHtml = typeof window.starPickerHtml === 'function'
       ? window.starPickerHtml('xlabImportance', d.importance || 3)
       : '';
+    const typeBadge = typeof window.cardTypeBadgeHtml === 'function'
+      ? window.cardTypeBadgeHtml('main')
+      : '<span class="anki-tag" style="background:#50d89020;color:#50d890;border:1px solid #50d890;">X</span>';
+    const matMenu = mats.map(function (mm) {
+      return (
+        '<button type="button" class="xlab-mat-opt' + (mm.id === d.mat ? ' is-on' : '') + '" ' +
+          'style="--mat-c:' + esc(mm.color || '#5b8df7') + '" ' +
+          'onclick="window.xlabPickMat(\'' + jsStr(mm.id) + '\')">' +
+          '<span class="xlab-mat-opt-lab">' + esc(mm.label) + '</span>' +
+          '<span class="xlab-mat-opt-name">' + esc(mm.name) + '</span></button>'
+      );
+    }).join('');
 
     pane.innerHTML =
       '<div class="xlab-page">' +
         '<header class="xlab-intro">' +
-          '<h2>' + (window.iconLabel ? window.iconLabel('flask-conical', 'Labo création carte X') : 'Labo création carte X') + '</h2>' +
-          '<p class="anki-mut">Prototype : même place pour les ★ qu’en session, guidage livres en tuiles, 2 colonnes sur grand écran. ' +
-            'Le modal Synchrotron classique reste inchangé pour l’instant.</p>' +
+          '<h2>' + (window.iconLabel ? window.iconLabel('flask-conical', 'Labo carte X') : 'Labo carte X') + '</h2>' +
+          '<p class="anki-mut">Même silhouette qu’en session : clique le titre, les ★ et la matière. ' +
+            'Profil / durée / livres à droite (desktop). Le modal Synchrotron classique n’est pas modifié.</p>' +
         '</header>' +
         '<div id="xlabFormError" class="anki-form-error" role="alert"></div>' +
-        '<div class="xlab-scene anki-deck-scene" id="xlabScene" style="--deck-accent:' + esc(m.color) + '">' +
-          '<div class="xlab-card anki-deck-card modal card-type-surface card-type-main" style="border-top:5px solid ' + esc(m.color) + '">' +
-            '<div class="anki-sess-top xlab-sess-top">' +
-              '<div class="anki-sess-tags">' +
-                '<span class="anki-tag" id="xlabMatTag" style="background:' + esc(m.color) + '20;color:' + esc(m.color) + ';border:1px solid ' + esc(m.color) + ';">' + esc(m.label || '?') + '</span>' +
-                '<span class="anki-tag" id="xlabStarsTag" title="Importance">' +
-                  (typeof window.importanceLabel === 'function' ? window.importanceLabel({ importance: d.importance || 3 }) : '★★★') +
-                '</span>' +
-                '<span class="anki-mut xlab-badge">Brouillon X-</span>' +
-              '</div>' +
-              '<div class="xlab-stars-inline">' +
-                '<span class="anki-mut" style="font-size:11px;">Importance</span>' +
-                starHtml +
-              '</div>' +
-            '</div>' +
+        '<input type="hidden" id="xlabMat" value="' + esc(d.mat || '') + '">' +
+        '<input type="hidden" id="xlabStat" value="' + esc(d.statut || 'reservoir') + '">' +
 
-            '<div class="xlab-layout">' +
-              '<div class="xlab-col xlab-col-main">' +
-                '<div class="fg"><label>Titre *</label>' +
-                  '<input type="text" id="xlabTitre" class="fi" value="' + esc(d.titre) + '" placeholder="Ex: Théorème énergie cinétique"></div>' +
-                '<div class="fg"><label>Énoncé</label>' +
-                  '<textarea id="xlabQ" class="fi" rows="4" placeholder="Question / énoncé…">' + esc(d.question) + '</textarea></div>' +
-                '<div class="fg"><label>Réponse</label>' +
-                  '<textarea id="xlabR" class="fi" rows="3" placeholder="Corrigé…">' + esc(d.reponse) + '</textarea></div>' +
+        '<div class="xlab-shell">' +
+          '<div class="xlab-scene anki-deck-scene" id="xlabScene" style="--deck-accent:' + esc(m.color) + '">' +
+            '<div class="xlab-card anki-deck-card modal card-type-surface card-type-main" style="border-top:5px solid ' + esc(m.color) + '">' +
+
+              '<div class="anki-deck-progress xlab-progress">' +
+                '<div class="anki-deck-progress-label">' +
+                  '<span>' + (window.iconLabel ? window.iconLabel('layers', 'Brouillon · création') : 'Brouillon · création') + '</span>' +
+                  '<span>Labo X-</span>' +
+                '</div>' +
+                '<div class="anki-deck-progress-track"><div class="anki-deck-progress-fill" style="width:12%"></div></div>' +
               '</div>' +
 
-              '<div class="xlab-col xlab-col-side">' +
-                '<div class="fg"><label>Matière *</label>' +
-                  '<select id="xlabMat" class="fi" onchange="window.xlabMatChanged()">' + matOpts + '</select></div>' +
-                '<div class="fg"><label>Profil</label>' +
-                  '<select id="xlabProf" class="fi">' + profOpts + '</select></div>' +
-                '<div class="anki-statut-duration">' +
-                  '<label>Durée (h:mm)</label>' +
-                  '<div class="anki-hmm-boxes anki-hmm-boxes--compact">' +
-                    '<input type="number" id="xlabTimeH" class="fi" min="0" max="9" value="' + th + '">' +
-                    '<span>:</span>' +
-                    '<input type="number" id="xlabTimeM" class="fi" min="0" max="59" value="' + tm + '">' +
+              '<div class="anki-sess-top xlab-sess-top">' +
+                '<div class="anki-sess-tags">' +
+                  typeBadge +
+                  '<span class="uid-badge">X-…</span>' +
+                  '<button type="button" class="anki-tag xlab-mat-chip" id="xlabMatTag" ' +
+                    'style="background:' + esc(m.color) + '20;color:' + esc(m.color) + ';border:1px solid ' + esc(m.color) + ';" ' +
+                    'onclick="window.xlabToggleMatMenu()" title="Choisir la matière">' +
+                    esc(m.label || 'Matière') + '</button>' +
+                  '<div class="xlab-stars-inline">' + starHtml + '</div>' +
+                '</div>' +
+                '<div class="xlab-mat-menu-wrap">' +
+                  '<div id="xlabMatMenu" class="xlab-mat-menu hidden" role="listbox">' +
+                    (matMenu || '<p class="anki-mut">Aucune matière active.</p>') +
                   '</div>' +
                 '</div>' +
-                '<div class="anki-statut-encart" id="xlabStatGroup">' +
-                  '<input type="hidden" id="xlabStat" value="' + esc(d.statut || 'reservoir') + '">' +
-                  '<div class="anki-statut-picker" role="group">' +
-                    '<button type="button" class="anki-statut-card' + (d.statut !== 'actif' ? ' is-active' : '') + '" data-stat="reservoir" onclick="window.xlabSetStat(\'reservoir\')">' +
-                      '<span class="anki-statut-option-title">Réservoir</span></button>' +
-                    '<button type="button" class="anki-statut-card' + (d.statut === 'actif' ? ' is-active' : '') + '" data-stat="actif" onclick="window.xlabSetStat(\'actif\')">' +
-                      '<span class="anki-statut-option-title">Actif</span></button>' +
-                  '</div>' +
-                '</div>' +
-
-                '<section class="xlab-guidage">' +
-                  '<h4 class="anki-src-section-title">' + (window.iconLabel ? window.iconLabel('book-open', 'Énoncé · Livre') : 'Énoncé · Livre') + '</h4>' +
-                  '<div id="xlabLivreWrapEnonce">' + livreTilesHtml('Enonce', d.livreEnonceId, d.mat) + '</div>' +
-                  '<div class="fg"><label>Détails</label>' +
-                    '<input type="text" id="xlabDetEnonce" class="fi" value="' + esc(d.detEnonce) + '" placeholder="p.142 ex.7"></div>' +
-                  '<h4 class="anki-src-section-title" style="margin-top:14px;">' + (window.iconLabel ? window.iconLabel('check', 'Corrigé · Livre') : 'Corrigé · Livre') + '</h4>' +
-                  '<div id="xlabLivreWrapCor">' + livreTilesHtml('Cor', d.livreCorId, d.mat) + '</div>' +
-                  '<div class="fg"><label>Détails</label>' +
-                    '<input type="text" id="xlabDetCor" class="fi" value="' + esc(d.detCor) + '" placeholder="p.480"></div>' +
-                '</section>' +
               '</div>' +
-            '</div>' +
 
-            '<div class="macts xlab-macts">' +
-              '<button type="button" class="bs" onclick="window.xlabReset()">Réinitialiser</button>' +
-              '<button type="button" class="bp" onclick="window.xlabSave()">' +
-                (window.iconLabel ? window.iconLabel('check', 'Enregistrer la carte') : 'Enregistrer') + '</button>' +
+              '<div class="anki-sess-meta xlab-meta">' +
+                (window.iconHtml ? window.iconHtml('timer', 12) : '') +
+                ' Cible <input type="number" id="xlabTimeH" class="xlab-meta-num" min="0" max="9" value="' + th + '" aria-label="Heures">h' +
+                '<input type="number" id="xlabTimeM" class="xlab-meta-num" min="0" max="59" value="' + tm + '" aria-label="Minutes"> min' +
+                ' · <select id="xlabProf" class="xlab-meta-prof" onchange="window.xlabProfChanged()">' + profOpts + '</select>' +
+                ' · <span id="xlabMetaMatName">' + esc(m.name || m.label || 'choisir une matière') + '</span>' +
+              '</div>' +
+
+              '<input type="text" id="xlabTitre" class="xlab-titre-input" value="' + esc(d.titre) + '" ' +
+                'placeholder="Titre de la carte…" maxlength="120" aria-label="Titre">' +
+              '<textarea id="xlabQ" class="xlab-q-input" rows="3" placeholder="Énoncé / question (facultatif)…" aria-label="Énoncé">' +
+                esc(d.question) + '</textarea>' +
+              '<textarea id="xlabR" class="xlab-r-input" rows="2" placeholder="Réponse (facultatif)…" aria-label="Réponse">' +
+                esc(d.reponse) + '</textarea>' +
+
+              '<button type="button" class="bp anki-reveal xlab-save-btn" onclick="window.xlabSave()">' +
+                (window.iconLabel ? window.iconLabel('check', 'Enregistrer la carte') : 'Enregistrer la carte') +
+              '</button>' +
+
+              '<div class="anki-sess-foot xlab-foot" id="xlabStatGroup">' +
+                '<div class="xlab-foot-stats">' +
+                  '<button type="button" class="bs xlab-foot-stat' + (d.statut !== 'actif' ? ' is-active' : '') + '" data-stat="reservoir" onclick="window.xlabSetStat(\'reservoir\')">Réservoir</button>' +
+                  '<button type="button" class="bs xlab-foot-stat' + (d.statut === 'actif' ? ' is-active' : '') + '" data-stat="actif" onclick="window.xlabSetStat(\'actif\')">Actif</button>' +
+                '</div>' +
+                '<div class="anki-sess-foot-actions">' +
+                  '<button type="button" class="bs" onclick="window.xlabReset()">' +
+                    (window.iconLabel ? window.iconLabel('refresh-cw', 'Réinit.') : 'Réinit.') + '</button>' +
+                '</div>' +
+              '</div>' +
+
             '</div>' +
           '</div>' +
+
+          '<aside class="xlab-side">' +
+            '<h3 class="xlab-side-title">' + (window.iconLabel ? window.iconLabel('book-open', 'Guidage') : 'Guidage') + '</h3>' +
+            '<p class="anki-mut xlab-side-hint">Livres déjà créés uniquement (même règle que le modal).</p>' +
+            '<section class="xlab-guidage">' +
+              '<h4 class="anki-src-section-title">Énoncé · Livre</h4>' +
+              '<div id="xlabLivreWrapEnonce">' + livreTilesHtml('Enonce', d.livreEnonceId, d.mat) + '</div>' +
+              '<div class="fg"><label>Détails</label>' +
+                '<input type="text" id="xlabDetEnonce" class="fi" value="' + esc(d.detEnonce) + '" placeholder="p.142 ex.7"></div>' +
+              '<h4 class="anki-src-section-title" style="margin-top:14px;">Corrigé · Livre</h4>' +
+              '<div id="xlabLivreWrapCor">' + livreTilesHtml('Cor', d.livreCorId, d.mat) + '</div>' +
+              '<div class="fg"><label>Détails</label>' +
+                '<input type="text" id="xlabDetCor" class="fi" value="' + esc(d.detCor) + '" placeholder="p.480"></div>' +
+            '</section>' +
+          '</aside>' +
         '</div>' +
       '</div>';
 
     if (window.hydrateIcons) window.hydrateIcons(pane);
     paintCardChrome();
 
-    const starRoot = pane.querySelector('#xlabImportance') || pane.querySelector('.anki-star-picker');
-    if (starRoot) {
-      pane.querySelectorAll('.anki-star-picker button, .anki-star-picker [data-star], .anki-star').forEach(function (el) {
-        el.addEventListener('click', function () {
-          setTimeout(paintCardChrome, 0);
-        });
+    if (!window._xlabMatMenuBound) {
+      window._xlabMatMenuBound = true;
+      document.addEventListener('click', function (e) {
+        const menu = $('xlabMatMenu');
+        const chip = $('xlabMatTag');
+        if (!menu || menu.classList.contains('hidden')) return;
+        if (menu.contains(e.target) || (chip && chip.contains(e.target))) return;
+        menu.classList.add('hidden');
       });
-    }
-
-    if (typeof window.ensureFormLibs === 'function') {
-      Promise.resolve(window.ensureFormLibs()).then(function () {
-        if (typeof window.enhanceFormControls === 'function') window.enhanceFormControls(pane);
-      }).catch(function () {});
-    } else if (typeof window.enhanceFormControls === 'function') {
-      window.enhanceFormControls(pane);
     }
   };
 })();

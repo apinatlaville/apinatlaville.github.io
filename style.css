@@ -5612,9 +5612,9 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
   min-width: 0;
 }
 
-/* Labo création carte X */
+/* Labo création carte X — silhouette session */
 .xlab-page {
-  max-width: 1120px;
+  max-width: 1180px;
   margin: 0 auto;
   padding-bottom: 40px;
 }
@@ -5627,63 +5627,237 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
   font-size: 12px;
   line-height: 1.45;
 }
-.xlab-scene {
+.xlab-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-items: stretch;
+}
+.xlab-scene.anki-deck-scene {
   width: 100%;
+  max-width: none;
+  margin: 0;
 }
 .xlab-card {
   width: 100%;
   max-width: none;
   margin: 0;
   box-sizing: border-box;
+  padding: 16px 18px 14px;
+}
+.xlab-progress {
+  margin-bottom: 12px;
 }
 .xlab-sess-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  position: relative;
+  display: block;
+  margin-bottom: 8px;
 }
 .xlab-stars-inline {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+.xlab-stars-inline .anki-star-picker {
+  margin-top: 0;
+  gap: 2px;
+}
+.xlab-stars-inline .anki-star-btn {
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 1px;
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  cursor: pointer;
+}
+.xlab-stars-inline .anki-star-btn:not(.on) {
+  color: rgba(255, 255, 255, 0.28);
 }
 .xlab-stars-inline .anki-star-hint {
-  margin: 0;
-  text-align: right;
+  display: none;
 }
-.xlab-badge {
+.xlab-mat-chip {
+  cursor: pointer;
+  font: inherit;
+}
+.xlab-mat-chip:hover {
+  filter: brightness(1.12);
+}
+.xlab-mat-menu-wrap {
+  position: relative;
+}
+.xlab-mat-menu {
+  position: absolute;
+  z-index: 5;
+  top: 4px;
+  left: 0;
+  min-width: min(280px, 90vw);
+  max-height: 240px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--bd);
+  background: var(--s1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.xlab-mat-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  border-left: 3px solid var(--mat-c, var(--acc));
+  background: transparent;
+  color: var(--txt);
+  cursor: pointer;
+  font: inherit;
+}
+.xlab-mat-opt:hover,
+.xlab-mat-opt.is-on {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--bd);
+}
+.xlab-mat-opt-lab {
+  font-weight: 700;
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  color: var(--mat-c, var(--acc));
+  min-width: 3.2em;
+}
+.xlab-mat-opt-name {
+  font-size: 13px;
+}
+.xlab-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+.xlab-meta-num {
+  width: 2.4em;
+  margin: 0 2px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  color: var(--txt);
+  font: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+.xlab-meta-prof {
+  max-width: 11em;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--bd);
+  background: var(--s2);
+  color: var(--txt);
+  font: inherit;
   font-size: 11px;
 }
-.xlab-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.xlab-titre-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 4px 0 8px;
+  padding: 4px 0;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  background: transparent;
+  color: var(--txt);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  outline: none;
 }
-.xlab-col-side {
+.xlab-titre-input:focus {
+  border-bottom-color: var(--deck-accent, var(--acc));
+}
+.xlab-titre-input::placeholder {
+  color: var(--mut);
+  font-weight: 600;
+  opacity: 0.7;
+}
+.xlab-q-input,
+.xlab-r-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--txt);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+}
+.xlab-q-input:focus,
+.xlab-r-input:focus {
+  border-color: var(--bd);
+  background: rgba(255, 255, 255, 0.05);
+}
+.xlab-r-input {
+  color: var(--mut);
+  font-size: 13px;
+  min-height: 2.8rem;
+}
+.xlab-save-btn {
+  margin-top: 8px;
+}
+.xlab-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 0.5px solid var(--bd);
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
+.xlab-foot-stats {
+  display: flex;
+  gap: 6px;
+}
+.xlab-foot-stat.is-active {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+.xlab-side {
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--s2);
+}
+.xlab-side-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.xlab-side-hint {
+  margin: 0 0 12px;
+  font-size: 11px;
+  line-height: 1.4;
+}
 .xlab-guidage {
-  margin-top: 6px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--bd);
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
 }
-.xlab-macts {
-  margin-top: 18px;
-}
-@media (min-width: 900px) {
-  .xlab-layout {
+@media (min-width: 960px) {
+  .xlab-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
-    gap: 22px 28px;
+    grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.75fr);
+    gap: 22px;
     align-items: start;
-  }
-  .xlab-col-main .fg textarea {
-    min-height: 7rem;
   }
 }
 .anki-modal-row .fg-importance {
