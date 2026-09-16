@@ -1,7 +1,7 @@
 /**
  * card-create-x-lab.js — Labo UX création carte X-
- * Prototype : look « carte Synchrotron », 2 colonnes desktop, livres en tuiles.
- * N’altère pas le modal de prod (ovExo) — onglet Système → Labo carte X.
+ * Silhouette session + modules du modal classique (matière Choices, ★, durée h:mm,
+ * statut, guidage livres). N’altère pas ovExo.
  */
 (function () {
   'use strict';
@@ -19,10 +19,8 @@
       .replace(/"/g, '&quot;');
   }
 
-  function jsStr(s) {
-    return typeof window.escapeJsStr === 'function'
-      ? window.escapeJsStr(s)
-      : String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  function helpers() {
+    return window.ankiV2FormHelpers || null;
   }
 
   function matOf(id) {
@@ -32,7 +30,7 @@
       || { id: id || '', label: '?', name: '', color: '#5b8df7' };
   }
 
-  function blankDraft() {
+  function blankCard() {
     return {
       titre: '',
       question: '',
@@ -42,156 +40,127 @@
       importance: 3,
       tempsCible: 60,
       statut: 'reservoir',
-      livreEnonceId: '',
-      detEnonce: '',
-      livreCorId: '',
-      detCor: ''
+      sourceEnonce: null,
+      sourceCorrection: null,
+      coursIds: []
     };
   }
 
-  function readForm() {
-    const d = LAB.draft || blankDraft();
-    d.titre = ($('xlabTitre') && $('xlabTitre').value || '').trim();
-    d.question = ($('xlabQ') && $('xlabQ').value || '').trim();
-    d.reponse = ($('xlabR') && $('xlabR').value || '').trim();
-    d.mat = ($('xlabMat') && $('xlabMat').value) || '';
-    d.profil = ($('xlabProf') && $('xlabProf').value) || 'COURS';
+  function draftCard() {
+    return Object.assign(blankCard(), LAB.draft || {});
+  }
+
+  function fieldVal(id) {
+    const el = $(id);
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  function readFormIntoDraft() {
+    const H = helpers();
+    const d = draftCard();
+    d.titre = fieldVal('xlabTitre');
+    d.question = fieldVal('xlabQ');
+    d.reponse = fieldVal('xlabR');
+    d.mat = fieldVal('xlabMat');
+    d.profil = fieldVal('xlabProf') || 'COURS';
     d.importance = typeof window.getStarPickerValue === 'function'
       ? window.getStarPickerValue('xlabImportance')
-      : (d.importance || 3);
-    d.statut = ($('xlabStat') && $('xlabStat').value) || 'reservoir';
-    const h = parseInt(($('xlabTimeH') && $('xlabTimeH').value) || '0', 10) || 0;
-    const m = parseInt(($('xlabTimeM') && $('xlabTimeM').value) || '1', 10) || 0;
-    d.tempsCible = Math.max(60, (h * 60 + m) * 60);
-    d.livreEnonceId = ($('xlabLivreEnonce') && $('xlabLivreEnonce').value) || '';
-    d.detEnonce = ($('xlabDetEnonce') && $('xlabDetEnonce').value || '').trim();
-    d.livreCorId = ($('xlabLivreCor') && $('xlabLivreCor').value) || '';
-    d.detCor = ($('xlabDetCor') && $('xlabDetCor').value || '').trim();
+      : 3;
+    d.statut = fieldVal('xlabStat') || 'reservoir';
+    var mins = 1;
+    if (H && H.readDurationFromPicker) {
+      mins = H.readDurationFromPicker('xlabTimeH', 'xlabTimeM', null, null, 1, 540);
+    } else {
+      const h = parseInt(fieldVal('xlabTimeH') || '0', 10) || 0;
+      const m0 = parseInt(fieldVal('xlabTimeM0') || '0', 10) || 0;
+      const m1 = parseInt(fieldVal('xlabTimeM1') || '0', 10) || 0;
+      mins = Math.max(1, h * 60 + m0 * 10 + m1);
+    }
+    d.tempsCible = Math.round(mins * 60);
+
+    function readSrc(side) {
+      const type = fieldVal('xlabSrc' + side + 'Type');
+      if (!type) return null;
+      if (type === 'cours') {
+        const coursUid = fieldVal('xlabSrc' + side + 'CoursUid');
+        const remark = fieldVal('xlabSrc' + side + 'Remark');
+        if (!coursUid) return null;
+        const co = (window.D.cours || []).find(function (x) { return x.uid === coursUid; });
+        return {
+          type: 'cours',
+          coursUid: coursUid,
+          nom: co ? (co.title || co.uid) : coursUid,
+          details: remark || ''
+        };
+      }
+      if (type === 'livre') {
+        const livreId = fieldVal('xlabSrc' + side + 'LivreId');
+        if (!livreId) return null;
+        const lv = ((window.D && window.D.classeurs) || []).find(function (x) {
+          return x && x.id === livreId
+            && (typeof window.isLivreClasseur !== 'function' || window.isLivreClasseur(x));
+        });
+        if (!lv) return null;
+        return {
+          type: 'livre',
+          livreId: lv.id,
+          nom: lv.name || '',
+          details: fieldVal('xlabSrc' + side + 'Det') || ''
+        };
+      }
+      const nom = fieldVal('xlabSrc' + side + 'Nom');
+      const det = fieldVal('xlabSrc' + side + 'Det');
+      if (!nom && !det) return null;
+      return { type: type, nom: nom, details: det };
+    }
+
+    d.sourceEnonce = readSrc('Enonce');
+    d.sourceCorrection = readSrc('Cor');
     LAB.draft = d;
     return d;
   }
 
-  function livresForMat(matId) {
-    return (typeof window.listLivresForMat === 'function' && matId)
-      ? window.listLivresForMat(matId)
-      : [];
-  }
-
-  function livreTilesHtml(side, selectedId, matId) {
-    const livres = livresForMat(matId);
-    if (!matId) {
-      return '<p class="anki-mut anki-livre-pick-empty">Choisis une matière.</p>' +
-        '<input type="hidden" id="xlabLivre' + side + '" value="">';
-    }
-    if (!livres.length) {
-      return '<p class="anki-mut anki-livre-pick-empty">Aucun livre — Organisation → Classeurs.</p>' +
-        '<input type="hidden" id="xlabLivre' + side + '" value="">';
-    }
-    const tiles = livres.map(function (l) {
-      const on = selectedId === l.id;
-      return (
-        '<button type="button" class="anki-livre-pick-btn' + (on ? ' is-on' : '') + '" ' +
-          'style="--livre-color:' + esc(l.color || '#5b8df7') + '" ' +
-          'onclick="window.xlabPickLivre(\'' + side + '\',\'' + jsStr(l.id) + '\')">' +
-          '<span class="anki-livre-pick-name">' + esc(l.name || l.id) + '</span></button>'
-      );
-    }).join('');
-    return '<div class="anki-livre-pick-grid" role="listbox">' + tiles + '</div>' +
-      '<input type="hidden" id="xlabLivre' + side + '" value="' + esc(selectedId || '') + '">';
-  }
-
-  window.xlabPickLivre = function (side, id) {
-    readForm();
-    if (side === 'Enonce') LAB.draft.livreEnonceId = id;
-    else LAB.draft.livreCorId = id;
-    const wrap = $('xlabLivreWrap' + side);
-    if (wrap) {
-      wrap.innerHTML = livreTilesHtml(side, id, LAB.draft.mat);
-    }
-    paintCardChrome();
-  };
-
-  window.xlabMatChanged = function () {
-    readForm();
-    LAB.draft.livreEnonceId = '';
-    LAB.draft.livreCorId = '';
-    ['Enonce', 'Cor'].forEach(function (side) {
-      const wrap = $('xlabLivreWrap' + side);
-      if (wrap) wrap.innerHTML = livreTilesHtml(side, '', LAB.draft.mat);
-    });
-    paintCardChrome();
-  };
-
-  window.xlabToggleMatMenu = function () {
-    const menu = $('xlabMatMenu');
-    if (!menu) return;
-    menu.classList.toggle('hidden');
-  };
-
-  window.xlabPickMat = function (matId) {
-    const hid = $('xlabMat');
-    if (hid) hid.value = matId || '';
-    const menu = $('xlabMatMenu');
-    if (menu) menu.classList.add('hidden');
-    window.xlabMatChanged();
-  };
-
-  window.xlabSetStat = function (v) {
-    const hid = $('xlabStat');
-    if (hid) hid.value = v === 'actif' ? 'actif' : 'reservoir';
-    document.querySelectorAll('#xlabStatGroup .xlab-foot-stat').forEach(function (btn) {
-      btn.classList.toggle('is-active', btn.getAttribute('data-stat') === (hid && hid.value));
-    });
-  };
-
-  function paintCardChrome() {
-    const matId = ($('xlabMat') && $('xlabMat').value) || (LAB.draft && LAB.draft.mat) || '';
+  function paintMatChrome() {
+    const matId = fieldVal('xlabMat');
     const m = matOf(matId);
     const scene = $('xlabScene');
     const card = document.querySelector('#paneCardCreateX .xlab-card');
     if (scene) scene.style.setProperty('--deck-accent', m.color || '#5b8df7');
     if (card) card.style.borderTopColor = m.color || '#5b8df7';
-    const tag = $('xlabMatTag');
-    if (tag) {
-      tag.style.background = (m.color || '#5b8df7') + '20';
-      tag.style.color = m.color || '#5b8df7';
-      tag.style.borderColor = m.color || '#5b8df7';
-      tag.textContent = m.label || 'Matière';
+    const chip = $('xlabMatChip');
+    if (chip) {
+      chip.style.background = (m.color || '#5b8df7') + '20';
+      chip.style.color = m.color || '#5b8df7';
+      chip.style.borderColor = m.color || '#5b8df7';
+      chip.textContent = m.label || '—';
+      chip.title = m.name || m.label || '';
     }
-    const metaMat = $('xlabMetaMatName');
-    if (metaMat) metaMat.textContent = m.name || m.label || 'choisir une matière';
-    const prof = $('xlabProf');
-    const metaProf = $('xlabMetaProf');
-    if (metaProf && prof) {
-      const opt = prof.options[prof.selectedIndex];
-      metaProf.textContent = (opt && opt.textContent) || prof.value || 'Profil';
+    const hint = $('xlabMatHint');
+    if (hint) {
+      hint.textContent = matId
+        ? ((m.label || '') + (m.name ? ' — ' + m.name : ''))
+        : 'Choisis une matière PC* (obligatoire)';
     }
   }
 
-  window.xlabOnStarChange = function () {
-    paintCardChrome();
+  window.xlabOnStarChange = function () { /* badge live optionnel */ };
+
+  window.xlabMatChanged = function () {
+    paintMatChrome();
   };
 
-  window.xlabProfChanged = function () {
-    paintCardChrome();
+  window.xlabReset = function () {
+    LAB.editId = '';
+    LAB.draft = blankCard();
+    window.renderCardCreateXLab();
   };
-
-  function resolveLivreSrc(livreId, details) {
-    if (!livreId) return null;
-    const lv = ((window.D && window.D.classeurs) || []).find(function (x) {
-      return x && x.id === livreId
-        && (typeof window.isLivreClasseur !== 'function' || window.isLivreClasseur(x));
-    });
-    if (!lv) return null;
-    return { type: 'livre', livreId: lv.id, nom: lv.name || '', details: details || '' };
-  }
 
   window.xlabSave = function () {
     if (typeof window.refuseSecondaryFullMutation === 'function'
         && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
       return;
     }
-    const d = readForm();
+    const d = readFormIntoDraft();
     const err = $('xlabFormError');
     if (err) { err.textContent = ''; err.classList.remove('visible'); }
     if (!d.titre || !d.mat) {
@@ -209,8 +178,6 @@
       return;
     }
 
-    const srcE = resolveLivreSrc(d.livreEnonceId, d.detEnonce);
-    const srcC = resolveLivreSrc(d.livreCorId, d.detCor);
     const existing = (window.AnkiAlgoV2.allExistingIds
       ? window.AnkiAlgoV2.allExistingIds(window.D)
       : (window.D.exercices || []).map(function (c) { return c.id; }));
@@ -233,7 +200,8 @@
         ease: (easeProf && easeProf.ease) || 2.5,
         repetitions: 0,
         historique: [],
-        dateCreation: new Date().toISOString()
+        dateCreation: new Date().toISOString(),
+        coursIds: []
       };
       if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
       window.D.exercices.unshift(card);
@@ -247,21 +215,20 @@
       profil: d.profil,
       tempsCible: d.tempsCible,
       importance: d.importance,
-      statut: d.statut,
-      coursIds: card.coursIds || []
+      statut: d.statut
     });
-    if (srcE) card.sourceEnonce = srcE; else delete card.sourceEnonce;
-    if (srcC) card.sourceCorrection = srcC; else delete card.sourceCorrection;
+    if (d.sourceEnonce) card.sourceEnonce = d.sourceEnonce; else delete card.sourceEnonce;
+    if (d.sourceCorrection) card.sourceCorrection = d.sourceCorrection; else delete card.sourceCorrection;
     if (d.statut === 'actif' && !card.dateProchaineRevision) {
       card.dateProchaineRevision = window.AnkiAlgoV2.todayISO();
     }
 
     Promise.resolve(typeof window.save === 'function' ? window.save() : null).then(function () {
       if (typeof window.showToast === 'function') {
-        window.showToast(LAB.editId ? 'Carte mise à jour (labo).' : 'Carte X créée (labo).', { type: 'ok' });
+        window.showToast(LAB.editId ? 'Carte mise à jour (labo).' : ('Carte ' + card.id + ' créée (labo).'), { type: 'ok' });
       }
       LAB.editId = '';
-      LAB.draft = blankDraft();
+      LAB.draft = blankCard();
       window.renderCardCreateXLab();
     }).catch(function (e) {
       if (err) {
@@ -271,55 +238,49 @@
     });
   };
 
-  window.xlabReset = function () {
-    LAB.editId = '';
-    LAB.draft = blankDraft();
-    window.renderCardCreateXLab();
-  };
-
   window.renderCardCreateXLab = function () {
     const pane = $('paneCardCreateX');
     if (!pane) return;
-    if (!LAB.draft) LAB.draft = blankDraft();
-    const d = LAB.draft;
+    const H = helpers();
+    if (!H) {
+      pane.innerHTML = '<div class="anki-card-block"><p class="anki-mut">Charge le Synchrotron…</p></div>';
+      if (typeof window.ensureAnkiUi === 'function') {
+        Promise.resolve(window.ensureAnkiUi()).then(function () {
+          if (window.ankiV2FormHelpers) window.renderCardCreateXLab();
+        });
+      }
+      return;
+    }
+
+    if (!LAB.draft) LAB.draft = blankCard();
+    const c = draftCard();
     const mats = typeof window.listSelectableMatieres === 'function'
-      ? window.listSelectableMatieres({ includeId: d.mat || '' })
+      ? window.listSelectableMatieres({ includeId: c.mat || '' })
       : (window.D && window.D.matieres || []);
+    const matOpts = '<option value="">— Choisir une matière —</option>' + mats.map(function (m) {
+      return '<option value="' + esc(m.id) + '"' + (m.id === c.mat ? ' selected' : '') + '>' +
+        esc(m.label) + ' — ' + esc(m.name) + '</option>';
+    }).join('');
     const profiles = (window.AnkiAlgoV2 && window.AnkiAlgoV2.DEFAULT_PROFILES) || { COURS: { label: 'Cours' } };
     const profOpts = Object.keys(profiles).map(function (p) {
-      return '<option value="' + esc(p) + '"' + ((d.profil || 'COURS') === p ? ' selected' : '') + '>' +
+      return '<option value="' + esc(p) + '"' + ((c.profil || 'COURS') === p ? ' selected' : '') + '>' +
         esc(profiles[p].label || p) + '</option>';
     }).join('');
-    const m = matOf(d.mat);
-    const tempsMin = Math.max(1, Math.round((d.tempsCible || 60) / 60));
-    const th = Math.floor(tempsMin / 60);
-    const tm = tempsMin % 60;
-    const starHtml = typeof window.starPickerHtml === 'function'
-      ? window.starPickerHtml('xlabImportance', d.importance || 3)
-      : '';
+    const m = matOf(c.mat);
+    const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 1;
     const typeBadge = typeof window.cardTypeBadgeHtml === 'function'
       ? window.cardTypeBadgeHtml('main')
-      : '<span class="anki-tag" style="background:#50d89020;color:#50d890;border:1px solid #50d890;">X</span>';
-    const matMenu = mats.map(function (mm) {
-      return (
-        '<button type="button" class="xlab-mat-opt' + (mm.id === d.mat ? ' is-on' : '') + '" ' +
-          'style="--mat-c:' + esc(mm.color || '#5b8df7') + '" ' +
-          'onclick="window.xlabPickMat(\'' + jsStr(mm.id) + '\')">' +
-          '<span class="xlab-mat-opt-lab">' + esc(mm.label) + '</span>' +
-          '<span class="xlab-mat-opt-name">' + esc(mm.name) + '</span></button>'
-      );
-    }).join('');
+      : '<span class="anki-tag">X</span>';
+    const imp = H.cardImportance ? H.cardImportance(c) : (c.importance || 3);
 
     pane.innerHTML =
       '<div class="xlab-page">' +
         '<header class="xlab-intro">' +
           '<h2>' + (window.iconLabel ? window.iconLabel('flask-conical', 'Labo carte X') : 'Labo carte X') + '</h2>' +
-          '<p class="anki-mut">Même silhouette qu’en session : clique le titre, les ★ et la matière. ' +
-            'Profil / durée / livres à droite (desktop). Le modal Synchrotron classique n’est pas modifié.</p>' +
+          '<p class="anki-mut">Silhouette session + <b>mêmes modules</b> que la création Synchrotron ' +
+            '(matière, ★, durée h:mm, statut, guidage). Le modal classique reste inchangé.</p>' +
         '</header>' +
         '<div id="xlabFormError" class="anki-form-error" role="alert"></div>' +
-        '<input type="hidden" id="xlabMat" value="' + esc(d.mat || '') + '">' +
-        '<input type="hidden" id="xlabStat" value="' + esc(d.statut || 'reservoir') + '">' +
 
         '<div class="xlab-shell">' +
           '<div class="xlab-scene anki-deck-scene" id="xlabScene" style="--deck-accent:' + esc(m.color) + '">' +
@@ -337,81 +298,103 @@
                 '<div class="anki-sess-tags">' +
                   typeBadge +
                   '<span class="uid-badge">X-…</span>' +
-                  '<button type="button" class="anki-tag xlab-mat-chip" id="xlabMatTag" ' +
-                    'style="background:' + esc(m.color) + '20;color:' + esc(m.color) + ';border:1px solid ' + esc(m.color) + ';" ' +
-                    'onclick="window.xlabToggleMatMenu()" title="Choisir la matière">' +
-                    esc(m.label || 'Matière') + '</button>' +
-                  '<div class="xlab-stars-inline">' + starHtml + '</div>' +
-                '</div>' +
-                '<div class="xlab-mat-menu-wrap">' +
-                  '<div id="xlabMatMenu" class="xlab-mat-menu hidden" role="listbox">' +
-                    (matMenu || '<p class="anki-mut">Aucune matière active.</p>') +
+                  '<span class="anki-tag xlab-mat-chip" id="xlabMatChip" ' +
+                    'style="background:' + esc(m.color) + '20;color:' + esc(m.color) + ';border:1px solid ' + esc(m.color) + ';">' +
+                    esc(m.label || '—') + '</span>' +
+                  '<div class="xlab-stars-inline">' +
+                    (typeof window.starPickerHtml === 'function' ? window.starPickerHtml('xlabImportance', imp) : '') +
                   '</div>' +
                 '</div>' +
               '</div>' +
 
-              '<div class="anki-sess-meta xlab-meta">' +
-                (window.iconHtml ? window.iconHtml('timer', 12) : '') +
-                ' Cible <input type="number" id="xlabTimeH" class="xlab-meta-num" min="0" max="9" value="' + th + '" aria-label="Heures">h' +
-                '<input type="number" id="xlabTimeM" class="xlab-meta-num" min="0" max="59" value="' + tm + '" aria-label="Minutes"> min' +
-                ' · <select id="xlabProf" class="xlab-meta-prof" onchange="window.xlabProfChanged()">' + profOpts + '</select>' +
-                ' · <span id="xlabMetaMatName">' + esc(m.name || m.label || 'choisir une matière') + '</span>' +
+              '<input type="text" id="xlabTitre" class="xlab-titre-input" value="' + esc(c.titre || '') + '" ' +
+                'placeholder="Titre de la carte…" maxlength="120" required aria-label="Titre">' +
+              '<textarea id="xlabQ" class="xlab-q-input" rows="3" placeholder="Énoncé (facultatif)…" aria-label="Énoncé">' +
+                esc(c.question || '') + '</textarea>' +
+              '<textarea id="xlabR" class="xlab-r-input" rows="2" placeholder="Réponse (facultatif)…" aria-label="Réponse">' +
+                esc(c.reponse || '') + '</textarea>' +
+
+              '<div class="xlab-mat-block">' +
+                '<label class="xlab-mat-block-lab" for="xlabMat">Matière *</label>' +
+                '<select id="xlabMat" class="fi" required onchange="window.xlabMatChanged()">' + matOpts + '</select>' +
+                '<p class="anki-mut xlab-mat-hint" id="xlabMatHint">' +
+                  (c.mat ? esc((m.label || '') + (m.name ? ' — ' + m.name : '')) : 'Choisis une matière PC* (obligatoire)') +
+                '</p>' +
               '</div>' +
 
-              '<input type="text" id="xlabTitre" class="xlab-titre-input" value="' + esc(d.titre) + '" ' +
-                'placeholder="Titre de la carte…" maxlength="120" aria-label="Titre">' +
-              '<textarea id="xlabQ" class="xlab-q-input" rows="3" placeholder="Énoncé / question (facultatif)…" aria-label="Énoncé">' +
-                esc(d.question) + '</textarea>' +
-              '<textarea id="xlabR" class="xlab-r-input" rows="2" placeholder="Réponse (facultatif)…" aria-label="Réponse">' +
-                esc(d.reponse) + '</textarea>' +
+              '<div class="anki-modal-row">' +
+                '<div class="fg"><label>Profil</label><select id="xlabProf">' + profOpts + '</select></div>' +
+              '</div>' +
+
+              '<div class="anki-modal-row anki-modal-row--meta">' +
+                '<div class="fg fg-importance">' +
+                  '<label>Importance</label>' +
+                  '<div class="anki-importance-encart">' +
+                    '<p class="anki-mut" style="margin:0 0 6px;font-size:12px;">Règle les ★ dans le bandeau (comme en session).</p>' +
+                    '<p class="anki-mut anki-importance-tip" id="xlabImportanceTip">Plus d\'étoiles → monte plus vite en session et revient plus souvent.</p>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="fg fg-statut">' +
+                  '<div class="anki-statut-duration">' +
+                    '<label>Durée <span class="anki-mut" style="font-weight:normal;">(h:mm)</span></label>' +
+                    H.durationPickerHtml(tempsMin, {
+                      hId: 'xlabTimeH',
+                      mId: 'xlabTimeM',
+                      minTotal: 1,
+                      maxTotal: 540,
+                      minuteStep: 1,
+                      editable: true,
+                      wrapClass: 'anki-hmm-boxes anki-hmm-boxes--compact'
+                    }) +
+                  '</div>' +
+                  '<label>Statut</label>' +
+                  H.renderStatutChecks(c, 'xlab') +
+                '</div>' +
+              '</div>' +
+
+              H.renderSrcGuidanceBlock(c, 'xlab',
+                (window.iconLabel
+                  ? window.iconLabel('book-open', '<b>Guidage physique</b> <span class="anki-mut" style="font-weight:normal;">— où trouver l\'énoncé et le corrigé (facultatif)</span>')
+                  : '<b>Guidage physique</b>')) +
 
               '<button type="button" class="bp anki-reveal xlab-save-btn" onclick="window.xlabSave()">' +
                 (window.iconLabel ? window.iconLabel('check', 'Enregistrer la carte') : 'Enregistrer la carte') +
               '</button>' +
-
-              '<div class="anki-sess-foot xlab-foot" id="xlabStatGroup">' +
-                '<div class="xlab-foot-stats">' +
-                  '<button type="button" class="bs xlab-foot-stat' + (d.statut !== 'actif' ? ' is-active' : '') + '" data-stat="reservoir" onclick="window.xlabSetStat(\'reservoir\')">Réservoir</button>' +
-                  '<button type="button" class="bs xlab-foot-stat' + (d.statut === 'actif' ? ' is-active' : '') + '" data-stat="actif" onclick="window.xlabSetStat(\'actif\')">Actif</button>' +
-                '</div>' +
-                '<div class="anki-sess-foot-actions">' +
-                  '<button type="button" class="bs" onclick="window.xlabReset()">' +
-                    (window.iconLabel ? window.iconLabel('refresh-cw', 'Réinit.') : 'Réinit.') + '</button>' +
-                '</div>' +
+              '<div class="xlab-foot-actions">' +
+                '<button type="button" class="bs" onclick="window.xlabReset()">' +
+                  (window.iconLabel ? window.iconLabel('refresh-cw', 'Réinitialiser') : 'Réinitialiser') + '</button>' +
               '</div>' +
 
             '</div>' +
           '</div>' +
-
-          '<aside class="xlab-side">' +
-            '<h3 class="xlab-side-title">' + (window.iconLabel ? window.iconLabel('book-open', 'Guidage') : 'Guidage') + '</h3>' +
-            '<p class="anki-mut xlab-side-hint">Livres déjà créés uniquement (même règle que le modal).</p>' +
-            '<section class="xlab-guidage">' +
-              '<h4 class="anki-src-section-title">Énoncé · Livre</h4>' +
-              '<div id="xlabLivreWrapEnonce">' + livreTilesHtml('Enonce', d.livreEnonceId, d.mat) + '</div>' +
-              '<div class="fg"><label>Détails</label>' +
-                '<input type="text" id="xlabDetEnonce" class="fi" value="' + esc(d.detEnonce) + '" placeholder="p.142 ex.7"></div>' +
-              '<h4 class="anki-src-section-title" style="margin-top:14px;">Corrigé · Livre</h4>' +
-              '<div id="xlabLivreWrapCor">' + livreTilesHtml('Cor', d.livreCorId, d.mat) + '</div>' +
-              '<div class="fg"><label>Détails</label>' +
-                '<input type="text" id="xlabDetCor" class="fi" value="' + esc(d.detCor) + '" placeholder="p.480"></div>' +
-            '</section>' +
-          '</aside>' +
         '</div>' +
       '</div>';
 
     if (window.hydrateIcons) window.hydrateIcons(pane);
-    paintCardChrome();
+    paintMatChrome();
+    H.wireEditableDurationPicker({
+      hId: 'xlabTimeH',
+      mId: 'xlabTimeM',
+      minTotal: 1,
+      maxTotal: 540
+    });
+    H.wireSrcGuidanceBlock('xlab');
 
-    if (!window._xlabMatMenuBound) {
-      window._xlabMatMenuBound = true;
-      document.addEventListener('click', function (e) {
-        const menu = $('xlabMatMenu');
-        const chip = $('xlabMatTag');
-        if (!menu || menu.classList.contains('hidden')) return;
-        if (menu.contains(e.target) || (chip && chip.contains(e.target))) return;
-        menu.classList.add('hidden');
+    const matEl = $('xlabMat');
+    if (matEl && !matEl._xlabPaintBound) {
+      matEl._xlabPaintBound = true;
+      matEl.addEventListener('change', function () {
+        paintMatChrome();
       });
+    }
+
+    if (typeof window.ensureFormLibs === 'function') {
+      Promise.resolve(window.ensureFormLibs()).then(function () {
+        if (typeof window.enhanceFormControls === 'function') window.enhanceFormControls(pane);
+        paintMatChrome();
+      }).catch(function () {});
+    } else if (typeof window.enhanceFormControls === 'function') {
+      window.enhanceFormControls(pane);
     }
   };
 })();

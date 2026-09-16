@@ -4755,7 +4755,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
 
   /** Select livres (matière) pour type=livre — catalogue uniquement, pas de saisie libre. */
   function refreshSrcLivrePick(prefix, side) {
-    if (prefix !== 'exo') return;
+    if (prefix !== 'exo' && prefix !== 'xlab') return;
     const typeEl = $(prefix + 'Src' + side + 'Type');
     const pickWrap = $(prefix + 'Src' + side + 'LivrePick');
     const nomWrap = $(prefix + 'Src' + side + 'NomWrap');
@@ -6117,4 +6117,15 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
   window.cardAlgoStatsLineV2 = cardAlgoStatsLine;
   window.cardAlgoStatsLine = cardAlgoStatsLine; /* alias Rapide / rétrocompat */
   window.renderSyncSessionDock = renderSyncSessionDock;
+
+  /** Modules formulaire carte X (labo / réutilisation hors modal) */
+  window.ankiV2FormHelpers = {
+    durationPickerHtml: durationPickerHtml,
+    readDurationFromPicker: readDurationFromPicker,
+    wireEditableDurationPicker: wireEditableDurationPicker,
+    renderStatutChecks: renderStatutChecks,
+    renderSrcGuidanceBlock: renderSrcGuidanceBlock,
+    wireSrcGuidanceBlock: wireSrcGuidanceBlock,
+    cardImportance: cardImportance
+  };
 })();
