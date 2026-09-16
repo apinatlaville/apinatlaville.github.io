@@ -56,6 +56,7 @@ window.sysConfirm = function(msg, onConfirm, title="Attention") {
   };
 
   if(window.$('sysDialogActs')) {
+    window.$('sysDialogActs').style.flexWrap = '';
     if (typeof window.uiDialogActions === 'function') {
       window.$('sysDialogActs').innerHTML = window.uiDialogActions({
         confirmClick: 'window._sysConfirmCallback()',
@@ -69,6 +70,39 @@ window.sysConfirm = function(msg, onConfirm, title="Attention") {
     }
   }
   if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.remove('hidden');
+};
+
+/** Confirm avec plusieurs actions (ex. Update Partage). choices: [{id,label,primary?,danger?,gold?}] */
+window.sysConfirmChoices = function (msg, choices, title, onChoice) {
+  if (msg == null) msg = '';
+  msg = String(msg);
+  choices = Array.isArray(choices) ? choices : [];
+  if (window.$('sysDialogTitle')) window.$('sysDialogTitle').textContent = title || 'Attention';
+  if (window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
+  window._sysConfirmChoicesCb = function (id) {
+    window.closeSysDialog();
+    if (typeof onChoice === 'function') onChoice(id);
+  };
+  if (window.$('sysDialogActs')) {
+    var html = '<button class="bs ui-btn-surface" onclick="window.closeSysDialog()" style="flex:1;">Annuler</button>';
+    choices.forEach(function (c) {
+      if (!c || !c.id) return;
+      var cls = c.danger ? 'bp ui-btn-accent' : (c.primary ? 'bp' : 'bs');
+      var style = c.danger
+        ? 'flex:1;background:var(--red);color:#fff;border-color:var(--red);'
+        : 'flex:1;';
+      if (c.gold) {
+        cls = 'bp partage-btn-update';
+        style = 'flex:1;';
+      }
+      html += '<button type="button" class="' + cls + '" style="' + style + '" ' +
+        'onclick="window._sysConfirmChoicesCb(\'' + String(c.id).replace(/'/g, "\\'") + '\')">' +
+        String(c.label || c.id) + '</button>';
+    });
+    window.$('sysDialogActs').innerHTML = html;
+    window.$('sysDialogActs').style.flexWrap = 'wrap';
+  }
+  if (window.$('ovSysDialog')) window.$('ovSysDialog').classList.remove('hidden');
 };
 
 window.closeSysDialog = function() {
@@ -1987,6 +2021,7 @@ bindChange('fMoveCl', () => { if(typeof window.updateMoveIntercalairesDropdown =
 bindChange('fOrphanCl', () => { if (typeof window.updateOrphanInterDropdown === 'function') window.updateOrphanInterDropdown(); });
 
 bindClick('btnAddCl', () => window.addCl());
+bindClick('btnAddLivre', () => window.addLivre && window.addLivre());
 bindClick('btnAddMat', () => window.addMat());
 bindClick('btnOrphanSelAllDocs', () => window.orphanSelAllDocs && window.orphanSelAllDocs());
 bindClick('btnOrphanSelAllAnki', () => window.orphanSelAllAnki && window.orphanSelAllAnki());

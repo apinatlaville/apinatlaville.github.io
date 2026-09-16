@@ -44,11 +44,12 @@
         Q.shareStateCache[id] = Object.assign({ ts: Date.now() }, st);
         return st;
       }).catch(function () {
-        // Évite une boucle de refresh si le cloud est indisponible
+        // Garde le dernier état update connu (pas de faux négatif réseau)
         var g = groupInfo(id);
+        var prev = Q.shareStateCache[id] || {};
         Q.shareStateCache[id] = Object.assign({ ts: Date.now() }, shareStateFromGroup(g), {
-          updateAvailable: false,
-          latestVersion: null
+          updateAvailable: prev.updateAvailable != null ? !!prev.updateAvailable : false,
+          latestVersion: prev.latestVersion != null ? prev.latestVersion : null
         });
         return null;
       });
@@ -69,6 +70,9 @@
       bits.push('<span class="qk-share-dot qk-share-dot--green" title="Nouvelle version disponible"></span>');
     }
     const cls = opts.compact ? 'qk-share-dots qk-share-dots--compact' : 'qk-share-dots';
+    if (opts.plain) {
+      return '<span class="' + cls + '" aria-hidden="true">' + bits.join('') + '</span>';
+    }
     return (
       '<span class="' + cls + '" role="button" tabindex="0" title="État du partage" ' +
         'aria-label="État du partage" onclick="event.stopPropagation();window.quickToggleShareBanner(\'' +
@@ -86,12 +90,12 @@
     lines.push('Pack <code>' + esc(st.packId) + '</code> · installé <b>v' + esc(String(st.installedVersion || '?')) + '</b>' +
       (st.latestVersion != null ? ' · cloud <b>v' + esc(String(st.latestVersion)) + '</b>' : '') + '.');
     if (st.imported) {
-      lines.push('Dossier <b>importé</b> : copie locale. Tes ajouts / modifications ne partent <b>pas</b> vers les autres tant que tu ne republies pas.');
+      lines.push('Dossier <b>importé</b> : copie locale. Pour partager tes ajouts, utilise <b>Publier comme nouveau pack</b> (ça ne touche pas le pack d’origine).');
     } else {
-      lines.push('Dossier <b>lié à un pack public</b>. Les autres ne voient tes changements qu’après republier.');
+      lines.push('Dossier <b>lié à ton pack public</b>. Les autres ne voient tes changements qu’après <b>Publier une mise à jour</b>.');
     }
     if (st.localDirty) {
-      lines.push('<span class="qk-share-banner-flag qk-share-banner-flag--yellow">Modifié localement</span> Au moins une carte a été ajoutée ou modifiée depuis l’import / la dernière synchro.');
+      lines.push('<span class="qk-share-banner-flag qk-share-banner-flag--yellow">Modifié localement</span> Au moins une carte (ou le nom du dossier) a changé depuis la version installée.');
     } else {
       lines.push('<span class="qk-share-banner-flag qk-share-banner-flag--blue">À jour localement</span> Pas de modif locale détectée depuis la version installée.');
     }
@@ -103,8 +107,9 @@
       actions.push('<button type="button" class="bp" onclick="window.partageOpenPack && window.partageOpenPack(\'' +
         jsStr(st.packId) + '\')">' + (window.iconLabel ? window.iconLabel('refresh-cw', 'Voir l’update') : 'Voir l’update') + '</button>');
     }
+    const shareLbl = st.imported ? 'Publier comme nouveau pack' : 'Publier une mise à jour';
     actions.push('<button type="button" class="bs" onclick="window.quickEditGroup(\'' + jsStr(groupId) + '\')">' +
-      (window.iconLabel ? window.iconLabel('share-2', 'Partager / republier') : 'Partager') + '</button>');
+      (window.iconLabel ? window.iconLabel('share-2', shareLbl) : shareLbl) + '</button>');
     actions.push('<button type="button" class="bs" onclick="window.quickToggleShareBanner(\'\')">Fermer</button>');
     return (
       '<div class="qk-share-banner" role="status">' +
@@ -787,34 +792,41 @@
     const mats = typeof window.listSelectableMatieres === 'function'
       ? window.listSelectableMatieres({ includeId: matId || '' })
       : (window.D.matieres || []);
-    const matOpts = '<option value="">— Choisir une matière —</option>' + mats.map(function (m) {
-      return '<option value="' + esc(m.id) + '"' + (m.id === matId ? ' selected' : '') + '>' +
-        esc(m.label) + ' — ' + esc(m.name) + '</option>';
-    }).join('');
+    const matObj = mats.find(function (m) { return m && m.id === matId; })
+      || (window.CANONICAL_MATIERES || []).find(function (m) { return m.id === matId; });
+    const matLabel = matObj
+      ? ((matObj.label || '') + (matObj.name ? ' — ' + matObj.name : ''))
+      : (matId || '—');
+    const shareBtnLabel = !(g.shared && g.shared.packId)
+      ? 'Partager'
+      : (g.shared.imported ? 'Publier comme nouveau pack' : 'Publier une mise à jour');
     ov.classList.remove('hidden');
     ov.innerHTML =
       '<div class="modal qk-groups-modal">' +
         '<h2>' + window.iconLabel('settings', 'Paramètres du dossier') + '</h2>' +
-        '<p class="anki-mut qk-groups-intro">Nom, matière, chapitre Programme et couleur.</p>' +
+        '<p class="anki-mut qk-groups-intro">Nom, chapitre Programme et couleur. La matière est figée à la création.</p>' +
         '<div class="qk-group-create">' +
           '<label class="qk-group-create-lbl" for="qkEditGroupName">Nom</label>' +
           '<input type="text" id="qkEditGroupName" class="fi" maxlength="40" value="' + esc(g.name) + '">' +
-          '<label class="qk-group-create-lbl" for="qkEditGroupMat">Matière *</label>' +
-          '<select id="qkEditGroupMat" class="fi" required onchange="window.quickEditGroupMatChanged(this.value)">' + matOpts + '</select>' +
+          '<label class="qk-group-create-lbl">Matière</label>' +
+          '<p class="anki-mut" id="qkEditGroupMatLocked" style="margin:0 0 8px;font-size:13px;"><b>' +
+            esc(matLabel) + '</b> <span style="opacity:.75;">(non modifiable)</span></p>' +
           '<label class="qk-group-create-lbl" for="qkEditGroupChapitre">Chapitre</label>' +
           renderGroupsChapitreSelect(matId, g.chapitreId || '', 'qkEditGroupChapitre') +
           '<label class="qk-group-create-lbl">Couleur</label>' +
           renderGroupColorDots('edit', Q.editGroupColor, { forEdit: true }) +
           (g.shared && g.shared.packId
             ? '<p class="anki-mut" style="font-size:12px;margin:8px 0 0;">Pack partagé <code>' + esc(g.shared.packId) +
-              '</code> · v' + esc(String(g.shared.installedVersion || '?')) + '</p>'
+              '</code> · v' + esc(String(g.shared.installedVersion || '?')) +
+              '<br><span style="opacity:.85;">Partager = envoyer le contenu actuel dans le catalogue (nouvelle version). ' +
+              'Ça ne change pas tes répétitions.</span></p>'
             : '') +
         '</div>' +
         '<div class="macts" style="flex-wrap:wrap;gap:8px;">' +
           '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);margin-right:auto" ' +
             'onclick="window.quickEditGroupDelete()">' + window.iconLabel('trash-2', 'Supprimer') + '</button>' +
           '<button type="button" class="bs" onclick="window.quickSharePublishGroup(\'' + jsStr(gid) + '\')">' +
-            window.iconLabel('share-2', g.shared && g.shared.packId ? 'Republier' : 'Partager') + '</button>' +
+            window.iconLabel('share-2', shareBtnLabel) + '</button>' +
           '<button type="button" class="bs" onclick="window.quickCloseEditGroup()">Annuler</button>' +
           '<button type="button" class="bp" onclick="window.quickSaveEditGroup()">Enregistrer</button>' +
         '</div>' +
@@ -866,18 +878,20 @@
       if (nameEl) nameEl.focus();
       return;
     }
-    const matSel = $('qkEditGroupMat');
-    const mat = String((matSel && matSel.value) || '').trim();
+    const mat = inferGroupMat(g) || String(g.mat || '').trim();
     if (!mat) {
-      if (typeof window.showToast === 'function') window.showToast('Choisis une matière PC* pour ce dossier.', { type: 'error' });
-      if (matSel) matSel.focus();
+      if (typeof window.showToast === 'function') window.showToast('Ce dossier n’a pas de matière.', { type: 'error' });
       return;
     }
     const chSel = $('qkEditGroupChapitre');
+    const nameChanged = name !== String(g.name || '');
     g.name = name;
     g.mat = mat;
     g.chapitreId = (chSel && chSel.value) ? String(chSel.value) : '';
     g.color = Q.editGroupColor || g.color || defaultGroupColor(mat);
+    if (nameChanged && typeof window.quickMarkGroupLocalDirty === 'function') {
+      window.quickMarkGroupLocalDirty(g.id);
+    }
     if (typeof window.save === 'function') window.save();
     window.quickCloseEditGroup();
     window.renderFlashcards();
@@ -1074,13 +1088,11 @@
             `<div class="cours-bc-tile-wrap" style="--mat-color:${esc(g.color || m.color)}">` +
               `<button type="button" class="cours-bc-tile" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
                 `<span class="cours-bc-tile-name">${esc(g.name)}${dots}</span>` +
-                `<span class="cours-bc-tile-meta">${stats.active} active${stats.active > 1 ? 's' : ''}` +
-                  (stats.reservoir ? ` · ${stats.reservoir} réservoir` : '') +
-                `</span>` +
+                `<span class="cours-bc-tile-meta">${stats.total} carte${stats.total > 1 ? 's' : ''}</span>` +
               `</button>` +
               `<button type="button" class="bs cours-bc-tile-gear" title="Paramètres du dossier" ` +
                 `aria-label="Paramètres du dossier" onclick="event.stopPropagation();window.quickEditGroup('${jsStr(g.id)}')">` +
-                `${gear}<span class="cours-bc-tile-gear-lbl">Paramètres</span></button>` +
+                `${gear}</button>` +
             `</div>`
           );
         }).join('');
@@ -1106,9 +1118,7 @@
           `<div class="cours-bc-grid">` +
             `<button type="button" class="cours-bc-tile" style="--mat-color:#6a7088" onclick="window.quickArianePickGroup('${jsStr(UNGROUPED)}')">` +
               `<span class="cours-bc-tile-name">Cartes non classées</span>` +
-              `<span class="cours-bc-tile-meta">${noneStats.active} active${noneStats.active > 1 ? 's' : ''}` +
-                (noneStats.reservoir ? ` · ${noneStats.reservoir} réservoir` : '') +
-              `</span>` +
+              `<span class="cours-bc-tile-meta">${noneStats.total} carte${noneStats.total > 1 ? 's' : ''}</span>` +
             `</button>` +
           `</div>` +
         `</section>`
@@ -1150,15 +1160,21 @@
     const allInGroup = Q.nav.group === UNGROUPED
       ? allQuickCards().filter(c => !c.groupId)
       : allQuickCards().filter(c => c.groupId === Q.nav.group);
-    const totalSplit = splitActiveReservoir(allInGroup);
     const gearBtn = (Q.nav.group && Q.nav.group !== UNGROUPED)
       ? `<button type="button" class="bs qk-group-settings" title="Paramètres du dossier" ` +
           `aria-label="Paramètres du dossier" onclick="window.quickEditGroup('${jsStr(Q.nav.group)}')">` +
           (window.iconHtml ? window.iconHtml('settings', 18, 'icon') : '⚙') +
-          `<span>Paramètres</span></button>`
+          `</button>`
       : '';
     const st = shareStateFromGroup(g);
-    const dots = shareDotsHtml(st, Q.nav.group);
+    const dots = shareDotsHtml(st, Q.nav.group, { plain: true });
+    const cloudBtn = (st.linked && dots)
+      ? `<button type="button" class="bs qk-group-cloud-status" title="État du partage cloud" ` +
+          `aria-label="Statut cloud" onclick="window.quickToggleShareBanner('${jsStr(Q.nav.group)}')">` +
+          `<span class="qk-group-cloud-status-lbl">Statut cloud</span>` +
+          dots +
+          `</button>`
+      : '';
     const banner = shareBannerHtml(Q.nav.group);
     if (st.linked) {
       const c = Q.shareStateCache[Q.nav.group];
@@ -1172,14 +1188,16 @@
       banner +
       '<div class="cours-bc-level-head qk-group-head">' +
         '<div class="qk-group-head-main">' +
-          `<h3 class="cours-bc-level-title">${esc(g.name)} ${dots}</h3>` +
+          `<h3 class="cours-bc-level-title">${esc(g.name)}</h3>` +
           `<p class="cours-bc-level-sub anki-mut qk-group-subline">` +
-            `${totalSplit.active.length} active${totalSplit.active.length > 1 ? 's' : ''}` +
-            (totalSplit.reservoir ? ` · ${totalSplit.reservoir} réservoir` : '') +
+            `${allInGroup.length} carte${allInGroup.length > 1 ? 's' : ''}` +
             (st.linked ? ` · <code style="font-size:10px;">${esc(st.packId)}</code> v${esc(String(st.installedVersion || '?'))}` : '') +
           `</p>` +
         '</div>' +
-        (gearBtn || '') +
+        '<div class="qk-group-head-actions">' +
+          cloudBtn +
+          (gearBtn || '') +
+        '</div>' +
       '</div>' +
       renderBucketBody(split, null)
     );

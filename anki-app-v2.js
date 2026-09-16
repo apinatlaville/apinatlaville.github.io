@@ -41,6 +41,7 @@
     excludedIds: new Set(),    // auto : cartes retirées de la file algo
     coursLinkSelection: new Set(),
     coursLinkQuery: "",
+    coursLinkAriane: { mat: '', cl: '', inter: '' },
     manualOrder: null, // array d'ids quand l'utilisateur drag&drop
     sessionMinTonight: null,
     expandedDay: null,
@@ -3957,13 +3958,14 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         <div class="anki-sess-foot">
           <span class="anki-mut anki-sess-foot-stats">Reste : ${S.queue.length} · ${sessStatsHtml(S.stats.ok, S.stats.mid, S.stats.bad)}</span>
           <div class="anki-sess-foot-actions">
-            ${S.dernierExerciceModifie ? `<button class="bs" data-testid="btn-undo-notation" style="border-color:var(--gold);color:var(--gold);" onclick="window.ankiV2UndoLastEval()">${window.iconLabel('refresh-cw', 'Annuler')}</button>` : ''}
+            ${S.dernierExerciceModifie ? `<button class="bs" data-testid="btn-undo-notation" style="border-color:var(--gold);color:var(--gold);" onclick="window.ankiV2UndoLastEval()" title="Revenir à la carte précédente">${window.iconLabel('arrow-left', 'Carte précédente')}</button>` : ''}
             <button class="bs" data-testid="btn-skip-card" onclick="window.ankiV2SkipCard()">${window.iconLabel('skip-forward', 'Passer')}</button>
             <button class="bs" data-testid="btn-pause-session" onclick="window.ankiV2PauseSession()">${window.iconLabel('pause', 'Pause')}</button>
             <button class="bs" onclick="window.ankiV2SessionMinimize()">${window.iconLabel('layout-list', 'Réduire')}</button>
             <button class="bs anki-quit" data-testid="btn-abandon-session-active" onclick="window.ankiV2AbandonActiveSession()">${window.iconLabel('trash-2', 'Abandonner')}</button>
           </div>
         </div>
+            ${S.showAnswer ? `<div class="anki-sess-restart-wrap"><button type="button" class="bs anki-sess-restart" data-testid="btn-restart-card" onclick="window.ankiV2RestartCurrentCard()">${window.iconLabel('refresh-cw', 'Recommencer la carte')}</button></div>` : ''}
         </div>
       </div>
     `;
@@ -4010,71 +4012,146 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     catch (e) { return Object.assign({}, c); }
   }
 
-  // v4: annule la dernière notation
+  // v4: revient à la carte précédente pour re-noter (comme Rapide) — sans double notation ni carte sautée
   window.ankiV2UndoLastEval = function () {
     if (typeof window.refuseSecondaryFullMutation === 'function'
         && window.refuseSecondaryFullMutation('Appareil secondaire : annulation indisponible.')) {
       return;
     }
     const snap = S.dernierExerciceModifie;
-    if (!snap) return window.sysAlert("Aucune notation récente à annuler.", "Undo");
+    if (!snap || !snap.card) return window.sysAlert('Aucune carte précédente à reprendre.', 'Synchrotron');
     if (S._evalBusy) return;
-    S._evalBusy = true;
-    const loc = ankLocate(snap.card.id);
-    if (!loc || loc.idx < 0) {
-      (isDevoirCard(snap.card) ? window.D.devoirs : window.D.exercices).unshift(cloneCard(snap.card));
-    } else {
-      const current = loc.list[loc.idx];
-      const keptHist = Array.isArray(current.historique) ? current.historique.slice() : [];
-      keptHist.push({
-        date: new Date().toISOString(),
-        type: "undo",
-        qScore: snap.qScore,
-        message: "Annulation — ease/intervalle/repetitions restaurés"
-      });
-      const restored = cloneCard(snap.card);
-      loc.list[loc.idx] = Object.assign(restored, { historique: keptHist });
-    }
-    // Décrémentation des compteurs de session
-    if (snap.statBucket === 'ok')  S.stats.ok  = Math.max(0, S.stats.ok  - 1);
-    if (snap.statBucket === 'mid') S.stats.mid = Math.max(0, S.stats.mid - 1);
-    if (snap.statBucket === 'bad') S.stats.bad = Math.max(0, S.stats.bad - 1);
-    if (snap.requeued) S.stats.total = Math.max(0, (S.stats.total || 0) - 1);
-    // Réinjection en tête de file (bout virtuel + frères, toujours rehydratés depuis le parent restauré)
-    const requeueId = snap.chunkId || snap.card.id;
-    const restoredCard = rehydrateQueueCard(requeueId) || ankFind(snap.card.id);
-    if (restoredCard) {
-      const parentId = snap.card.id;
-      // Retirer l'ancien bout + tous les frères (éventuellement périmés post-eval)
-      S.queue = S.queue.filter(c => {
-        if (!c) return false;
-        if (c.id === restoredCard.id || c.id === parentId) return false;
-        if (c._devoirChunkOf === parentId) return false;
-        if ((snap.siblingChunkIds || []).includes(c.id)) return false;
-        return true;
-      });
-      const siblings = (snap.siblingChunkIds || [])
-        .filter(id => id && id !== restoredCard.id)
-        .map(id => rehydrateQueueCard(id))
-        .filter(Boolean);
-      siblings.reverse().forEach(ch => S.queue.unshift(ch));
-      S.queue.unshift(restoredCard);
-      S.current = null;
-    }
-    window.AnkiAlgoV2.log("undo-eval", { id: snap.card.id, statBucket: snap.statBucket, historiqueConserved: true });
-    S.dernierExerciceModifie = null;
-    Promise.resolve(persistSession()).then(function () {
-      nextCard();
-      window.sysAlert("Dernière notation annulée. Paramètres restaurés — l'historique est conservé (entrée undo ajoutée).", "Undo");
-    }).catch(function (e) {
-      console.error('ankiV2UndoLastEval save:', e);
-      // Mutation déjà appliquée (souvent local OK / cloud KO) — avancer pour éviter double-undo
-      try { nextCard(); } catch (e2) { S._evalBusy = false; }
-      if (typeof window.sysAlert === 'function'
-          && !/SECONDARY_READ_ONLY|synchronisation cloud/i.test(String(e && e.message))) {
-        window.sysAlert('Annulation locale OK, mais la sauvegarde a échoué — réessaie.', 'Undo');
+
+    const go = function () {
+      S._evalBusy = true;
+      try {
+        const parentId = snap.card.id;
+        const loc = ankLocate(parentId);
+        if (!loc || loc.idx < 0) {
+          (isDevoirCard(snap.card) ? window.D.devoirs : window.D.exercices).unshift(cloneCard(snap.card));
+        } else {
+          // Restauration complète pré-note (pas d’entrée « undo » : la prochaine note remplace vraiment)
+          loc.list[loc.idx] = cloneCard(snap.card);
+        }
+
+        if (snap.statBucket === 'ok') S.stats.ok = Math.max(0, S.stats.ok - 1);
+        if (snap.statBucket === 'mid') S.stats.mid = Math.max(0, S.stats.mid - 1);
+        if (snap.statBucket === 'bad') S.stats.bad = Math.max(0, S.stats.bad - 1);
+        if (snap.requeued) S.stats.total = Math.max(0, (S.stats.total || 0) - 1);
+
+        const requeueId = snap.chunkId || parentId;
+        const restoredCard = rehydrateQueueCard(requeueId) || ankFind(parentId) || cloneCard(snap.card);
+        if (!restoredCard) {
+          S._evalBusy = false;
+          return window.sysAlert('Carte introuvable après annulation.', 'Synchrotron');
+        }
+
+        // Ne pas perdre la carte actuellement affichée (bug « saute une carte »)
+        const interrupted = S.current
+          && S.current.id
+          && S.current.id !== restoredCard.id
+          && S.current.id !== parentId
+          && !(S.current._devoirChunkOf === parentId)
+          ? S.current
+          : null;
+
+        S.queue = (S.queue || []).filter(function (c) {
+          if (!c) return false;
+          if (c.id === restoredCard.id || c.id === parentId) return false;
+          if (c._devoirChunkOf === parentId) return false;
+          if ((snap.siblingChunkIds || []).indexOf(c.id) >= 0) return false;
+          return true;
+        });
+
+        const siblings = (snap.siblingChunkIds || [])
+          .filter(function (id) { return id && id !== restoredCard.id; })
+          .map(function (id) { return rehydrateQueueCard(id); })
+          .filter(Boolean);
+
+        // File : [siblings…] puis la carte interrompue en tête du reste
+        siblings.reverse().forEach(function (ch) { S.queue.unshift(ch); });
+        if (interrupted) {
+          S.queue = S.queue.filter(function (c) { return c && c.id !== interrupted.id; });
+          S.queue.unshift(interrupted);
+        }
+
+        S.current = restoredCard;
+        S.showAnswer = true;
+        S.sliderValue = 7;
+        S.dockShowCardDetail = false;
+        S.chronoRunning = false;
+        if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
+        if (snap.tps != null && Number.isFinite(Number(snap.tps))) {
+          S.chronoElapsed = Math.max(0, Number(snap.tps));
+          S.sessionTempsManuel = parseFloat((S.chronoElapsed / 60).toFixed(1));
+        } else {
+          S.chronoElapsed = 0;
+          S.sessionTempsManuel = null;
+        }
+        S.dernierExerciceModifie = null;
+        window.AnkiAlgoV2.log('undo-eval', {
+          id: parentId,
+          statBucket: snap.statBucket,
+          backToGrade: true,
+          interruptedId: interrupted ? interrupted.id : null
+        });
+
+        Promise.resolve(persistSession()).then(function () {
+          S._evalBusy = false;
+          S.sessionUI = S.sessionUI === 'mini' || S.sessionUI === 'dock' ? 'full' : (S.sessionUI || 'full');
+          renderSessionOverlay();
+        }).catch(function (e) {
+          console.error('ankiV2UndoLastEval save:', e);
+          S._evalBusy = false;
+          try { renderSessionOverlay(); } catch (e2) { /* ignore */ }
+          if (typeof window.sysAlert === 'function'
+              && !/SECONDARY_READ_ONLY|synchronisation cloud/i.test(String(e && e.message))) {
+            window.sysAlert('Retour local OK, mais la sauvegarde a échoué — réessaie.', 'Synchrotron');
+          }
+        });
+      } catch (err) {
+        S._evalBusy = false;
+        console.error('ankiV2UndoLastEval:', err);
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Erreur en revenant à la carte précédente.', 'Synchrotron');
+        }
       }
-    });
+    };
+
+    const titre = (snap.card.titre || snap.card.id || 'carte précédente');
+    const msg = 'Revenir à <b>' + esc(titre) + '</b> pour modifier la note ?<br><br>'
+      + 'La notation précédente est annulée (pas de double note). '
+      + 'Tu retrouves l’écran de notation avec le temps enregistré.';
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm(msg, go, 'Carte précédente');
+    } else if (window.confirm('Revenir à la carte précédente pour modifier la note ?')) {
+      go();
+    }
+  };
+
+  /** Remet la carte courante au début (chrono / réponse), sans toucher au SRS. */
+  window.ankiV2RestartCurrentCard = function () {
+    if (!S.current || !S.showAnswer) return;
+    if (S._evalBusy) return;
+    const go = function () {
+      S.showAnswer = false;
+      S.sessionTempsManuel = null;
+      S.sliderValue = 7;
+      if (typeof resetChronoCard === 'function') resetChronoCard();
+      else {
+        S.chronoElapsed = 0;
+        S.chronoRunning = false;
+        if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
+      }
+      renderSessionOverlay();
+    };
+    const msg = 'Recommencer cette carte ?<br><br>Chrono et réponse seront remis à zéro. '
+      + 'Aucune note n’est enregistrée tant que tu n’as pas re-noté.';
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm(msg, go, 'Recommencer');
+    } else if (window.confirm('Recommencer cette carte ?')) {
+      go();
+    }
   };
 
   window.evalCardV2 = function (qScore) {
@@ -4383,6 +4460,8 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     }
     window.sysConfirm("Supprimer la carte " + esc(id) + " ?", () => {
       const baseId = String(id).split('#')[0];
+      const before = (window.D.exercices || []).find(c => c && (c.id === id || c.id === baseId));
+      const dirtyGroupId = before && before.groupId ? before.groupId : '';
       window.D.exercices = (window.D.exercices || []).filter(c => c.id !== id && c.id !== baseId && c._morceauOf !== id && c._morceauOf !== baseId);
       window.D.devoirs = (window.D.devoirs || []).filter(c => c.id !== id && c.id !== baseId && c._morceauOf !== id && c._morceauOf !== baseId);
       // Purger la session live / persistée des références à cette carte
@@ -4406,6 +4485,9 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         if (!sec.currentId && !(sec.queueIds && sec.queueIds.length)) {
           delete window.D.sessionEnCoursV2;
         }
+      }
+      if (dirtyGroupId && typeof window.quickMarkGroupLocalDirty === 'function') {
+        window.quickMarkGroupLocalDirty(dirtyGroupId);
       }
       window.save();
       window.renderAnkiV2();
@@ -4663,7 +4745,115 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     if (livre) livre.classList.toggle('hidden', isCours);
     if (cours) cours.classList.toggle('hidden', !isCours);
     if (isCours) refreshSrcArianeUI(prefix, side);
+    refreshSrcLivrePick(prefix, side);
   }
+
+  function getSrcCardMat(prefix) {
+    const el = $(prefix + 'Mat');
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  /** Select livres (matière) pour type=livre ; texte libre sinon / legacy. */
+  function refreshSrcLivrePick(prefix, side) {
+    if (prefix !== 'exo') return;
+    const typeEl = $(prefix + 'Src' + side + 'Type');
+    const pickWrap = $(prefix + 'Src' + side + 'LivrePick');
+    const nomWrap = $(prefix + 'Src' + side + 'NomWrap');
+    const nomEl = $(prefix + 'Src' + side + 'Nom');
+    const nomLab = $(prefix + 'Src' + side + 'NomLab');
+    if (!typeEl) return;
+    const type = typeEl.value;
+    const isLivre = type === 'livre';
+    if (nomLab) {
+      nomLab.textContent = isLivre ? 'Nom (libre)' : (type === 'classeur' ? 'Nom (classeur)' : 'Nom (livre / classeur)');
+    }
+    if (!isLivre) {
+      if (pickWrap) { pickWrap.classList.add('hidden'); pickWrap.innerHTML = ''; }
+      if (nomWrap) nomWrap.classList.remove('hidden');
+      return;
+    }
+    const matId = getSrcCardMat(prefix);
+    const livres = (typeof window.listLivresForMat === 'function' && matId)
+      ? window.listLivresForMat(matId)
+      : [];
+    const curNom = nomEl ? String(nomEl.value || '').trim() : '';
+    const curLivreId = nomEl && nomEl.dataset ? String(nomEl.dataset.livreId || '') : '';
+
+    if (!matId) {
+      if (pickWrap) {
+        pickWrap.classList.remove('hidden');
+        pickWrap.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0 0 8px;">Choisis d’abord une matière pour lister les livres.</p>';
+      }
+      if (nomWrap) nomWrap.classList.remove('hidden');
+      return;
+    }
+    if (!livres.length) {
+      if (pickWrap) {
+        pickWrap.classList.remove('hidden');
+        pickWrap.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0 0 8px;">Aucun livre pour cette matière — saisie libre (ou crée-en dans Organisation → Classeurs).</p>';
+      }
+      if (nomWrap) nomWrap.classList.remove('hidden');
+      return;
+    }
+
+    let selected = '';
+    if (curLivreId && livres.some(function (l) { return l.id === curLivreId; })) {
+      selected = curLivreId;
+    } else if (curNom) {
+      const byName = livres.find(function (l) {
+        return String(l.name || '').trim().toLowerCase() === curNom.toLowerCase();
+      });
+      selected = byName ? byName.id : '__free__';
+    }
+
+    const opts = ['<option value="">— Choisir un livre —</option>']
+      .concat(livres.map(function (l) {
+        return '<option value="' + esc(l.id) + '"' + (selected === l.id ? ' selected' : '') + '>' + esc(l.name) + '</option>';
+      }))
+      .concat(['<option value="__free__"' + (selected === '__free__' ? ' selected' : '') + '>Autre (saisie libre)…</option>']);
+
+    if (pickWrap) {
+      pickWrap.classList.remove('hidden');
+      pickWrap.innerHTML =
+        '<div class="fg"><label>Livre</label>' +
+        '<select id="' + prefix + 'Src' + side + 'LivreId" onchange="window.ankiV2SrcLivrePick(\'' + prefix + '\',\'' + side + '\')">' +
+        opts.join('') + '</select></div>';
+    }
+    const showFree = !selected || selected === '__free__';
+    if (nomWrap) nomWrap.classList.toggle('hidden', !showFree);
+    if (!showFree && nomEl) {
+      const lv = livres.find(function (l) { return l.id === selected; });
+      if (lv) {
+        nomEl.value = lv.name || '';
+        if (nomEl.dataset) nomEl.dataset.livreId = lv.id;
+      }
+    } else if (nomEl && nomEl.dataset && selected === '__free__') {
+      delete nomEl.dataset.livreId;
+    }
+  }
+
+  window.ankiV2SrcLivrePick = function (prefix, side) {
+    const sel = $(prefix + 'Src' + side + 'LivreId');
+    const nomEl = $(prefix + 'Src' + side + 'Nom');
+    const nomWrap = $(prefix + 'Src' + side + 'NomWrap');
+    if (!sel) return;
+    const v = sel.value;
+    if (!v || v === '__free__') {
+      if (nomWrap) nomWrap.classList.remove('hidden');
+      if (nomEl && nomEl.dataset) delete nomEl.dataset.livreId;
+      if (v === '' && nomEl) nomEl.value = '';
+      return;
+    }
+    const livres = typeof window.listLivresForMat === 'function'
+      ? window.listLivresForMat(getSrcCardMat(prefix))
+      : [];
+    const lv = livres.find(function (l) { return l.id === v; });
+    if (lv && nomEl) {
+      nomEl.value = lv.name || '';
+      if (nomEl.dataset) nomEl.dataset.livreId = lv.id;
+    }
+    if (nomWrap) nomWrap.classList.add('hidden');
+  };
 
   window.ankiV2SrcTypeChange = function (prefix, side) {
     syncSrcModeVisibility(prefix, side);
@@ -4731,9 +4921,11 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           </div>
         </div>
         <div id="${id}Src${side}LivreFields" class="anki-src-livre-fields${effectiveType === 'cours' ? ' hidden' : ''}">
+          <div id="${id}Src${side}LivrePick" class="anki-src-livre-pick${effectiveType === 'livre' ? '' : ' hidden'}"></div>
           <div class="anki-modal-row">
-            <div class="fg"><label>${labels.nomLabel}</label>
-              <input type="text" id="${id}Src${side}Nom" ${id === 'exo' && side === 'Enonce' ? 'data-testid="src-enonce-nom"' : ''}${id === 'exo' && side === 'Cor' ? 'data-testid="src-cor-nom"' : ''} placeholder="${labels.nomPh}" value="${esc(src.nom || '')}">
+            <div class="fg" id="${id}Src${side}NomWrap">
+              <label id="${id}Src${side}NomLab">${labels.nomLabel}</label>
+              <input type="text" id="${id}Src${side}Nom" ${id === 'exo' && side === 'Enonce' ? 'data-testid="src-enonce-nom"' : ''}${id === 'exo' && side === 'Cor' ? 'data-testid="src-cor-nom"' : ''} placeholder="${labels.nomPh}" value="${esc(src.nom || '')}"${src.livreId ? ` data-livre-id="${esc(src.livreId)}"` : ''}>
             </div>
             <div class="fg"><label>${labels.detLabel}</label>
               <input type="text" id="${id}Src${side}Det" ${id === 'exo' && side === 'Enonce' ? 'data-testid="src-enonce-det"' : ''}${id === 'exo' && side === 'Cor' ? 'data-testid="src-cor-det"' : ''} placeholder="${labels.detPh}" value="${esc((!isCours && src.details) || '')}">
@@ -4793,7 +4985,17 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       syncSrcModeVisibility(prefix, side);
       const typeEl = $(prefix + 'Src' + side + 'Type');
       if (typeEl && typeEl.value === 'cours') refreshSrcArianeUI(prefix, side);
+      refreshSrcLivrePick(prefix, side);
     });
+    const matEl = $(prefix + 'Mat');
+    if (matEl && !matEl._srcLivreMatBound) {
+      matEl._srcLivreMatBound = true;
+      matEl.addEventListener('change', function () {
+        ['Enonce', 'Cor'].forEach(function (side) {
+          refreshSrcLivrePick(prefix, side);
+        });
+      });
+    }
   }
 
   function renderStatutChecks(c, prefix) {
@@ -4886,8 +5088,10 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         ${renderSrcGuidanceBlock(c, 'exo', window.iconLabel('book-open', '<b>Guidage physique</b> <span class="anki-mut" style="font-weight:normal;">— où trouver l\'énoncé et le corrigé (facultatif)</span>'))}
 
         <div class="fg">
-          <label>Cours liés (recherche · plusieurs possibles)</label>
-          ${searchField('Titre, matière, classeur, code...', `id="exoCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value,'exo')"`)}
+          <label>Cours liés <span class="anki-mut" style="font-weight:normal;">(fil d’Ariane · recherche · plusieurs possibles)</span></label>
+          <p class="anki-mut" style="font-size:11px;margin:0 0 8px;line-height:1.4;">Limités à la matière choisie ci-dessus.</p>
+          <div id="exoCoursAriane" class="anki-src-ariane anki-cours-link-ariane"></div>
+          ${searchField('Titre, classeur, code…', `id="exoCoursSearch" oninput="window.ankiV2CoursLinkSearch(this.value,'exo')"`)}
           <div id="exoCoursSelected" class="anki-link-selected"></div>
           <div id="exoCoursResults" class="anki-link-results"></div>
         </div>
@@ -4902,6 +5106,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       </div>
     `;
     renderCoursLinkUI('exo');
+    wireCoursLinkMat('exo');
     window.hydrateIcons(ov);
     bindAutoGrowTextareas(ov);
     wireEditableDurationPicker({
@@ -4958,6 +5163,29 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       }
       const nom = fieldVal('exoSrc' + prefix + 'Nom');
       const det = fieldVal('exoSrc' + prefix + 'Det');
+      if (type === 'livre') {
+        const livreSel = fieldVal('exoSrc' + prefix + 'LivreId');
+        const nomEl = $('exoSrc' + prefix + 'Nom');
+        let livreId = '';
+        if (livreSel && livreSel !== '__free__') livreId = livreSel;
+        else if (nomEl && nomEl.dataset && nomEl.dataset.livreId) livreId = nomEl.dataset.livreId;
+        if (livreId) {
+          const lv = ((window.D && window.D.classeurs) || []).find(function (x) {
+            return x && x.id === livreId
+              && (typeof window.isLivreClasseur !== 'function' || window.isLivreClasseur(x));
+          });
+          if (lv) {
+            return {
+              type: 'livre',
+              livreId: lv.id,
+              nom: lv.name || nom || '',
+              details: det || ''
+            };
+          }
+        }
+        if (!nom && !det) return null;
+        return { type: 'livre', nom: nom, details: det };
+      }
       if (!nom && !det) return null;
       return { type: type || 'livre', nom: nom, details: det };
     }
@@ -5080,10 +5308,197 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     nextCard();
   };
 
+  function getCoursLinkMat(kind) {
+    const prefix = kind === 'quick' ? 'quick' : 'exo';
+    const el = $(prefix + 'Mat');
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  function ensureCoursLinkAriane(matId) {
+    if (!S.coursLinkAriane || typeof S.coursLinkAriane !== 'object') {
+      S.coursLinkAriane = { mat: '', cl: '', inter: '' };
+    }
+    const want = String(matId || '');
+    if (S.coursLinkAriane.mat !== want) {
+      S.coursLinkAriane = { mat: want, cl: '', inter: '' };
+    }
+    return S.coursLinkAriane;
+  }
+
+  function renderCoursLinkArianeBody(kind) {
+    const k = kind === 'quick' ? 'quick' : 'exo';
+    const matId = getCoursLinkMat(k);
+    const nav = ensureCoursLinkAriane(matId);
+    const js = window.escapeJsStr || function (s) {
+      return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    };
+    if (!matId) {
+      return '<div class="cours-bc-empty">Choisis d’abord une matière pour parcourir les cours.</div>';
+    }
+
+    const list = (window.D.cours || []).filter(function (c) {
+      if (!c || c.mat !== matId) return false;
+      if (typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : (c.role === 'unite' || c.isUnite)) return false;
+      return true;
+    });
+    const tree = typeof window.buildCoursBrowseTree === 'function'
+      ? window.buildCoursBrowseTree(list)
+      : [];
+    const mats = window.D.matieres || [];
+    const cls = window.D.classeurs || [];
+    const mo = mats.find(function (x) { return x.id === matId; }) || { id: matId, name: matId, color: '#6a6a88' };
+
+    let matNode = tree.find(function (m) { return m.id === matId; }) || null;
+    if (!matNode) {
+      const linked = typeof window.listClasseursForArianeMat === 'function'
+        ? window.listClasseursForArianeMat(matId, null) : [];
+      matNode = { id: matId, count: list.length, classeurs: linked };
+    }
+    let clNode = nav.cl ? (matNode.classeurs || []).find(function (c) { return c.id === nav.cl; }) : null;
+    if (nav.cl && !clNode) {
+      const clObj = cls.find(function (x) { return x.id === nav.cl; });
+      if (clObj && typeof window.classeurVisibleForMat === 'function'
+          && window.classeurVisibleForMat(clObj, matId, 0)) {
+        clNode = { id: nav.cl, count: 0, inters: [] };
+      } else {
+        nav.cl = '';
+        nav.inter = '';
+      }
+    }
+    let interNode = clNode && nav.inter
+      ? (clNode.inters || []).find(function (i) { return i.id === nav.inter; })
+      : null;
+    if (clNode && nav.inter && !interNode) {
+      const clObj = cls.find(function (x) { return x.id === clNode.id; });
+      const max = (clObj && clObj.maxInter) || 12;
+      const n = parseInt(nav.inter, 10);
+      if (!isNaN(n) && n >= 1 && n <= max) {
+        interNode = { id: String(n).padStart(2, '0'), count: 0, cours: [] };
+      } else {
+        nav.inter = '';
+      }
+    }
+
+    const chev = window.iconHtml ? window.iconHtml('chevron-right', 12) : '›';
+    const co = clNode
+      ? (cls.find(function (x) { return x.id === clNode.id; }) || { name: clNode.id, color: mo.color, interNames: {} })
+      : null;
+
+    let crumbs = '<button type="button" class="cours-bc-crumb' + (!nav.cl ? ' is-current' : '') +
+      '" onclick="window.ankiV2CoursLinkArianeNav(\'' + k + '\',\'mat\')">' +
+      esc(mo.name || matId) + '</button>';
+    if (nav.cl && co) {
+      crumbs += '<span class="cours-bc-sep" aria-hidden="true">' + chev + '</span>';
+      crumbs += '<button type="button" class="cours-bc-crumb' + (!nav.inter ? ' is-current' : '') +
+        '" onclick="window.ankiV2CoursLinkArianeNav(\'' + k + '\',\'cl\',\'' + js(nav.cl) + '\')">' +
+        esc(co.name) + '</button>';
+    }
+    if (nav.inter && interNode) {
+      const interLabel = typeof window.getInterName === 'function' ? window.getInterName(co, interNode.id) : interNode.id;
+      crumbs += '<span class="cours-bc-sep" aria-hidden="true">' + chev + '</span>';
+      crumbs += '<span class="cours-bc-crumb is-current">' + esc(interLabel) + '</span>';
+    }
+
+    let body = '';
+    if (!nav.cl) {
+      const clList = typeof window.listClasseursForArianeMat === 'function'
+        ? window.listClasseursForArianeMat(matId, matNode)
+        : ((matNode && matNode.classeurs) || []);
+      if (!clList.length) {
+        body = '<div class="cours-bc-empty">Aucun classeur pour cette matière.</div>';
+      } else {
+        body = '<div class="cours-bc-grid anki-src-ariane-grid">' + clList.map(function (c) {
+          const cl = cls.find(function (x) { return x.id === c.id; }) || { name: c.id, color: mo.color };
+          const meta = c.count ? String(c.count) : 'vide';
+          return '<button type="button" class="cours-bc-tile" style="--mat-color:' + esc(cl.color || mo.color) +
+            '" onclick="window.ankiV2CoursLinkArianeNav(\'' + k + '\',\'cl\',\'' + js(c.id) + '\')">' +
+            '<span class="cours-bc-tile-name">' + esc(cl.name) + '</span>' +
+            '<span class="cours-bc-tile-meta">' + esc(meta) + '</span></button>';
+        }).join('') + '</div>';
+      }
+    } else if (!nav.inter) {
+      let inters = (clNode && clNode.inters) ? clNode.inters.slice() : [];
+      if (!inters.length && co) {
+        const max = co.maxInter || 12;
+        inters = [];
+        for (let i = 1; i <= max; i++) {
+          inters.push({ id: String(i).padStart(2, '0'), count: 0, cours: [] });
+        }
+      }
+      body = '<div class="cours-bc-grid anki-src-ariane-grid">' + inters.map(function (i) {
+        const label = typeof window.getInterName === 'function' ? window.getInterName(co, i.id) : i.id;
+        const meta = i.count ? String(i.count) : 'vide';
+        return '<button type="button" class="cours-bc-tile" style="--mat-color:' + esc(mo.color) +
+          '" onclick="window.ankiV2CoursLinkArianeNav(\'' + k + '\',\'inter\',\'' + js(i.id) + '\')">' +
+          '<span class="cours-bc-tile-name">' + esc(label) + '</span>' +
+          '<span class="cours-bc-tile-meta">' + esc(meta) + '</span></button>';
+      }).join('') + '</div>';
+    } else {
+      const docs = (interNode && interNode.cours) ? interNode.cours.slice() : [];
+      if (!docs.length) {
+        body = '<div class="cours-bc-empty">Aucun document ici.</div>';
+      } else {
+        if (!S.coursLinkSelection) S.coursLinkSelection = new Set();
+        body = '<div class="anki-src-ariane-docs">' + docs.map(function (doc) {
+          const on = S.coursLinkSelection.has(doc.uid);
+          return '<button type="button" class="anki-src-ariane-doc' + (on ? ' is-linked' : '') +
+            '" onclick="window.ankiV2CoursLinkToggle(\'' + js(doc.uid) + '\',\'' + k + '\')">' +
+            '<span class="mono">' + esc(doc.uid) + '</span>' +
+            '<span>' + esc(doc.title || '') + '</span>' +
+            (on ? '<span class="anki-mut" style="margin-left:auto;font-size:11px;">lié</span>' : '') +
+            '</button>';
+        }).join('') + '</div>';
+      }
+    }
+
+    return '<nav class="cours-bc-bar anki-src-ariane-bar" aria-label="Fil d’Ariane cours liés">' + crumbs + '</nav>' +
+      '<div class="anki-src-ariane-body">' + body + '</div>';
+  }
+
+  function refreshCoursLinkAriane(kind) {
+    const k = kind === 'quick' ? 'quick' : 'exo';
+    const wrap = $(k + 'CoursAriane');
+    if (!wrap) return;
+    wrap.innerHTML = renderCoursLinkArianeBody(k);
+    if (typeof window.hydrateIcons === 'function') window.hydrateIcons(wrap);
+  }
+
+  function wireCoursLinkMat(kind) {
+    const k = kind === 'quick' ? 'quick' : 'exo';
+    const matEl = $(k + 'Mat');
+    if (!matEl || matEl._coursLinkMatBound) return;
+    matEl._coursLinkMatBound = true;
+    matEl.addEventListener('change', function () {
+      ensureCoursLinkAriane(getCoursLinkMat(k));
+      renderCoursLinkUI(k);
+    });
+  }
+
+  window.ankiV2CoursLinkArianeNav = function (kind, level, id) {
+    const k = kind === 'quick' ? 'quick' : 'exo';
+    const matId = getCoursLinkMat(k);
+    const nav = ensureCoursLinkAriane(matId);
+    if (!matId) {
+      refreshCoursLinkAriane(k);
+      return;
+    }
+    if (level === 'mat') {
+      nav.cl = '';
+      nav.inter = '';
+    } else if (level === 'cl') {
+      nav.cl = String(id || '');
+      nav.inter = '';
+    } else if (level === 'inter') {
+      nav.inter = String(id || '');
+    }
+    refreshCoursLinkAriane(k);
+  };
+
   function renderCoursLinkUI(kind) {
     const prefix = kind === 'quick' ? 'quick' : 'exo';
     const sel = $(prefix + 'CoursSelected');
     const res = $(prefix + 'CoursResults');
+    refreshCoursLinkAriane(prefix);
     if (!sel || !res) return;
     if (!S.coursLinkSelection) S.coursLinkSelection = new Set();
 
@@ -5091,17 +5506,23 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const co = (window.D.cours || []).find(x => x.uid === uid);
       const safeUid = String(uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       if (!co) {
-        return `<span class="anki-link-chip" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">${esc(uid)} ${window.iconHtml('x', 12)}</span>`;
+        return `<span class="anki-link-chip" onclick="window.ankiV2CoursLinkToggle('${safeUid}','${prefix}')">${esc(uid)} ${window.iconHtml('x', 12)}</span>`;
       }
       const m = mat(co.mat);
       const unite = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(co) : !!(co.role === 'unite');
       const badge = unite ? ' · Unité' : '';
-      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">${esc(co.uid)}${badge} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
+      return `<span class="anki-link-chip" style="background:${m.color}20;border:1px solid ${m.color};color:${m.color};" onclick="window.ankiV2CoursLinkToggle('${safeUid}','${prefix}')">${esc(co.uid)}${badge} · ${esc(co.title)} ${window.iconHtml('x', 12)}</span>`;
     }).join('') || '<span class="anki-mut" style="font-size:11px;">Aucun cours lié.</span>';
 
+    const matId = getCoursLinkMat(prefix);
     const q = (S.coursLinkQuery || '').toLowerCase().trim();
+    if (!matId) {
+      res.innerHTML = '<div class="anki-mut" style="padding:8px;font-size:12px;">Choisis une matière pour chercher des cours.</div>';
+      return;
+    }
     if (!q) { res.innerHTML = ''; return; }
     const list = (window.D.cours || []).filter(c => {
+      if (!c || c.mat !== matId) return false;
       if (S.coursLinkSelection.has(c.uid)) return false;
       const matObj = mat(c.mat);
       const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
@@ -5115,7 +5536,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       return String(a.title || '').localeCompare(String(b.title || ''), 'fr');
     }).slice(0, 12);
     if (!list.length) {
-      res.innerHTML = '<div class="anki-mut" style="padding:8px;font-size:12px;">Aucun cours trouvé.</div>';
+      res.innerHTML = '<div class="anki-mut" style="padding:8px;font-size:12px;">Aucun cours trouvé dans cette matière.</div>';
       return;
     }
     res.innerHTML = list.map(c => {
@@ -5123,7 +5544,7 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       const cl = (window.D.classeurs || []).find(x => x.id === c.cl) || {};
       const safeUid = String(c.uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
       const unite = typeof window.isCoursUnite === 'function' ? window.isCoursUnite(c) : !!(c.role === 'unite');
-      return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${safeUid}')">
+      return `<div class="anki-link-row" onclick="window.ankiV2CoursLinkToggle('${safeUid}','${prefix}')">
         <span class="anki-link-mat" style="background:${m.color}20;color:${m.color};">${esc(m.label)}</span>
         <span class="anki-link-id">${esc(c.uid)}${unite ? ' · Unité' : ''}</span>
         <span class="anki-link-title">${esc(c.title)}</span>

@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260914o';
+  window.__BOOT_CACHE_V = '20260916a';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -377,6 +377,20 @@
       <div class="cl-icon-pick" id="nClIconPick" role="group" aria-label="Icône du classeur"></div>
     </div>
     <button class="bp" id="btnAddCl" style="width:100%; margin-top:10px;">+ Ajouter le classeur</button>
+  </div>
+  <h3 style="font-family:'Inter'; margin-top:30px; margin-bottom:15px; border-top:1px solid var(--bd); padding-top:20px;">Créer un livre</h3>
+  <p style="font-size:12px;color:var(--mut);margin:-6px 0 12px;line-height:1.45;">Catalogue pour le guidage des cartes X — au moins une matière.</p>
+  <div style="background:var(--s2); padding:15px; border-radius:12px; border:1px solid var(--bd);">
+    <div class="fg"><label>Nom du livre</label><input type="text" id="nLivreNm" placeholder="Ex: HPrépa MP"></div>
+    <div class="fg"><label>Couleur</label>
+      <div class="sws" id="swLivre"></div>
+      <div class="sw-preview-bar" id="nLivreColorPreview" aria-hidden="true"></div>
+    </div>
+    <div class="fg">
+      <label>Matières *</label>
+      <div id="nLivreMatList" class="cl-mat-pick" role="group" aria-label="Matières du livre"></div>
+    </div>
+    <button class="bp" id="btnAddLivre" style="width:100%; margin-top:10px;">+ Ajouter le livre</button>
   </div>
 </div>
 

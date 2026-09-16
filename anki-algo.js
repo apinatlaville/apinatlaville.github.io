@@ -1244,9 +1244,13 @@
             publishedVersion: g.shared.publishedVersion != null ? Number(g.shared.publishedVersion) : undefined,
             mat: g.shared.mat ? String(g.shared.mat) : out.mat,
             chapitreId: g.shared.chapitreId ? String(g.shared.chapitreId) : out.chapitreId,
-            color: g.shared.color || out.color
+            color: g.shared.color || out.color,
+            localDirty: !!g.shared.localDirty,
+            imported: !!g.shared.imported
           };
           if (out.shared.publishedVersion == null) delete out.shared.publishedVersion;
+          if (!out.shared.localDirty) delete out.shared.localDirty;
+          if (!out.shared.imported) delete out.shared.imported;
         }
         return out;
       });

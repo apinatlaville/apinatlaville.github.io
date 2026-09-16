@@ -18,8 +18,15 @@
     catalog: null,
     detail: null,
     versions: null,
-    busy: false
+    busy: false,
+    pendingRender: false
   };
+
+  function isSamePublisher(meta) {
+    if (!meta || !meta.createdBy || !meta.createdBy.uid) return false;
+    var pub = publisherInfo();
+    return !!(pub.uid && meta.createdBy.uid === pub.uid);
+  }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -289,7 +296,17 @@
       return { group: g, cards: cards };
     },
 
-    publishGroup: async function (groupId) {
+    isPackOwner: function (meta) {
+      return isSamePublisher(meta);
+    },
+
+    /**
+     * Publie le dossier vers le catalogue.
+     * - Créateur du pack : nouvelle version du même packId (« publier une mise à jour »).
+     * - Sinon : opts.fork → nouveau packId ; sans opts.fork → Error('NOT_OWNER').
+     */
+    publishGroup: async function (groupId, opts) {
+      opts = opts || {};
       if (!window.QuickShare.canPublish()) {
         throw new Error('Connecte-toi avec Google pour publier (ou utilise le mode local de test).');
       }
@@ -302,16 +319,35 @@
       var cards = prep.cards;
       var pub = publisherInfo();
       var shared = g.shared || {};
-      var packId = shared.packId || genPackId();
-      var prevVersion = shared.installedVersion || shared.publishedVersion || 0;
-      var nextVersion = Math.max(1, Number(prevVersion) + 1);
-
-      // Si le pack existe déjà cloud/local, prendre latest+1
+      var packId = shared.packId || '';
       var existingMeta = null;
-      try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { /* ignore */ }
-      if (existingMeta && existingMeta.latestVersion != null) {
+      if (packId) {
+        try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { /* ignore */ }
+      }
+
+      var forking = !!opts.fork;
+      var ownsExisting = !!(existingMeta && isSamePublisher(existingMeta));
+      // Pack lié mais pas propriétaire → fork obligatoire (sinon écrasement)
+      if (packId && existingMeta && !ownsExisting && !forking) {
+        throw new Error('NOT_OWNER');
+      }
+      // Importé sans meta cloud : traiter comme fork si demandé, sinon NOT_OWNER
+      if (packId && shared.imported && !ownsExisting && !forking) {
+        throw new Error('NOT_OWNER');
+      }
+
+      if (forking || !packId) {
+        packId = genPackId();
+        existingMeta = null;
+        forking = true;
+      }
+
+      var prevVersion = forking ? 0 : (shared.installedVersion || shared.publishedVersion || 0);
+      var nextVersion = Math.max(1, Number(prevVersion) + 1);
+      if (!forking && existingMeta && existingMeta.latestVersion != null) {
         nextVersion = Math.max(nextVersion, Number(existingMeta.latestVersion) + 1);
       }
+      if (forking) nextVersion = 1;
 
       var versionDoc = buildVersionPayload(g, cards, nextVersion, pub);
       var meta = {
@@ -340,7 +376,7 @@
         chapitreId: g.chapitreId || '',
         color: g.color || '',
         localDirty: false,
-        imported: !!shared.imported
+        imported: false
       };
       if (typeof window.save === 'function') window.save();
       return result;
@@ -521,7 +557,12 @@
       if (!g.shared) g.shared = {};
       g.shared.packId = opts.packId || g.shared.packId;
       g.shared.installedVersion = versionDoc.version;
-      g.shared.localDirty = false;
+      // Cartes locales gardées hors pack → toujours « dirty » jusqu’à publication
+      var keptLocal = (opts.deleteRemoved === false && preview.removed.length > 0);
+      if (!keptLocal) {
+        keptLocal = cardsForGroup(groupId).some(function (c) { return c && !c.contentId; });
+      }
+      g.shared.localDirty = !!keptLocal;
       if (versionDoc.name) g.name = versionDoc.name;
 
       if (typeof window.save === 'function') window.save();
@@ -596,24 +637,31 @@
     var pane = $('panePartage');
     if (!pane) return;
     if (S.busy) {
-      pane.innerHTML = '<div class="anki-card-block"><p class="anki-mut">Chargement…</p></div>';
+      S.pendingRender = true;
       return;
     }
     try {
       S.busy = true;
-      if (S.view === 'detail' && S.packId) {
-        await renderPartageDetail(pane);
-      } else if (S.view === 'mine') {
-        await renderPartageMine(pane);
-      } else {
-        await renderPartageCatalog(pane);
-      }
+      do {
+        S.pendingRender = false;
+        if (S.view === 'detail' && S.packId) {
+          await renderPartageDetail(pane);
+        } else if (S.view === 'mine') {
+          await renderPartageMine(pane);
+        } else {
+          await renderPartageCatalog(pane);
+        }
+      } while (S.pendingRender);
     } catch (err) {
       pane.innerHTML = '<div class="anki-card-block"><p style="color:var(--red);">' +
         esc(err && err.message || err) + '</p></div>';
     } finally {
       S.busy = false;
       if (window.hydrateIcons) window.hydrateIcons(pane);
+      if (S.pendingRender) {
+        S.pendingRender = false;
+        window.renderPartage();
+      }
     }
   };
 
@@ -650,7 +698,7 @@
         jsStr(p.packId) + '\')">' +
         (window.iconLabel ? window.iconLabel('download', 'Importer') : 'Importer') + '</button>';
     } else if (update) {
-      actionBtn = '<button type="button" class="bp partage-row-action" onclick="event.stopPropagation();window.partageImportFromCatalog(\'' +
+      actionBtn = '<button type="button" class="bp partage-row-action partage-btn-update" onclick="event.stopPropagation();window.partageImportFromCatalog(\'' +
         jsStr(p.packId) + '\')">' +
         (window.iconLabel ? window.iconLabel('refresh-cw', 'Update') : 'Update') + '</button>';
     } else {
@@ -784,7 +832,7 @@
               (latest ? ' · cloud v' + esc(String(latest)) : '') + '</span>' +
           '</div>' +
           (upd
-            ? '<button type="button" class="bp" onclick="window.partageOpenPack(\'' + jsStr(g.shared.packId) + '\')">' +
+            ? '<button type="button" class="bp partage-btn-update" onclick="window.partageOpenPack(\'' + jsStr(g.shared.packId) + '\')">' +
                 (window.iconLabel ? window.iconLabel('refresh-cw', 'Update') : 'Update') + '</button>'
             : '<button type="button" class="bs" onclick="window.partageOpenPack(\'' + jsStr(g.shared.packId) + '\')">Voir</button>') +
         '</div>'
@@ -883,7 +931,7 @@
       actionBtn = '<button type="button" class="bp" onclick="window.partageStartImport()">' +
         (window.iconLabel ? window.iconLabel('download', 'Importer') : 'Importer') + '</button>';
     } else if (needsUpdate) {
-      actionBtn = '<button type="button" class="bp" onclick="window.partageDoUpdate()">' +
+      actionBtn = '<button type="button" class="bp partage-btn-update" onclick="window.partageDoUpdate()">' +
         (window.iconLabel ? window.iconLabel('refresh-cw', 'Update vers dernière') : 'Update') + '</button>';
     } else {
       actionBtn = '<span class="anki-mut">À jour (v' + esc(String(installed)) + ')</span>';
@@ -958,7 +1006,11 @@
   window.partageOpenPack = function (packId) {
     S.view = 'detail';
     S.packId = packId;
-    window.renderPartage();
+    if (typeof window.switchTab === 'function' && window._activeTab !== 'partage') {
+      window.switchTab('partage');
+    } else {
+      window.renderPartage();
+    }
   };
 
   /** Import / update direct depuis le catalogue (dernière version). */
@@ -1015,30 +1067,88 @@
   };
 
   async function confirmAndApply(groupId, meta, ver) {
-    var preview = window.QuickShare.previewUpdate(groupId, ver);
-    var msg = 'Mettre à jour le contenu vers <b>v' + esc(String(ver.version)) + '</b> ?' +
-      '<br><br>+' + preview.added.length + ' · ~' + preview.updated.length + ' · −' + preview.removed.length +
-      '<br><span class="anki-mut">Tes répétitions (SRS) ne sont pas modifiées.</span>';
-    if (preview.removed.length) {
-      msg += '<br><br><b style="color:var(--red);">' + preview.removed.length +
-        ' carte(s) seront supprimées</b> (retirées du pack).';
+    var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
+    var installed = g && g.shared ? Number(g.shared.installedVersion || 0) : 0;
+    var target = Number(ver.version);
+    if (target === installed) {
+      toast('Cette version est déjà installée (v' + target + ').', 'ok');
+      return;
     }
-    var apply = function () {
+
+    var preview = window.QuickShare.previewUpdate(groupId, ver);
+    var localOrphans = cardsForGroup(groupId).filter(function (c) { return c && !c.contentId; }).length;
+    var hasLocalKeep = preview.removed.length > 0 || localOrphans > 0;
+    var isDowngrade = target < installed;
+    var owns = window.QuickShare.isPackOwner(meta);
+
+    var statsLine = '+' + preview.added.length + ' · ~' + preview.updated.length +
+      (preview.removed.length ? ' · ' + preview.removed.length + ' carte(s) absente(s) du pack' : '') +
+      (localOrphans ? ' · ' + localOrphans + ' carte(s) locales sans lien pack' : '');
+
+    function finishUi(msg) {
+      toast(msg || ('Pack mis à jour (v' + ver.version + ').'), 'ok');
+      if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+      window.renderPartage();
+    }
+
+    async function doApply(mode) {
       try {
-        window.QuickShare.applyVersionToGroup(groupId, ver, { packId: meta.packId, deleteRemoved: true });
-        toast('Pack mis à jour (v' + ver.version + ').', 'ok');
-        if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
-        window.renderPartage();
+        window.QuickShare.applyVersionToGroup(groupId, ver, {
+          packId: meta.packId,
+          deleteRemoved: false
+        });
+        if (mode === 'merge_publish') {
+          var pubOpts = owns ? {} : { fork: true };
+          var result = await window.QuickShare.publishGroup(groupId, pubOpts);
+          finishUi('Contenu fusionné et publié : ' + result.meta.packId + ' · v' + result.version);
+        } else {
+          finishUi('Pack mis à jour (v' + ver.version + ') — tes cartes locales sont gardées.');
+        }
       } catch (e) {
         if (String(e && e.message) === 'SECONDARY_READ_ONLY') return;
         toast(String(e && e.message || e), 'error');
       }
-    };
-    if (typeof window.sysConfirm === 'function') {
-      window.sysConfirm(msg, apply, 'Update pack');
-    } else {
-      apply();
     }
+
+    function askUpdateChoices() {
+      var msg = (isDowngrade
+        ? 'Installer la version <b>plus ancienne</b> v' + esc(String(target)) +
+          ' (actuellement v' + esc(String(installed)) + ') ?'
+        : 'Mettre à jour le contenu vers <b>v' + esc(String(ver.version)) + '</b> ?') +
+        '<br><br>' + statsLine +
+        '<br><span class="anki-mut">Tes répétitions (SRS) ne sont pas modifiées.</span>';
+
+      if (hasLocalKeep) {
+        msg += '<br><br>Tu as des cartes qui ne sont pas dans cette version du pack.';
+        if (typeof window.sysConfirmChoices === 'function') {
+          window.sysConfirmChoices(msg, [
+            { id: 'keep', label: 'Garder mes cartes', primary: true },
+            { id: 'merge_publish', label: 'Publier maj (pack + moi)', gold: true }
+          ], isDowngrade ? 'Downgrade pack' : 'Update pack', function (choice) {
+            doApply(choice === 'merge_publish' ? 'merge_publish' : 'keep');
+          });
+          return;
+        }
+      }
+
+      if (typeof window.sysConfirm === 'function') {
+        window.sysConfirm(msg, function () { doApply('keep'); }, isDowngrade ? 'Downgrade pack' : 'Update pack');
+      } else {
+        doApply('keep');
+      }
+    }
+
+    if (isDowngrade) {
+      var warn = 'Tu vas installer une version <b>plus ancienne</b> (v' + esc(String(target)) +
+        ' &lt; v' + esc(String(installed)) + '). Le contenu local sera aligné sur cette version.';
+      if (typeof window.sysConfirm === 'function') {
+        window.sysConfirm(warn, askUpdateChoices, 'Version plus ancienne');
+      } else {
+        askUpdateChoices();
+      }
+      return;
+    }
+    askUpdateChoices();
   }
 
   function openImportWizard(meta, versionDoc) {
@@ -1156,19 +1266,58 @@
     }
   };
 
-  /** Bouton Partager depuis Paramètres dossier Rapide */
+  /** Bouton Partager / publier une maj depuis Paramètres dossier Rapide */
   window.quickSharePublishGroup = async function (groupId) {
     if (!groupId) return;
     try {
       if (!window.QuickShare.canPublish()) {
         return toast('Connecte-toi avec Google pour publier, ou utilise le mode local.', 'error');
       }
-      var result = await window.QuickShare.publishGroup(groupId);
-      toast('Publié : ' + result.meta.packId + ' · v' + result.version, 'ok');
-      if (typeof window.quickCloseEditGroup === 'function') window.quickCloseEditGroup();
-      if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+      var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
+      var shared = g && g.shared;
+      var run = async function (opts) {
+        var result = await window.QuickShare.publishGroup(groupId, opts || {});
+        toast('Publié : ' + result.meta.packId + ' · v' + result.version, 'ok');
+        if (typeof window.quickCloseEditGroup === 'function') window.quickCloseEditGroup();
+        if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+      };
+      if (shared && shared.packId) {
+        var meta = null;
+        try { meta = await window.QuickShare.getMeta(shared.packId); } catch (e) { /* ignore */ }
+        var owns = meta ? window.QuickShare.isPackOwner(meta) : false;
+        if (!owns) {
+          var forkMsg = 'Tu n’es pas le créateur de ce pack.<br><br>' +
+            '<b>Publier comme nouveau pack</b> crée une entrée séparée dans le catalogue ' +
+            '(tes cartes + éventuelles modifs), sans écraser l’original.';
+          if (typeof window.sysConfirm === 'function') {
+            window.sysConfirm(forkMsg, function () { run({ fork: true }); }, 'Nouveau pack');
+          } else {
+            await run({ fork: true });
+          }
+          return;
+        }
+      }
+      await run({});
     } catch (e) {
       if (String(e && e.message) === 'SECONDARY_READ_ONLY') return;
+      if (String(e && e.message) === 'NOT_OWNER') {
+        if (typeof window.sysConfirm === 'function') {
+          window.sysConfirm(
+            'Ce pack appartient à quelqu’un d’autre. Publier comme <b>nouveau pack</b> ?',
+            function () {
+              window.QuickShare.publishGroup(groupId, { fork: true }).then(function (result) {
+                toast('Publié : ' + result.meta.packId + ' · v' + result.version, 'ok');
+                if (typeof window.quickCloseEditGroup === 'function') window.quickCloseEditGroup();
+                if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+              }).catch(function (err) {
+                toast(String(err && err.message || err), 'error');
+              });
+            },
+            'Nouveau pack'
+          );
+        }
+        return;
+      }
       toast(String(e && e.message || e), 'error');
     }
   };

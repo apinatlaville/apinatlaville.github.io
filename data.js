@@ -287,6 +287,33 @@ window.isSystemClasseur = function (id) {
   return id === window.UNSORTED_CL_ID;
 };
 
+/** true si l’entrée est un livre de guidage (pas un classeur à intercalaires). */
+window.isLivreClasseur = function (cl) {
+  if (!cl) return false;
+  return cl.kind === 'livre' || !!cl.isLivre;
+};
+
+/** Classeurs physiques uniquement (docs / Ariane) — exclut les livres. */
+window.listBinderClasseurs = function () {
+  return ((window.D && window.D.classeurs) || []).filter(function (cl) {
+    return cl && cl.id && !window.isLivreClasseur(cl);
+  });
+};
+
+/** Livres liés à une matière (guidage cartes X). */
+window.listLivresForMat = function (matId) {
+  const mid = String(matId || '');
+  if (!mid) return [];
+  const out = ((window.D && window.D.classeurs) || []).filter(function (cl) {
+    if (!window.isLivreClasseur(cl)) return false;
+    return window.getClasseurMatIds(cl).indexOf(mid) >= 0;
+  });
+  out.sort(function (a, b) {
+    return String(a.name || '').localeCompare(String(b.name || ''), 'fr');
+  });
+  return out;
+};
+
 /** IDs matières liées à un classeur (vide = non restreint, visible partout s’il a des docs). */
 window.getClasseurMatIds = function (cl) {
   if (!cl) return [];
@@ -307,6 +334,7 @@ window.classeurIsRestricted = function (cl) {
  */
 window.classeurVisibleForMat = function (cl, matId, docCount) {
   if (!cl || !matId) return false;
+  if (window.isLivreClasseur(cl)) return false;
   if (window.isSystemClasseur(cl.id)) return (docCount || 0) > 0;
   const ids = window.getClasseurMatIds(cl);
   if (!ids.length) return (docCount || 0) > 0;
@@ -323,6 +351,7 @@ window.listClasseursForArianeMat = function (matId, matNodeFromTree) {
   const out = [];
   cls.forEach(function (cl) {
     if (!cl || !cl.id) return;
+    if (window.isLivreClasseur(cl)) return;
     const n = counts.get(cl.id) || 0;
     if (!window.classeurVisibleForMat(cl, matId, n)) return;
     out.push({ id: cl.id, count: n });
@@ -1174,7 +1203,10 @@ window.openMove = function(uid) {
 
   const moveClSelect = window.$('fMoveCl');
   if(moveClSelect) {
-      moveClSelect.innerHTML = window.D.classeurs.map(x => `
+      const binders = typeof window.listBinderClasseurs === 'function'
+        ? window.listBinderClasseurs()
+        : window.D.classeurs;
+      moveClSelect.innerHTML = binders.map(x => `
         <option value="${x.id}" ${x.id===c.cl?'selected':''}>${window.escHtml(x.name)}</option>
       `).join('');
   }
@@ -1416,8 +1448,11 @@ window.openModalCours = function(opts) {
   }
   
   if(window.$('fCl')) {
-    const clHtml = '<option value="">— Choisir —</option>' + 
-    window.D.classeurs.map(c => `<option value="${c.id}">${window.escHtml(c.name)}</option>`).join('');
+    const binders = typeof window.listBinderClasseurs === 'function'
+      ? window.listBinderClasseurs()
+      : window.D.classeurs;
+    const clHtml = '<option value="">— Choisir —</option>' +
+      binders.map(c => `<option value="${c.id}">${window.escHtml(c.name)}</option>`).join('');
     if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(window.$('fCl'), clHtml);
     else window.$('fCl').innerHTML = clHtml;
   }
@@ -1513,7 +1548,10 @@ window.editCours = function(uid, opts) {
   }
   
   if(window.$('fCl')) {
-    const clHtml = window.D.classeurs.map(x =>
+    const binders = typeof window.listBinderClasseurs === 'function'
+      ? window.listBinderClasseurs()
+      : window.D.classeurs;
+    const clHtml = binders.map(x =>
       `<option value="${x.id}">${window.escHtml(x.name)}</option>`
     ).join('');
     if (typeof window.fcRefreshSelect === 'function') window.fcRefreshSelect(window.$('fCl'), clHtml);
@@ -1767,15 +1805,55 @@ window.editClasseur = function(id) {
   window.editClIcon = typeof window.normalizeClasseurIcon === 'function'
     ? window.normalizeClasseurIcon(cl.icon)
     : (cl.icon === 'book' ? 'book' : 'folder');
-  
-  if(window.$('eClNm')) window.$('eClNm').value = cl.name;
+  const isLivre = window.isLivreClasseur(cl);
+
+  const title = window.$('ovEditCl') && window.$('ovEditCl').querySelector('h2');
+  if (title) {
+    title.innerHTML = isLivre
+      ? '<span data-icon="book-open"></span> Éditer le livre'
+      : '<span data-icon="pencil"></span> Éditer le classeur';
+  }
+  if(window.$('eClNm')) {
+    window.$('eClNm').value = cl.name;
+    const nmLab = window.$('eClNm').closest('.fg') && window.$('eClNm').closest('.fg').querySelector('label');
+    if (nmLab) nmLab.textContent = isLivre ? 'Nom du livre' : 'Nom du classeur';
+  }
   if(window.$('eClMax')) window.$('eClMax').value = cl.maxInter || 12;
   window.renderColorSwatches('eClSw', window.editClColor, 'window.setEditClColor', 'eClColorPreview');
   window.renderClIconPicker('eClIconPick', window.editClIcon, 'window.setEditClIcon', window.editClColor);
   window.renderEditClMatPick(cl);
-  
-  window.renderEditClInters(); 
-  
+
+  const maxRow = window.$('eClMax') && window.$('eClMax').closest('.fg');
+  const interHdr = window.$('eClInterList') && window.$('eClInterList').previousElementSibling;
+  const interHint = interHdr && interHdr.previousElementSibling;
+  // Structure: h3 then p then eClInterList — hide binder-only fields for livres
+  const binderOnly = [];
+  if (maxRow) binderOnly.push(maxRow);
+  const interList = window.$('eClInterList');
+  if (interList) {
+    let el = interList;
+    // hide list + preceding h3/p in the modal
+    binderOnly.push(interList);
+    let prev = interList.previousElementSibling;
+    while (prev && (prev.tagName === 'H3' || prev.tagName === 'P')) {
+      binderOnly.push(prev);
+      prev = prev.previousElementSibling;
+    }
+  }
+  binderOnly.forEach(function (el) {
+    if (el) el.style.display = isLivre ? 'none' : '';
+  });
+
+  const matHint = window.$('eClMatList') && window.$('eClMatList').closest('.fg')
+    && window.$('eClMatList').closest('.fg').querySelector('p');
+  if (matHint) {
+    matHint.textContent = isLivre
+      ? 'Au moins une matière — le livre n’apparaît dans le guidage cartes X que pour ces matières.'
+      : 'Sélectionne les matières pour lesquelles ce classeur apparaît dans le fil d’Ariane. Plusieurs possibles. Aucune = comportement actuel (visible seulement s’il contient déjà des docs de la matière).';
+  }
+
+  if (!isLivre) window.renderEditClInters();
+
   if(window.$('ovEditCl')) window.$('ovEditCl').classList.remove('hidden');
   if (typeof window.hydrateIcons === 'function' && window.$('ovEditCl')) window.hydrateIcons(window.$('ovEditCl'));
 };
@@ -1805,32 +1883,43 @@ window.renderClasseurs = function() {
       </div>
     `;
 
-    if (!window.D.classeurs.length) {
-      g.innerHTML = html + '<div class="empty"><h3>Aucun classeur</h3></div>';
-    } else {
-      html += window.D.classeurs.map(cl => {
-        const isSystem = window.isSystemClasseur(cl.id);
-        const cc = window.D.cours.filter(c => c.cl===cl.id);
-        cc.sort((a,b) => String(a.inter || '').localeCompare(String(b.inter || ''))); 
+    const binders = window.D.classeurs.filter(function (cl) { return cl && !window.isLivreClasseur(cl); });
+    const livres = window.D.classeurs.filter(function (cl) { return cl && window.isLivreClasseur(cl); });
 
-        let editBtns = window.isEditingCl ? `
+    function clCardHtml(cl, opts) {
+      opts = opts || {};
+      const isLivre = !!opts.livre;
+      const isSystem = window.isSystemClasseur(cl.id);
+      const cc = isLivre ? [] : window.D.cours.filter(c => c.cl===cl.id);
+      cc.sort((a,b) => String(a.inter || '').localeCompare(String(b.inter || '')));
+
+      let editBtns = window.isEditingCl ? `
           ${!isSystem ? `<button class="cbt" style="padding:4px 8px; margin-left:10px; background:var(--acc); color:#fff; border:none;" onclick="event.stopPropagation(); window.editClasseur('${cl.id}')">${window.iconLabel('pencil', 'Éditer')}</button>` : ''}
           ${!isSystem ? `<button class="cbt" style="color:var(--red); border-color:var(--red); padding:4px 8px; margin-left:5px;" onclick="event.stopPropagation(); window.delCl('${cl.id}')">${window.iconHtml('x', 14, 'icon-sm')}</button>` : ''}
         ` : '';
 
-        let coursesList = '';
-        if (cc.length) {
-          // 🆕 Groupement par intercalaire pour clarifier l'affichage
-          const groups = {};
-          cc.forEach(c => {
-            const key = c.inter || '00';
-            if (!groups[key]) groups[key] = [];
-            groups[key].push(c);
-          });
-          const sortedKeys = Object.keys(groups).sort();
-          coursesList = sortedKeys.map(k => {
-            const interHeader = window.getInterName(cl, k);
-            const items = groups[k].map(c => `
+      let coursesList = '';
+      if (isLivre) {
+        const ids = window.getClasseurMatIds(cl);
+        const mats = window.D.matieres || [];
+        const labs = ids.map(function (id) {
+          const m = mats.find(function (x) { return x.id === id; });
+          return m ? (m.label || m.name || id) : id;
+        });
+        coursesList = '<div class="irow" style="color:var(--mut); justify-content:center;">Livre de guidage'
+          + (labs.length ? ' · ' + window.escHtml(labs.join(', ')) : ' · <span style="color:var(--red)">aucune matière</span>')
+          + '</div>';
+      } else if (cc.length) {
+        const groups = {};
+        cc.forEach(c => {
+          const key = c.inter || '00';
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(c);
+        });
+        const sortedKeys = Object.keys(groups).sort();
+        coursesList = sortedKeys.map(k => {
+          const interHeader = window.getInterName(cl, k);
+          const items = groups[k].map(c => `
               <div class="irow" onclick="window.doLocate('${window.escHtml(c.uid)}')">
                 <div>
                   <div style="font-size:13px; font-weight:600; color:var(--txt);">${window.escHtml(c.title)}</div>
@@ -1838,32 +1927,45 @@ window.renderClasseurs = function() {
                 </div>
                 <div style="color:var(--acc); font-size:18px;">${window.iconHtml('arrow-right', 18, 'icon-sm')}</div>
               </div>`).join('');
-            return `
+          return `
               <div class="inter-group">
                 <div class="inter-group-hdr" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.22) : (cl.color + '33')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}; border-left:4px solid ${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}; padding:8px 12px; font-family:'DM Mono',monospace; font-weight:bold; font-size:12px; letter-spacing:0.5px; margin-top:4px;">${window.iconHtml('bookmark', 14, 'icon-sm')} ${window.escHtml(interHeader)} <span style="float:right;color:var(--mut);font-weight:normal;">${groups[k].length} doc${groups[k].length>1?'s':''}</span></div>
                 ${items}
               </div>`;
-          }).join('');
-        } else {
-          coursesList = '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
-        }
+        }).join('');
+      } else {
+        coursesList = '<div class="irow" style="color:var(--mut); justify-content:center;">Classeur vide</div>';
+      }
 
-        return `
-          <div class="cl-card">
+      const sub = isLivre
+        ? (function () {
+            const ids = window.getClasseurMatIds(cl);
+            if (!ids.length) return 'guidage · matière manquante';
+            const mats = window.D.matieres || [];
+            const labs = ids.map(function (id) {
+              const m = mats.find(function (x) { return x.id === id; });
+              return m ? (m.label || m.name || id) : id;
+            });
+            return 'guidage · ' + labs.join(', ');
+          })()
+        : (cl.maxInter || 12) + ' inter. max' + (function () {
+            const ids = window.getClasseurMatIds(cl);
+            if (!ids.length) return ' · toutes matières (si docs)';
+            const mats = window.D.matieres || [];
+            const labs = ids.map(function (id) {
+              const m = mats.find(function (x) { return x.id === id; });
+              return m ? (m.label || m.name || id) : id;
+            });
+            return ' · ' + labs.join(', ');
+          })();
+
+      return `
+          <div class="cl-card${isLivre ? ' cl-card--livre' : ''}">
             <div class="cl-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
-              <div class="cl-ico" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.38) : (cl.color + '55')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}">${window.renderClasseurIcon(cl.icon, 22, cl.color)}</div>
+              <div class="cl-ico" style="background:${typeof window.colorWithAlpha === 'function' ? window.colorWithAlpha(cl.color, 0.38) : (cl.color + '55')}; color:${typeof window.intensifyColor === 'function' ? window.intensifyColor(cl.color) : cl.color}">${window.renderClasseurIcon(cl.icon || (isLivre ? 'book' : 'folder'), 22, cl.color)}</div>
               <div class="cl-info" style="flex:1;">
-                <div class="cl-nm">${window.escHtml(cl.name)}${isSystem ? '<span style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : ''}</div>
-                <div class="cl-sb">${cl.maxInter || 12} inter. max${(function () {
-                  const ids = window.getClasseurMatIds(cl);
-                  if (!ids.length) return ' · toutes matières (si docs)';
-                  const mats = window.D.matieres || [];
-                  const labs = ids.map(function (id) {
-                    const m = mats.find(function (x) { return x.id === id; });
-                    return m ? (m.label || m.name || id) : id;
-                  });
-                  return ' · ' + labs.join(', ');
-                })()}</div>
+                <div class="cl-nm">${window.escHtml(cl.name)}${isSystem ? '<span style="font-size:11px;color:var(--mut);margin-left:8px;">(auto)</span>' : ''}${isLivre ? '<span style="font-size:11px;color:var(--acc);margin-left:8px;">Livre</span>' : ''}</div>
+                <div class="cl-sb">${window.escHtml(sub)}</div>
               </div>
               ${editBtns}
               <div style="color:var(--mut); font-size:12px; margin-left:8px;">${window.iconHtml('chevron-down', 12, 'icon-sm')}</div>
@@ -1872,13 +1974,29 @@ window.renderClasseurs = function() {
               ${coursesList}
             </div>
           </div>`;
-      }).join('');
+    }
+
+    html += '<h4 style="font-family:Inter,sans-serif;font-size:13px;margin:0 0 8px;color:var(--acc);">Classeurs</h4>';
+    if (!binders.length) {
+      html += '<div class="empty" style="margin-bottom:16px;"><h3>Aucun classeur</h3></div>';
+    } else {
+      html += binders.map(function (cl) { return clCardHtml(cl, { livre: false }); }).join('');
+    }
+
+    html += '<h4 style="font-family:Inter,sans-serif;font-size:13px;margin:22px 0 8px;color:var(--acc);">Livres</h4>';
+    html += '<p style="font-size:11px;color:var(--mut);margin:0 0 10px;line-height:1.4;">Pour le guidage des cartes X (énoncé / corrigé). Au moins une matière par livre.</p>';
+    if (!livres.length) {
+      html += '<div class="empty" style="margin-bottom:8px;"><h3>Aucun livre</h3></div>';
+    } else {
+      html += livres.map(function (cl) { return clCardHtml(cl, { livre: true }); }).join('');
     }
 
     g.innerHTML = html;
-    
+
     window.renderColorSwatches('swCl', window.newColorCl, 'window.setNewColorCl', 'nClColorPreview');
     window.renderClIconPicker('nClIconPick', window.newIconCl || 'folder', 'window.setNewIconCl', window.newColorCl);
+    window.renderColorSwatches('swLivre', window.newColorLivre || window.newColorCl, 'window.setNewColorLivre', 'nLivreColorPreview');
+    window.renderNewLivreMatPick();
 
   } catch(e) {
     if (typeof window.recordAppError === 'function') {
@@ -1926,7 +2044,7 @@ window.onEditClMatToggle = function (btn) {
 
 window.readEditClMatIds = function () {
   const box = window.$('eClMatList');
-  if (!box) return [];
+  if (!box || typeof box.querySelectorAll !== 'function') return [];
   return Array.from(box.querySelectorAll('.cl-mat-pick-item.is-on'))
     .map(function (el) { return el.getAttribute('data-mat-id'); })
     .filter(Boolean);
@@ -1994,39 +2112,47 @@ window.saveClEdit = function() {
   }
   const cl = window.D.classeurs.find(c => c.id === window.currentEditClId);
   if(!cl) return;
+  const isLivre = window.isLivreClasseur(cl);
+  const matIds = window.readEditClMatIds();
 
-  const newMax = parseInt(window.$('eClMax').value, 10) || 12;
-  const conflict = window.getClMaxInterConflict(cl.id, newMax);
-  if (conflict) {
-    if (window.$('eClMax')) window.$('eClMax').value = String(conflict.maxUsed);
-    return window.sysAlert(
-      `Ce classeur contient ${conflict.count} document(s) à partir de l'intercalaire ` +
-      `<b>${String(conflict.maxUsed).padStart(2, '0')}</b>.<br><br>` +
-      `Déplace ou supprime ces documents avant de réduire le nombre d'intercalaires.`,
-      "Nombre d'intercalaires"
-    );
+  if (isLivre && !matIds.length) {
+    return window.sysAlert('Un livre doit avoir au moins une matière.', 'Livre');
   }
-  
-  cl.name = window.$('eClNm').value.trim() || cl.name;
-  cl.maxInter = newMax;
-  if (window.editClColor) cl.color = window.editClColor;
-  if (window.editClIcon === 'book' || window.editClIcon === 'folder') cl.icon = window.editClIcon;
-  cl.matIds = window.readEditClMatIds();
-  
-  if(!cl.interNames) cl.interNames = {};
-  for(let i=1; i<=cl.maxInter; i++) {
-    const val = String(i).padStart(2, '0');
-    const input = window.$(`eClInter_${val}`);
-    if(input && input.value.trim() !== '') {
-      cl.interNames[val] = input.value.trim();
-    } else {
-      delete cl.interNames[val];
+
+  if (!isLivre) {
+    const newMax = parseInt(window.$('eClMax').value, 10) || 12;
+    const conflict = window.getClMaxInterConflict(cl.id, newMax);
+    if (conflict) {
+      if (window.$('eClMax')) window.$('eClMax').value = String(conflict.maxUsed);
+      return window.sysAlert(
+        `Ce classeur contient ${conflict.count} document(s) à partir de l'intercalaire ` +
+        `<b>${String(conflict.maxUsed).padStart(2, '0')}</b>.<br><br>` +
+        `Déplace ou supprime ces documents avant de réduire le nombre d'intercalaires.`,
+        "Nombre d'intercalaires"
+      );
+    }
+    cl.maxInter = newMax;
+    if(!cl.interNames) cl.interNames = {};
+    for(let i=1; i<=cl.maxInter; i++) {
+      const val = String(i).padStart(2, '0');
+      const input = window.$(`eClInter_${val}`);
+      if(input && input.value.trim() !== '') {
+        cl.interNames[val] = input.value.trim();
+      } else {
+        delete cl.interNames[val];
+      }
     }
   }
-  
-  window.save(); 
+
+  cl.name = window.$('eClNm').value.trim() || cl.name;
+  if (window.editClColor) cl.color = window.editClColor;
+  if (window.editClIcon === 'book' || window.editClIcon === 'folder') cl.icon = window.editClIcon;
+  if (isLivre) cl.icon = 'book';
+  cl.matIds = matIds;
+
+  window.save();
   if(window.$('ovEditCl')) window.$('ovEditCl').classList.add('hidden');
-  window.renderClasseurs(); 
+  window.renderClasseurs();
   window.renderCours();
   if (typeof window.renderDashboard === 'function') window.renderDashboard();
 };
@@ -2057,13 +2183,15 @@ window.renderMatieres = function() {
     let right = '';
     if (isCanon) {
       right =
-        `<button type="button" class="anki-overflow-switch${enabled ? ' is-on' : ''}" ` +
-          `role="switch" aria-checked="${enabled ? 'true' : 'false'}" ` +
-          `title="${enabled ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}" ` +
-          `onclick="window.toggleMatEnabled('${m.id}')">` +
-          `<span class="anki-overflow-switch-track"><span class="anki-overflow-switch-thumb"></span></span>` +
-          `<span class="anki-mut" style="font-size:11px;margin-left:6px;">${enabled ? 'Actif' : 'Inactif'}</span>` +
-        `</button>`;
+        `<span class="mat-enable-ctl">` +
+          `<button type="button" class="anki-overflow-switch${enabled ? ' is-on' : ''}" ` +
+            `role="switch" aria-checked="${enabled ? 'true' : 'false'}" ` +
+            `title="${enabled ? 'Actif — cliquer pour désactiver' : 'Inactif — cliquer pour activer'}" ` +
+            `onclick="window.toggleMatEnabled('${m.id}')">` +
+            `<span class="anki-overflow-switch-track"><span class="anki-overflow-switch-thumb"></span></span>` +
+          `</button>` +
+          `<span class="mat-enable-lbl">${enabled ? 'Actif' : 'Inactif'}</span>` +
+        `</span>`;
       if (window.isEditingMat) {
         right +=
           `<button class="cbt" style="padding:4px 8px; margin-left:8px; background:var(--acc); color:#fff; border:none;" ` +
@@ -2208,24 +2336,116 @@ window.addCl = function() {
     showError(nameInput, "Tu dois donner un nom à ton classeur.");
     return;
   }
-  
+
   const newId = 'CL-' + Math.random().toString(36).substr(2, 5).toUpperCase();
-  
+
   window.D.classeurs.push({
-    id: newId, 
-    name: name, 
-    icon: (window.newIconCl === 'book' ? 'book' : 'folder'), 
-    color: window.newColorCl || (window.COLORS && window.COLORS[0]) || '#ccc', 
-    maxInter: 12, 
+    id: newId,
+    name: name,
+    kind: 'classeur',
+    icon: (window.newIconCl === 'book' ? 'book' : 'folder'),
+    color: window.newColorCl || (window.COLORS && window.COLORS[0]) || '#ccc',
+    maxInter: 12,
     interNames: {}
   });
-  
-  window.save(); 
-  window.renderClasseurs(); 
+
+  window.save();
+  window.renderClasseurs();
   window.renderCours();
-  
+
   nameInput.value = '';
   window.newIconCl = 'folder';
+};
+
+window.newColorLivre = window.COLORS ? window.COLORS[0] : '#5b8df7';
+
+window.setNewColorLivre = function (col) {
+  window.newColorLivre = col;
+  window.renderColorSwatches('swLivre', window.newColorLivre, 'window.setNewColorLivre', 'nLivreColorPreview');
+};
+
+window.renderNewLivreMatPick = function () {
+  const box = window.$('nLivreMatList');
+  if (!box || typeof box.querySelectorAll !== 'function') return;
+  const mats = typeof window.listSelectableMatieres === 'function'
+    ? window.listSelectableMatieres()
+    : ((window.D && window.D.matieres) || []).filter(function (m) {
+      return m && m.id && !m._system && m.id !== window.UNSORTED_MAT_ID;
+    });
+  if (!mats.length) {
+    if (typeof box.innerHTML === 'string' || 'innerHTML' in box) {
+      box.innerHTML = '<p class="anki-mut" style="font-size:12px;margin:0;">Aucune matière active.</p>';
+    }
+    return;
+  }
+  const selected = new Set(
+    Array.from(box.querySelectorAll('.cl-mat-pick-item.is-on'))
+      .map(function (el) { return el.getAttribute('data-mat-id'); })
+      .filter(Boolean)
+  );
+  box.innerHTML = mats.map(function (m) {
+    const on = selected.has(m.id);
+    const col = m.color || '#6a6a88';
+    return (
+      `<button type="button" class="cl-mat-pick-item${on ? ' is-on' : ''}" data-mat-id="${window.escHtml(m.id)}" ` +
+        `aria-pressed="${on ? 'true' : 'false'}" onclick="window.onEditClMatToggle(this)" title="${window.escHtml(m.name || m.label || m.id)}">` +
+        `<span class="cl-mat-pick-swatch" style="background:${window.escHtml(col)}"></span>` +
+        `<span class="cl-mat-pick-lbl">` +
+          `<span class="cl-mat-pick-title">${window.escHtml(m.label || m.id)}</span>` +
+          (m.name ? `<span class="cl-mat-pick-hint">${window.escHtml(m.name)}</span>` : '') +
+        `</span>` +
+      `</button>`
+    );
+  }).join('');
+};
+
+window.addLivre = function () {
+  if (typeof window.refuseSecondaryFullMutation === 'function'
+      && window.refuseSecondaryFullMutation('Appareil secondaire : modification des classeurs indisponible.')) {
+    return;
+  }
+  const nameInput = window.$('nLivreNm');
+  if (!nameInput) return;
+  const name = nameInput.value.trim();
+  const showError = typeof window.showInlineError === 'function'
+    ? window.showInlineError
+    : function () {};
+  if (!name) {
+    showError(nameInput, 'Donne un nom au livre.');
+    return;
+  }
+  const box = window.$('nLivreMatList');
+  const matIds = (box && typeof box.querySelectorAll === 'function')
+    ? Array.from(box.querySelectorAll('.cl-mat-pick-item.is-on'))
+        .map(function (el) { return el.getAttribute('data-mat-id'); })
+        .filter(Boolean)
+    : [];
+  if (!matIds.length) {
+    if (typeof window.sysAlert === 'function') {
+      window.sysAlert('Choisis au moins une matière pour ce livre.', 'Livre');
+    }
+    return;
+  }
+  const newId = 'LV-' + Math.random().toString(36).substr(2, 5).toUpperCase();
+  window.D.classeurs.push({
+    id: newId,
+    name: name,
+    kind: 'livre',
+    icon: 'book',
+    color: window.newColorLivre || (window.COLORS && window.COLORS[0]) || '#5b8df7',
+    matIds: matIds,
+    maxInter: 0,
+    interNames: {}
+  });
+  window.save();
+  nameInput.value = '';
+  if (box && typeof box.querySelectorAll === 'function') {
+    box.querySelectorAll('.cl-mat-pick-item.is-on').forEach(function (el) {
+      el.classList.remove('is-on');
+      el.setAttribute('aria-pressed', 'false');
+    });
+  }
+  window.renderClasseurs();
 };
 
 window.delMat = function(id) {
@@ -2276,8 +2496,10 @@ window.delCl = function(id) {
     return;
   }
   if (window.isSystemClasseur(id)) return;
+  const cl = (window.D.classeurs || []).find(function (c) { return c.id === id; });
+  const isLivre = window.isLivreClasseur(cl);
 
-  const count = window.D.cours.filter(c => c.cl === id).length;
+  const count = isLivre ? 0 : window.D.cours.filter(c => c.cl === id).length;
   const doDel = () => {
     if (count) window.moveCoursClToUnsorted(id);
     window.D.classeurs = window.D.classeurs.filter(c => c.id !== id);
@@ -2293,6 +2515,12 @@ window.delCl = function(id) {
       `Ce classeur contient ${count} document(s). Ils seront déplacés dans « Non classé » — tu pourras les reclasser dans l'onglet <b>À ranger</b>.`,
       doDel,
       "Suppression d'un classeur"
+    );
+  } else if (isLivre) {
+    window.sysConfirm(
+      'Supprimer ce livre du catalogue ? Les cartes qui le citaient en texte libre gardent leur nom.',
+      doDel,
+      'Suppression d’un livre'
     );
   } else {
     doDel();

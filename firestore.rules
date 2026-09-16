@@ -17,6 +17,24 @@ service cloud.firestore {
         );
     }
 
+    function isPackCreator() {
+      return request.auth != null
+        && resource.data.keys().hasAll(['createdBy'])
+        && resource.data.createdBy.uid == request.auth.uid;
+    }
+
+    function packDoc() {
+      return get(/databases/$(database)/documents/sharedPacks/$(packId)).data;
+    }
+
+    function canWritePackVersions() {
+      return request.auth != null
+        && (
+          !packDoc().keys().hasAll(['createdBy'])
+          || packDoc().createdBy.uid == request.auth.uid
+        );
+    }
+
     match /utilisateurs/{userId} {
       allow read, write: if isOwner(userId);
 
@@ -25,17 +43,19 @@ service cloud.firestore {
       }
     }
 
-    // Catalogue public de packs Rapide (contenu sans SRS) — tout compte Google
+    // Catalogue public de packs Rapide (contenu sans SRS)
+    // Lecture : tout compte Google. Écriture / versions : créateur du pack
+    // (legacy sans createdBy : tout compte auth).
     match /sharedPacks/{packId} {
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null;
-      allow delete: if request.auth != null
-        && resource.data.createdBy.uid == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.createdBy.uid == request.auth.uid;
+      allow update, delete: if isPackCreator()
+        || (request.auth != null && !resource.data.keys().hasAll(['createdBy']));
 
       match /versions/{versionId} {
         allow read: if request.auth != null;
-        allow create, update: if request.auth != null;
-        allow delete: if request.auth != null;
+        allow create, update, delete: if canWritePackVersions();
       }
     }
   }

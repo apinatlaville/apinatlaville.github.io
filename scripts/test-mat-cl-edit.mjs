@@ -131,5 +131,18 @@ assert(cl.id === 'CL-ABC12', 'id classeur inchangé');
 assert(env.D.cours.every((c) => c.cl === 'CL-ABC12' || c.cl !== 'CL-ABC12'), 'liens cours.cl stables');
 assert(env.D.cours.filter((c) => c.cl === 'CL-ABC12').length === 2, '2 cours toujours sur le même id classeur');
 
+// Livres (guidage) : exclus des binders, filtrés par matière
+assert(typeof env.isLivreClasseur === 'function', 'isLivreClasseur exposé');
+assert(typeof env.listLivresForMat === 'function', 'listLivresForMat exposé');
+env.D.classeurs.push({
+  id: 'LV-TEST1', name: 'HPrépa MP', kind: 'livre', icon: 'book',
+  color: '#5b8df7', matIds: ['PHYS'], maxInter: 0, interNames: {}
+});
+assert(env.isLivreClasseur(env.D.classeurs.find((c) => c.id === 'LV-TEST1')), 'LV-TEST1 est un livre');
+assert(env.listBinderClasseurs().every((c) => c.id !== 'LV-TEST1'), 'livre exclu des binders');
+assert(env.listLivresForMat('PHYS').some((l) => l.id === 'LV-TEST1'), 'livre listé pour PHYS');
+assert(env.listLivresForMat('MATH').every((l) => l.id !== 'LV-TEST1'), 'livre absent pour MATH');
+assert(env.classeurVisibleForMat(env.D.classeurs.find((c) => c.id === 'LV-TEST1'), 'PHYS', 0) === false, 'livre hors Ariane docs');
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
