@@ -28,10 +28,12 @@ window.BACKDROP_BLUR_LEVELS = [
 window.D = null; 
 window.appReady = false;
 window.cloudConnected = false; 
-window.sysAlert = function(msg, title) {
+window.sysAlert = function(msg, title, opts) {
   if (title == null) title = 'Information';
   if (msg == null) msg = '';
   msg = String(msg);
+  opts = opts && typeof opts === 'object' ? opts : {};
+  window._sysDialogSticky = !!opts.sticky;
   if(window.$('sysDialogTitle')) window.$('sysDialogTitle').textContent = title;
   if(window.$('sysDialogMsg')) window.$('sysDialogMsg').innerHTML = msg.replace(/\n/g, '<br>');
   if(window.$('sysDialogActs')) {
@@ -106,6 +108,7 @@ window.sysConfirmChoices = function (msg, choices, title, onChoice) {
 };
 
 window.closeSysDialog = function() {
+  window._sysDialogSticky = false;
   if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.add('hidden');
 };
 
@@ -466,7 +469,10 @@ document.addEventListener('click', function(e) {
       }
       else if (ov.id === 'ovPrintConfirm') window.closePrintConfirm();
       else if (ov.id === 'ovEditCl') ov.classList.add('hidden');
-      else if (ov.id === 'ovSysDialog') window.closeSysDialog(); 
+      else if (ov.id === 'ovSysDialog') {
+        /* Sticky = bilan session : pas de fermeture accidentelle au clic fond */
+        if (!window._sysDialogSticky) window.closeSysDialog();
+      } 
       else if (ov.id === 'ovMove') ov.classList.add('hidden');
       else if (ov.id === 'ovExo' || ov.id === 'ovDevoir') ov.classList.add('hidden');
       /* ovQuickCreate / ovQuickLatex : pas de fermeture au clic extérieur (évite de perdre la saisie) */
@@ -1069,6 +1075,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'test': break;
     case 'latexTest': if (typeof window.renderLatexTest === 'function') window.renderLatexTest(); break;
     case 'cardCreateX': if (typeof window.renderCardCreateXLab === 'function') window.renderCardCreateXLab(); break;
+    case 'cardCreateY': if (typeof window.renderCardCreateYLab === 'function') window.renderCardCreateYLab(); break;
     case 'latexShortcuts': if (typeof window.renderLatexShortcutsHelp === 'function') window.renderLatexShortcutsHelp(); break;
     case 'quickLatex': if (typeof window.renderQuickLatexCard === 'function') window.renderQuickLatexCard(); break;
     default: break;
@@ -1136,7 +1143,7 @@ window.switchTab = function(tab, overrideResetFilters = false) {
 
   var prep = [];
   if (typeof window.ensureScriptsForTab === 'function') prep.push(window.ensureScriptsForTab(tab));
-  if (['cours', 'notes', 'settings', 'ankiV2', 'cardCreateX'].indexOf(tab) >= 0 && typeof window.ensureFormLibs === 'function') {
+  if (['cours', 'notes', 'settings', 'ankiV2', 'cardCreateX', 'cardCreateY'].indexOf(tab) >= 0 && typeof window.ensureFormLibs === 'function') {
     prep.push(window.ensureFormLibs());
   }
   if (prep.length) Promise.all(prep).then(runTabShowNow);

@@ -1000,16 +1000,27 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   justify-content: space-between;
   gap: 12px;
 }
+.qk-group-head .cours-bc-level-title {
+  margin: 0;
+  line-height: 1.2;
+  padding-top: 8px; /* aligne le nom avec le bouton paramètres */
+}
 .qk-group-head-main {
   flex: 1 1 auto;
   min-width: 0;
 }
 .qk-group-head-actions {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
   flex: 0 0 auto;
+}
+.qk-group-head-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 .qk-group-subline {
   display: flex;
@@ -1049,36 +1060,9 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   height: 18px;
   flex-shrink: 0;
 }
-.qk-group-cloud-status {
-  flex: 0 0 auto;
-  display: inline-flex !important;
-  align-items: center;
-  gap: 8px;
+.qk-group-head-corner .qk-share-dots {
   margin: 0;
-  padding: 8px 12px !important;
-  font-size: 12px !important;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-  border-radius: 10px;
-  border: 1px solid var(--bd);
-  background: var(--s2);
-  color: var(--txt);
-  cursor: pointer;
-}
-.qk-group-cloud-status:hover {
-  border-color: var(--acc);
-  background: rgba(91, 157, 255, 0.1);
-}
-.qk-group-cloud-status .qk-share-dots {
-  pointer-events: none;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-}
-.qk-group-cloud-status-lbl {
-  font-size: 12px;
+  padding: 2px 4px;
 }
 .cours-bc-grid {
   display: grid;
@@ -1104,26 +1088,38 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   border-color: var(--mat-color, var(--acc));
   background: rgba(255, 255, 255, 0.04);
 }
-.cours-bc-tile-name { font-size: 14px; font-weight: 600; }
+.cours-bc-tile-name { font-size: 14px; font-weight: 600; line-height: 1.25; }
 .cours-bc-tile-meta { font-size: 11px; color: var(--mut); }
 .cours-bc-tile-wrap {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0;
   min-width: 0;
 }
 .cours-bc-tile-wrap .cours-bc-tile {
   flex: 1 1 auto;
   width: 100%;
-  padding-right: 52px;
-  padding-top: 36px;
+  padding-right: 48px;
+  padding-top: 14px;
+  min-height: 88px;
 }
-.cours-bc-tile-gear {
+.cours-bc-tile-top {
+  display: block;
+  padding-right: 2px;
+}
+.cours-bc-tile-corner {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.cours-bc-tile-gear {
+  position: static;
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
@@ -1140,13 +1136,22 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   width: 16px;
   height: 16px;
 }
+.cours-bc-tile-cloud {
+  display: flex;
+  justify-content: center;
+  line-height: 0;
+}
+.cours-bc-tile-cloud .qk-share-dots {
+  margin: 0;
+  padding: 2px 4px;
+}
 .cours-bc-tile-gear-lbl {
   font-size: 11px;
   line-height: 1;
 }
 @media (max-width: 520px) {
   .cours-bc-tile-gear-lbl { display: none; }
-  .cours-bc-tile-wrap .cours-bc-tile { padding-top: 14px; padding-right: 42px; }
+  .cours-bc-tile-wrap .cours-bc-tile { padding-right: 44px; }
 }
 .cours-bc-tile-sel {
   width: 100%;
@@ -2854,16 +2859,6 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  padding: 7px 10px !important;
  white-space: nowrap;
 }
-.anki-sess-restart-wrap {
- width: 100%;
- display: flex;
- justify-content: center;
- margin-top: 2px;
-}
-.anki-sess-restart {
- font-size: 12px !important;
- padding: 8px 14px !important;
-}
 .anki-quit { padding: 4px 10px; font-size: 11px; border-color: var(--red); color: var(--red); }
 
 /* Modal édition exo */
@@ -3404,7 +3399,7 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   .qk-drill-opts--toolbar { width: 100%; }
 }
 .quick-group-section { margin-bottom: 18px; }
-.quick-group-section .cours-bc-grid { margin-top: 0; }
+.quick-group-section .cours-bc-grid { margin-top: 10px; }
 .quick-group-section--orphan { margin-top: 8px; }
 .qk-groups-modal {
   max-width: 540px;
@@ -3657,12 +3652,14 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .qk-actions { display: flex; gap: 4px; }
 
 .qk-drill-modal {
-  max-width: 520px;
-  width: min(520px, 100%);
-  padding: 20px 20px 18px;
+  max-width: min(920px, 96vw);
+  width: min(920px, 96vw);
+  min-height: min(68vh, 640px);
+  padding: 24px 28px 22px;
   position: relative;
   overflow: hidden;
   transition: box-shadow 0.25s ease, background 0.25s ease;
+  box-sizing: border-box;
 }
 .qk-drill-modal.is-ok-flash {
   background: color-mix(in srgb, var(--grn) 14%, var(--s1));
@@ -3860,9 +3857,12 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   background: var(--s2);
   border: 1px solid var(--bd);
   border-radius: 14px;
-  padding: 16px 14px;
+  padding: 20px 18px;
   margin-bottom: 12px;
-  min-height: 88px;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .qk-drill-face-lbl {
   font-size: 10px;
@@ -3871,14 +3871,31 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   text-transform: uppercase;
   color: var(--mut);
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 .qk-drill-prompt {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.35;
   text-align: center;
   color: var(--txt);
   word-break: break-word;
-  white-space: pre-wrap;
+  overflow: hidden;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  display: block;
+}
+.qk-drill-prompt .latex-lab-preview-math {
+  display: block;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.qk-drill-prompt .latex-lab-preview-math.is-fitted {
+  overflow: visible;
 }
 .qk-drill-type {
   display: flex;
@@ -4021,12 +4038,29 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   flex: 1 1 auto;
   max-width: 420px;
 }
-@media (max-width: 520px) {
-  .qk-drill-modal {
-    padding: 16px 14px 14px;
-    max-height: min(92vh, 100dvh);
+@media (max-width: 720px) {
+  #ovQuickDrill.ov {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  #ovQuickDrill .qk-drill-modal {
+    width: 100%;
+    max-width: none;
+    min-height: 100dvh;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+  }
+  #ovQuickDrill .qk-drill-card {
+    flex: 1 1 auto;
+    min-height: 180px;
   }
   .qk-drill-prompt { font-size: 18px; }
   .qk-drill-juste-word { font-size: 28px; }
@@ -4059,6 +4093,13 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   .quick-drill-bar .bp {
     width: 100%;
     min-height: 44px;
+  }
+}
+@media (min-width: 721px) and (max-width: 960px) {
+  .qk-drill-modal {
+    max-width: min(780px, 94vw);
+    width: min(780px, 94vw);
+    min-height: min(62vh, 560px);
   }
 }
 .qk-drill-acts-col { flex-direction: column; align-items: stretch; }
@@ -5428,11 +5469,50 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
 .anki-search-input:focus { outline: none; border-color: var(--acc); }
 
 /* Stats */
+.anki-stat-intro {
+  font-size: 12px;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+.anki-stat-kind-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 900px) {
+  .anki-stat-kind-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+}
+.anki-stat-kind-pane {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--bd);
+  background: rgba(255, 255, 255, 0.02);
+}
+.anki-stat-kind-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
 .anki-stat-hero {
  text-align: center;
  padding: 18px 0 8px;
  border-bottom: 1px solid var(--bd);
  margin-bottom: 14px;
+}
+.anki-stat-hero--compact {
+  padding: 8px 0 6px;
+  margin-bottom: 10px;
+}
+.anki-stat-hero--compact .anki-stat-note {
+  font-size: 42px;
 }
 .anki-stat-note { font-family: 'Inter'; font-size: 64px; font-weight: 800; line-height: 1; }
 .anki-stat-bars { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
@@ -5795,6 +5875,108 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
     align-items: start;
   }
 }
+
+/* Labo création carte Y — silhouette carte, recto|verso desktop */
+.ylab-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+.ylab-intro h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.ylab-intro p {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.ylab-card {
+  border: 1px solid var(--bd);
+  border-radius: 16px;
+  background: var(--s1);
+  padding: 16px 18px 18px;
+  box-sizing: border-box;
+}
+.ylab-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ylab-mat-chip { pointer-events: none; }
+.ylab-stars-inline {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+}
+.ylab-stars-inline .anki-star-hint { display: none; }
+.ylab-faces {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ylab-face {
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  background: var(--s2);
+  padding: 12px 14px;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+}
+.ylab-face-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--mut);
+  margin-bottom: 8px;
+}
+.ylab-face-input {
+  flex: 1 1 auto;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  color: var(--txt);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+  min-height: 120px;
+}
+.ylab-face-input::placeholder { color: var(--mut); opacity: 0.7; }
+.ylab-meta {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ylab-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (min-width: 860px) {
+  .ylab-faces {
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .ylab-face {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 220px;
+  }
+  .ylab-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .anki-modal-row .fg-importance {
  flex: 1.15;
 }

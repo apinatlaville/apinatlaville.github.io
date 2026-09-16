@@ -417,29 +417,63 @@
   function fitQuickCardFaces(root) {
     var host = root || document.getElementById('qkSections') || document;
     if (!host) return;
-    host.querySelectorAll('.qk-q, .qk-r').forEach(function (el) {
+    var targets = host.querySelectorAll('.qk-q, .qk-r, .qk-drill-prompt');
+    targets.forEach(function (el) {
       el.style.fontSize = '';
       el.querySelectorAll('.latex-lab-preview-math').forEach(function (m) {
         m.style.fontSize = '';
+        m.style.transform = '';
+        m.style.height = '';
+        m.style.width = '';
+        m.style.maxWidth = '';
+        m.style.marginLeft = '';
+        m.style.marginRight = '';
+        m.classList.remove('is-fitted');
       });
       var base = parseFloat(window.getComputedStyle(el).fontSize) || 15;
       var size = base;
-      var min = 10;
+      var min = el.classList.contains('qk-drill-prompt') ? 11 : 10;
       el.style.fontSize = size + 'px';
       /* MathLive en rem absolu sinon : forcer em pour suivre le parent */
       el.querySelectorAll('.latex-lab-preview-math').forEach(function (m) {
         m.style.fontSize = '1.05em';
       });
       var guard = 0;
-      while (guard < 28 && size > min && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
+      while (guard < 40 && size > min && (el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2)) {
         size -= 0.5;
         el.style.fontSize = size + 'px';
         guard++;
       }
     });
+    /* Scale LaTeX boxes only when they still overflow horizontally */
+    if (typeof window.fitLatexPreviewMath === 'function') {
+      window.fitLatexPreviewMath(host);
+    }
   }
 
   window.fitQuickCardFaces = fitQuickCardFaces;
+
+  function hydrateDrillFaces(root) {
+    var host = root || document.getElementById('qkDrillRoot');
+    if (!host) return;
+    var runFit = function () { fitQuickCardFaces(host); };
+    var needsMath = !!host.querySelector('.latex-lab-preview-math, .qk-drill-prompt');
+    var chain = Promise.resolve();
+    if (needsMath && typeof window.ensureScriptsForTab === 'function') {
+      chain = window.ensureScriptsForTab('quickLatex').then(function () {
+        if (typeof window.ensureMathLive === 'function') return window.ensureMathLive();
+      });
+    }
+    chain.then(function () {
+      runFit();
+      if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
+        document.fonts.ready.then(runFit).catch(function () {});
+      }
+      setTimeout(runFit, 60);
+      setTimeout(runFit, 200);
+      setTimeout(runFit, 500);
+    }).catch(function () { runFit(); });
+  }
 
   /** Re-rendu des faces LaTeX une fois MathLive + formatCardFaceHtml prêts */
   window.hydrateQuickCardFaces = function (root) {
@@ -1087,12 +1121,15 @@
           return (
             `<div class="cours-bc-tile-wrap" style="--mat-color:${esc(g.color || m.color)}">` +
               `<button type="button" class="cours-bc-tile" onclick="window.quickArianePickGroup('${jsStr(g.id)}')">` +
-                `<span class="cours-bc-tile-name">${esc(g.name)}${dots}</span>` +
+                `<span class="cours-bc-tile-top"><span class="cours-bc-tile-name">${esc(g.name)}</span></span>` +
                 `<span class="cours-bc-tile-meta">${stats.total} carte${stats.total > 1 ? 's' : ''}</span>` +
               `</button>` +
-              `<button type="button" class="bs cours-bc-tile-gear" title="Paramètres du dossier" ` +
-                `aria-label="Paramètres du dossier" onclick="event.stopPropagation();window.quickEditGroup('${jsStr(g.id)}')">` +
-                `${gear}</button>` +
+              `<div class="cours-bc-tile-corner">` +
+                `<button type="button" class="bs cours-bc-tile-gear" title="Paramètres du dossier" ` +
+                  `aria-label="Paramètres du dossier" onclick="event.stopPropagation();window.quickEditGroup('${jsStr(g.id)}')">` +
+                  `${gear}</button>` +
+                (dots ? `<div class="cours-bc-tile-cloud">${dots}</div>` : '') +
+              `</div>` +
             `</div>`
           );
         }).join('');
@@ -1167,14 +1204,7 @@
           `</button>`
       : '';
     const st = shareStateFromGroup(g);
-    const dots = shareDotsHtml(st, Q.nav.group, { plain: true });
-    const cloudBtn = (st.linked && dots)
-      ? `<button type="button" class="bs qk-group-cloud-status" title="État du partage cloud" ` +
-          `aria-label="Statut cloud" onclick="window.quickToggleShareBanner('${jsStr(Q.nav.group)}')">` +
-          `<span class="qk-group-cloud-status-lbl">Statut cloud</span>` +
-          dots +
-          `</button>`
-      : '';
+    const dots = shareDotsHtml(st, Q.nav.group, { compact: true });
     const banner = shareBannerHtml(Q.nav.group);
     if (st.linked) {
       const c = Q.shareStateCache[Q.nav.group];
@@ -1194,10 +1224,12 @@
             (st.linked ? ` · <code style="font-size:10px;">${esc(st.packId)}</code> v${esc(String(st.installedVersion || '?'))}` : '') +
           `</p>` +
         '</div>' +
-        '<div class="qk-group-head-actions">' +
-          cloudBtn +
-          (gearBtn || '') +
-        '</div>' +
+        ((gearBtn || dots)
+          ? ('<div class="qk-group-head-actions"><div class="qk-group-head-corner">' +
+              (gearBtn || '') +
+              (dots || '') +
+            '</div></div>')
+          : '') +
       '</div>' +
       renderBucketBody(split, null)
     );
@@ -2107,6 +2139,7 @@
     if (DRILL.check && DRILL.check.flash === 'mid') root.classList.add('is-mid-flash');
     if (DRILL.check && DRILL.check.flash === 'bad') root.classList.add('is-bad-flash');
     if (window.hydrateIcons) window.hydrateIcons(root);
+    hydrateDrillFaces(root);
     const inp = document.getElementById('qkDrillInput');
     if (inp) {
       inp.focus();

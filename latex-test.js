@@ -1181,19 +1181,29 @@
     });
     /* Mesure après reset (frame suivante si besoin) */
     requestAnimationFrame(function () {
-      boxes.forEach(function (box) {
-        var host = box.closest('.latex-lab-preview-wrap') || box.parentElement;
-        var avail = host ? host.clientWidth : 0;
-        if (avail <= 8) return;
-        avail -= 8;
-        var need = Math.max(box.scrollWidth, box.offsetWidth);
-        if (need <= avail + 1) return;
-        var s = Math.max(0.5, avail / need);
-        var naturalH = box.offsetHeight;
-        box.style.transformOrigin = 'top center';
-        box.style.transform = 'scale(' + s + ')';
-        box.style.height = (naturalH * s) + 'px';
-        box.classList.add('is-fitted');
+      requestAnimationFrame(function () {
+        boxes.forEach(function (box) {
+          var host = box.closest('.latex-lab-preview-wrap')
+            || box.closest('.qk-drill-prompt')
+            || box.closest('.qk-q, .qk-r, .anki-card-q, .anki-card-a')
+            || box.parentElement;
+          var avail = host ? host.clientWidth : 0;
+          if (avail <= 8) return;
+          avail -= 4;
+          var need = Math.max(box.scrollWidth, box.offsetWidth, box.getBoundingClientRect().width);
+          if (need <= avail + 1) return;
+          var minScale = box.closest('.qk-drill-prompt') ? 0.28 : 0.5;
+          var s = Math.max(minScale, avail / need);
+          var naturalH = box.offsetHeight;
+          box.style.transformOrigin = 'top center';
+          box.style.transform = 'scale(' + s + ')';
+          box.style.height = (naturalH * s) + 'px';
+          box.style.width = (need * s) + 'px';
+          box.style.maxWidth = '100%';
+          box.style.marginLeft = 'auto';
+          box.style.marginRight = 'auto';
+          box.classList.add('is-fitted');
+        });
       });
     });
   }

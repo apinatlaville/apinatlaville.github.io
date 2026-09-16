@@ -2937,61 +2937,48 @@
   }
 
   // ====== VUE STATS ======
-  function viewStats() {
-    const today = window.AnkiAlgoV2.todayISO();
-    const exos = ankAllCards();
-    // Filtre des évaluations d'aujourd'hui
+  function statsTodayBundle(cards, today) {
     const todayEvals = [];
-    exos.forEach(c => {
+    (cards || []).forEach(c => {
       (c.historique || []).forEach(h => {
-        if (h.date && h.date.substring(0, 10) === today) {
-          todayEvals.push({ card: c, h });
-        }
+        if (h.date && h.date.substring(0, 10) === today) todayEvals.push({ card: c, h });
       });
     });
     const nOk = todayEvals.filter(e => e.h.qScore >= 8).length;
     const nMid = todayEvals.filter(e => e.h.qScore >= 4 && e.h.qScore < 8).length;
     const nBad = todayEvals.filter(e => e.h.qScore < 4).length;
     const total = todayEvals.length;
-
-    // Temps réel total
     const tempsReel = todayEvals.reduce((s, e) => s + (e.h.tempsReel || 0), 0);
-    // Temps prévu total (somme des tempsCible des cartes faites)
     const tempsPrevu = todayEvals.reduce((s, e) => s + (e.card.tempsCible || 0), 0);
-
-    // Note d'efficacité : 0-100
-    // Facteur exactitude : moyenne des qScore (0-10) → /10
     const moyQ = total ? todayEvals.reduce((s, e) => s + (e.h.qScore || 0), 0) / total : 0;
-    const factExact = moyQ / 10; // 0-1
-    // Facteur vitesse : tempsPrevu/tempsReel (cap 1.2)
+    const factExact = moyQ / 10;
     const factVit = tempsPrevu && tempsReel ? Math.min(1.2, tempsPrevu / tempsReel) : 1;
-    // Facteur volume : min(1, total / 10) (10 cartes = volume idéal)
     const factVol = total ? Math.min(1, total / 10) : 0;
-    // Note finale : exactitude pondère 50%, vitesse 25%, volume 25%
     const note = Math.round((factExact * 0.5 + (factVit / 1.2) * 0.25 + factVol * 0.25) * 100);
     const noteColor = note >= 75 ? 'var(--grn)' : note >= 50 ? 'var(--gold)' : 'var(--red)';
+    return { nOk, nMid, nBad, total, tempsReel, tempsPrevu, moyQ, factExact, factVit, factVol, note, noteColor };
+  }
 
-    // Stats par matière (7 derniers jours)
-    const week = Array.from({ length: 7 }, (_, i) => window.AnkiAlgoV2.addDays(today, -6 + i));
+  function statsWeekByDay(cards, week) {
     const byDay = {};
-    week.forEach(d => byDay[d] = { ok: 0, mid: 0, bad: 0, total: 0, sumQ: 0 });
-    exos.forEach(c => {
+    week.forEach(d => { byDay[d] = { ok: 0, mid: 0, bad: 0, total: 0, sumQ: 0 }; });
+    (cards || []).forEach(c => {
       (c.historique || []).forEach(h => {
         const d = h.date && h.date.substring(0, 10);
-        if (byDay[d]) {
-          byDay[d].total++;
-          byDay[d].sumQ += (h.qScore || 0);
-          if ((h.qScore || 0) >= 8) byDay[d].ok++;
-          else if ((h.qScore || 0) >= 4) byDay[d].mid++;
-          else byDay[d].bad++;
-        }
+        if (!byDay[d]) return;
+        byDay[d].total++;
+        byDay[d].sumQ += (h.qScore || 0);
+        if ((h.qScore || 0) >= 8) byDay[d].ok++;
+        else if ((h.qScore || 0) >= 4) byDay[d].mid++;
+        else byDay[d].bad++;
       });
     });
-    const maxDay = Math.max(1, ...week.map(d => byDay[d].total));
+    return byDay;
+  }
 
-    // Stats par matière (depuis le début)
+  function statsByMat(cards) {
     const matStats = {};
-    exos.forEach(c => {
+    (cards || []).forEach(c => {
       const k = c.mat || '?';
       if (!matStats[k]) matStats[k] = { total: 0, ok: 0, bad: 0, easeSum: 0, easeN: 0, cards: 0 };
       matStats[k].cards++;
@@ -3003,73 +2990,192 @@
         if ((h.qScore || 0) < 4) matStats[k].bad++;
       });
     });
+    return matStats;
+  }
 
+  function statsByStars(cards) {
+    const by = {};
+    for (let i = 1; i <= 5; i++) by[i] = { cards: 0, actif: 0, reservoir: 0, total: 0, ok: 0, bad: 0, easeSum: 0, easeN: 0 };
+    (cards || []).forEach(c => {
+      const imp = window.AnkiAlgoV2.getImportance(c);
+      const bucket = by[imp] || by[3];
+      bucket.cards++;
+      if (c.statut === 'actif') bucket.actif++;
+      else bucket.reservoir++;
+      bucket.easeSum += c.ease || 2.5;
+      bucket.easeN++;
+      (c.historique || []).forEach(h => {
+        bucket.total++;
+        if ((h.qScore || 0) >= 8) bucket.ok++;
+        if ((h.qScore || 0) < 4) bucket.bad++;
+      });
+    });
+    return by;
+  }
+
+  function renderTodayEfficacyBlock(titleHtml, b, emptyHint) {
     return `
-      <div class="anki-card-block">
-        <h3>${window.iconLabel('bar-chart', 'Efficacité de la session du jour')}</h3>
-        <div class="anki-stat-hero">
-          <div class="anki-stat-note" style="color:${noteColor};">${total ? note + '/100' : '—'}</div>
-          <div class="anki-mut">${total ? "Note d&apos;efficacité" : "Aucune carte révisée aujourd&apos;hui"}</div>
+      <div class="anki-stat-kind-pane">
+        <h4 class="anki-stat-kind-title">${titleHtml}</h4>
+        <div class="anki-stat-hero anki-stat-hero--compact">
+          <div class="anki-stat-note" style="color:${b.noteColor};">${b.total ? b.note + '/100' : '—'}</div>
+          <div class="anki-mut">${b.total ? "Note d&apos;efficacité" : (emptyHint || "Aucune révision aujourd&apos;hui")}</div>
         </div>
         <div class="anki-stat-bars">
           <div class="anki-stat-bar-row">
             <span class="anki-stat-lbl">Exactitude</span>
-            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${factExact * 100}%;background:var(--grn);"></div></div>
-            <span class="anki-stat-val">${(factExact * 100).toFixed(0)}%</span>
+            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${b.factExact * 100}%;background:var(--grn);"></div></div>
+            <span class="anki-stat-val">${(b.factExact * 100).toFixed(0)}%</span>
           </div>
           <div class="anki-stat-bar-row">
             <span class="anki-stat-lbl">Vitesse</span>
-            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${Math.min(100, (factVit / 1.2) * 100)}%;background:var(--acc);"></div></div>
-            <span class="anki-stat-val">${(factVit * 100).toFixed(0)}%</span>
+            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${Math.min(100, (b.factVit / 1.2) * 100)}%;background:var(--acc);"></div></div>
+            <span class="anki-stat-val">${(b.factVit * 100).toFixed(0)}%</span>
           </div>
           <div class="anki-stat-bar-row">
             <span class="anki-stat-lbl">Volume</span>
-            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${factVol * 100}%;background:var(--gold);"></div></div>
-            <span class="anki-stat-val">${total}/10</span>
+            <div class="anki-stat-bar-bg"><div class="anki-stat-bar-fill" style="width:${b.factVol * 100}%;background:var(--gold);"></div></div>
+            <span class="anki-stat-val">${b.total}/10</span>
           </div>
         </div>
         <div class="anki-stat-grid">
-          <div class="kpi"><div class="kpi-n" style="color:var(--grn);">${nOk}</div><div class="kpi-l">Parfait ≥8</div></div>
-          <div class="kpi"><div class="kpi-n" style="color:var(--gold);">${nMid}</div><div class="kpi-l">Étourderie 4-7</div></div>
-          <div class="kpi"><div class="kpi-n" style="color:var(--red);">${nBad}</div><div class="kpi-l">Blocage &lt;4</div></div>
-          <div class="kpi"><div class="kpi-n">${window.AnkiAlgoV2.fmtDur(tempsReel)}</div><div class="kpi-l">Temps réel</div></div>
-          <div class="kpi"><div class="kpi-n anki-mut">${window.AnkiAlgoV2.fmtDur(tempsPrevu)}</div><div class="kpi-l">Temps prévu</div></div>
+          <div class="kpi"><div class="kpi-n" style="color:var(--grn);">${b.nOk}</div><div class="kpi-l">Parfait ≥8</div></div>
+          <div class="kpi"><div class="kpi-n" style="color:var(--gold);">${b.nMid}</div><div class="kpi-l">Étourderie 4-7</div></div>
+          <div class="kpi"><div class="kpi-n" style="color:var(--red);">${b.nBad}</div><div class="kpi-l">Blocage &lt;4</div></div>
+          <div class="kpi"><div class="kpi-n">${window.AnkiAlgoV2.fmtDur(b.tempsReel)}</div><div class="kpi-l">Temps réel</div></div>
+          <div class="kpi"><div class="kpi-n anki-mut">${window.AnkiAlgoV2.fmtDur(b.tempsPrevu)}</div><div class="kpi-l">Temps prévu</div></div>
         </div>
         <details class="anki-stat-details">
-          <summary class="anki-mut" style="cursor:pointer;font-size:12px;">${window.iconLabel('scale', 'Comment la note est calculée')}</summary>
+          <summary class="anki-mut" style="cursor:pointer;font-size:12px;">${window.iconLabel('scale', 'Calcul de la note')}</summary>
           <pre class="anki-formula" style="white-space:pre-wrap;font-size:11px;">note = 50% × exactitude(moyQ/10) + 25% × vitesse(prévu/réel, max 1.2) + 25% × volume(min(1, n/10))
-moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPrevu/tempsReel).toFixed(2) : '—'} · n = ${total}</pre>
+moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b.tempsPrevu / b.tempsReel).toFixed(2) : '—'} · n = ${b.total}</pre>
         </details>
+      </div>`;
+  }
+
+  function renderMatStatsTable(matStats) {
+    const keys = Object.keys(matStats);
+    if (!keys.length) return '<p class="anki-mut" style="font-size:12px;">Aucune donnée.</p>';
+    return `
+      <table class="anki-diag-table">
+        <thead><tr><th>Matière</th><th>Cartes</th><th>Révisions</th><th>${window.iconHtml('check', 14, 'eval-good')}</th><th>${window.iconHtml('circle-x', 14, 'eval-bad')}</th><th>Ease moy.</th></tr></thead>
+        <tbody>
+          ${keys.map(k => {
+            const m = mat(k);
+            const s = matStats[k];
+            const easeMoy = (s.easeSum / Math.max(1, s.easeN)).toFixed(2);
+            const easeCol = parseFloat(easeMoy) < 2.0 ? 'var(--red)' : parseFloat(easeMoy) < 2.4 ? 'var(--gold)' : 'var(--grn)';
+            return `<tr>
+              <td><span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span> ${esc(m.name)}</td>
+              <td>${s.cards}</td>
+              <td>${s.total}</td>
+              <td>${s.ok}</td>
+              <td>${s.bad}</td>
+              <td style="color:${easeCol};font-weight:700;">${easeMoy}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function renderStarStatsTable(starStats) {
+    return `
+      <table class="anki-diag-table">
+        <thead><tr><th>Importance</th><th>Cartes</th><th>Actives</th><th>Réservoir</th><th>Révisions</th><th>${window.iconHtml('check', 14, 'eval-good')}</th><th>${window.iconHtml('circle-x', 14, 'eval-bad')}</th><th>Ease moy.</th></tr></thead>
+        <tbody>
+          ${[5, 4, 3, 2, 1].map(imp => {
+            const s = starStats[imp];
+            const easeMoy = s.easeN ? (s.easeSum / s.easeN).toFixed(2) : '—';
+            const starsHtml = typeof window.importanceLabel === 'function'
+              ? window.importanceLabel(imp)
+              : (imp + '★');
+            return `<tr>
+              <td>${starsHtml}</td>
+              <td>${s.cards}</td>
+              <td>${s.actif}</td>
+              <td>${s.reservoir}</td>
+              <td>${s.total}</td>
+              <td>${s.ok}</td>
+              <td>${s.bad}</td>
+              <td>${easeMoy}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function viewStats() {
+    const today = window.AnkiAlgoV2.todayISO();
+    const exos = ankAllCards().filter(c => !isDevoirCard(c));
+    const mains = exos.filter(c => isMainCard(c) || (!isQuickCard(c) && !isDevoirCard(c)));
+    const quicks = exos.filter(c => isQuickCard(c));
+    const week = Array.from({ length: 7 }, (_, i) => window.AnkiAlgoV2.addDays(today, -6 + i));
+    const bx = statsTodayBundle(mains, today);
+    const by = statsTodayBundle(quicks, today);
+    const weekX = statsWeekByDay(mains, week);
+    const weekY = statsWeekByDay(quicks, week);
+    const matX = statsByMat(mains);
+    const matY = statsByMat(quicks);
+    const starX = statsByStars(mains);
+    const starY = statsByStars(quicks);
+    const badgeX = window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('main') : 'X-';
+    const badgeY = window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('quick') : 'Y-';
+
+    return `
+      <p class="anki-mut anki-stat-intro">Les cartes <b>X-</b> (Synchrotron) et <b>Y-</b> (Rapide) sont séparées : algos, rythme et usage différents.</p>
+
+      <div class="anki-card-block">
+        <h3>${window.iconLabel('bar-chart', 'Efficacité du jour')}</h3>
+        <div class="anki-stat-kind-grid">
+          ${renderTodayEfficacyBlock(badgeX + ' <span>Principales X-</span>', bx, 'Aucune X- révisée aujourd’hui')}
+          ${renderTodayEfficacyBlock(badgeY + ' <span>Rapides Y-</span>', by, 'Aucune Y- révisée aujourd’hui')}
+        </div>
       </div>
 
       <div class="anki-card-block">
         <h3>${window.iconLabel('trending-up', 'Évolution sur 7 jours')}</h3>
-        <p class="anki-mut" style="font-size:11px;margin-bottom:10px;">Courbe du nombre de cartes révisées par jour + courbe de la qualité moyenne (0-10).</p>
-        ${renderStatsCurve(week, byDay)}
+        <div class="anki-stat-kind-grid">
+          <div class="anki-stat-kind-pane">
+            <h4 class="anki-stat-kind-title">${badgeX} Principales X-</h4>
+            <p class="anki-mut" style="font-size:11px;margin-bottom:8px;">Volume / jour + qualité moy. (0–10).</p>
+            ${renderStatsCurve(week, weekX)}
+          </div>
+          <div class="anki-stat-kind-pane">
+            <h4 class="anki-stat-kind-title">${badgeY} Rapides Y-</h4>
+            <p class="anki-mut" style="font-size:11px;margin-bottom:8px;">Volume / jour + qualité moy. (0–10).</p>
+            ${renderStatsCurve(week, weekY)}
+          </div>
+        </div>
       </div>
 
       <div class="anki-card-block">
         <h3>${window.iconLabel('target', 'Par matière')}</h3>
-        <table class="anki-diag-table">
-          <thead><tr><th>Matière</th><th>Cartes</th><th>Révisions</th><th>${window.iconHtml('check', 14, 'eval-good')}</th><th>${window.iconHtml('circle-x', 14, 'eval-bad')}</th><th>Ease moy.</th></tr></thead>
-          <tbody>
-            ${Object.keys(matStats).map(k => {
-              const m = mat(k);
-              const s = matStats[k];
-              const easeMoy = (s.easeSum / s.easeN).toFixed(2);
-              const easeCol = parseFloat(easeMoy) < 2.0 ? 'var(--red)' : parseFloat(easeMoy) < 2.4 ? 'var(--gold)' : 'var(--grn)';
-              return `<tr>
-                <td><span class="anki-q-mat" style="background:${m.color};">${esc(m.label)}</span> ${esc(m.name)}</td>
-                <td>${s.cards}</td>
-                <td>${s.total}</td>
-                <td>${s.ok}</td>
-                <td>${s.bad}</td>
-                <td style="color:${easeCol};font-weight:700;">${easeMoy}</td>
-              </tr>`;
-            }).join('') || '<tr><td colspan="6" class="anki-mut">Aucune donnée</td></tr>'}
-          </tbody>
-        </table>
+        <div class="anki-stat-kind-grid">
+          <div class="anki-stat-kind-pane">
+            <h4 class="anki-stat-kind-title">${badgeX} Principales X-</h4>
+            ${renderMatStatsTable(matX)}
+          </div>
+          <div class="anki-stat-kind-pane">
+            <h4 class="anki-stat-kind-title">${badgeY} Rapides Y-</h4>
+            ${renderMatStatsTable(matY)}
+          </div>
+        </div>
         <p class="anki-mut" style="font-size:11px;margin-top:8px;">Ease faible (rouge) = matière où tu galères → la carte monte via le terme « difficulté » du score <code>prio</code>.</p>
+      </div>
+
+      <div class="anki-card-block">
+        <h3>${window.iconLabel('star', 'Par importance (étoiles)')}</h3>
+        <p class="anki-mut" style="font-size:11px;margin-bottom:10px;">Répartition du stock et des révisions selon le nombre d’étoiles — utile pour voir si tes ★5 ne monopolisent pas le rythme.</p>
+        <div class="anki-stat-kind-grid">
+          <div class="anki-stat-kind-pane">
+            <h4 class="anki-stat-kind-title">${badgeX} Principales X-</h4>
+            ${renderStarStatsTable(starX)}
+          </div>
+          <div class="anki-stat-kind-pane">
+            <h4 class="anki-stat-kind-title">${badgeY} Rapides Y-</h4>
+            ${renderStarStatsTable(starY)}
+          </div>
+        </div>
       </div>
     `;
   }
@@ -3960,12 +4066,12 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
           <div class="anki-sess-foot-actions">
             ${S.dernierExerciceModifie ? `<button class="bs" data-testid="btn-undo-notation" style="border-color:var(--gold);color:var(--gold);" onclick="window.ankiV2UndoLastEval()" title="Revenir à la carte précédente">${window.iconLabel('arrow-left', 'Carte précédente')}</button>` : ''}
             <button class="bs" data-testid="btn-skip-card" onclick="window.ankiV2SkipCard()">${window.iconLabel('skip-forward', 'Passer')}</button>
+            ${S.showAnswer ? `<button type="button" class="bs" data-testid="btn-restart-card" onclick="window.ankiV2RestartCurrentCard()">${window.iconLabel('refresh-cw', 'Recommencer')}</button>` : ''}
             <button class="bs" data-testid="btn-pause-session" onclick="window.ankiV2PauseSession()">${window.iconLabel('pause', 'Pause')}</button>
             <button class="bs" onclick="window.ankiV2SessionMinimize()">${window.iconLabel('layout-list', 'Réduire')}</button>
             <button class="bs anki-quit" data-testid="btn-abandon-session-active" onclick="window.ankiV2AbandonActiveSession()">${window.iconLabel('trash-2', 'Abandonner')}</button>
           </div>
         </div>
-            ${S.showAnswer ? `<div class="anki-sess-restart-wrap"><button type="button" class="bs anki-sess-restart" data-testid="btn-restart-card" onclick="window.ankiV2RestartCurrentCard()">${window.iconLabel('refresh-cw', 'Recommencer la carte')}</button></div>` : ''}
         </div>
       </div>
     `;
@@ -4247,20 +4353,22 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
         blocage: out._blocageActif ? `actif(${out._blocageRevCount})` : 'levé'
       });
       if (S.mode === 'single' || S.queue.length === 0) {
+        /* Ne pas sysAlert ici : endSession affiche le bilan sticky juste après
+           (sinon « Carte évaluée » est écrasé / flash puis disparaît). */
         const deltaEase = out.ease - easeAvant;
         const easeArrow = deltaEase > 0 ? '↑' : deltaEase < 0 ? '↓' : '=';
         const easeColor = deltaEase > 0 ? 'var(--grn)' : deltaEase < 0 ? 'var(--red)' : 'var(--mut)';
         const blocageLine = out._blocageActif
           ? `<br>${window.iconLabel('zap', `<b style="color:var(--red);">Blocage actif</b> (tentative ${out._blocageRevCount}) — la carte sera boostée jusqu'à note ≥ ${(window.AnkiAlgoV2.getCoefs().BLOCAGE_QSCORE_VALIDATE || 8)}.`)}`
           : (snapshot.card._blocageActif ? `<br>${window.iconLabel('check', '<b style="color:var(--grn);">Blocage levé</b>')}` : '');
-        window.sysAlert(
-          `<b>${esc(S.current.titre || S.current.id)}</b><br><br>` +
+        S._endCardSummaryHtml =
+          `<b>${esc(S.current.titre || S.current.id)}</b><br>` +
           `${window.iconLabel('target', `Score : <b>${qScore}/10</b>${usesTiming ? ` (vitesse ×${out.penaliteVitesse})` : ''}`)}<br>` +
           `${window.iconLabel('bar-chart', `Ease : ${easeAvant.toFixed(2)} → <b style="color:${easeColor};">${out.ease} ${easeArrow}</b>`)}<br>` +
           `${window.iconLabel('calendar', `Intervalle : ${intAvant}j → <b>${out.intervalle}j</b>`)}<br>` +
-          `${window.iconLabel('calendar', `Prochaine révision : <b>${out.dateProchaineRevision}</b>`)}${blocageLine}`,
-          "Carte évaluée"
-        );
+          `${window.iconLabel('calendar', `Prochaine révision : <b>${out.dateProchaineRevision}</b>`)}${blocageLine}`;
+      } else {
+        S._endCardSummaryHtml = null;
       }
     }
 
@@ -4360,10 +4468,17 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
     S.chronoInt = null;
     setSessionOverlayLock(false);
     const ov = $("ovAnkiSession"); if (ov) ov.classList.add("hidden");
-    const s = S.stats;
+    const s = S.stats || { ok: 0, mid: 0, bad: 0, total: 0 };
+    const done = (s.ok || 0) + (s.mid || 0) + (s.bad || 0);
     const fini = !S.queue.length;
-    if (fini && s.total) {
-      window.sysAlert(`Session terminée !<br>${sessStatsHtml(s.ok, s.mid, s.bad)}<br>${(s.ok || 0) + (s.mid || 0) + (s.bad || 0)}/${s.total} cartes faites.`, "Synchrotron");
+    const cardBit = S._endCardSummaryHtml || '';
+    S._endCardSummaryHtml = null;
+    if (fini && (s.total || done)) {
+      const totalLabel = s.total || done;
+      const msg =
+        `Session terminée !<br>${sessStatsHtml(s.ok, s.mid, s.bad)}<br>` +
+        `<b>${done}/${totalLabel}</b> carte${done > 1 ? 's' : ''} faite${done > 1 ? 's' : ''}.` +
+        (cardBit ? `<br><br>${cardBit}` : '');
       S.queue = [];
       S.current = null;
       S.selectionIds.clear();
@@ -4372,12 +4487,18 @@ moyQ = ${moyQ.toFixed(1)} · prévu/réel = ${tempsPrevu && tempsReel ? (tempsPr
       S.dernierExerciceModifie = null;
       S.sessionUI = "mini";
       clearPersistedSession();
+      renderSyncSessionDock();
+      window.renderAnkiV2();
+      /* sticky + léger délai : évite qu’un clic « Valider » fantôme ferme le bilan */
+      setTimeout(function () {
+        window.sysAlert(msg, 'Synchrotron', { sticky: true });
+        if (window.hydrateIcons && window.$('ovSysDialog')) window.hydrateIcons(window.$('ovSysDialog'));
+      }, 80);
+      return;
     } else {
       window.ankiV2PauseSession();
       return;
     }
-    renderSyncSessionDock();
-    window.renderAnkiV2();
   };
   function endSession() { window.abortAnkiV2Session(); }
 

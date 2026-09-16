@@ -34,6 +34,7 @@
     programmeBrowse: ['programme-browse.js'],
     latexTest: ['latex-test.js'],
     cardCreateX: ['card-create-x-lab.js'],
+    cardCreateY: ['anki-quick.js', 'card-create-y-lab.js'],
     latexShortcuts: ['latex-test.js'],
     quickLatex: ['latex-test.js', 'anki-quick-latex.js']
   };
@@ -202,7 +203,7 @@
     if (tab === 'print' || tab === 'test') {
       prep = window.ensureScannerLibs();
     }
-    if (tab === 'ankiV2' || tab === 'flashcards' || tab === 'partage' || tab === 'cardCreateX') {
+    if (tab === 'ankiV2' || tab === 'flashcards' || tab === 'partage' || tab === 'cardCreateX' || tab === 'cardCreateY') {
       prep = window.ensureAnkiUi();
     }
 

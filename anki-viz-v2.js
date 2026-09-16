@@ -472,12 +472,20 @@ Après fermeture sans révision → overdue → prio explose.</div>
 
   function nodeMemoire() {
     const A = A2();
-    const profiles = (A && A.DEFAULT_PROFILES) || {};
-    const profileRows = Object.keys(profiles).map(k => {
-      const p = profiles[k];
-      return `<div class="av-coef-card"><label>${esc(k)}</label><div style="font-family:monospace;font-size:12px;color:#ffaa33;">[${(p.steps || []).slice(0, 6).join(", ")}] j</div></div>`;
-    }).join("");
     const C = A ? A.getCoefs() : {};
+    const starRows = [1, 2, 3, 4, 5].map(function (stars) {
+      const p = (A && A.getMainStarProfile)
+        ? A.getMainStarProfile(stars)
+        : ((A && A.DEFAULT_MAIN_STAR_STEPS && A.DEFAULT_MAIN_STAR_STEPS[stars]) || { steps: [] });
+      const lab = (typeof window.importanceLabel === 'function')
+        ? window.importanceLabel(stars)
+        : (stars + '★');
+      return `<div class="av-coef-card"><label>${lab}</label><div style="font-family:monospace;font-size:12px;color:#ffaa33;">[${(p.steps || []).slice(0, 8).join(", ")}] j</div></div>`;
+    }).join("");
+    const qDef = (A && A.getQuickDefaultProfile)
+      ? A.getQuickDefaultProfile()
+      : ((A && A.DEFAULT_QUICK_STEPS) || { steps: [], label: 'Y-' });
+    const qRow = `<div class="av-coef-card"><label>${esc(qDef.label || 'Rapide Y-')}</label><div style="font-family:monospace;font-size:12px;color:var(--cyan, #5bc0de);">[${(qDef.steps || []).slice(0, 8).join(", ")}] j</div></div>`;
 
     return `
       <div class="av-node" id="av-memoire">
@@ -496,8 +504,9 @@ Après fermeture sans révision → overdue → prio explose.</div>
           </p>
           <div class="av-formula">qScore ≤ trigger → échec : reset intervalle, ease −${C.EASE_DROP_FAIL != null ? C.EASE_DROP_FAIL : 0.2}, _blocageActif
 qScore &gt; trigger → succès :
-  paliers profil (X-) ou paliers ★ (Y-)
-  puis × ease × qFactor × pénalité tempo × multiplicateur ★
+  X- : paliers selon ★ d’importance
+  Y- : palier unique (vocabulaire)
+  puis × ease × qFactor × pénalité tempo × multiplicateur ★ (X-)
 mature + qScore &gt; 3 → date = début de fenêtre ★ (formule nœud 4)</div>
 
           <div class="av-branches">
@@ -511,9 +520,13 @@ mature + qScore &gt; 3 → date = début de fenêtre ★ (formule nœud 4)</div>
             </div>
           </div>
 
-          <div class="av-h4">Paliers de début (profils X-)</div>
-          <div class="av-coef-grid">${profileRows || "—"}</div>
-          <p style="font-size:11px;color:var(--mut);margin:0;">Les Y- utilisent des paliers selon les ★ (profil rapide), pas ces profils COURS/EXO…</p>
+          <div class="av-h4">Paliers de début X- (selon ★)</div>
+          <div class="av-coef-grid">${starRows || "—"}</div>
+          <p style="font-size:11px;color:var(--mut);margin:0 0 10px;">Le moteur utilise <code>getMainStarProfile(★)</code> — plus de ★ → paliers plus courts. Réglable dans Synchrotron → Réglages.</p>
+
+          <div class="av-h4">Palier unique Y- (Rapide)</div>
+          <div class="av-coef-grid">${qRow}</div>
+          <p style="font-size:11px;color:var(--mut);margin:0;">Les Y- n’utilisent plus de paliers par ★ : un seul palier style vocabulaire, puis × ease.</p>
 
           <div class="av-h4">Paramètres de blocage (réglables)</div>
           <div class="av-coef-grid">${
