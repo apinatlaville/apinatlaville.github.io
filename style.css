@@ -7979,6 +7979,13 @@ body.nav-sidebar-left #paneLatexTest.on {
 .partage-btn-update.bp:hover {
   filter: brightness(1.06);
 }
+.partage-btn-danger {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.35);
+}
+.partage-btn-danger:hover {
+  background: rgba(180, 35, 24, 0.08);
+}
 .partage-badge-sm { font-size:10px; padding:1px 6px; margin-left:6px; vertical-align:middle; }
 .partage-detail-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px; }
 .partage-detail-actions .fi { max-width:280px; }

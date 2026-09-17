@@ -83,6 +83,30 @@
     return genCode('P-', 5);
   }
 
+  /** Même compte + même dossier → même packId → nouvelles versions, pas de doublon catalogue. */
+  function stablePackId(uid, groupId) {
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var seed = String(uid || 'anon') + '#' + String(groupId || '');
+    function h32(s) {
+      var h = 2166136261;
+      for (var i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+    var a = h32(seed);
+    var b = h32(seed + '|b');
+    var out = 'P-';
+    var n = a;
+    for (var i = 0; i < 10; i++) {
+      out += chars.charAt(n % chars.length);
+      n = (Math.imul(n, 1664525) + 1013904223 + b + i) >>> 0;
+      if (i === 4) n ^= b;
+    }
+    return out;
+  }
+
   function genContentId(used) {
     return genCode('S-', 4, used);
   }
@@ -169,12 +193,25 @@
 
   function localPublish(meta, versionDoc) {
     var store = readLocalStore();
-    var pack = store.packs[meta.packId] || { meta: meta, versions: {} };
-    pack.meta = meta;
-    pack.versions[String(versionDoc.version)] = versionDoc;
+    var pack = store.packs[meta.packId] || { meta: null, versions: {} };
+    if (!pack.versions) pack.versions = {};
+    var existing = pack.meta;
+    var nextVersion = existing && existing.latestVersion != null
+      ? Number(existing.latestVersion) + 1
+      : 1;
+    var versionFinal = Object.assign({}, versionDoc, { version: nextVersion });
+    var metaFinal = Object.assign({}, meta, {
+      latestVersion: nextVersion,
+      cardCount: (versionFinal.cards && versionFinal.cards.length) || meta.cardCount || 0,
+      createdAt: (existing && existing.createdAt) || meta.createdAt,
+      createdBy: (existing && existing.createdBy) || meta.createdBy,
+      sourceGroupId: meta.sourceGroupId || (existing && existing.sourceGroupId) || ''
+    });
+    pack.meta = metaFinal;
+    pack.versions[String(nextVersion)] = versionFinal;
     store.packs[meta.packId] = pack;
     writeLocalStore(store);
-    return { meta: meta, version: versionDoc.version };
+    return { meta: metaFinal, version: nextVersion };
   }
 
   // ─── Firestore ──────────────────────────────────────────
@@ -239,11 +276,151 @@
   }
 
   async function cloudPublish(meta, versionDoc) {
-    var packRef = window.doc(window.db, COLLECTION, meta.packId);
-    var verRef = window.doc(window.db, COLLECTION, meta.packId, 'versions', String(versionDoc.version));
+    var packId = meta.packId;
+    var pub = meta.lastPublishedBy || meta.createdBy || publisherInfo();
+
+    if (typeof window.runTransaction === 'function' && window.db) {
+      return window.runTransaction(window.db, async function (transaction) {
+        var packRef = window.doc(window.db, COLLECTION, packId);
+        var snap = await transaction.get(packRef);
+        var existing = snap.exists() ? (snap.data() || {}) : null;
+        if (existing && existing.createdBy && existing.createdBy.uid
+            && pub.uid && existing.createdBy.uid !== pub.uid) {
+          throw new Error('NOT_OWNER');
+        }
+        var nextVersion = existing && existing.latestVersion != null
+          ? Number(existing.latestVersion) + 1
+          : 1;
+        var versionFinal = Object.assign({}, versionDoc, { version: nextVersion });
+        var metaFinal = Object.assign({}, meta, {
+          packId: packId,
+          latestVersion: nextVersion,
+          cardCount: (versionFinal.cards && versionFinal.cards.length) || meta.cardCount || 0,
+          createdAt: (existing && existing.createdAt) || meta.createdAt,
+          createdBy: (existing && existing.createdBy) || meta.createdBy || pub,
+          lastPublishedBy: pub,
+          sourceGroupId: meta.sourceGroupId || (existing && existing.sourceGroupId) || ''
+        });
+        var verRef = window.doc(window.db, COLLECTION, packId, 'versions', String(nextVersion));
+        transaction.set(packRef, metaFinal, { merge: true });
+        transaction.set(verRef, versionFinal);
+        return { meta: metaFinal, version: nextVersion };
+      });
+    }
+
+    var packRef = window.doc(window.db, COLLECTION, packId);
+    var verRef = window.doc(window.db, COLLECTION, packId, 'versions', String(versionDoc.version));
     await window.setDoc(packRef, meta, { merge: true });
     await window.setDoc(verRef, versionDoc);
     return { meta: meta, version: versionDoc.version };
+  }
+
+  async function cloudDeletePack(packId) {
+    if (!window.deleteDoc || !window.doc) {
+      throw new Error('Suppression cloud indisponible — recharge la page.');
+    }
+    var versions = [];
+    try { versions = await cloudListVersions(packId); } catch (e) { /* ignore */ }
+    for (var i = 0; i < versions.length; i++) {
+      var v = versions[i];
+      var verId = v && v.version != null ? String(v.version) : null;
+      if (!verId) continue;
+      await window.deleteDoc(window.doc(window.db, COLLECTION, packId, 'versions', verId));
+    }
+    await window.deleteDoc(window.doc(window.db, COLLECTION, packId));
+  }
+
+  function localDeletePack(packId) {
+    var store = readLocalStore();
+    if (store.packs && store.packs[packId]) {
+      delete store.packs[packId];
+      writeLocalStore(store);
+    }
+  }
+
+  /**
+   * Retrouve le pack catalogue de ce dossier (créateur = toi).
+   * 1) sourceGroupId exact
+   * 2) repli legacy : un seul pack à toi avec le même nom (pas de matching contenu)
+   */
+  async function findReusablePackMeta(groupId, groupName) {
+    if (!groupId) return null;
+    var list;
+    try { list = await window.QuickShare.listPacks(); } catch (e) { return null; }
+    var pub = publisherInfo();
+    if (!pub.uid) return null;
+    var mine = (list || []).filter(function (p) {
+      return p && p.createdBy && p.createdBy.uid === pub.uid;
+    });
+    if (!mine.length) return null;
+
+    var bySrc = mine.filter(function (p) { return p.sourceGroupId === groupId; });
+    if (bySrc.length) {
+      bySrc.sort(function (a, b) {
+        return String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
+      });
+      return bySrc[0];
+    }
+
+    // Legacy (packs publiés avant sourceGroupId) : nom unique chez moi uniquement
+    var name = String(groupName || '').trim().toLowerCase();
+    if (name) {
+      var byName = mine.filter(function (p) {
+        return String(p.name || '').trim().toLowerCase() === name;
+      });
+      if (byName.length === 1) return byName[0];
+    }
+    return null;
+  }
+
+  /**
+   * Un dossier → un pack → des versions.
+   * 1) shared.packId local  2) sourceGroupId / nom unique catalogue  3) packId stable uid+dossier
+   * Fork volontaire → nouveau packId aléatoire.
+   */
+  async function resolvePublishTarget(g, shared, pub, forking) {
+    if (forking) {
+      return { packId: genPackId(), existingMeta: null, forking: true };
+    }
+    var packId = (shared && shared.packId) || '';
+    var existingMeta = null;
+    if (packId) {
+      try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { /* ignore */ }
+      if (existingMeta && !isSamePublisher(existingMeta)) {
+        throw new Error('NOT_OWNER');
+      }
+      if (shared.imported && existingMeta && !isSamePublisher(existingMeta)) {
+        throw new Error('NOT_OWNER');
+      }
+      if (shared.imported && !existingMeta) {
+        throw new Error('NOT_OWNER');
+      }
+      return { packId: packId, existingMeta: existingMeta, forking: false };
+    }
+
+    var recovered = await findReusablePackMeta(g.id, g.name);
+    if (recovered && recovered.packId) {
+      return { packId: recovered.packId, existingMeta: recovered, forking: false };
+    }
+
+    packId = stablePackId(pub.uid, g.id);
+    try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { existingMeta = null; }
+    if (existingMeta && !isSamePublisher(existingMeta)) {
+      return { packId: genPackId(), existingMeta: null, forking: true };
+    }
+    return { packId: packId, existingMeta: existingMeta, forking: false };
+  }
+
+  function unlinkLocalGroupsFromPack(packId) {
+    var changed = false;
+    (window.D.quickGroups || []).forEach(function (g) {
+      if (g && g.shared && g.shared.packId === packId) {
+        delete g.shared;
+        changed = true;
+      }
+    });
+    if (changed && typeof window.save === 'function') window.save();
+    return changed;
   }
 
   // ─── API publique storage ───────────────────────────────
@@ -301,6 +478,90 @@
     },
 
     /**
+     * Si le lien shared manque en local (sync), rattache les dossiers aux packs
+     * déjà publiés (même sourceGroupId ou packId stable) → indicateur Partage.
+     */
+    relinkLocalGroupsFromCatalog: async function () {
+      var pub = publisherInfo();
+      if (!pub.uid) return 0;
+      var list;
+      try { list = await window.QuickShare.listPacks(); } catch (e) { return 0; }
+      var mine = (list || []).filter(function (p) {
+        return p && p.packId && p.createdBy && p.createdBy.uid === pub.uid;
+      });
+      var bySrc = {};
+      var byId = {};
+      var nameCount = {};
+      mine.forEach(function (p) {
+        byId[p.packId] = p;
+        if (p.sourceGroupId) {
+          var prev = bySrc[p.sourceGroupId];
+          if (!prev || String(p.createdAt || '') < String(prev.createdAt || '')) {
+            bySrc[p.sourceGroupId] = p;
+          }
+        }
+        var nk = String(p.name || '').trim().toLowerCase();
+        if (nk) nameCount[nk] = (nameCount[nk] || 0) + 1;
+      });
+      var byNameUnique = {};
+      mine.forEach(function (p) {
+        var nk = String(p.name || '').trim().toLowerCase();
+        if (nk && nameCount[nk] === 1) byNameUnique[nk] = p;
+      });
+      var n = 0;
+      (window.D.quickGroups || []).forEach(function (g) {
+        if (!g || !g.id) return;
+        if (g.shared && g.shared.packId) return;
+        var meta = bySrc[g.id]
+          || byId[stablePackId(pub.uid, g.id)]
+          || byNameUnique[String(g.name || '').trim().toLowerCase()];
+        if (!meta || !meta.packId) return;
+        var ver = Number(meta.latestVersion || 1);
+        g.shared = {
+          packId: meta.packId,
+          installedVersion: ver,
+          publishedVersion: ver,
+          mat: g.mat || '',
+          chapitreId: g.chapitreId || '',
+          color: g.color || '',
+          localDirty: false,
+          imported: false
+        };
+        n++;
+      });
+      if (n && typeof window.save === 'function') window.save();
+      return n;
+    },
+
+    ensureShareLinks: async function () {
+      if (window.QuickShare._relinkPromise) return window.QuickShare._relinkPromise;
+      window.QuickShare._relinkPromise = window.QuickShare.relinkLocalGroupsFromCatalog()
+        .catch(function () { return 0; })
+        .finally(function () {
+          setTimeout(function () { window.QuickShare._relinkPromise = null; }, 8000);
+        });
+      return window.QuickShare._relinkPromise;
+    },
+
+    /** Créateur initial uniquement (createdBy). Retire le pack du catalogue, pas les cartes locales. */
+    deletePack: async function (packId) {
+      if (!packId) throw new Error('Pack introuvable.');
+      if (typeof window.refuseSecondaryFullMutation === 'function'
+          && window.refuseSecondaryFullMutation('Appareil secondaire : suppression indisponible.')) {
+        throw new Error('SECONDARY_READ_ONLY');
+      }
+      var meta = await window.QuickShare.getMeta(packId);
+      if (!meta) throw new Error('Pack introuvable.');
+      if (!isSamePublisher(meta) && !(isLocalMode() && meta.createdBy && meta.createdBy.uid === 'local')) {
+        throw new Error('Seul le créateur initial du pack peut le supprimer du catalogue.');
+      }
+      if (canUseCloud()) await cloudDeletePack(packId);
+      else localDeletePack(packId);
+      unlinkLocalGroupsFromPack(packId);
+      return true;
+    },
+
+    /**
      * Publie le dossier vers le catalogue.
      * - Créateur du pack : nouvelle version du même packId (« publier une mise à jour »).
      * - Sinon : opts.fork → nouveau packId ; sans opts.fork → Error('NOT_OWNER').
@@ -319,49 +580,26 @@
       var cards = prep.cards;
       var pub = publisherInfo();
       var shared = g.shared || {};
-      var packId = shared.packId || '';
-      var existingMeta = null;
-      if (packId) {
-        try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { /* ignore */ }
-      }
 
-      var forking = !!opts.fork;
-      var ownsExisting = !!(existingMeta && isSamePublisher(existingMeta));
-      // Pack lié mais pas propriétaire → fork obligatoire (sinon écrasement)
-      if (packId && existingMeta && !ownsExisting && !forking) {
-        throw new Error('NOT_OWNER');
-      }
-      // Importé sans meta cloud : traiter comme fork si demandé, sinon NOT_OWNER
-      if (packId && shared.imported && !ownsExisting && !forking) {
-        throw new Error('NOT_OWNER');
-      }
+      var target = await resolvePublishTarget(g, shared, pub, !!opts.fork);
+      var packId = target.packId;
+      var existingMeta = target.existingMeta;
 
-      if (forking || !packId) {
-        packId = genPackId();
-        existingMeta = null;
-        forking = true;
-      }
-
-      var prevVersion = forking ? 0 : (shared.installedVersion || shared.publishedVersion || 0);
-      var nextVersion = Math.max(1, Number(prevVersion) + 1);
-      if (!forking && existingMeta && existingMeta.latestVersion != null) {
-        nextVersion = Math.max(nextVersion, Number(existingMeta.latestVersion) + 1);
-      }
-      if (forking) nextVersion = 1;
-
-      var versionDoc = buildVersionPayload(g, cards, nextVersion, pub);
+      // Numéro de version provisoire : cloud/local l’assignent atomiquement
+      var versionDoc = buildVersionPayload(g, cards, 1, pub);
       var meta = {
         packId: packId,
         name: g.name || 'Dossier',
         visibility: 'public',
-        latestVersion: nextVersion,
+        latestVersion: 1,
         cardCount: cards.length,
         updatedAt: versionDoc.publishedAt,
         createdAt: (existingMeta && existingMeta.createdAt) || versionDoc.publishedAt,
         createdBy: (existingMeta && existingMeta.createdBy) || pub,
         lastPublishedBy: pub,
         suggestedMat: g.mat || '',
-        suggestedColor: g.color || ''
+        suggestedColor: g.color || '',
+        sourceGroupId: g.id || (existingMeta && existingMeta.sourceGroupId) || ''
       };
 
       var result;
@@ -369,9 +607,9 @@
       else result = localPublish(meta, versionDoc);
 
       g.shared = {
-        packId: packId,
-        installedVersion: nextVersion,
-        publishedVersion: nextVersion,
+        packId: result.meta.packId,
+        installedVersion: result.version,
+        publishedVersion: result.version,
         mat: g.mat || '',
         chapitreId: g.chapitreId || '',
         color: g.color || '',
@@ -548,8 +786,8 @@
         });
       });
 
-      // Removals
-      if (opts.deleteRemoved !== false && preview.removed.length) {
+      // Removals — seulement si l’utilisateur a choisi « Supprimer les cartes »
+      if (opts.deleteRemoved === true && preview.removed.length) {
         var delIds = new Set(preview.removed.map(function (c) { return c.id; }));
         window.D.exercices = window.D.exercices.filter(function (c) { return !delIds.has(c.id); });
       }
@@ -557,8 +795,8 @@
       if (!g.shared) g.shared = {};
       g.shared.packId = opts.packId || g.shared.packId;
       g.shared.installedVersion = versionDoc.version;
-      // Cartes locales gardées hors pack → toujours « dirty » jusqu’à publication
-      var keptLocal = (opts.deleteRemoved === false && preview.removed.length > 0);
+      var keptLocal = false;
+      if (opts.deleteRemoved !== true && preview.removed.length > 0) keptLocal = true;
       if (!keptLocal) {
         keptLocal = cardsForGroup(groupId).some(function (c) { return c && !c.contentId; });
       }
@@ -641,6 +879,9 @@
       return;
     }
     try {
+      if (window.QuickShare && typeof window.QuickShare.ensureShareLinks === 'function') {
+        await window.QuickShare.ensureShareLinks();
+      }
       S.busy = true;
       do {
         S.pendingRender = false;
@@ -937,6 +1178,14 @@
       actionBtn = '<span class="anki-mut">À jour (v' + esc(String(installed)) + ')</span>';
     }
 
+    var ownerBtn = '';
+    if (window.QuickShare.isPackOwner(meta)) {
+      ownerBtn = '<button type="button" class="bs partage-btn-danger" onclick="window.partageDeletePack(\'' +
+        jsStr(meta.packId) + '\')">' +
+        (window.iconLabel ? window.iconLabel('trash-2', 'Supprimer du catalogue') : 'Supprimer du catalogue') +
+        '</button>';
+    }
+
     pane.innerHTML =
       '<div class="anki-card-block partage-page">' +
         '<button type="button" class="bs" style="margin-bottom:10px;" onclick="window.partageSetView(\'catalog\')">' +
@@ -955,6 +1204,7 @@
           '<select id="partageVerSel" class="fi" onchange="window.partageSelectVersion(this.value)">' + verOpts + '</select>' +
           '<button type="button" class="bs" onclick="window.partageInstallSelectedVersion()">' +
             (local ? 'Installer cette version' : 'Importer cette version') + '</button>' +
+          ownerBtn +
         '</div>' +
         '<h4 class="partage-section-title">Versions (plus récente en haut)</h4>' +
         verList +
@@ -1010,6 +1260,37 @@
       window.switchTab('partage');
     } else {
       window.renderPartage();
+    }
+  };
+
+  window.partageDeletePack = function (packId) {
+    if (!packId || S.busy) return;
+    var msg = 'Supprimer <b>' + esc(packId) + '</b> du catalogue ?<br><br>' +
+      'Les versions cloud seront retirées. <b>Tes cartes Rapide locales ne sont pas effacées</b> — ' +
+      'seul le lien catalogue est retiré.';
+    var go = async function () {
+      S.busy = true;
+      try {
+        await window.QuickShare.deletePack(packId);
+        toast('Pack retiré du catalogue.', 'ok');
+        S.view = 'catalog';
+        S.packId = '';
+        S.detail = null;
+        S.versions = null;
+        S.catalog = null;
+        if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+        window.renderPartage();
+      } catch (e) {
+        if (String(e && e.message) === 'SECONDARY_READ_ONLY') return;
+        toast(String(e && e.message || e), 'error');
+      } finally {
+        S.busy = false;
+      }
+    };
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm(msg, go, 'Supprimer du catalogue');
+    } else {
+      go();
     }
   };
 
@@ -1077,12 +1358,13 @@
 
     var preview = window.QuickShare.previewUpdate(groupId, ver);
     var localOrphans = cardsForGroup(groupId).filter(function (c) { return c && !c.contentId; }).length;
-    var hasLocalKeep = preview.removed.length > 0 || localOrphans > 0;
+    var nAbsent = preview.removed.length;
+    var hasLocalKeep = nAbsent > 0 || localOrphans > 0;
     var isDowngrade = target < installed;
     var owns = window.QuickShare.isPackOwner(meta);
 
-    var statsLine = '+' + preview.added.length + ' · ~' + preview.updated.length +
-      (preview.removed.length ? ' · ' + preview.removed.length + ' carte(s) absente(s) du pack' : '') +
+    var statsLine = '+' + preview.added.length + ' ajoutée(s) · ~' + preview.updated.length + ' modifiée(s)' +
+      (nAbsent ? ' · ' + nAbsent + ' carte(s) présentes chez toi absentes du pack' : '') +
       (localOrphans ? ' · ' + localOrphans + ' carte(s) locales sans lien pack' : '');
 
     function finishUi(msg) {
@@ -1095,18 +1377,32 @@
       try {
         window.QuickShare.applyVersionToGroup(groupId, ver, {
           packId: meta.packId,
-          deleteRemoved: false
+          deleteRemoved: mode === 'delete'
         });
         if (mode === 'merge_publish') {
           var pubOpts = owns ? {} : { fork: true };
           var result = await window.QuickShare.publishGroup(groupId, pubOpts);
-          finishUi('Contenu fusionné et publié : ' + result.meta.packId + ' · v' + result.version);
+          finishUi('Mis à jour + publié (pack et cartes locales) : ' +
+            result.meta.packId + ' · v' + result.version);
+        } else if (mode === 'delete') {
+          finishUi('Pack mis à jour (v' + ver.version + ') — cartes absentes du pack supprimées chez toi.');
         } else {
-          finishUi('Pack mis à jour (v' + ver.version + ') — tes cartes locales sont gardées.');
+          finishUi('Pack mis à jour (v' + ver.version + ') — cartes locales conservées.');
         }
       } catch (e) {
         if (String(e && e.message) === 'SECONDARY_READ_ONLY') return;
         toast(String(e && e.message || e), 'error');
+      }
+    }
+
+    function askDeleteConfirm() {
+      var warn = 'Supprimer <b>' + esc(String(nAbsent)) + ' carte(s)</b> de ton dossier local ?<br><br>' +
+        'Elles ne sont pas dans cette version du pack. ' +
+        '<b>Confirmation :</b> cette suppression est définitive sur ton appareil (SRS inclus).';
+      if (typeof window.sysConfirm === 'function') {
+        window.sysConfirm(warn, function () { doApply('delete'); }, 'Confirmer la suppression');
+      } else {
+        doApply('delete');
       }
     }
 
@@ -1116,16 +1412,19 @@
           ' (actuellement v' + esc(String(installed)) + ') ?'
         : 'Mettre à jour le contenu vers <b>v' + esc(String(ver.version)) + '</b> ?') +
         '<br><br>' + statsLine +
-        '<br><span class="anki-mut">Tes répétitions (SRS) ne sont pas modifiées.</span>';
+        '<br><span class="anki-mut">Tes répétitions (SRS) des cartes conservées ne sont pas modifiées.</span>';
 
-      if (hasLocalKeep) {
-        msg += '<br><br>Tu as des cartes qui ne sont pas dans cette version du pack.';
+      if (hasLocalKeep && nAbsent > 0) {
+        msg += '<br><br>Que faire des cartes locales absentes de cette version ?';
         if (typeof window.sysConfirmChoices === 'function') {
           window.sysConfirmChoices(msg, [
-            { id: 'keep', label: 'Garder mes cartes', primary: true },
-            { id: 'merge_publish', label: 'Publier maj (pack + moi)', gold: true }
+            { id: 'delete', label: 'Supprimer les cartes', danger: true },
+            { id: 'keep', label: 'Garder les cartes en local', primary: true },
+            { id: 'merge_publish', label: 'Publier nouveau + locales', gold: true }
           ], isDowngrade ? 'Downgrade pack' : 'Update pack', function (choice) {
-            doApply(choice === 'merge_publish' ? 'merge_publish' : 'keep');
+            if (choice === 'delete') askDeleteConfirm();
+            else if (choice === 'merge_publish') doApply('merge_publish');
+            else doApply('keep');
           });
           return;
         }

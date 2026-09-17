@@ -718,6 +718,14 @@
 
   window.renderFlashcards = function () {
     ensure();
+    if (window.QuickShare && typeof window.QuickShare.ensureShareLinks === 'function'
+        && !window.QuickShare._relinkFromRender) {
+      window.QuickShare._relinkFromRender = true;
+      window.QuickShare.ensureShareLinks().then(function (n) {
+        window.QuickShare._relinkFromRender = false;
+        if (n > 0) window.renderFlashcards();
+      }).catch(function () { window.QuickShare._relinkFromRender = false; });
+    }
     const root = $("paneFlashcards");
     if (!root) return;
     const inGroup = !!Q.nav.group;

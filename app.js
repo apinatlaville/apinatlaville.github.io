@@ -2756,6 +2756,63 @@ function _unionByKey(localArr, remoteArr, key) {
   return localArr;
 }
 
+/** Fusionne shared d’un dossier Rapide : ne jamais perdre un packId déjà lié. */
+function _mergeQuickGroupShared(localG, remoteG) {
+  var ls = localG && localG.shared;
+  var rs = remoteG && remoteG.shared;
+  var lPack = ls && ls.packId ? String(ls.packId) : '';
+  var rPack = rs && rs.packId ? String(rs.packId) : '';
+  if (!lPack && !rPack) return null;
+  if (lPack && !rPack) return Object.assign({}, ls);
+  if (!lPack && rPack) return Object.assign({}, rs);
+  var li = Number(ls.installedVersion || 0);
+  var ri = Number(rs.installedVersion || 0);
+  var base = ri > li ? Object.assign({}, rs) : Object.assign({}, ls);
+  if (lPack !== rPack) {
+    // Doublon legacy : garder le lien à la version la plus avancée
+    base.packId = ri > li ? rPack : lPack;
+    base.installedVersion = Math.max(li, ri);
+  }
+  base.localDirty = !!(ls.localDirty || rs.localDirty);
+  if (ls.imported || rs.imported) base.imported = true;
+  else delete base.imported;
+  return base;
+}
+
+/** Union + fusion du champ shared (indicateur Partage multi-appareils). */
+function _mergeQuickGroups(localArr, remoteArr) {
+  if (!Array.isArray(localArr)) {
+    return Array.isArray(remoteArr) ? remoteArr.slice() : [];
+  }
+  if (!Array.isArray(remoteArr) || !remoteArr.length) return localArr;
+  var byId = Object.create(null);
+  remoteArr.forEach(function (g) {
+    if (g && g.id) byId[g.id] = g;
+  });
+  localArr.forEach(function (g) {
+    if (!g || !g.id) return;
+    var r = byId[g.id];
+    if (!r) return;
+    var shared = _mergeQuickGroupShared(g, r);
+    if (shared) g.shared = shared;
+    if (!g.mat && r.mat) g.mat = r.mat;
+    if (!g.chapitreId && r.chapitreId) g.chapitreId = r.chapitreId;
+    if (!g.color && r.color) g.color = r.color;
+    if (!g.name && r.name) g.name = r.name;
+  });
+  var have = Object.create(null);
+  localArr.forEach(function (g) {
+    if (g && g.id) have[g.id] = true;
+  });
+  remoteArr.forEach(function (g) {
+    if (g && g.id && !have[g.id]) {
+      localArr.push(g);
+      have[g.id] = true;
+    }
+  });
+  return localArr;
+}
+
 function _cardRecency(c) {
   if (!c) return 0;
   const hist = Array.isArray(c.historique) ? c.historique.length : 0;
@@ -2847,6 +2904,8 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
   if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
   _unionByKey(window.D.matieres, remote.matieres, 'id');
   _unionByKey(window.D.classeurs, remote.classeurs, 'id');
+  if (!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
+  _mergeQuickGroups(window.D.quickGroups, remote.quickGroups);
   if (typeof window.ensureCanonicalMatieres === 'function') window.ensureCanonicalMatieres();
   if (!window.D.sessionEnCoursV2 && remote.sessionEnCoursV2) {
     window.D.sessionEnCoursV2 = remote.sessionEnCoursV2;
