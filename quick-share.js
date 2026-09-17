@@ -1574,6 +1574,10 @@
       }
       var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
       var shared = g && g.shared;
+      // Déjà lié + pas de modif locale → pas de fausse « maj » vide
+      if (shared && shared.packId && !shared.imported && !shared.localDirty) {
+        return toast('Rien à publier : aucune modification locale depuis la dernière version.', 'ok');
+      }
       var run = async function (opts) {
         var result = await window.QuickShare.publishGroup(groupId, opts || {});
         toast('Publié : ' + result.meta.packId + ' · v' + result.version, 'ok');

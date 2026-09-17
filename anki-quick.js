@@ -107,9 +107,11 @@
       actions.push('<button type="button" class="bp" onclick="window.partageOpenPack && window.partageOpenPack(\'' +
         jsStr(st.packId) + '\')">' + (window.iconLabel ? window.iconLabel('refresh-cw', 'Voir l’update') : 'Voir l’update') + '</button>');
     }
-    const shareLbl = st.imported ? 'Publier comme nouveau pack' : 'Publier une mise à jour';
-    actions.push('<button type="button" class="bs" onclick="window.quickEditGroup(\'' + jsStr(groupId) + '\')">' +
-      (window.iconLabel ? window.iconLabel('share-2', shareLbl) : shareLbl) + '</button>');
+    if (st.localDirty || st.imported) {
+      const shareLbl = st.imported ? 'Publier comme nouveau pack' : 'Publier une mise à jour';
+      actions.push('<button type="button" class="bs" onclick="window.quickEditGroup(\'' + jsStr(groupId) + '\')">' +
+        (window.iconLabel ? window.iconLabel('share-2', shareLbl) : shareLbl) + '</button>');
+    }
     actions.push('<button type="button" class="bs" onclick="window.quickToggleShareBanner(\'\')">Fermer</button>');
     return (
       '<div class="qk-share-banner" role="status">' +
@@ -842,6 +844,7 @@
     const shareBtnLabel = !(g.shared && g.shared.packId)
       ? 'Partager'
       : (g.shared.imported ? 'Publier comme nouveau pack' : 'Publier une mise à jour');
+    const canPublishNow = !(g.shared && g.shared.packId) || !!g.shared.localDirty || !!g.shared.imported;
     ov.classList.remove('hidden');
     ov.innerHTML =
       '<div class="modal qk-groups-modal">' +
@@ -860,15 +863,21 @@
           (g.shared && g.shared.packId
             ? '<p class="anki-mut" style="font-size:12px;margin:8px 0 0;">Pack partagé <code>' + esc(g.shared.packId) +
               '</code> · v' + esc(String(g.shared.installedVersion || '?')) +
-              '<br><span style="opacity:.85;">Partager = envoyer le contenu actuel dans le catalogue (nouvelle version). ' +
-              'Ça ne change pas tes répétitions.</span></p>'
+              '<br><span style="opacity:.85;">' +
+              (canPublishNow
+                ? 'Publier = envoyer le contenu actuel dans le catalogue (nouvelle version). Ça ne change pas tes répétitions.'
+                : 'Rien à publier : aucune modification locale depuis la dernière version (point jaune = modifs en attente).') +
+              '</span></p>'
             : '') +
         '</div>' +
         '<div class="macts" style="flex-wrap:wrap;gap:8px;">' +
           '<button type="button" class="bs" style="color:var(--red);border-color:var(--red);margin-right:auto" ' +
             'onclick="window.quickEditGroupDelete()">' + window.iconLabel('trash-2', 'Supprimer') + '</button>' +
-          '<button type="button" class="bs" onclick="window.quickSharePublishGroup(\'' + jsStr(gid) + '\')">' +
-            window.iconLabel('share-2', shareBtnLabel) + '</button>' +
+          (canPublishNow
+            ? '<button type="button" class="bs" onclick="window.quickSharePublishGroup(\'' + jsStr(gid) + '\')">' +
+                window.iconLabel('share-2', shareBtnLabel) + '</button>'
+            : '<button type="button" class="bs" disabled title="Aucune modification locale">' +
+                window.iconLabel('share-2', 'À jour — rien à publier') + '</button>') +
           '<button type="button" class="bs" onclick="window.quickCloseEditGroup()">Annuler</button>' +
           '<button type="button" class="bp" onclick="window.quickSaveEditGroup()">Enregistrer</button>' +
         '</div>' +
