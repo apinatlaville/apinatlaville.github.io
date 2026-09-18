@@ -712,6 +712,11 @@
   function docsForChapitre(chapitreId) {
     return (window.D.cours || []).filter(function (c) {
       return c && c.chapitreId === chapitreId && !(typeof window.isCoursUnite === 'function' && window.isCoursUnite(c));
+    }).sort(function (a, b) {
+      var da = String(a && a.date || '');
+      var db = String(b && b.date || '');
+      if (da !== db) return da.localeCompare(db); // plus ancien en premier
+      return String(a && a.uid || '').localeCompare(String(b && b.uid || ''));
     });
   }
 

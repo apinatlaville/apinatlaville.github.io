@@ -192,6 +192,11 @@
           ? window.resolveChapitreCoursUid(ch.id) : '');
         var linkedDocItems = (window.D.cours || []).filter(function (c) {
           return c && c.chapitreId === ch.id && !(c.role === 'unite' || c.isUnite);
+        }).sort(function (a, b) {
+          var da = String(a && a.date || '');
+          var db = String(b && b.date || '');
+          if (da !== db) return da.localeCompare(db);
+          return String(a && a.uid || '').localeCompare(String(b && b.uid || ''));
         });
         var linkedDocs = linkedDocItems.length;
         var docsHtml = linkedDocItems.length

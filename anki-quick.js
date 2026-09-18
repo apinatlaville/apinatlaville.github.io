@@ -415,10 +415,15 @@
     }
   }
 
-  /** Uniformise les faces : réduit la police tant que le texte déborde (cartes à taille fixe). */
-  function fitQuickCardFaces(root) {
+  /** Uniformise les faces : un seul passage (évite le tremblement LaTeX). */
+  var _fitFacesTimer = null;
+  var _fitFacesPending = null;
+
+  function fitQuickCardFacesNow(root) {
     var host = root || document.getElementById('qkSections') || document;
     if (!host) return;
+    var markHost = host.nodeType === 1 ? host : null;
+    if (markHost) markHost.classList.add('qk-fitting-faces');
     var targets = host.querySelectorAll('.qk-q, .qk-r, .qk-drill-prompt');
     targets.forEach(function (el) {
       el.style.fontSize = '';
@@ -436,7 +441,6 @@
       var size = base;
       var min = el.classList.contains('qk-drill-prompt') ? 11 : 10;
       el.style.fontSize = size + 'px';
-      /* MathLive en rem absolu sinon : forcer em pour suivre le parent */
       el.querySelectorAll('.latex-lab-preview-math').forEach(function (m) {
         m.style.fontSize = '1.05em';
       });
@@ -447,10 +451,25 @@
         guard++;
       }
     });
-    /* Scale LaTeX boxes only when they still overflow horizontally */
     if (typeof window.fitLatexPreviewMath === 'function') {
       window.fitLatexPreviewMath(host);
     }
+    if (markHost) {
+      requestAnimationFrame(function () {
+        markHost.classList.remove('qk-fitting-faces');
+      });
+    }
+  }
+
+  function fitQuickCardFaces(root) {
+    _fitFacesPending = root || document.getElementById('qkSections') || document;
+    if (_fitFacesTimer) return;
+    _fitFacesTimer = setTimeout(function () {
+      _fitFacesTimer = null;
+      var host = _fitFacesPending;
+      _fitFacesPending = null;
+      fitQuickCardFacesNow(host);
+    }, 0);
   }
 
   window.fitQuickCardFaces = fitQuickCardFaces;
@@ -458,7 +477,7 @@
   function hydrateDrillFaces(root) {
     var host = root || document.getElementById('qkDrillRoot');
     if (!host) return;
-    var runFit = function () { fitQuickCardFaces(host); };
+    if (host.nodeType === 1) host.classList.add('qk-fitting-faces');
     var needsMath = !!host.querySelector('.latex-lab-preview-math, .qk-drill-prompt');
     var chain = Promise.resolve();
     if (needsMath && typeof window.ensureScriptsForTab === 'function') {
@@ -466,15 +485,16 @@
         if (typeof window.ensureMathLive === 'function') return window.ensureMathLive();
       });
     }
-    chain.then(function () {
-      runFit();
-      if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-        document.fonts.ready.then(runFit).catch(function () {});
-      }
-      setTimeout(runFit, 60);
-      setTimeout(runFit, 200);
-      setTimeout(runFit, 500);
-    }).catch(function () { runFit(); });
+    var fontsP = (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function')
+      ? document.fonts.ready.catch(function () {})
+      : Promise.resolve();
+    chain.then(function () { return fontsP; }).then(function () {
+      requestAnimationFrame(function () {
+        fitQuickCardFacesNow(host);
+      });
+    }).catch(function () {
+      fitQuickCardFacesNow(host);
+    });
   }
 
   /** Re-rendu des faces LaTeX une fois MathLive + formatCardFaceHtml prêts */
@@ -512,16 +532,15 @@
         var card = el.closest('.qk-card');
         if (card && faceNeedsMath(raw)) card.classList.add('qk-card--math');
       });
-      fitQuickCardFaces(host);
     }
 
     var initial = collectMathNodes();
     if (!initial.length) {
-      fitQuickCardFaces(host);
+      fitQuickCardFacesNow(host);
       return Promise.resolve();
     }
     if (!anyFaceNeedsMath(initial)) {
-      fitQuickCardFaces(host);
+      fitQuickCardFacesNow(host);
       return Promise.resolve();
     }
 
@@ -529,23 +548,25 @@
     if (typeof window.ensureScriptsForTab === 'function') {
       loadScripts = window.ensureScriptsForTab('quickLatex');
     }
+    if (host.nodeType === 1) host.classList.add('qk-fitting-faces');
     return loadScripts.then(function () {
       if (typeof window.ensureMathLive === 'function') return window.ensureMathLive();
     }).then(function () {
       paintFaces(false);
       /* Si MathLive a échoué silencieusement, éviter le placeholder éternel */
       if (!mathLiveReady()) paintFaces(true);
-      var refit = function () { fitQuickCardFaces(host); };
-      if (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function') {
-        document.fonts.ready.then(refit).catch(function () {});
-      }
-      setTimeout(refit, 120);
-      setTimeout(refit, 400);
+      var fontsP = (document.fonts && document.fonts.ready && typeof document.fonts.ready.then === 'function')
+        ? document.fonts.ready.catch(function () {})
+        : Promise.resolve();
+      return fontsP.then(function () {
+        requestAnimationFrame(function () { fitQuickCardFacesNow(host); });
+      });
     }).catch(function (err) {
       if (typeof console !== 'undefined' && console.warn) {
         console.warn('[Rapide] hydrate LaTeX', err);
       }
       paintFaces(true);
+      fitQuickCardFacesNow(host);
     });
   };
 

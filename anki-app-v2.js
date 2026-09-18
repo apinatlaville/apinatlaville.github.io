@@ -106,8 +106,61 @@
     return c.coursIds || (c.coursId ? [c.coursId] : []);
   }
 
+  /** Chapitre Programme d’une carte X- : champ explicite, sinon inféré via cours unité lié. */
+  function resolveCardChapitreId(c) {
+    if (!c) return '';
+    if (c.chapitreId) return String(c.chapitreId);
+    var ids = cardCoursIdList(c);
+    for (var i = 0; i < ids.length; i++) {
+      var co = (window.D.cours || []).find(function (x) { return x && x.uid === ids[i]; });
+      if (co && co.chapitreId) return String(co.chapitreId);
+    }
+    return '';
+  }
+
+  function chapitreDisplayLabel(chapitreId) {
+    if (!chapitreId) return 'Sans chapitre lié';
+    var ch = (window.D.chapitres || []).find(function (x) { return x && x.id === chapitreId; });
+    if (!ch) return String(chapitreId);
+    if (typeof window.formatChapitreLabel === 'function') return window.formatChapitreLabel(ch, false);
+    return ch.title || ch.id;
+  }
+
+  function renderExoChapitreSelect(matId, selectedId) {
+    var chaps = (window.D.chapitres || []).filter(function (ch) {
+      return ch && ch.mat === matId;
+    }).slice().sort(function (a, b) {
+      return (Number(a.order) || 0) - (Number(b.order) || 0)
+        || String(a.title || '').localeCompare(String(b.title || ''), 'fr');
+    });
+    var opts = '<option value="">— Aucun chapitre —</option>' + chaps.map(function (ch) {
+      var lab = chapitreDisplayLabel(ch.id);
+      return '<option value="' + esc(ch.id) + '"' + (ch.id === selectedId ? ' selected' : '') + '>' +
+        esc(lab) + '</option>';
+    }).join('');
+    return '<select id="exoChapitre" class="fi" aria-label="Chapitre Programme" onchange="window.ankiV2OnExoChapitreChange()">' + opts + '</select>';
+  }
+
+  function ensureUniteInCoursIds(chapitreId, coursIds) {
+    var out = Array.isArray(coursIds) ? coursIds.slice() : [];
+    if (!chapitreId) return out;
+    var uid = typeof window.resolveChapitreCoursUid === 'function'
+      ? window.resolveChapitreCoursUid(chapitreId)
+      : '';
+    if (!uid) {
+      var ch = (window.D.chapitres || []).find(function (x) { return x && x.id === chapitreId; });
+      uid = ch && ch.coursUniteUid ? ch.coursUniteUid : '';
+    }
+    if (uid && out.indexOf(uid) === -1) out.push(uid);
+    return out;
+  }
+
   function cardSansChapitreForMat(c, matId, unitUids) {
     if (c.mat !== matId) return false;
+    if (c.chapitreId) {
+      var ch = (window.D.chapitres || []).find(function (x) { return x && x.id === c.chapitreId; });
+      if (ch && ch.mat === matId) return false;
+    }
     const ids = cardCoursIdList(c);
     if (!ids.length) return true;
     return !ids.some(uid => unitUids.has(uid));
@@ -2376,8 +2429,8 @@
     const byMat = {};
     list.forEach(c => {
       const matId = c.mat || "?";
-      const coursId = (c.coursIds && c.coursIds[0]) || "—";
-      const gk = matId + "|" + coursId;
+      const chapId = resolveCardChapitreId(c) || "—";
+      const gk = matId + "|" + chapId;
       if (!byMat[matId]) byMat[matId] = {};
       if (!byMat[matId][gk]) byMat[matId][gk] = [];
       byMat[matId][gk].push(c);
@@ -2385,6 +2438,21 @@
 
     const matOrder = (window.D.matieres || []).map(m => m.id).filter(id => byMat[id]);
     Object.keys(byMat).forEach(id => { if (!matOrder.includes(id)) matOrder.push(id); });
+
+    function sortChapitreGroupKeys(keys) {
+      return keys.slice().sort(function (a, b) {
+        const idA = a.split('|')[1];
+        const idB = b.split('|')[1];
+        if (idA === '—') return 1;
+        if (idB === '—') return -1;
+        const chA = (window.D.chapitres || []).find(function (x) { return x && x.id === idA; });
+        const chB = (window.D.chapitres || []).find(function (x) { return x && x.id === idB; });
+        const oA = chA ? (Number(chA.order) || 0) : 9999;
+        const oB = chB ? (Number(chB.order) || 0) : 9999;
+        if (oA !== oB) return oA - oB;
+        return String(chapitreDisplayLabel(idA)).localeCompare(String(chapitreDisplayLabel(idB)), 'fr');
+      });
+    }
 
     const matOpts = (typeof window.listSelectableMatieres === 'function'
       ? window.listSelectableMatieres({ includeId: S.libFilter.mat || '' })
@@ -2431,7 +2499,7 @@
         const chGroups = byMat[matId];
         const matCount = Object.values(chGroups).reduce((s, arr) => s + arr.length, 0);
         const matOpen = autoExpand || S.libOpenMat.has(matId);
-        const grpKeys = Object.keys(chGroups).sort();
+        const grpKeys = sortChapitreGroupKeys(Object.keys(chGroups));
         return `
           <div class="anki-lib-mat${matOpen ? ' open' : ''}" data-mat="${esc(matId)}">
             <div class="anki-lib-mat-hdr" style="border-left:4px solid ${m.color};" onclick="window.ankiV2LibToggleMat('${esc(matId)}')" role="button" tabindex="0">
@@ -2442,9 +2510,8 @@
             </div>
             <div class="anki-lib-mat-body"${matOpen ? '' : ' hidden'}>
               ${grpKeys.map(gk => {
-                const coursId = gk.split('|')[1];
-                const co = (window.D.cours || []).find(x => x.uid === coursId);
-                const grpTitle = co ? `${co.uid} · ${co.title}` : (coursId === '—' ? 'Sans cours lié' : coursId);
+                const chapId = gk.split('|')[1];
+                const grpTitle = chapId === '—' ? 'Sans chapitre lié' : chapitreDisplayLabel(chapId);
                 const grpOpen = autoExpand || S.libOpenGrp.has(gk);
                 const cards = chGroups[gk];
                 return `
@@ -5191,6 +5258,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     ).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
     const profileOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${(c.profil || 'COURS') === p ? 'selected' : ''}>${esc(window.AnkiAlgoV2.DEFAULT_PROFILES[p].label)}</option>`).join('');
     const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 1;
+    const initialChapitreId = resolveCardChapitreId(c) || '';
 
     ov.innerHTML = `
       <div class="modal anki-modal-exo card-type-surface card-type-main">
@@ -5211,6 +5279,11 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="exoMat">${matOpts}</select></div>
           <div class="fg"><label>Profil</label><select id="exoProf">${profileOpts}</select></div>
+        </div>
+        <div class="fg" id="exoChapitreWrap">
+          <label>Chapitre Programme <span class="anki-mut" style="font-weight:normal;">(regroupe la carte dans Synchrotron)</span></label>
+          ${renderExoChapitreSelect(c.mat || '', initialChapitreId)}
+          <p class="anki-mut" style="font-size:11px;margin:6px 0 0;line-height:1.4;">Si le chapitre a un cours unité, il est aussi ajouté aux cours liés (révisions / Play chapitre).</p>
         </div>
         <div class="anki-modal-row anki-modal-row--meta">
           <div class="fg fg-importance">
@@ -5260,6 +5333,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     `;
     renderCoursLinkUI('exo');
     wireCoursLinkMat('exo');
+    wireExoChapitreMat();
     window.hydrateIcons(ov);
     bindAutoGrowTextareas(ov);
     wireEditableDurationPicker({
@@ -5304,7 +5378,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     const temps = Math.round(tempsMin * 60);
     const importance = window.getStarPickerValue('exoImportance');
     const stat = fieldVal('exoStat') || 'reservoir';
-    const coursIds = Array.from(S.coursLinkSelection || []);
+    let coursIds = Array.from(S.coursLinkSelection || []);
+    const chapitreId = fieldVal('exoChapitre') || '';
+    coursIds = ensureUniteInCoursIds(chapitreId, coursIds);
 
     function readSrc(prefix) {
       const type = fieldVal('exoSrc' + prefix + 'Type');
@@ -5370,8 +5446,10 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         tempsCible: temps,
         importance: importance,
         statut: stat,
-        coursIds: coursIds
+        coursIds: coursIds,
+        chapitreId: chapitreId || ''
       });
+      if (!c.chapitreId) delete c.chapitreId;
       delete c.priorite;
       if (sourceEnonce) c.sourceEnonce = sourceEnonce;
       else delete c.sourceEnonce;
@@ -5409,6 +5487,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         epinglee: false,
         dateCreation: new Date().toISOString()
       };
+      if (chapitreId) createdCard.chapitreId = chapitreId;
       if (sourceEnonce) createdCard.sourceEnonce = sourceEnonce;
       if (sourceCorrection) createdCard.sourceCorrection = sourceCorrection;
       window.D.exercices.unshift(createdCard);
@@ -5629,6 +5708,45 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       renderCoursLinkUI(k);
     });
   }
+
+  function wireExoChapitreMat() {
+    const matEl = $('exoMat');
+    if (!matEl || matEl._exoChapitreMatBound) return;
+    matEl._exoChapitreMatBound = true;
+    matEl.addEventListener('change', function () {
+      const wrap = $('exoChapitreWrap');
+      if (!wrap) return;
+      const matId = matEl.value || '';
+      const prev = fieldVal('exoChapitre');
+      const stillOk = (window.D.chapitres || []).some(function (ch) {
+        return ch && ch.id === prev && ch.mat === matId;
+      });
+      const label = wrap.querySelector('label');
+      const hint = wrap.querySelector('p.anki-mut');
+      wrap.innerHTML = '';
+      if (label) wrap.appendChild(label);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = renderExoChapitreSelect(matId, stillOk ? prev : '');
+      if (tmp.firstChild) wrap.appendChild(tmp.firstChild);
+      if (hint) wrap.appendChild(hint);
+      else {
+        const p = document.createElement('p');
+        p.className = 'anki-mut';
+        p.style.cssText = 'font-size:11px;margin:6px 0 0;line-height:1.4;';
+        p.textContent = 'Si le chapitre a un cours unité, il est aussi ajouté aux cours liés (révisions / Play chapitre).';
+        wrap.appendChild(p);
+      }
+    });
+  }
+
+  window.ankiV2OnExoChapitreChange = function () {
+    const chapId = fieldVal('exoChapitre');
+    if (!chapId) return;
+    if (!S.coursLinkSelection) S.coursLinkSelection = new Set();
+    const withUnite = ensureUniteInCoursIds(chapId, Array.from(S.coursLinkSelection));
+    S.coursLinkSelection = new Set(withUnite);
+    renderCoursLinkUI('exo');
+  };
 
   window.ankiV2CoursLinkArianeNav = function (kind, level, id) {
     const k = kind === 'quick' ? 'quick' : 'exo';

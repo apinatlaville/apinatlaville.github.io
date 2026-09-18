@@ -1287,6 +1287,8 @@
       }
       ALGO.migrateImportance(c);
       if (!Array.isArray(c.coursIds)) c.coursIds = c.coursId ? [c.coursId] : [];
+      if (c.chapitreId) c.chapitreId = String(c.chapitreId);
+      else if (c.chapitreId === '') delete c.chapitreId;
       if (!c.profil && ALGO.cardKind(c) === 'quick') c.profil = 'ANGLAIS';
       else if (!c.profil) c.profil = 'COURS';
       // DM : renseigner temps restant / session min si absents (rétrocompat)

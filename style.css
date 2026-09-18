@@ -3897,6 +3897,12 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 .qk-drill-prompt .latex-lab-preview-math.is-fitted {
   overflow: visible;
 }
+/* Pendant le fit LaTeX : invisible pour éviter le tremblement reset→scale */
+.qk-fitting-faces .qk-drill-prompt,
+.qk-fitting-faces .qk-q,
+.qk-fitting-faces .qk-r {
+  opacity: 0;
+}
 .qk-drill-type {
   display: flex;
   flex-direction: column;
