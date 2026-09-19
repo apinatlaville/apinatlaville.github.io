@@ -7317,12 +7317,25 @@ body.nav-sidebar-left #paneLatexTest.on {
 .latex-lab-preview-math.is-fitted {
   overflow: hidden;
   margin-inline: auto;
+  /* Évite la coupe du bas (dénominateurs / struts MathLive) */
+  padding-bottom: 2px;
+  box-sizing: content-box;
 }
 .latex-lab-preview-math .ML__mathlive,
 .latex-lab-preview-math .ML__content,
 .latex-lab-preview-math .katex-display,
 .latex-lab-preview-math .katex {
   max-width: none;
+}
+/* MathLive : correction italique excessive sur f (rendu « comme une fonction ») */
+.latex-lab-preview-math .ML__mathit[style="margin-right:0.11em"],
+.latex-lab-preview-math .ML__mathit[style='margin-right:0.11em'],
+.qk-q .ML__mathit[style="margin-right:0.11em"],
+.qk-r .ML__mathit[style="margin-right:0.11em"],
+.qk-drill-prompt .ML__mathit[style="margin-right:0.11em"],
+.anki-card-q .ML__mathit[style="margin-right:0.11em"],
+.anki-card-a .ML__mathit[style="margin-right:0.11em"] {
+  margin-right: 0 !important;
 }
 /* Cartes / Rapide : taille relative au texte de la carte (pas le 1.45rem du labo) */
 .qk-q .latex-lab-preview-math,

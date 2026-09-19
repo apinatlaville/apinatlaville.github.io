@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 11;
+  var UI_REV = 12;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -1041,9 +1041,26 @@
     return String(latex).replace(/\\frac(?![a-zA-Z])/g, '\\dfrac');
   }
 
+  /**
+   * MathLive traite « f » avec une large correction italique + Espaces auto (\,)
+   * autour d’un f isolé (ex. coef\,f\,s). On recolle lettre\,f\,lettre → letterfletter
+   * sans toucher f\,dx ni le style italique de f.
+   */
+  function tightenMathliveLetterF(latex) {
+    var s = String(latex || '');
+    var prev;
+    do {
+      prev = s;
+      s = s.replace(/([A-Za-z])\\,f\\,([A-Za-z])/g, '$1f$2');
+    } while (s !== prev);
+    return s;
+  }
+
   function latexToMarkup(latex) {
     if (!latex) return '';
-    var normalized = promoteFractionsToDisplay(normalizeVectorLatex(latex));
+    var normalized = tightenMathliveLetterF(
+      promoteFractionsToDisplay(normalizeVectorLatex(latex))
+    );
     var opts = { defaultMode: 'displaystyle', letterShapeStyle: 'french' };
     try {
       if (window.MathfieldElement && typeof window.MathfieldElement.convertLatexToMarkup === 'function') {
@@ -1187,22 +1204,36 @@
     /* Forcer une mesure synchrone (évite double rAF = flash / tremblement) */
     void (root.offsetWidth);
     boxes.forEach(function (box) {
-      var host = box.closest('.latex-lab-preview-wrap')
-        || box.closest('.qk-drill-prompt')
+      /* Lab / Easy : le wrap scrolle déjà en X — le scale coupait le bas des fractions */
+      if (box.closest('.latex-lab-preview-wrap')
+          && !box.closest('.qk-drill-prompt, .qk-q, .qk-r, .anki-card-q, .anki-card-a')) {
+        return;
+      }
+      var host = box.closest('.qk-drill-prompt')
         || box.closest('.qk-q, .qk-r, .anki-card-q, .anki-card-a')
+        || box.closest('.latex-lab-preview-wrap')
         || box.parentElement;
       var avail = host ? host.clientWidth : 0;
       if (avail <= 8) return;
       avail -= 4;
-      var need = Math.max(box.scrollWidth, box.offsetWidth);
+      var need = Math.max(box.scrollWidth, box.offsetWidth, box.getBoundingClientRect().width);
       if (need <= avail + 1) return;
       var minScale = box.closest('.qk-drill-prompt') ? 0.28 : 0.5;
       var s = Math.max(minScale, avail / need);
-      var naturalH = box.offsetHeight;
+      /* Mesure hauteur réelle (struts MathLive hors offsetHeight) avant scale */
+      var naturalH = Math.max(
+        box.scrollHeight,
+        box.offsetHeight,
+        box.getBoundingClientRect().height
+      );
       box.style.transformOrigin = 'top center';
       box.style.transform = 'scale(' + s + ')';
-      box.style.height = (naturalH * s) + 'px';
-      box.style.width = (need * s) + 'px';
+      /* Hauteur = bbox visuelle après scale + marge anti-coupe des indices / dénominateurs */
+      void box.offsetWidth;
+      var visualH = box.getBoundingClientRect().height;
+      if (!(visualH > 0)) visualH = naturalH * s;
+      box.style.height = Math.ceil(visualH + 6) + 'px';
+      box.style.width = Math.ceil(need * s) + 'px';
       box.style.maxWidth = '100%';
       box.style.marginLeft = 'auto';
       box.style.marginRight = 'auto';
@@ -1251,7 +1282,7 @@
   function applyLatexToEditor(latex, focus) {
     if (!_mf) return;
     try {
-      _mf.value = promoteFractionsToDisplay(latex || '');
+      _mf.value = tightenMathliveLetterF(promoteFractionsToDisplay(latex || ''));
     } catch (e) { /* ignore */ }
     syncFromEditor();
     if (focus) {
@@ -1285,6 +1316,7 @@
       textsp: '\\ '
     };
     insertSnip(map[kind] || '\\,');
+    if (tightenEditorLetterF(_mf)) syncFromEditor();
   }
 
   function insertTextBox() {
@@ -1353,6 +1385,11 @@
     el.value = val.slice(0, start) + token + val.slice(end);
     var pos = start + token.length;
     el.setSelectionRange(pos, pos);
+    var tight = tightenMathliveLetterF(el.value);
+    if (tight !== el.value) {
+      el.value = tight;
+      el.setSelectionRange(tight.length, tight.length);
+    }
     applyLatexToEditor(el.value, false);
   }
 
@@ -1523,6 +1560,39 @@
       if ('defaultMode' in mf) mf.defaultMode = 'math';
       mf.setAttribute('default-mode', 'math');
     } catch (e2) { /* ignore */ }
+    injectMathFieldFSpacingFix(mf);
+  }
+
+  /** Annule la correction italique MathLive sur f (margin-right:0.11em) dans le shadow DOM. */
+  function injectMathFieldFSpacingFix(mf) {
+    if (!mf || !mf.shadowRoot) return;
+    if (mf.shadowRoot.querySelector('style[data-tight-f]')) return;
+    var style = document.createElement('style');
+    style.setAttribute('data-tight-f', '1');
+    style.textContent =
+      '.ML__mathit[style="margin-right:0.11em"],' +
+      '.ML__mathit[style=\'margin-right:0.11em\']{margin-right:0!important}';
+    mf.shadowRoot.appendChild(style);
+  }
+
+  /** Recolle coef\,f\,s → coeffs dans l’éditeur après un espace auto. */
+  function tightenEditorLetterF(mf) {
+    if (!mf) return false;
+    var cur = '';
+    try {
+      cur = mf.getValue ? mf.getValue('latex') : (mf.value || '');
+    } catch (e) {
+      cur = mf.value || '';
+    }
+    var next = tightenMathliveLetterF(cur);
+    if (next === cur) return false;
+    try {
+      if (typeof mf.setValue === 'function') mf.setValue(next);
+      else mf.value = next;
+    } catch (e2) {
+      try { mf.value = next; } catch (e3) { /* ignore */ }
+    }
+    return true;
   }
 
   function latexPrimaryCmd(latex) {
@@ -1850,7 +1920,9 @@
 
     function applyLatex(latex, focus) {
       if (!mf) return;
-      try { mf.value = promoteFractionsToDisplay(latex || ''); } catch (e) { /* ignore */ }
+      try {
+        mf.value = tightenMathliveLetterF(promoteFractionsToDisplay(latex || ''));
+      } catch (e) { /* ignore */ }
       syncFromEditor();
       if (focus) { try { mf.focus(); } catch (e2) { /* ignore */ } }
     }
@@ -1869,6 +1941,7 @@
     function insertSpaceLocal(kind) {
       var map = { thin: '\\,', med: '\\:', thick: '\\;', quad: '\\quad', qquad: '\\qquad', textsp: '\\ ' };
       insertSnipLocal(map[kind] || '\\,');
+      if (tightenEditorLetterF(mf)) syncFromEditor();
     }
 
     function renderSnips(items) {
@@ -2105,6 +2178,11 @@
           codeEl.value = val.slice(0, start) + token + val.slice(end);
           var pos = start + token.length;
           codeEl.setSelectionRange(pos, pos);
+          var tight = tightenMathliveLetterF(codeEl.value);
+          if (tight !== codeEl.value) {
+            codeEl.value = tight;
+            codeEl.setSelectionRange(tight.length, tight.length);
+          }
           applyLatex(codeEl.value, false);
         });
       }
@@ -2144,7 +2222,7 @@
     return {
       ready: ready,
       getInline: function () {
-        return latexBuildInline(getBefore(), getLatex(), getAfter());
+        return latexBuildInline(getBefore(), tightenMathliveLetterF(getLatex()), getAfter());
       },
       setFromInline: function (str) {
         var parts = parseLatexInlineForEditor(str);
