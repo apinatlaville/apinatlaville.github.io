@@ -31,12 +31,12 @@
   var _pick = null;
   try {
     _pick = localStorage.getItem('homeLabPick') || null;
-    _view = localStorage.getItem('homeLabView') || _pick || 'code';
+    _view = localStorage.getItem('homeLabView') || _pick || 'portes';
   } catch (e) {
     _pick = null;
-    _view = 'code';
+    _view = 'portes';
   }
-  if (!IDEAS.some(function (i) { return i.id === _view; })) _view = 'code';
+  if (!IDEAS.some(function (i) { return i.id === _view; })) _view = 'portes';
 
   function esc(s) {
     return typeof window.escHtml === 'function'
@@ -176,34 +176,62 @@
   }
 
   function mockPortes(s, name) {
+    var due = s.dueX + s.dueY;
     return (
       '<div class="hlab-stage hlab-stage-portes">' +
         '<div class="hlab-stage-bg" aria-hidden="true"></div>' +
-        '<div class="hlab-stage-inner">' +
-          brandBlock(name, 'Bureau') +
-          '<div class="hlab-doors">' +
-            '<button type="button" class="hlab-door" data-go="cours">' +
-              '<span class="hlab-door-ico">' + icon('clipboard-list', 28) + '</span>' +
-              '<strong>Base Doc</strong>' +
-              '<span>' + s.docs + ' document' + (s.docs !== 1 ? 's' : '') +
-                (s.fiches ? ' · ' + s.fiches + ' fiches' : '') + '</span>' +
+        '<div class="hlab-stage-orb hlab-orb-a" aria-hidden="true"></div>' +
+        '<div class="hlab-stage-orb hlab-orb-b" aria-hidden="true"></div>' +
+        '<div class="hlab-stage-inner hlab-stage-inner-portes">' +
+          '<header class="hlab-portes-head">' +
+            '<div class="hlab-brand hlab-brand-xl">Mes Cours <span class="hlab-edition">PC*</span></div>' +
+            '<p class="hlab-greet hlab-greet-lg">' +
+              (name ? 'Bonjour, <b>' + esc(name) + '</b>' : 'Bonjour') +
+              ' <span class="hlab-dot">·</span> ' + esc(dateLabel()) +
+            '</p>' +
+            '<p class="hlab-portes-tagline">Choisis ta porte — docs, révision, ou flash rapide.</p>' +
+          '</header>' +
+          '<div class="hlab-portals" role="navigation" aria-label="Accès principaux">' +
+            '<button type="button" class="hlab-portal hlab-portal-doc" data-go="cours" style="--i:0">' +
+              '<span class="hlab-portal-num" aria-hidden="true">01</span>' +
+              '<span class="hlab-portal-ico">' + icon('clipboard-list', 32) + '</span>' +
+              '<strong class="hlab-portal-title">Base Doc</strong>' +
+              '<span class="hlab-portal-metric">' + s.docs + ' document' + (s.docs !== 1 ? 's' : '') + '</span>' +
+              '<span class="hlab-portal-hint">' +
+                (s.fiches ? s.fiches + ' fiches' : 'Cours, TD, DS') +
+                (s.orphans ? ' · ' + s.orphans + ' à ranger' : '') +
+              '</span>' +
+              '<span class="hlab-portal-cta">Entrer ' + icon('arrow-right', 14) + '</span>' +
             '</button>' +
-            '<button type="button" class="hlab-door hlab-door-acc" data-go="ankiV2">' +
-              '<span class="hlab-door-ico">' + icon('dna', 28) + '</span>' +
-              '<strong>Synchrotron</strong>' +
-              '<span>' + (s.dueX + s.dueY) + ' carte' + ((s.dueX + s.dueY) !== 1 ? 's' : '') + ' due' + ((s.dueX + s.dueY) !== 1 ? 's' : '') + '</span>' +
+            '<button type="button" class="hlab-portal hlab-portal-sync" data-go="ankiV2" style="--i:1">' +
+              '<span class="hlab-portal-num" aria-hidden="true">02</span>' +
+              '<span class="hlab-portal-ico">' + icon('dna', 32) + '</span>' +
+              '<strong class="hlab-portal-title">Synchrotron</strong>' +
+              '<span class="hlab-portal-metric">' + due + ' due' + (due !== 1 ? 's' : '') + ' aujourd’hui</span>' +
+              '<span class="hlab-portal-hint">' + s.dueX + ' X- · ' + s.dueY + ' Y-' +
+                (s.dmDue ? ' · ' + s.dmDue + ' DM' : '') + '</span>' +
+              '<span class="hlab-portal-cta">Réviser ' + icon('arrow-right', 14) + '</span>' +
             '</button>' +
-            '<button type="button" class="hlab-door" data-go="flashcards">' +
-              '<span class="hlab-door-ico">' + icon('zap', 28) + '</span>' +
-              '<strong>Rapide</strong>' +
-              '<span>' + s.dueY + ' Y- due' + (s.dueY !== 1 ? 's' : '') + '</span>' +
+            '<button type="button" class="hlab-portal hlab-portal-rapide" data-go="flashcards" style="--i:2">' +
+              '<span class="hlab-portal-num" aria-hidden="true">03</span>' +
+              '<span class="hlab-portal-ico">' + icon('zap', 32) + '</span>' +
+              '<strong class="hlab-portal-title">Rapide</strong>' +
+              '<span class="hlab-portal-metric">' + s.dueY + ' Y- due' + (s.dueY !== 1 ? 's' : '') + '</span>' +
+              '<span class="hlab-portal-hint">Vocab, formules — session courte</span>' +
+              '<span class="hlab-portal-cta">Lancer ' + icon('arrow-right', 14) + '</span>' +
             '</button>' +
           '</div>' +
-          '<div class="hlab-slim-bar">' +
-            '<span class="hlab-slim-lbl">Code</span>' +
+          '<div class="hlab-portes-dock">' +
+            '<div class="hlab-dock-label">' +
+              '<span class="hlab-slim-lbl">Code document</span>' +
+              '<span class="hlab-dock-sub">XX-XXX · scanner ou taper</span>' +
+            '</div>' +
             codeBoxesHtml() +
-            '<button type="button" class="bp" id="hlabBtnOpen">Ouvrir</button>' +
-            '<button type="button" class="bs" id="hlabBtnCam">' + icon('camera', 14) + '</button>' +
+            '<div class="hlab-dock-actions">' +
+              '<button type="button" class="bp" id="hlabBtnOpen">Ouvrir</button>' +
+              '<button type="button" class="bs" id="hlabBtnCam">' + icon('camera', 14) + ' Scan</button>' +
+              '<button type="button" class="bs" id="hlabBtnKholle">' + icon('dice-5', 14) + '</button>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>'
