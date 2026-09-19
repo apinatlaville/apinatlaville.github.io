@@ -36,7 +36,8 @@
     cardCreateX: ['card-create-x-lab.js'],
     cardCreateY: ['anki-quick.js', 'card-create-y-lab.js'],
     latexShortcuts: ['latex-test.js'],
-    quickLatex: ['latex-test.js', 'anki-quick-latex.js']
+    quickLatex: ['latex-test.js', 'anki-quick-latex.js'],
+    homeLab: ['home-lab.js']
   };
 
   var DEFERRED_AFTER_BOOT = [

@@ -2458,7 +2458,10 @@
       ? window.listSelectableMatieres({ includeId: S.libFilter.mat || '' })
       : (window.D.matieres || [])
     ).map(m => `<option value="${m.id}" ${S.libFilter.mat === m.id ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
-    const profOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${S.libFilter.profil === p ? 'selected' : ''}>${esc(window.AnkiAlgoV2.DEFAULT_PROFILES[p].label)}</option>`).join('');
+    const profOpts = window.AnkiAlgoV2.listProfiles().map(p => {
+      const pr = window.AnkiAlgoV2.getProfile(p);
+      return `<option value="${esc(p)}" ${S.libFilter.profil === p ? 'selected' : ''}>${esc(pr.label || p)}</option>`;
+    }).join('');
     const matChips = (window.D.matieres || []).map(m => {
       const n = (byMat[m.id] && Object.values(byMat[m.id]).reduce((s, a) => s + a.length, 0)) || 0;
       if (!n && S.libFilter.mat !== m.id) return '';
@@ -3259,6 +3262,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       ));
     }
     const C = st.ankiCoefs;
+    window.AnkiAlgoV2.ensureProfiles();
 
     const coefRow = (k, label, step) => `
       <div class="anki-set-row">
@@ -3278,6 +3282,21 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
           <input class="fi" type="number" step="0.1" min="1.3" max="3.0" id="mstar_${stars}_ease" value="${p.ease}" oninput="window.ankiV2SaveMainStar(${stars})">
         </div>
       `;
+    }).join('');
+
+    const profilesManageHtml = window.AnkiAlgoV2.listProfiles().map(function (k) {
+      const p = window.AnkiAlgoV2.getProfile(k);
+      const protectedProf = k === 'COURS';
+      return `
+        <div class="anki-prof-row" data-prof="${esc(k)}">
+          <code class="anki-mut anki-prof-code">${esc(k)}</code>
+          <input class="fi anki-prof-label-inp" id="prof_lbl_${esc(k)}" value="${esc(p.label || k)}"
+            onchange="window.ankiV2RenameProfile('${esc(k)}', this.value)"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
+          ${protectedProf
+            ? '<span class="anki-mut" style="font-size:11px;white-space:nowrap;">fallback</span>'
+            : `<button type="button" class="mdel" title="Supprimer" onclick="window.ankiV2DeleteProfile('${esc(k)}')">${window.iconHtml('x', 14, 'icon-sm')}</button>`}
+        </div>`;
     }).join('');
 
     const qDef = st.ankiQuickDefaultSteps || window.AnkiAlgoV2.DEFAULT_QUICK_STEPS;
@@ -3363,6 +3382,17 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       </div>
 
       <div class="anki-card-block">
+        <h3>${window.iconLabel('tag', 'Profils de cartes')}</h3>
+        <p class="anki-mut" style="font-size:12px;">Étiquettes pour filtrer et classer (X- / W-). Le rythme des X- reste piloté par les <b>★</b> ci-dessous — pas par le profil. Renomme, ajoute ou supprime comme les matières Base Doc (le code interne reste stable pour les cartes déjà liées).</p>
+        <div class="anki-prof-list">${profilesManageHtml}</div>
+        <div class="anki-set-row" style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input class="fi" id="ankiNewProfLabel" placeholder="Nom du nouveau profil" style="flex:1;min-width:160px;" onkeydown="if(event.key==='Enter'){event.preventDefault();window.ankiV2AddProfile();}">
+          <button type="button" class="bp" onclick="window.ankiV2AddProfile()">${window.iconLabel('plus', 'Ajouter')}</button>
+          <button type="button" class="bs" onclick="window.ankiV2ResetProfiles()">${window.iconLabel('refresh-cw', 'Profils par défaut')}</button>
+        </div>
+      </div>
+
+      <div class="anki-card-block">
         <h3>${window.iconLabel('star', 'Importance — fenêtres de révision (X-)')}</h3>
         <p class="anki-mut" style="font-size:12px;">Chaque carte X- a 1 à 5★. En phase <b>mature</b>, l'étoile fixe <b>quand s'ouvre la fenêtre</b> et sa <b>largeur</b> — même modèle que la carte mentale. Les <b>W-</b> restent calendaires (date limite).</p>
         ${window.AnkiAlgoV2.renderStarWindowsEditor({ idPrefix: 'setSw' })}
@@ -3412,6 +3442,91 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       label: def.label
     };
     window.save();
+  };
+  window.ankiV2RenameProfile = function (key, label) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : modification des profils indisponible.')) {
+      return;
+    }
+    if (!window.AnkiAlgoV2.renameProfile(key, label)) {
+      if (typeof window.sysAlert === 'function') window.sysAlert('Le nom du profil ne peut pas être vide.', 'Profils');
+      window.renderAnkiV2();
+      return;
+    }
+    window.save();
+  };
+  window.ankiV2AddProfile = function () {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : modification des profils indisponible.')) {
+      return;
+    }
+    const inp = $("ankiNewProfLabel");
+    const label = inp ? String(inp.value || '').trim() : '';
+    if (!label) {
+      if (typeof window.showInlineError === 'function' && inp) window.showInlineError(inp, 'Indique un nom.');
+      else if (typeof window.sysAlert === 'function') window.sysAlert('Indique un nom pour le nouveau profil.', 'Profils');
+      return;
+    }
+    const key = window.AnkiAlgoV2.addProfile(label);
+    if (!key) return;
+    if (inp) inp.value = '';
+    window.save();
+    window.renderAnkiV2();
+  };
+  window.ankiV2DeleteProfile = function (key) {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : modification des profils indisponible.')) {
+      return;
+    }
+    const p = window.AnkiAlgoV2.getProfile(key);
+    const go = function () {
+      const res = window.AnkiAlgoV2.deleteProfile(key);
+      if (!res || !res.ok) {
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert((res && res.error) || 'Suppression impossible.', 'Profils');
+        }
+        return;
+      }
+      window.save();
+      window.renderAnkiV2();
+    };
+    const msg = resCountMsg(key, p && p.label);
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm(msg, go, 'Supprimer le profil');
+    } else {
+      go();
+    }
+  };
+  function resCountMsg(key, label) {
+    const all = window.AnkiAlgoV2.allCards
+      ? window.AnkiAlgoV2.allCards(window.D)
+      : (window.D.exercices || []).concat(window.D.devoirs || []);
+    const n = all.filter(c => (c.profil || 'COURS') === key).length;
+    const lab = label || key;
+    if (n) {
+      return `Supprimer « ${lab} » ? ${n} carte(s) passeront sur le profil Cours.`;
+    }
+    return `Supprimer le profil « ${lab} » ?`;
+  }
+  window.ankiV2ResetProfiles = function () {
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : modification des profils indisponible.')) {
+      return;
+    }
+    const go = function () {
+      window.AnkiAlgoV2.resetProfiles();
+      window.save();
+      window.renderAnkiV2();
+    };
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm(
+        'Réinitialiser les profils (Cours, Exo, Formule, Anglais) ? Les cartes sur un profil perso repasseront sur Cours.',
+        go,
+        'Profils par défaut'
+      );
+    } else {
+      go();
+    }
   };
   window.ankiV2ResetMainStarSteps = function () {
     window.D.settings.ankiMainStarSteps = JSON.parse(JSON.stringify(window.AnkiAlgoV2.DEFAULT_MAIN_STAR_STEPS));
@@ -5275,7 +5390,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       ? window.listSelectableMatieres({ includeId: c.mat || '' })
       : (window.D.matieres || [])
     ).map(m => `<option value="${m.id}" ${m.id === c.mat ? 'selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`).join('');
-    const profileOpts = Object.keys(window.AnkiAlgoV2.DEFAULT_PROFILES).map(p => `<option value="${p}" ${(c.profil || 'COURS') === p ? 'selected' : ''}>${esc(window.AnkiAlgoV2.DEFAULT_PROFILES[p].label)}</option>`).join('');
+    const profileOpts = window.AnkiAlgoV2.profileOptionsHtml(c.profil || 'COURS', esc);
     const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 1;
     const initialChapitreId = resolveCardChapitreId(c) || '';
 

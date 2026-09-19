@@ -118,9 +118,158 @@
     return 0.85 + (imp - 1) * 0.1;
   };
 
+  /** Clone profond d’un profil (steps + ease + label). */
+  ALGO.cloneProfile = function (p) {
+    const src = p || ALGO.DEFAULT_PROFILES.COURS;
+    return {
+      steps: Array.isArray(src.steps) ? src.steps.slice() : [1, 3, 8, 21, 45, 90],
+      ease: src.ease != null ? src.ease : ALGO.DEFAULT_EASE,
+      label: src.label || "Profil"
+    };
+  };
+
+  /**
+   * Catalogue éditable des profils (étiquettes X-/W-).
+   * One-shot : fusionne les défauts + overrides legacy, puis devient source de vérité
+   * (suppression d’un profil ne le réinjecte pas au prochain chargement).
+   */
+  ALGO.ensureProfiles = function () {
+    if (!window.D) return JSON.parse(JSON.stringify(ALGO.DEFAULT_PROFILES));
+    if (!window.D.settings) window.D.settings = {};
+    const st = window.D.settings;
+    if (!st.ankiProfiles || typeof st.ankiProfiles !== "object") {
+      st.ankiProfiles = JSON.parse(JSON.stringify(ALGO.DEFAULT_PROFILES));
+      st.ankiProfilesReady = true;
+    } else if (!st.ankiProfilesReady) {
+      Object.keys(ALGO.DEFAULT_PROFILES).forEach(function (k) {
+        const def = ALGO.DEFAULT_PROFILES[k];
+        if (!st.ankiProfiles[k]) {
+          st.ankiProfiles[k] = ALGO.cloneProfile(def);
+        } else {
+          const p = st.ankiProfiles[k];
+          if (!p.label) p.label = def.label;
+          if (!Array.isArray(p.steps) || !p.steps.length) p.steps = def.steps.slice();
+          if (p.ease == null) p.ease = def.ease;
+        }
+      });
+      st.ankiProfilesReady = true;
+    }
+    if (!st.ankiProfiles.COURS) {
+      st.ankiProfiles.COURS = ALGO.cloneProfile(ALGO.DEFAULT_PROFILES.COURS);
+    }
+    return st.ankiProfiles;
+  };
+
+  /** Clés de profils disponibles (ordre : défauts d’abord, puis perso). */
+  ALGO.listProfiles = function () {
+    const map = ALGO.ensureProfiles();
+    const defKeys = Object.keys(ALGO.DEFAULT_PROFILES).filter(function (k) { return !!map[k]; });
+    const extra = Object.keys(map).filter(function (k) {
+      return defKeys.indexOf(k) < 0;
+    }).sort();
+    return defKeys.concat(extra);
+  };
+
   ALGO.getProfile = function (name) {
-    const user = (window.D && window.D.settings && window.D.settings.ankiProfiles) || {};
-    return user[name] || ALGO.DEFAULT_PROFILES[name] || ALGO.DEFAULT_PROFILES.COURS;
+    const map = ALGO.ensureProfiles();
+    return map[name] || map.COURS || ALGO.DEFAULT_PROFILES.COURS;
+  };
+
+  /** Options HTML pour un <select> profil. */
+  ALGO.profileOptionsHtml = function (selectedId, escFn) {
+    const esc = escFn || function (s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    };
+    const sel = selectedId || "COURS";
+    return ALGO.listProfiles().map(function (k) {
+      const p = ALGO.getProfile(k);
+      return '<option value="' + esc(k) + '"' + (k === sel ? " selected" : "") + ">" +
+        esc(p.label || k) + "</option>";
+    }).join("");
+  };
+
+  ALGO.makeProfileKey = function (label) {
+    let base = String(label || "PROFIL")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_|_$/g, "")
+      .toUpperCase()
+      .slice(0, 16);
+    if (!base) base = "PROFIL";
+    const map = ALGO.ensureProfiles();
+    if (!map[base]) return base;
+    let i = 2;
+    while (map[base + i]) i++;
+    return base + i;
+  };
+
+  ALGO.addProfile = function (label) {
+    const name = String(label || "").trim();
+    if (!name) return null;
+    const map = ALGO.ensureProfiles();
+    const key = ALGO.makeProfileKey(name);
+    const base = ALGO.cloneProfile(map.COURS || ALGO.DEFAULT_PROFILES.COURS);
+    base.label = name;
+    map[key] = base;
+    return key;
+  };
+
+  ALGO.renameProfile = function (key, newLabel) {
+    const map = ALGO.ensureProfiles();
+    if (!map[key]) return false;
+    const name = String(newLabel || "").trim();
+    if (!name) return false;
+    map[key].label = name;
+    return true;
+  };
+
+  /** Réassigne les cartes d’un profil vers un autre. */
+  ALGO.reassignProfileCards = function (fromKey, toKey) {
+    if (!window.D || !fromKey || !toKey || fromKey === toKey) return 0;
+    let n = 0;
+    const all = ALGO.allCards(window.D);
+    all.forEach(function (c) {
+      if (!c) return;
+      if ((c.profil || "COURS") === fromKey) {
+        c.profil = toKey;
+        n++;
+      }
+    });
+    return n;
+  };
+
+  /**
+   * Supprime un profil. COURS est protégé (fallback).
+   * Cartes liées → basculées sur COURS (ou premier profil restant).
+   * @returns {{ ok: boolean, moved?: number, error?: string }}
+   */
+  ALGO.deleteProfile = function (key) {
+    const map = ALGO.ensureProfiles();
+    if (!map[key]) return { ok: false, error: "Profil inconnu." };
+    if (key === "COURS") return { ok: false, error: "Le profil Cours est le fallback — il ne peut pas être supprimé." };
+    const keys = Object.keys(map);
+    if (keys.length <= 1) return { ok: false, error: "Il faut au moins un profil." };
+    const fallback = map.COURS ? "COURS" : keys.filter(function (k) { return k !== key; })[0];
+    const moved = ALGO.reassignProfileCards(key, fallback);
+    delete map[key];
+    return { ok: true, moved: moved, fallback: fallback };
+  };
+
+  ALGO.resetProfiles = function () {
+    if (!window.D.settings) window.D.settings = {};
+    window.D.settings.ankiProfiles = JSON.parse(JSON.stringify(ALGO.DEFAULT_PROFILES));
+    window.D.settings.ankiProfilesReady = true;
+    const valid = window.D.settings.ankiProfiles;
+    if (window.D && typeof ALGO.allCards === "function") {
+      ALGO.allCards(window.D).forEach(function (c) {
+        if (!c) return;
+        const pk = c.profil || "COURS";
+        if (!valid[pk]) c.profil = "COURS";
+      });
+    }
+    return window.D.settings.ankiProfiles;
   };
   /** Paliers SM-2 X- selon ★ (réglages Synchrotron). */
   ALGO.getMainStarProfile = function (importance) {

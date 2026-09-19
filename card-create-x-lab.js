@@ -307,10 +307,13 @@
       return '<option value="' + esc(m.id) + '"' + (m.id === c.mat ? ' selected' : '') + '>' +
         esc(m.label) + ' — ' + esc(m.name) + '</option>';
     }).join('');
-    const profiles = (window.AnkiAlgoV2 && window.AnkiAlgoV2.DEFAULT_PROFILES) || { COURS: { label: 'Cours' } };
-    const profOpts = Object.keys(profiles).map(function (p) {
+    const profiles = window.AnkiAlgoV2 && window.AnkiAlgoV2.listProfiles
+      ? window.AnkiAlgoV2.listProfiles()
+      : Object.keys((window.AnkiAlgoV2 && window.AnkiAlgoV2.DEFAULT_PROFILES) || { COURS: 1 });
+    const profOpts = profiles.map(function (p) {
+      const pr = window.AnkiAlgoV2.getProfile(p);
       return '<option value="' + esc(p) + '"' + ((c.profil || 'COURS') === p ? ' selected' : '') + '>' +
-        esc(profiles[p].label || p) + '</option>';
+        esc((pr && pr.label) || p) + '</option>';
     }).join('');
     const m = matOf(c.mat);
     const tempsMin = c.tempsCible ? (c.tempsCible / 60) : 1;

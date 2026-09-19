@@ -22,6 +22,13 @@
   V2.activateFromReservoir = function (c) { return needA1().activateFromReservoir(c); };
   V2.getImportance = function (c) { return needA1().getImportance(c); };
   V2.getProfile = function (p) { return needA1().getProfile(p); };
+  V2.ensureProfiles = function () { return needA1().ensureProfiles(); };
+  V2.listProfiles = function () { return needA1().listProfiles(); };
+  V2.profileOptionsHtml = function (sel, escFn) { return needA1().profileOptionsHtml(sel, escFn); };
+  V2.addProfile = function (label) { return needA1().addProfile(label); };
+  V2.renameProfile = function (k, label) { return needA1().renameProfile(k, label); };
+  V2.deleteProfile = function (k) { return needA1().deleteProfile(k); };
+  V2.resetProfiles = function () { return needA1().resetProfiles(); };
   V2.getQuickStarProfile = function (imp) { return needA1().getQuickStarProfile(imp); };
   V2.getMainStarProfile = function (imp) { return needA1().getMainStarProfile(imp); };
   V2.getQuickDefaultProfile = function () { return needA1().getQuickDefaultProfile(); };

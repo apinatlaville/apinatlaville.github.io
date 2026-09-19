@@ -1078,6 +1078,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'cardCreateY': if (typeof window.renderCardCreateYLab === 'function') window.renderCardCreateYLab(); break;
     case 'latexShortcuts': if (typeof window.renderLatexShortcutsHelp === 'function') window.renderLatexShortcutsHelp(); break;
     case 'quickLatex': if (typeof window.renderQuickLatexCard === 'function') window.renderQuickLatexCard(); break;
+    case 'homeLab': if (typeof window.renderHomeLab === 'function') window.renderHomeLab(); break;
     default: break;
   }
 };
