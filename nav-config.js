@@ -30,7 +30,8 @@ window.APP_TAB_REGISTRY = {
   cardCreateY: { pane: 'paneCardCreateY', label: 'Labo carte Y', icon: 'zap', needsData: true, onShow: 'cardCreateY', className: 'tab-card-create-y' },
   latexShortcuts: { pane: 'paneLatexShortcuts', label: 'Raccourcis LaTeX', icon: 'keyboard', needsData: false, onShow: 'latexShortcuts', className: 'tab-latex-help' },
   quickLatex:  { pane: 'paneQuickLatex', label: 'Carte LaTeX',   icon: 'sigma',         needsData: true,  onShow: 'quickLatex',    nav: false },
-  homeLab:     { pane: 'paneHomeLab',    label: 'Labo Accueil',  icon: 'layout-list', needsData: true, onShow: 'homeLab', className: 'tab-home-lab' }
+  homeLab:     { pane: 'paneHomeLab',    label: 'Labo Accueil',  icon: 'layout-list', needsData: true, onShow: 'homeLab', className: 'tab-home-lab' },
+  xpLab:       { pane: 'paneXpLab',      label: 'Labo XP',       icon: 'flame',       needsData: true, onShow: 'xpLab',   className: 'tab-xp-lab' }
 };
 
 /** Groupes affichés dans la barre d'onglets (ordre conservé) */
@@ -52,7 +53,7 @@ window.APP_NAV_GROUPS = [
   {
     label: 'Système',
     className: 'nav-group-tools',
-    tabs: ['logs', 'test', 'homeLab', 'latexTest', 'cardCreateX', 'cardCreateY', 'latexShortcuts']
+    tabs: ['logs', 'test', 'homeLab', 'xpLab', 'latexTest', 'cardCreateX', 'cardCreateY', 'latexShortcuts']
   }
 ];
 

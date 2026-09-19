@@ -23,11 +23,11 @@
 
   /** Bundles chargés à l'ouverture d'un onglet (pas au splash) */
   var TAB_BUNDLES = {
-    flashcards: ['anki-quick.js', 'quick-share.js'],
+    flashcards: ['anki-quick.js', 'quick-share.js', 'xp-lab.js'],
     partage: ['anki-quick.js', 'quick-share.js'],
     agenda: ['agenda.js'],
     /* app-v2 avant card-ui : le FAB (fin de card-ui) doit trouver les modales déjà définies */
-    ankiV2: ['programme.js', 'anki-app-v2.js', 'anki-card-ui.js'],
+    ankiV2: ['programme.js', 'anki-app-v2.js', 'anki-card-ui.js', 'xp-lab.js'],
     ankiVizV2: ['anki-viz-v2.js'],
     print: ['scanner.js'],
     programme: ['programme.js'],
@@ -37,7 +37,8 @@
     cardCreateY: ['anki-quick.js', 'card-create-y-lab.js'],
     latexShortcuts: ['latex-test.js'],
     quickLatex: ['latex-test.js', 'anki-quick-latex.js'],
-    homeLab: ['home-lab.js']
+    homeLab: ['home-lab.js'],
+    xpLab: ['xp-lab.js']
   };
 
   var DEFERRED_AFTER_BOOT = [

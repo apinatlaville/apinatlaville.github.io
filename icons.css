@@ -186,6 +186,13 @@
   border-color: rgba(91, 154, 255, 0.28);
   box-shadow: inset 0 1px 0 rgba(185, 210, 255, 0.14), 0 2px 12px rgba(91, 154, 255, 0.08);
 }
+.tab.tab-xp-lab { color: #f0a060; }
+.tab.tab-xp-lab.on {
+  color: #ffc090;
+  background: rgba(240, 160, 96, 0.16);
+  border-color: rgba(240, 160, 96, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 200, 150, 0.14), 0 2px 12px rgba(240, 160, 96, 0.08);
+}
 
 /* Login screen */
 #loginOverlay {

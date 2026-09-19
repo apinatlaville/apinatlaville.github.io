@@ -4536,6 +4536,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       const histEntry = { date: new Date().toISOString(), qScore, pen: out.penaliteVitesse, mode: S.mode };
       if (usesTiming && tps != null) histEntry.tempsReel = Math.round(tps);
       S.current.historique.push(histEntry);
+      if (window.XpLab && typeof window.XpLab.onReview === 'function') {
+        try { window.XpLab.onReview(S.current, qScore); } catch (eXp) { /* lab non bloquant */ }
+      }
       window.AnkiAlgoV2.log("eval", {
         id: S.current.id,
         qScore,

@@ -1938,6 +1938,9 @@
       pen: out.penaliteVitesse,
       mode: 'rapide'
     });
+    if (window.XpLab && typeof window.XpLab.onReview === 'function') {
+      try { window.XpLab.onReview(live, qScore); } catch (eXp) { /* lab non bloquant */ }
+    }
 
     if (window.D && window.D.settings) {
       window.D.settings.ankiLastSession = typeof A.todayISO === 'function' ? A.todayISO() : window.D.settings.ankiLastSession;
