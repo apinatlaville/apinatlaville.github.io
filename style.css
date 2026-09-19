@@ -5827,6 +5827,21 @@ span.prog-bc-crumb.is-current { pointer-events: none; }
   resize: vertical;
   outline: none;
 }
+.xlab-face-fg {
+  margin: 0 0 10px;
+}
+.xlab-face-fg .xlab-face-lab {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mut);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.xlab-face-fg .quick-face-field .xlab-q-input,
+.xlab-face-fg .quick-face-field .xlab-r-input {
+  margin-bottom: 0;
+}
 .xlab-q-input:focus,
 .xlab-r-input:focus {
   border-color: var(--bd);

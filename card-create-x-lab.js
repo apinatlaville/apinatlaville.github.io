@@ -40,6 +40,7 @@
       importance: 3,
       tempsCible: 60,
       statut: 'reservoir',
+      chapitreId: '',
       sourceEnonce: null,
       sourceCorrection: null,
       coursIds: []
@@ -63,6 +64,7 @@
     d.reponse = fieldVal('xlabR');
     d.mat = fieldVal('xlabMat');
     d.profil = fieldVal('xlabProf') || 'COURS';
+    d.chapitreId = fieldVal('xlabChapitre') || '';
     d.importance = typeof window.getStarPickerValue === 'function'
       ? window.getStarPickerValue('xlabImportance')
       : 3;
@@ -147,6 +149,42 @@
 
   window.xlabMatChanged = function () {
     paintMatChrome();
+    const H = helpers();
+    if (H && H.refreshChapitreSelectByIds) {
+      H.refreshChapitreSelectByIds('xlabMat', 'xlabChapitre', {
+        onchange: 'window.xlabOnChapitreChange()'
+      });
+    }
+  };
+
+  window.xlabOnChapitreChange = function () { /* persist via readFormIntoDraft au save */ };
+
+  window.xlabOpenLatex = function (side) {
+    const q = fieldVal('xlabQ');
+    const r = fieldVal('xlabR');
+    const go = function () {
+      if (typeof window.openQuickLatexCard !== 'function') {
+        if (typeof window.sysAlert === 'function') window.sysAlert('Éditeur LaTeX non chargé.', 'Erreur');
+        return;
+      }
+      window.openQuickLatexCard({
+        latexRecto: side === 'recto' || side === 'both',
+        latexVerso: side === 'verso' || side === 'both',
+        focusSide: side === 'verso' ? 'verso' : 'recto',
+        question: q,
+        reponse: r,
+        restoreOverlay: null,
+        fieldQ: 'xlabQ',
+        fieldR: 'xlabR'
+      });
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('quickLatex').then(go).catch(function () {
+        if (typeof window.sysAlert === 'function') {
+          window.sysAlert('Impossible de charger l’éditeur LaTeX.', 'Erreur');
+        }
+      });
+    } else go();
   };
 
   window.xlabReset = function () {
@@ -160,6 +198,7 @@
         && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
       return;
     }
+    const H = helpers();
     const d = readFormIntoDraft();
     const err = $('xlabFormError');
     if (err) { err.textContent = ''; err.classList.remove('visible'); }
@@ -217,6 +256,13 @@
       importance: d.importance,
       statut: d.statut
     });
+    if (d.chapitreId) card.chapitreId = d.chapitreId;
+    else delete card.chapitreId;
+    var coursIds = Array.isArray(card.coursIds) ? card.coursIds.slice() : [];
+    if (H && H.ensureUniteInCoursIds) {
+      coursIds = H.ensureUniteInCoursIds(d.chapitreId || '', coursIds);
+    }
+    card.coursIds = coursIds;
     if (d.sourceEnonce) card.sourceEnonce = d.sourceEnonce; else delete card.sourceEnonce;
     if (d.sourceCorrection) card.sourceCorrection = d.sourceCorrection; else delete card.sourceCorrection;
     if (d.statut === 'actif' && !card.dateProchaineRevision) {
@@ -272,13 +318,20 @@
       ? window.cardTypeBadgeHtml('main')
       : '<span class="anki-tag">X</span>';
     const imp = H.cardImportance ? H.cardImportance(c) : (c.importance || 3);
+    const initialChapitreId = (H.resolveCardChapitreId ? H.resolveCardChapitreId(c) : (c.chapitreId || '')) || '';
+    const chapSelectHtml = H.renderExoChapitreSelect
+      ? H.renderExoChapitreSelect(c.mat || '', initialChapitreId, {
+          id: 'xlabChapitre',
+          onchange: 'window.xlabOnChapitreChange()'
+        })
+      : '<select id="xlabChapitre" class="fi"><option value="">— Aucun chapitre —</option></select>';
 
     pane.innerHTML =
       '<div class="xlab-page">' +
         '<header class="xlab-intro">' +
           '<h2>' + (window.iconLabel ? window.iconLabel('flask-conical', 'Labo carte X') : 'Labo carte X') + '</h2>' +
-          '<p class="anki-mut">Silhouette session + <b>mêmes modules</b> que la création Synchrotron ' +
-            '(matière, ★, durée h:mm, statut, guidage). Le modal classique reste inchangé.</p>' +
+          '<p class="anki-mut">Silhouette session + <b>mêmes modules</b> que la création X- ' +
+            '(matière, chapitre, LaTeX Easy, ★, durée, statut, guidage). N’altère pas le modal Synchrotron.</p>' +
         '</header>' +
         '<div id="xlabFormError" class="anki-form-error" role="alert"></div>' +
 
@@ -309,10 +362,25 @@
 
               '<input type="text" id="xlabTitre" class="xlab-titre-input" value="' + esc(c.titre || '') + '" ' +
                 'placeholder="Titre de la carte…" maxlength="120" required aria-label="Titre">' +
-              '<textarea id="xlabQ" class="xlab-q-input" rows="3" placeholder="Énoncé (facultatif)…" aria-label="Énoncé">' +
-                esc(c.question || '') + '</textarea>' +
-              '<textarea id="xlabR" class="xlab-r-input" rows="2" placeholder="Réponse (facultatif)…" aria-label="Réponse">' +
-                esc(c.reponse || '') + '</textarea>' +
+
+              '<div class="fg xlab-face-fg">' +
+                '<label class="xlab-face-lab">Énoncé <span class="anki-mut" style="font-weight:normal;">(facultatif · LaTeX Easy)</span></label>' +
+                '<div class="quick-face-field">' +
+                  '<textarea id="xlabQ" class="xlab-q-input" rows="3" placeholder="Texte libre ou formule…" aria-label="Énoncé">' +
+                    esc(c.question || '') + '</textarea>' +
+                  '<button type="button" class="bs" onclick="window.xlabOpenLatex(\'recto\')" title="Éditer avec LaTeX Easy">' +
+                    (window.iconLabel ? window.iconLabel('sigma', 'LaTeX') : 'LaTeX') + '</button>' +
+                '</div>' +
+              '</div>' +
+              '<div class="fg xlab-face-fg">' +
+                '<label class="xlab-face-lab">Réponse <span class="anki-mut" style="font-weight:normal;">(facultatif · LaTeX Easy)</span></label>' +
+                '<div class="quick-face-field">' +
+                  '<textarea id="xlabR" class="xlab-r-input" rows="2" placeholder="Corrigé court ou formule…" aria-label="Réponse">' +
+                    esc(c.reponse || '') + '</textarea>' +
+                  '<button type="button" class="bs" onclick="window.xlabOpenLatex(\'verso\')" title="Éditer avec LaTeX Easy">' +
+                    (window.iconLabel ? window.iconLabel('sigma', 'LaTeX') : 'LaTeX') + '</button>' +
+                '</div>' +
+              '</div>' +
 
               '<div class="xlab-mat-block">' +
                 '<label class="xlab-mat-block-lab" for="xlabMat">Matière *</label>' +
@@ -320,6 +388,12 @@
                 '<p class="anki-mut xlab-mat-hint" id="xlabMatHint">' +
                   (c.mat ? esc((m.label || '') + (m.name ? ' — ' + m.name : '')) : 'Choisis une matière PC* (obligatoire)') +
                 '</p>' +
+              '</div>' +
+
+              '<div class="fg" id="xlabChapitreWrap">' +
+                '<label>Chapitre Programme <span class="anki-mut" style="font-weight:normal;">(regroupe la carte dans Synchrotron)</span></label>' +
+                chapSelectHtml +
+                '<p class="anki-mut" style="font-size:11px;margin:6px 0 0;line-height:1.4;">Si le chapitre a un cours unité, il est aussi ajouté aux cours liés.</p>' +
               '</div>' +
 
               '<div class="anki-modal-row">' +
@@ -394,17 +468,21 @@
     if (matEl && !matEl._xlabPaintBound) {
       matEl._xlabPaintBound = true;
       matEl.addEventListener('change', function () {
-        paintMatChrome();
+        window.xlabMatChanged();
       });
     }
 
     if (typeof window.ensureFormLibs === 'function') {
       Promise.resolve(window.ensureFormLibs()).then(function () {
         if (typeof window.enhanceFormControls === 'function') window.enhanceFormControls(pane);
+        const chapSel = $('xlabChapitre');
+        if (chapSel && typeof window.fcEnhanceSelect === 'function') window.fcEnhanceSelect(chapSel);
         paintMatChrome();
       }).catch(function () {});
     } else if (typeof window.enhanceFormControls === 'function') {
       window.enhanceFormControls(pane);
+      const chapSel = $('xlabChapitre');
+      if (chapSel && typeof window.fcEnhanceSelect === 'function') window.fcEnhanceSelect(chapSel);
     }
   };
 })();

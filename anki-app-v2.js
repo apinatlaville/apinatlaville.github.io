@@ -126,19 +126,25 @@
     return ch.title || ch.id;
   }
 
-  function renderExoChapitreSelect(matId, selectedId) {
+  function renderExoChapitreSelect(matId, selectedId, opts) {
+    opts = opts || {};
+    var sid = opts.id || 'exoChapitre';
+    var onchg = opts.onchange || (sid === 'xlabChapitre'
+      ? 'window.xlabOnChapitreChange()'
+      : 'window.ankiV2OnExoChapitreChange()');
     var chaps = (window.D.chapitres || []).filter(function (ch) {
       return ch && ch.mat === matId;
     }).slice().sort(function (a, b) {
       return (Number(a.order) || 0) - (Number(b.order) || 0)
         || String(a.title || '').localeCompare(String(b.title || ''), 'fr');
     });
-    var opts = '<option value="">— Aucun chapitre —</option>' + chaps.map(function (ch) {
+    var optsHtml = '<option value="">— Aucun chapitre —</option>' + chaps.map(function (ch) {
       var lab = chapitreDisplayLabel(ch.id);
       return '<option value="' + esc(ch.id) + '"' + (ch.id === selectedId ? ' selected' : '') + '>' +
         esc(lab) + '</option>';
     }).join('');
-    return '<select id="exoChapitre" class="fi" aria-label="Chapitre Programme" onchange="window.ankiV2OnExoChapitreChange()">' + opts + '</select>';
+    return '<select id="' + esc(sid) + '" class="fi" aria-label="Chapitre Programme" onchange="' + onchg + '">' +
+      optsHtml + '</select>';
   }
 
   function ensureUniteInCoursIds(chapitreId, coursIds) {
@@ -1392,12 +1398,6 @@
       if (window.migrateDevoirsLegacy()) {
         try { window.save(); } catch (e) { /* ignore */ }
       }
-    }
-    const canMutate = !(window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function')
-      || window.DeviceSession.canFullSave();
-    if (canMutate) {
-      const shift = window.AnkiAlgoV2.shiftProgramIfMissedDaily(window.D);
-      if (shift.shifted > 0) window.save();
     }
     restoreSessionFromStorageIfAny();
 
@@ -3310,9 +3310,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       </div>
 
       <div class="anki-card-block">
-        <h3>Maintenance / Démo</h3>
-        <p class="anki-mut" style="font-size:12px;">Si tu utilises les données de démo et que les dates ne sont plus à jour (ex: tu reviens après plusieurs jours), recale-les sur aujourd'hui.</p>
-        <button class="bs" onclick="window.ankiV2RecalDates()">${window.iconLabel('calendar', "Recaler toutes les dates sur aujourd'hui")}</button>
+        <h3>Maintenance / Tests</h3>
+        <p class="anki-mut" style="font-size:12px;">Outil de test / démo uniquement. Les dates dues ne sont plus recalées automatiquement à l’ouverture — les retards restent visibles dans la file.</p>
+        <button type="button" class="bs" onclick="window.ankiV2RecalDates()">${window.iconLabel('calendar', "Recaler toutes les dates sur aujourd'hui")}</button>
       </div>
 
       <div class="anki-card-block">
@@ -3442,23 +3442,33 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         && window.refuseSecondaryFullMutation('Appareil secondaire : recalage de dates indisponible.')) {
       return;
     }
-    const today = window.AnkiAlgoV2.todayISO();
-    let n = 0;
-    const all = window.AnkiAlgoV2.allCards
-      ? window.AnkiAlgoV2.allCards(window.D)
-      : (window.D.exercices || []).concat(window.D.devoirs || []);
-    all.forEach(c => {
-      if (c.statut !== 'actif') return;
-      // Si dueDate < today : recaler à today (X-/Y- et DM W-)
-      if (!c.dateProchaineRevision || c.dateProchaineRevision < today) {
-        c.dateProchaineRevision = today;
-        n++;
-      }
-    });
-    window.AnkiAlgoV2.log("recal-dates", { n });
-    window.save();
-    window.sysAlert(`${n} carte(s) recalée(s) sur aujourd'hui (${today}).`, "Dates recalées");
-    window.renderAnkiV2();
+    const go = function () {
+      const today = window.AnkiAlgoV2.todayISO();
+      let n = 0;
+      const all = window.AnkiAlgoV2.allCards
+        ? window.AnkiAlgoV2.allCards(window.D)
+        : (window.D.exercices || []).concat(window.D.devoirs || []);
+      all.forEach(c => {
+        if (c.statut !== 'actif') return;
+        if (!c.dateProchaineRevision || c.dateProchaineRevision < today) {
+          c.dateProchaineRevision = today;
+          n++;
+        }
+      });
+      window.AnkiAlgoV2.log("recal-dates", { n });
+      window.save();
+      window.sysAlert(`${n} carte(s) recalée(s) sur aujourd'hui (${today}).`, "Dates recalées");
+      window.renderAnkiV2();
+    };
+    if (typeof window.sysConfirm === 'function') {
+      window.sysConfirm(
+        "Recaler toutes les cartes actives en retard (ou sans date) sur aujourd’hui ?\nRéservé aux tests / données démo.",
+        go,
+        "Maintenance / Tests"
+      );
+    } else {
+      go();
+    }
   };
 
   window.ankiV2RebuildPieces = function () {
@@ -5340,7 +5350,6 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         ${editingExoId ? `<div class="fg"><label>Identifiant</label><div class="uidbox">${c.id}</div></div>` : ''}
 
         <div class="macts">
-          <button type="button" class="bs" onclick="window.ankiV2ExoOpenLatex('both')">${window.iconLabel('sigma', 'Carte LaTeX')}</button>
           ${typeof window.uiModalActions === 'function'
             ? window.uiModalActions({ overlayId: 'ovExo', saveClick: 'window.ankiV2SaveExo()' })
             : '<button class="bs" onclick="window.hideOverlay(\'ovExo\')">Annuler</button><button class="bp" onclick="window.ankiV2SaveExo()">Enregistrer</button>'}
@@ -5362,9 +5371,14 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     if (typeof window.ensureFormLibs === 'function') {
       Promise.resolve(window.ensureFormLibs()).then(function () {
         if (typeof window.enhanceFormControls === 'function') window.enhanceFormControls(ov);
+        /* Re-applique Choices sur le chapitre (évite le <select> natif Safari) */
+        const chapSel = $('exoChapitre');
+        if (chapSel && typeof window.fcEnhanceSelect === 'function') window.fcEnhanceSelect(chapSel);
       }).catch(function () {});
     } else if (typeof window.enhanceFormControls === 'function') {
       window.enhanceFormControls(ov);
+      const chapSel = $('exoChapitre');
+      if (chapSel && typeof window.fcEnhanceSelect === 'function') window.fcEnhanceSelect(chapSel);
     }
   }
 
@@ -5725,33 +5739,40 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     });
   }
 
+  function refreshChapitreSelectByIds(matSelectId, chapSelectId, opts) {
+    const sel = $(chapSelectId);
+    if (!sel) return;
+    const matId = fieldVal(matSelectId);
+    const prev = fieldVal(chapSelectId);
+    const stillOk = (window.D.chapitres || []).some(function (ch) {
+      return ch && ch.id === prev && ch.mat === matId;
+    });
+    const selected = stillOk ? prev : '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = renderExoChapitreSelect(matId, selected, Object.assign({ id: chapSelectId }, opts || {}));
+    const fresh = tmp.querySelector('select');
+    const optsHtml = fresh ? fresh.innerHTML : '<option value="">— Aucun chapitre —</option>';
+    if (typeof window.fcRefreshSelect === 'function') {
+      window.fcRefreshSelect(sel, optsHtml);
+      if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(sel, selected);
+      else sel.value = selected;
+    } else {
+      sel.innerHTML = optsHtml;
+      sel.value = selected;
+      if (typeof window.fcEnhanceSelect === 'function') window.fcEnhanceSelect(sel);
+    }
+  }
+
+  function refreshExoChapitreSelect() {
+    refreshChapitreSelectByIds('exoMat', 'exoChapitre');
+  }
+
   function wireExoChapitreMat() {
     const matEl = $('exoMat');
     if (!matEl || matEl._exoChapitreMatBound) return;
     matEl._exoChapitreMatBound = true;
     matEl.addEventListener('change', function () {
-      const wrap = $('exoChapitreWrap');
-      if (!wrap) return;
-      const matId = matEl.value || '';
-      const prev = fieldVal('exoChapitre');
-      const stillOk = (window.D.chapitres || []).some(function (ch) {
-        return ch && ch.id === prev && ch.mat === matId;
-      });
-      const label = wrap.querySelector('label');
-      const hint = wrap.querySelector('p.anki-mut');
-      wrap.innerHTML = '';
-      if (label) wrap.appendChild(label);
-      const tmp = document.createElement('div');
-      tmp.innerHTML = renderExoChapitreSelect(matId, stillOk ? prev : '');
-      if (tmp.firstChild) wrap.appendChild(tmp.firstChild);
-      if (hint) wrap.appendChild(hint);
-      else {
-        const p = document.createElement('p');
-        p.className = 'anki-mut';
-        p.style.cssText = 'font-size:11px;margin:6px 0 0;line-height:1.4;';
-        p.textContent = 'Si le chapitre a un cours unité, il est aussi ajouté aux cours liés (révisions / Play chapitre).';
-        wrap.appendChild(p);
-      }
+      refreshExoChapitreSelect();
     });
   }
 
@@ -6407,6 +6428,10 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     renderStatutChecks: renderStatutChecks,
     renderSrcGuidanceBlock: renderSrcGuidanceBlock,
     wireSrcGuidanceBlock: wireSrcGuidanceBlock,
-    cardImportance: cardImportance
+    cardImportance: cardImportance,
+    renderExoChapitreSelect: renderExoChapitreSelect,
+    refreshChapitreSelectByIds: refreshChapitreSelectByIds,
+    resolveCardChapitreId: resolveCardChapitreId,
+    ensureUniteInCoursIds: ensureUniteInCoursIds
   };
 })();

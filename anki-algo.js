@@ -1105,7 +1105,7 @@
   // Alias rétrocompat — préférer buildQuickSession ou interleaveMatieres
   ALGO.interleave = function (cards) { return ALGO.interleaveMatieres(cards || []); };
 
-  // ===== Décalage automatique : cartes en retard → aujourd'hui (max 1×/jour) =====
+  // ===== Décalage manuel des retards → aujourd'hui (plus d’auto à l’ouverture) =====
   ALGO.shiftProgramIfMissed = function (cards) {
     const today = ALGO.todayISO();
     const skipped = (cards || []).filter(c =>
@@ -1120,6 +1120,23 @@
       c._shiftedFromMiss = true;
     });
     return { shifted: skipped.length };
+  };
+
+  /**
+   * Rattrapage des retards — API manuelle / tests (Réglages → Maintenance).
+   * N’est plus appelée automatiquement à l’ouverture du Synchrotron.
+   */
+  ALGO.shiftProgramIfMissedDaily = function (D) {
+    if (!D) return { shifted: 0 };
+    if (!D.settings) D.settings = {};
+    const today = ALGO.todayISO();
+    if (D.settings.lastMissedShiftISO === today) return { shifted: 0, alreadyDone: true };
+    const result = ALGO.shiftProgramIfMissed(ALGO.allCards(D));
+    if (result.shifted > 0) {
+      D.settings.lastMissedShiftISO = today;
+      ALGO.log('auto-shift-daily', { count: result.shifted, date: today });
+    }
+    return result;
   };
 
   /** Toutes les cartes Synchrotron : X-/Y- dans exercices + W- dans devoirs. */
@@ -1312,20 +1329,6 @@
         if (c._dureeTotaleMin == null) c._dureeTotaleMin = c._tempsRestantMin;
       }
     });
-  };
-
-  /** Rattrapage des retards — une seule fois par jour calendaire (pas à chaque onglet). */
-  ALGO.shiftProgramIfMissedDaily = function (D) {
-    if (!D) return { shifted: 0 };
-    if (!D.settings) D.settings = {};
-    const today = ALGO.todayISO();
-    if (D.settings.lastMissedShiftISO === today) return { shifted: 0, alreadyDone: true };
-    const result = ALGO.shiftProgramIfMissed(ALGO.allCards(D));
-    if (result.shifted > 0) {
-      D.settings.lastMissedShiftISO = today;
-      ALGO.log('auto-shift-daily', { count: result.shifted, date: today });
-    }
-    return result;
   };
 
   // ===== Schedule détaillé (avec projection multi-révisions) =====

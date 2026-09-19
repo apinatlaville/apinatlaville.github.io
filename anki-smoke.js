@@ -52,7 +52,7 @@
     const shiftData = JSON.parse(JSON.stringify(sample));
     shiftData.settings.lastMissedShiftISO = null;
     const r1 = A.shiftProgramIfMissedDaily(shiftData);
-    log('shiftProgramIfMissedDaily décale retards', r1.shifted >= 1);
+    log('shiftProgramIfMissedDaily (API manuelle) décale retards', r1.shifted >= 1);
     const r2 = A.shiftProgramIfMissedDaily(shiftData);
     log('shiftProgramIfMissedDaily 1×/jour max', r2.shifted === 0 && r2.alreadyDone);
 

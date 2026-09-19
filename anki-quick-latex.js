@@ -162,6 +162,7 @@
     var backHint = 'Même éditeur que le Labo LaTeX — Appliquer renvoie à la carte';
     if (CTX.restoreOverlay === 'ovQuickCreate') backHint = 'Même éditeur que le Labo LaTeX — Appliquer renvoie au popup Rapide';
     else if (CTX.restoreOverlay === 'ovExo') backHint = 'Même éditeur que le Labo LaTeX — Appliquer renvoie à la carte X-';
+    else if (!CTX.restoreOverlay) backHint = 'Même éditeur que le Labo LaTeX — Appliquer renvoie au Labo carte X';
 
     ov.classList.remove('hidden');
     ov.innerHTML =
