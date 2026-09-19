@@ -67,14 +67,41 @@
     return 'main';
   }
 
+  /**
+   * Durée prise en compte (secondes) : temps réel de la révision si dispo,
+   * sinon temps cible de la carte (défaut 60 s).
+   */
+  function durationSeconds(card, h) {
+    if (h && typeof h.tempsReel === 'number' && h.tempsReel > 0) return h.tempsReel;
+    if (card && typeof card.tempsCible === 'number' && card.tempsCible > 0) return card.tempsCible;
+    return 60;
+  }
+
   /** XP de base (sans streak) pour une entrée d’historique. */
   function xpForEntry(card, h) {
     var kind = cardKind(card);
-    var base = kind === 'quick' ? 6 : (kind === 'devoir' ? 8 : 12);
     var q = (h && typeof h.qScore === 'number') ? h.qScore : 5;
     q = Math.max(0, Math.min(10, q));
-    var mult = 0.4 + 0.1 * q;
-    return Math.max(1, Math.round(base * mult));
+    var qMult = 0.4 + 0.1 * q; // 0 → ×0.4 · 5 → ×0.9 · 10 → ×1.4
+
+    if (kind === 'quick') {
+      // Y- : ~1/15 d’une X- « classique » (~15 min → ~17 XP) → forfait ~1–2 XP
+      return Math.max(1, Math.round(1.5 * qMult));
+    }
+
+    var min = durationSeconds(card, h) / 60;
+    min = Math.max(0.5, Math.min(90, min));
+
+    if (kind === 'devoir') {
+      // W- : un peu moins rentable / min que les X-
+      var baseW = 3 + min * 0.75;
+      return Math.max(1, Math.round(baseW * qMult));
+    }
+
+    // X- : ~1 XP / minute de travail (cible ou réel) × qualité
+    // 5 min → ~7 · 15 min → ~17 · 20 min → ~22 (avant qMult / streak)
+    var baseX = 2 + min * 1.0;
+    return Math.max(1, Math.round(baseX * qMult));
   }
 
   function dayKey(iso) {
@@ -364,10 +391,11 @@
           '<section class="xplab-card">' +
             '<h3>Comment gagner de l’XP</h3>' +
             '<ul class="xplab-rules">' +
-              '<li><b>X-</b> ~12 XP × qualité (qScore)</li>' +
-              '<li><b>Y-</b> ~6 XP · <b>W-</b> ~8 XP</li>' +
+              '<li><b>X-</b> : ~1 XP / min (temps réel, sinon cible) × qualité</li>' +
+              '<li><b>Y-</b> : forfait ~1–2 XP (~1/15 d’une X- de 15 min)</li>' +
+              '<li><b>W-</b> : ~0,75 XP / min × qualité</li>' +
               '<li><b>Streak</b> : +4&nbsp;% / jour (max ' + fmtMult(STREAK_CAP) + ')</li>' +
-              '<li>Réviser chaque jour fait monter le multiplicateur</li>' +
+              '<li>Une X- de 20 min rapporte ~4× plus qu’une de 5 min</li>' +
             '</ul>' +
             '<div class="xplab-split">' +
               '<div><span class="xplab-split-n">' + (d.byKind.main || 0) + '</span> X-</div>' +
