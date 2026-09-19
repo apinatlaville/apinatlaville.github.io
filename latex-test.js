@@ -500,6 +500,8 @@
         { label: '→F', latex: '\\overrightarrow{#0}', title: 'Vecteur' },
         { label: '×', latex: '\\times', title: 'Produit vectoriel' },
         { label: '·', latex: '\\cdot', title: 'Produit scalaire' },
+        { label: '⟨x⟩', latex: '\\left\\langle#0\\right\\rangle', title: 'Moyenne (physique)' },
+        { label: '⟨x⟩_t', latex: '\\left\\langle#0\\right\\rangle_{t}', title: 'Moyenne temporelle' },
         { label: '≈', latex: '\\approx', title: 'Environ' },
         { label: '∝', latex: '\\propto', title: 'Proportionnel' },
         { label: '≪', latex: '\\ll', title: 'Très inférieur' },
@@ -608,7 +610,7 @@
         { label: '( )', latex: '\\left(#0\\right)', title: 'Parenthèses auto' },
         { label: '[ ]', latex: '\\left[#0\\right]', title: 'Crochets auto' },
         { label: '{ }', latex: '\\left\\{#0\\right\\}', title: 'Accolades auto' },
-        { label: '⟨ ⟩', latex: '\\left\\langle#0\\right\\rangle', title: 'Chevrons / produit scalaire' },
+        { label: '⟨ ⟩', latex: '\\left\\langle#0\\right\\rangle', title: 'Chevrons (moyenne / scalaire)' },
         { label: '| |', latex: '\\left|#0\\right|', title: 'Barres verticales' },
         { label: '‖ ‖', latex: '\\left\\lVert#0\\right\\rVert', title: 'Double barres (norme)' },
         { label: '⌊ ⌋', latex: '\\left\\lfloor#0\\right\\rfloor', title: 'Plancher auto' },
@@ -746,6 +748,9 @@
     if (/\bderivee\b|\bpartielle\b/.test(t)) extras.push('derivee', 'differentielle');
     if (/\bparenthese\b|\bcrochet\b|\baccolade\b|\bnorme\b|valeur absolue/.test(t)) {
       extras.push('parenthese', 'delimiteur', 'encadrer');
+    }
+    if (/\bmoyenne\b/.test(t) || (/\\langle/.test(lx) && /moyenne|⟨/.test(t + lab))) {
+      extras.push('moyenne', 'moyenne physique', 'chevrons', 'valeur moyenne');
     }
     if (/\bimplique\b|\bequivalence\b/.test(t) || (/\bfleche\b/.test(t) && !/\bvecteur\b/.test(t))) {
       extras.push('implique', 'equivalence', 'fleche');
