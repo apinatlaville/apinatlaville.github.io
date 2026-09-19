@@ -85,8 +85,9 @@
     var qMult = 0.4 + 0.1 * q; // 0 → ×0.4 · 5 → ×0.9 · 10 → ×1.4
 
     if (kind === 'quick') {
-      // Y- : ~1/15 d’une X- « classique » (~15 min → ~17 XP) → forfait ~1–2 XP
-      return Math.max(1, Math.round(1.5 * qMult));
+      // Y- = 1/15 d’une X- de 5 min (base 2+5 = 7 XP → ~0,47 × qualité → typiquement 1 XP)
+      var refFiveMinX = 2 + 5 * 1.0;
+      return Math.max(1, Math.round((refFiveMinX / 15) * qMult));
     }
 
     var min = durationSeconds(card, h) / 60;
@@ -392,7 +393,7 @@
             '<h3>Comment gagner de l’XP</h3>' +
             '<ul class="xplab-rules">' +
               '<li><b>X-</b> : ~1 XP / min (temps réel, sinon cible) × qualité</li>' +
-              '<li><b>Y-</b> : forfait ~1–2 XP (~1/15 d’une X- de 15 min)</li>' +
+              '<li><b>Y-</b> : 1/15 d’une X- de 5 min (~1 XP)</li>' +
               '<li><b>W-</b> : ~0,75 XP / min × qualité</li>' +
               '<li><b>Streak</b> : +4&nbsp;% / jour (max ' + fmtMult(STREAK_CAP) + ')</li>' +
               '<li>Une X- de 20 min rapporte ~4× plus qu’une de 5 min</li>' +
