@@ -4750,7 +4750,16 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       const co = (window.D.cours || []).find(function (x) { return x.uid === src.coursUid; });
       if (co) {
         nom = co.title || co.uid;
-        const path = [co.mat, co.cl, co.inter].filter(Boolean).join(' › ');
+        const matObj = (window.D.matieres || []).find(function (m) { return m && m.id === co.mat; });
+        const matLab = matObj ? (matObj.label || matObj.name || co.mat) : (co.mat || '');
+        const clObj = (window.D.classeurs || []).find(function (c) { return c && c.id === co.cl; });
+        const clLab = clObj ? (clObj.name || co.cl) : (co.cl || '');
+        const interLab = co.inter
+          ? (typeof window.getInterName === 'function' && clObj
+            ? window.getInterName(clObj, co.inter)
+            : String(co.inter))
+          : '';
+        const path = [matLab, clLab, interLab].filter(Boolean).join(' › ');
         const bits = [co.uid];
         if (path) bits.push(path);
         if (details) bits.push(details);
@@ -5269,12 +5278,18 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
           <input type="text" id="exoTitre" placeholder="Ex: Théorème énergie cinétique" value="${esc(c.titre || '')}" required>
         </div>
         <div class="fg">
-          <label>Énoncé <span class="anki-mut" style="font-weight:normal;">(facultatif)</span></label>
-          <textarea id="exoQ" rows="3">${esc(c.question || '')}</textarea>
+          <label>Énoncé <span class="anki-mut" style="font-weight:normal;">(facultatif · LaTeX Easy)</span></label>
+          <div class="quick-face-field">
+            <textarea id="exoQ" rows="3" placeholder="Texte libre ou formule…">${esc(c.question || '')}</textarea>
+            <button type="button" class="bs" onclick="window.ankiV2ExoOpenLatex('recto')" title="Éditer avec LaTeX Easy">${window.iconLabel('sigma', 'LaTeX')}</button>
+          </div>
         </div>
         <div class="fg">
-          <label>Réponse (facultatif)</label>
-          <textarea id="exoR" rows="2">${esc(c.reponse || '')}</textarea>
+          <label>Réponse <span class="anki-mut" style="font-weight:normal;">(facultatif · LaTeX Easy)</span></label>
+          <div class="quick-face-field">
+            <textarea id="exoR" rows="2" placeholder="Corrigé court ou formule…">${esc(c.reponse || '')}</textarea>
+            <button type="button" class="bs" onclick="window.ankiV2ExoOpenLatex('verso')" title="Éditer avec LaTeX Easy">${window.iconLabel('sigma', 'LaTeX')}</button>
+          </div>
         </div>
         <div class="anki-modal-row">
           <div class="fg"><label>Matière *</label><select id="exoMat">${matOpts}</select></div>
@@ -5325,6 +5340,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         ${editingExoId ? `<div class="fg"><label>Identifiant</label><div class="uidbox">${c.id}</div></div>` : ''}
 
         <div class="macts">
+          <button type="button" class="bs" onclick="window.ankiV2ExoOpenLatex('both')">${window.iconLabel('sigma', 'Carte LaTeX')}</button>
           ${typeof window.uiModalActions === 'function'
             ? window.uiModalActions({ overlayId: 'ovExo', saveClick: 'window.ankiV2SaveExo()' })
             : '<button class="bs" onclick="window.hideOverlay(\'ovExo\')">Annuler</button><button class="bp" onclick="window.ankiV2SaveExo()">Enregistrer</button>'}
@@ -6001,6 +6017,32 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     } catch (e) { /* ignore */ }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     try { el.focus(); } catch (e2) { /* ignore */ }
+  };
+
+  window.ankiV2ExoOpenLatex = function (side) {
+    const q = fieldVal('exoQ');
+    const r = fieldVal('exoR');
+    const go = function () {
+      if (typeof window.openQuickLatexCard !== 'function') {
+        window.sysAlert('Éditeur LaTeX non chargé.', 'Erreur');
+        return;
+      }
+      window.openQuickLatexCard({
+        latexRecto: side === 'recto' || side === 'both',
+        latexVerso: side === 'verso' || side === 'both',
+        focusSide: side === 'verso' ? 'verso' : 'recto',
+        question: q,
+        reponse: r,
+        restoreOverlay: 'ovExo',
+        fieldQ: 'exoQ',
+        fieldR: 'exoR'
+      });
+    };
+    if (typeof window.ensureScriptsForTab === 'function') {
+      window.ensureScriptsForTab('quickLatex').then(go).catch(function () {
+        window.sysAlert('Impossible de charger l’éditeur LaTeX.', 'Erreur');
+      });
+    } else go();
   };
 
   window.ankiV2QuickOpenLatex = function (side) {

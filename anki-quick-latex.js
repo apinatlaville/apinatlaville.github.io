@@ -159,6 +159,10 @@
         '</div>';
     }
 
+    var backHint = 'Même éditeur que le Labo LaTeX — Appliquer renvoie à la carte';
+    if (CTX.restoreOverlay === 'ovQuickCreate') backHint = 'Même éditeur que le Labo LaTeX — Appliquer renvoie au popup Rapide';
+    else if (CTX.restoreOverlay === 'ovExo') backHint = 'Même éditeur que le Labo LaTeX — Appliquer renvoie à la carte X-';
+
     ov.classList.remove('hidden');
     ov.innerHTML =
       '<div class="modal card-type-surface ql-easy-modal">' +
@@ -166,7 +170,7 @@
           '<h2>' + (typeof window.iconLabel === 'function'
             ? window.iconLabel('sigma', 'Carte LaTeX Easy')
             : 'Carte LaTeX Easy') + '</h2>' +
-          '<p class="anki-mut" style="font-size:12px;margin:4px 0 0;">Même éditeur que le Labo LaTeX — Appliquer renvoie au popup Rapide</p>' +
+          '<p class="anki-mut" style="font-size:12px;margin:4px 0 0;">' + backHint + '</p>' +
         '</div>' +
         tabsHtml +
         '<div id="qlEasyPaneRecto" class="ql-easy-pane"></div>' +
