@@ -7248,8 +7248,9 @@ body.nav-sidebar-left #paneLatexTest.on {
   color: var(--txt);
   flex: 0 0 auto;
   resize: none;
+  overflow: hidden;
   min-height: 34px;
-  max-height: 96px;
+  max-height: none;
   line-height: 1.35;
   field-sizing: content;
 }

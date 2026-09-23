@@ -2581,7 +2581,13 @@ async function initApp(user) {
       ? user.sub
       : null;
     try {
-      await Promise.resolve(window.DeviceSession.start(deviceUserIdEarly));
+      if (window.bootMark) window.bootMark('initApp.deviceSession.start');
+      await bootTimeout(
+        Promise.resolve(window.DeviceSession.start(deviceUserIdEarly)),
+        14000,
+        'DeviceSession'
+      );
+      if (window.bootMark) window.bootMark('initApp.deviceSession.done');
       if (typeof window.applyDeviceRoleUi === 'function') {
         window.applyDeviceRoleUi(window.DeviceSession.getStatus());
       }
@@ -2591,31 +2597,38 @@ async function initApp(user) {
       }
     } catch (err) {
       console.warn('DeviceSession start:', err);
+      if (window.bootMark) window.bootMark('initApp.deviceSession.timeout', {
+        message: err && err.message ? err.message : String(err)
+      });
+    }
+  }
+
+  async function safeInitSave(label) {
+    if (window._persistDisabled || typeof window.save !== 'function') return;
+    try {
+      if (window.bootMark) window.bootMark('initApp.save.' + label + '.start');
+      await bootTimeout(Promise.resolve(window.save()), 12000, 'save:' + label);
+      if (window.bootMark) window.bootMark('initApp.save.' + label + '.done');
+    } catch (eSave) {
+      if (!/SECONDARY_READ_ONLY/i.test(String(eSave && eSave.message))) {
+        console.warn('initApp save (' + label + '):', eSave);
+      }
+      if (window.bootMark) window.bootMark('initApp.save.' + label + '.fail', {
+        message: eSave && eSave.message ? eSave.message : String(eSave)
+      });
     }
   }
 
   if (typeof window.reconcileOrphanCours === 'function') {
     const reconciled = window.reconcileOrphanCours();
-    if (reconciled && !window._persistDisabled) {
-      try { await window.save(); } catch (eSave) {
-        if (!/SECONDARY_READ_ONLY/i.test(String(eSave && eSave.message))) console.warn(eSave);
-      }
-    }
+    if (reconciled) await safeInitSave('reconcile');
   }
 
-  if (_canonicalMatieresChanged && !window._persistDisabled) {
-    try { await window.save(); } catch (eCanon) {
-      if (!/SECONDARY_READ_ONLY/i.test(String(eCanon && eCanon.message))) console.warn(eCanon);
-    }
-  }
+  if (_canonicalMatieresChanged) await safeInitSave('canonicalMatieres');
 
-  if (window.D.settings._needsAppearanceSave && !window._persistDisabled) {
+  if (window.D.settings._needsAppearanceSave) {
     delete window.D.settings._needsAppearanceSave;
-    try { await window.save(); } catch (eSave2) {
-      if (!/SECONDARY_READ_ONLY/i.test(String(eSave2 && eSave2.message))) console.warn(eSave2);
-    }
-  } else if (window.D.settings._needsAppearanceSave) {
-    delete window.D.settings._needsAppearanceSave;
+    await safeInitSave('appearance');
   }
 
   window.appReady = true;

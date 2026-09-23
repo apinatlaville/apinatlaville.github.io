@@ -854,7 +854,7 @@
   function getSnipFuse() {
     if (_snipFuse) return _snipFuse;
     if (typeof Fuse === 'undefined') return null;
-    /* Uniquement des champs sans accents : « integrale » trouve « Intégrale » */
+    /* Même esprit que Base Doc : accents déjà stripés dans les champs _*Norm / _search */
     _snipFuse = new Fuse(allSnipsFlat(), {
       keys: [
         { name: '_titleNorm', weight: 3 },
@@ -862,11 +862,12 @@
         { name: '_groupNorm', weight: 1.2 },
         { name: '_labelNorm', weight: 1 }
       ],
-      threshold: 0.4,
+      threshold: 0.42,
       ignoreLocation: true,
       isCaseSensitive: false,
       minMatchCharLength: 2,
-      includeScore: true
+      includeScore: true,
+      distance: 120
     });
     return _snipFuse;
   }
@@ -876,49 +877,60 @@
     if (!q) return [];
     var qNorm = stripAccents(q);
     if (qNorm.length < 1) return [];
-    var budget = typoBudget(qNorm);
     var seen = Object.create(null);
     var out = [];
 
-    function relevant(item) {
+    function push(item) {
+      if (!item) return;
+      var key = (item.latex || '') + '\0' + (item.label || '') + '\0' + (item.id || '');
+      if (seen[key]) return;
+      seen[key] = true;
+      out.push(item);
+    }
+
+    /* 1) Fuse.js — comme Base Doc (tolère fautes / ordre des lettres) */
+    var fuse = getSnipFuse();
+    if (fuse && qNorm.length >= 2) {
+      fuse.search(qNorm).forEach(function (r) {
+        /* Score Fuse : 0 = parfait · 1 = nul ; on garde les matches raisonnables */
+        if (r.score != null && r.score > 0.48) return;
+        push(r.item);
+      });
+      if (out.length) return out;
+    }
+
+    /* 2) Fallback sans Fuse (ou 0 résultat) : sous-chaîne + typos 1–2 */
+    var budget = typoBudget(qNorm);
+    allSnipsFlat().forEach(function (item) {
       var hay = item._search || '';
       var titleN = item._titleNorm || stripAccents(item.title || '');
       var groupN = item._groupNorm || stripAccents(item.groupLabel || '');
       var labN = item._labelNorm || stripAccents(item.label || '');
-      /* Sous-chaîne sans accents : « algebre », « ete », « integrale »… */
       if (
         hay.indexOf(qNorm) !== -1 ||
         titleN.indexOf(qNorm) !== -1 ||
         labN.indexOf(qNorm) !== -1 ||
         groupN.indexOf(qNorm) !== -1
       ) {
-        return true;
+        push(item);
+        return;
       }
-      if (qNorm.length < 2) return false;
-      if (hasExactNeedle(hay, qNorm) || hasExactNeedle(titleN, qNorm) || hasExactNeedle(groupN, qNorm)) {
-        return true;
+      if (qNorm.length < 2) return;
+      if (
+        hasExactNeedle(hay, qNorm) || hasExactNeedle(titleN, qNorm) ||
+        hasExactNeedle(groupN, qNorm) || hasExactNeedle(labN, qNorm)
+      ) {
+        push(item);
+        return;
       }
-      return wordsTypoMatch(titleN, qNorm, budget) || wordsTypoMatch(groupN, qNorm, budget);
-    }
-
-    var fuse = getSnipFuse();
-    var ranked = fuse && qNorm.length >= 2 ? fuse.search(qNorm) : null;
-    if (ranked) {
-      ranked.forEach(function (r) {
-        if (!relevant(r.item)) return;
-        var key = (r.item.latex || '') + '\0' + (r.item.label || '');
-        if (seen[key]) return;
-        seen[key] = true;
-        out.push(r.item);
-      });
-    }
-
-    allSnipsFlat().forEach(function (item) {
-      if (!relevant(item)) return;
-      var key = (item.latex || '') + '\0' + (item.label || '');
-      if (seen[key]) return;
-      seen[key] = true;
-      out.push(item);
+      if (
+        wordsTypoMatch(titleN, qNorm, budget) ||
+        wordsTypoMatch(groupN, qNorm, budget) ||
+        wordsTypoMatch(labN, qNorm, budget) ||
+        wordsTypoMatch(hay, qNorm, budget)
+      ) {
+        push(item);
+      }
     });
     return out;
   }
@@ -1098,6 +1110,15 @@
     return html;
   }
 
+  function autosizeLatexTextField(el) {
+    if (!el) return;
+    el.style.overflow = 'hidden';
+    el.style.height = 'auto';
+    var minH = 34;
+    var next = Math.max(minH, el.scrollHeight || minH);
+    el.style.height = next + 'px';
+  }
+
   function insertNewlineInTextField(el) {
     if (!el) return;
     var start = typeof el.selectionStart === 'number' ? el.selectionStart : (el.value || '').length;
@@ -1107,6 +1128,7 @@
     try {
       el.selectionStart = el.selectionEnd = start + 1;
     } catch (e) { /* ignore */ }
+    autosizeLatexTextField(el);
     el.dispatchEvent(new Event('input', { bubbles: true }));
     try { el.focus(); } catch (e2) { /* ignore */ }
   }
@@ -1114,6 +1136,7 @@
   function wireLatexTextField(el, onInput) {
     if (!el) return;
     el.addEventListener('input', function () {
+      autosizeLatexTextField(el);
       if (typeof onInput === 'function') onInput();
     });
     /* Entrée = nouvelle ligne (pas de validation ici) ; Maj+Entrée aussi */
@@ -1121,7 +1144,9 @@
       if (e.key !== 'Enter' && e.key !== 'NumpadEnter') return;
       if (e.isComposing || e.repeat) return;
       /* Laisser le comportement textarea natif (saut de ligne) */
+      requestAnimationFrame(function () { autosizeLatexTextField(el); });
     });
+    autosizeLatexTextField(el);
   }
 
   function latexTextFieldRowHtml(id, placeholder, value) {
@@ -2202,6 +2227,8 @@
         if (b) b.value = parts.before || '';
         if (a) a.value = parts.after || '';
         applyLatex(parts.latex || '', false);
+        autosizeLatexTextField(b);
+        autosizeLatexTextField(a);
       } else {
         syncFromEditor();
       }
@@ -2230,6 +2257,8 @@
         if (b) b.value = parts.before || '';
         if (a) a.value = parts.after || '';
         applyLatex(parts.latex || '', false);
+        autosizeLatexTextField(b);
+        autosizeLatexTextField(a);
       },
       focus: function () { try { if (mf) mf.focus(); } catch (e) { /* ignore */ } },
       destroy: function () {

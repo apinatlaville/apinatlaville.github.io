@@ -181,10 +181,22 @@
     return touchSelf(hub, CONFIG.ROLES.SECONDARY);
   }
 
+  function withFsTimeout(promise, ms, label) {
+    var msSafe = Math.max(500, ms || 5000);
+    return Promise.race([
+      promise,
+      new Promise(function (_, reject) {
+        setTimeout(function () {
+          reject(new Error((label || 'Firestore') + ' — délai dépassé (' + msSafe + ' ms)'));
+        }, msSafe);
+      })
+    ]);
+  }
+
   function writeHub(hub) {
     var ref = presenceRef();
     if (!ref || !window.setDoc) return Promise.resolve(hub);
-    return window.setDoc(ref, hub).then(function () {
+    return withFsTimeout(window.setDoc(ref, hub), 6000, 'presence write').then(function () {
       state.hub = hub;
       return hub;
     }).catch(function (err) {
@@ -200,10 +212,10 @@
     if (!ref || !window.getDoc) return Promise.resolve(emptyHub());
     // Ne pas avaler les erreurs : sinon resolveJoin croit le hub vide et
     // s’auto-proclame PRIMARY (LWW) alors que la présence est illisible.
-    return window.getDoc(ref).then(function (snap) {
+    return withFsTimeout(window.getDoc(ref).then(function (snap) {
       if (snap && snap.exists && snap.exists()) return snap.data() || emptyHub();
       return emptyHub();
-    });
+    }), 6000, 'presence read');
   }
 
   function safeWritePresence(mutator, preservePrimary) {
@@ -278,14 +290,18 @@
       return readHubOnce().then(function (hub) {
         state.hub = hub || emptyHub();
         if (remotePrimaryAlive(state.hub) || otherLiving(state.hub).length) return state.hub;
-        if (attempt >= 8) return state.hub;
+        if (attempt >= 4) return state.hub;
         return new Promise(function (resolve) {
-          setTimeout(function () { resolve(poll(attempt + 1)); }, 350);
+          setTimeout(function () { resolve(poll(attempt + 1)); }, 250);
         });
+      }).catch(function (err) {
+        // Lecture présence en timeout / erreur : ne pas spammer 8×6s
+        console.warn('DeviceSession presence poll:', err && err.message ? err.message : err);
+        return state.hub || emptyHub();
       });
     }
 
-    return poll(1).then(function () {
+    return withFsTimeout(poll(1).then(function () {
       var remote = remotePrimaryAlive(state.hub);
       var others = otherLiving(state.hub);
       var pref = state.preferredRole;
@@ -349,7 +365,7 @@
         state.joinResolved = true;
         emit();
       });
-    }).catch(function (err) {
+    }), 12000, 'DeviceSession.resolveJoin').catch(function (err) {
       console.warn('DeviceSession resolveJoin:', err);
       // Fail-closed : pas de faux PRIMARY qui LWW-écrase un vrai principal
       state.joinResolved = true;
