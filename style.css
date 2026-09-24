@@ -8771,3 +8771,41 @@ body.nav-sidebar-left #paneLatexTest.on {
   .xplab-ladder-row { grid-template-columns: 1fr; gap: 4px; }
   .xplab-ladder-xp { text-align: left; }
 }
+
+/* ===== Easy Chimie — même coquille que Easy LaTeX ===== */
+.chimie-easy .chimie-easy-field-wrap {
+  min-height: 88px;
+}
+.chimie-easy-field {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 84px;
+  resize: vertical;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  padding: 8px 4px;
+}
+.chimie-easy-field::placeholder { color: var(--mut); opacity: 0.75; }
+.chimie-easy-meta {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  min-height: 1.3em;
+}
+.chimie-easy-meta code {
+  font-family: 'DM Mono', ui-monospace, monospace;
+  color: var(--acc, #5b9aff);
+}
+.chimie-easy-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+}
+.chimie-easy-preview[data-ok="1"] { padding: 6px; }
+.chimie-lab-canvas { max-width: 100%; height: auto; display: block; }
+.chimie-lab-error { color: var(--red, #e85d5d); font-size: 13px; }

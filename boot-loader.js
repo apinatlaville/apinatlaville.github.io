@@ -38,7 +38,8 @@
     latexShortcuts: ['latex-test.js'],
     quickLatex: ['latex-test.js', 'anki-quick-latex.js'],
     homeLab: ['home-lab.js'],
-    xpLab: ['xp-lab.js']
+    xpLab: ['xp-lab.js'],
+    chimieLab: ['chimie-lab.js']
   };
 
   var DEFERRED_AFTER_BOOT = [
