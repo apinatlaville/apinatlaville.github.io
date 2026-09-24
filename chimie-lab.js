@@ -1,7 +1,8 @@
 /**
- * chimie-lab.js — Easy Chimie (labo test)
- * Éditeur VISUEL : poser atomes / cycles / Br sur une planche (Kekule Composer).
- * Même esprit Easy LaTeX : une planche, peu de chrome, actions claires.
+ * chimie-lab.js — Labo Chimie (test)
+ * Éditeur structurel COMPLET (Kekule Composer fullFunc) :
+ * atomes, liaisons, cycles, charges, formules, glyphes/réactions,
+ * templates, undo/redo, import/export, inspecteur d’objets.
  */
 (function () {
   'use strict';
@@ -14,6 +15,7 @@
   var _loadPromise = null;
   var _built = false;
   var _composer = null;
+  var _exportTimer = null;
 
   function esc(s) {
     return typeof window.escHtml === 'function'
@@ -64,38 +66,87 @@
   }
 
   function boardHeight() {
-    var h = window.innerHeight || 700;
-    return Math.max(360, Math.min(620, h - 220)) + 'px';
+    var h = window.innerHeight || 800;
+    /* Presque plein écran sous la barre d’actions */
+    return Math.max(420, Math.min(780, h - 160)) + 'px';
   }
 
-  function configureEasyComposer(composer) {
+  /**
+   * Mode « appli web complète » : fullFunc + tous les outils chimie.
+   * (Les exemples C / cycle / Br n’étaient que des cas d’usage.)
+   */
+  function configureFullComposer(composer) {
     try {
       if (typeof composer.setPredefinedSetting === 'function') {
-        composer.setPredefinedSetting('molOnly');
+        composer.setPredefinedSetting('fullFunc');
       }
     } catch (e) { /* ignore */ }
 
     try {
-      if (typeof composer.setEnableStyleToolbar === 'function') composer.setEnableStyleToolbar(false);
-      if (typeof composer.setEnableLoadNewFile === 'function') composer.setEnableLoadNewFile(false);
+      if (typeof composer.setEnableOperHistory === 'function') composer.setEnableOperHistory(true);
+      if (typeof composer.setEnableLoadNewFile === 'function') composer.setEnableLoadNewFile(true);
       if (typeof composer.setEnableCreateNewDoc === 'function') composer.setEnableCreateNewDoc(true);
       if (typeof composer.setAllowCreateNewChild === 'function') composer.setAllowCreateNewChild(true);
-      if (typeof composer.setEnableOperHistory === 'function') composer.setEnableOperHistory(true);
+      if (typeof composer.setEnableStyleToolbar === 'function') composer.setEnableStyleToolbar(true);
     } catch (e2) { /* ignore */ }
 
     try {
       if (typeof composer.setCommonToolButtons === 'function') {
-        composer.setCommonToolButtons(['newDoc', 'undo', 'redo', 'zoomIn', 'reset', 'zoomOut']);
+        composer.setCommonToolButtons([
+          'newDoc', 'loadData', 'saveData',
+          'undo', 'redo', 'copy', 'cut', 'paste',
+          'zoomIn', 'reset', 'zoomOut',
+          'config', 'objInspector'
+        ]);
       }
       if (typeof composer.setChemToolButtons === 'function') {
-        /* Atomes, liaisons, cycles, charge, gomme — pas de texte / flèches */
-        composer.setChemToolButtons(['manipulate', 'erase', 'bond', 'atomAndFormula', 'ring', 'charge']);
+        composer.setChemToolButtons([
+          'manipulate', 'erase',
+          'bond', 'atom', 'formula', 'atomAndFormula',
+          'ring', 'charge',
+          'glyph', 'textAndImage', 'textImage'
+        ]);
+      }
+      if (typeof composer.setStyleToolComponentNames === 'function') {
+        composer.setStyleToolComponentNames([
+          'fontName', 'fontSize', 'color', 'textDirection', 'textAlign'
+        ]);
+      }
+      if (typeof composer.setAllowedObjModifierCategories === 'function' && window.Kekule.Editor && window.Kekule.Editor.ObjModifier) {
+        var Cat = window.Kekule.Editor.ObjModifier.Category;
+        composer.setAllowedObjModifierCategories([
+          Cat.GENERAL,
+          Cat.CHEM_STRUCTURE,
+          Cat.STYLE,
+          Cat.GLYPH
+        ].filter(Boolean));
       }
     } catch (e3) { /* ignore */ }
+
+    /* Rendu plus lisible (type appli chimie) */
+    try {
+      var rc = composer.getRenderConfigs && composer.getRenderConfigs();
+      if (rc && rc.getLengthConfigs) {
+        var lc = rc.getLengthConfigs();
+        if (lc && lc.setBondLength) lc.setBondLength(1.0);
+      }
+    } catch (e4) { /* ignore */ }
+  }
+
+  function destroyComposer() {
+    if (_composer) {
+      try {
+        if (typeof _composer.finalize === 'function') _composer.finalize();
+      } catch (e) { /* ignore */ }
+      _composer = null;
+    }
+    var host = document.getElementById('chimieComposerHost');
+    if (host) host.innerHTML = '';
   }
 
   function mountComposer(host) {
     if (!host || !window.Kekule) return null;
+    destroyComposer();
     host.innerHTML = '';
     var box = document.createElement('div');
     box.id = 'chimieComposerBoard';
@@ -104,8 +155,20 @@
 
     var composer = new window.Kekule.Editor.Composer(box);
     composer.setDimension('100%', boardHeight());
-    configureEasyComposer(composer);
+    configureFullComposer(composer);
     _composer = composer;
+
+    /* Écoute large : changements → export */
+    try {
+      if (typeof composer.addEventListener === 'function') {
+        ['editDone', 'change', 'selectionChange', 'load'].forEach(function (ev) {
+          try {
+            composer.addEventListener(ev, function () { scheduleExport(); });
+          } catch (e) { /* ignore */ }
+        });
+      }
+    } catch (e2) { /* ignore */ }
+
     return composer;
   }
 
@@ -119,25 +182,40 @@
     }
   }
 
-  function exportFormat(fmt) {
+  function exportFormat(preferred) {
     var mol = firstMolecule();
     if (!mol || !window.Kekule || !window.Kekule.IO) return '';
-    var candidates = fmt === 'smi'
-      ? ['smi', 'smiles', 'SMILES']
-      : [fmt];
+    var map = {
+      smi: ['smi', 'smiles', 'SMILES'],
+      mol: ['mol', 'mol2000', 'mdl', 'sd'],
+      cml: ['cml', 'CML']
+    };
+    var candidates = map[preferred] || [preferred];
     for (var i = 0; i < candidates.length; i++) {
       try {
         var out = window.Kekule.IO.saveFormatData(mol, candidates[i]);
         if (out) return String(out).trim();
-      } catch (e) { /* try next */ }
+      } catch (e) { /* next */ }
     }
+    /* Fallback : document entier */
+    try {
+      var doc = _composer.getChemObj && _composer.getChemObj();
+      if (doc) {
+        for (var j = 0; j < candidates.length; j++) {
+          try {
+            var out2 = window.Kekule.IO.saveFormatData(doc, candidates[j]);
+            if (out2) return String(out2).trim();
+          } catch (e2) { /* next */ }
+        }
+      }
+    } catch (e3) { /* ignore */ }
     return '';
   }
 
   function copyText(text, okMsg) {
     var t = String(text || '');
     if (!t) {
-      toast('Rien à copier — dessine d’abord une molécule');
+      toast('Rien à copier — dessine d’abord une structure');
       return;
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -145,6 +223,29 @@
         .catch(function () { window.prompt('Copier :', t); });
     } else {
       window.prompt('Copier :', t);
+    }
+  }
+
+  function scheduleExport() {
+    if (_exportTimer) clearTimeout(_exportTimer);
+    _exportTimer = setTimeout(function () {
+      _exportTimer = null;
+      syncExportPreview();
+    }, 120);
+  }
+
+  function syncExportPreview() {
+    var smiEl = document.getElementById('chimieExportSmi');
+    var molEl = document.getElementById('chimieExportMol');
+    var smi = exportFormat('smi');
+    var mol = exportFormat('mol');
+    if (smiEl) smiEl.value = smi || '';
+    if (molEl) molEl.value = mol || '';
+    var badge = document.getElementById('chimieExportStatus');
+    if (badge) {
+      badge.textContent = smi
+        ? 'Structure prête · export disponible'
+        : 'Planche vide — utilise la barre d’outils Kekule';
     }
   }
 
@@ -156,43 +257,51 @@
         _composer.setChemObj(new window.Kekule.Molecule());
       }
     } catch (e) {
-      try { mountComposer(document.getElementById('chimieComposerHost')); } catch (e2) { /* ignore */ }
+      var host = document.getElementById('chimieComposerHost');
+      if (host) mountComposer(host);
     }
     syncExportPreview();
   }
 
-  function syncExportPreview() {
-    var el = document.getElementById('chimieEasyExport');
-    if (!el) return;
-    var smi = exportFormat('smi');
-    el.value = smi || '';
-    el.placeholder = smi ? '' : 'Le SMILES apparaîtra ici quand tu dessines…';
-  }
-
   function buildShell(root) {
     root.innerHTML =
-      '<div class="chimie-easy chimie-easy-visual">' +
-        '<header class="chimie-easy-bar">' +
-          '<div class="chimie-easy-bar-head">' +
-            '<h2 class="chimie-easy-title"><span data-icon="flask-conical"></span> Easy Chimie</h2>' +
-            '<p class="chimie-easy-hint anki-mut">Choisis un outil (C, cycle, Br…) puis clique sur la planche — comme ChemDraw, en version Easy.</p>' +
+      '<div class="chimie-lab chimie-lab-full">' +
+        '<header class="chimie-lab-top">' +
+          '<div class="chimie-lab-top-text">' +
+            '<h2 class="chimie-lab-title"><span data-icon="flask-conical"></span> Labo Chimie</h2>' +
+            '<p class="chimie-lab-lead anki-mut">' +
+              'Éditeur structurel complet : atomes, liaisons, cycles, charges, formules, ' +
+              'templates, réactions / flèches, import·export, undo — comme une appli chimie web.' +
+            '</p>' +
           '</div>' +
-          '<div class="chimie-easy-actions">' +
-            '<button type="button" class="bs" id="chimieEasyUndo" title="Annuler"><span data-icon="undo-2"></span></button>' +
-            '<button type="button" class="bs" id="chimieEasyRedo" title="Rétablir"><span data-icon="refresh-cw"></span></button>' +
-            '<button type="button" class="bs" id="chimieEasyCopySmi" title="Copier SMILES">' +
+          '<div class="chimie-lab-top-actions">' +
+            '<button type="button" class="bs" id="chimieBtnUndo" title="Annuler"><span data-icon="undo-2"></span></button>' +
+            '<button type="button" class="bs" id="chimieBtnRedo" title="Rétablir"><span data-icon="refresh-cw"></span></button>' +
+            '<button type="button" class="bs" id="chimieBtnCopySmi" title="Copier SMILES">' +
               '<span data-icon="copy"></span> SMILES</button>' +
-            '<button type="button" class="bs" id="chimieEasyClear" title="Nouvelle planche">' +
+            '<button type="button" class="bs" id="chimieBtnCopyMol" title="Copier Molfile">MOL</button>' +
+            '<button type="button" class="bs" id="chimieBtnClear" title="Nouvelle planche">' +
               '<span data-icon="trash-2"></span></button>' +
           '</div>' +
         '</header>' +
+        '<p class="chimie-lab-howto anki-mut" id="chimieExportStatus">' +
+          'Astuce : barre gauche = outils (atome, liaison, cycle…) · barre haut = fichier / zoom / inspecteur' +
+        '</p>' +
         '<div class="chimie-composer-host" id="chimieComposerHost"></div>' +
-        '<details class="chimie-easy-export">' +
-          '<summary>Exporter <span class="anki-mut">— SMILES (lecture seule)</span></summary>' +
-          '<div class="chimie-easy-export-row">' +
-            '<textarea id="chimieEasyExport" class="chimie-easy-export-field" rows="2" readonly ' +
-              'placeholder="Le SMILES apparaîtra ici quand tu dessines…"></textarea>' +
-            '<button type="button" class="bp" id="chimieEasyRefreshExport">Actualiser</button>' +
+        '<details class="chimie-lab-export" open>' +
+          '<summary>Export <span class="anki-mut">— SMILES &amp; Molfile (lecture seule, se met à jour)</span></summary>' +
+          '<div class="chimie-lab-export-grid">' +
+            '<label class="chimie-lab-export-block">' +
+              '<span>SMILES</span>' +
+              '<textarea id="chimieExportSmi" rows="2" readonly placeholder="…"></textarea>' +
+            '</label>' +
+            '<label class="chimie-lab-export-block">' +
+              '<span>Molfile</span>' +
+              '<textarea id="chimieExportMol" rows="4" readonly placeholder="…"></textarea>' +
+            '</label>' +
+          '</div>' +
+          '<div class="chimie-lab-export-actions">' +
+            '<button type="button" class="bs" id="chimieBtnRefreshExport">Actualiser l’export</button>' +
           '</div>' +
         '</details>' +
       '</div>';
@@ -201,36 +310,34 @@
   }
 
   function wireChrome(root) {
-    var undo = document.getElementById('chimieEasyUndo');
-    var redo = document.getElementById('chimieEasyRedo');
-    var copy = document.getElementById('chimieEasyCopySmi');
-    var clear = document.getElementById('chimieEasyClear');
-    var refresh = document.getElementById('chimieEasyRefreshExport');
-
-    if (undo) undo.onclick = function () {
+    function bind(id, fn) {
+      var el = document.getElementById(id);
+      if (el) el.onclick = fn;
+    }
+    bind('chimieBtnUndo', function () {
       try { if (_composer) _composer.undo(); } catch (e) { /* ignore */ }
-      syncExportPreview();
-    };
-    if (redo) redo.onclick = function () {
+      scheduleExport();
+    });
+    bind('chimieBtnRedo', function () {
       try { if (_composer) _composer.redo(); } catch (e) { /* ignore */ }
-      syncExportPreview();
-    };
-    if (copy) copy.onclick = function () {
+      scheduleExport();
+    });
+    bind('chimieBtnCopySmi', function () {
       syncExportPreview();
       copyText(exportFormat('smi'), 'SMILES copié');
-    };
-    if (clear) clear.onclick = function () { clearBoard(); };
-    if (refresh) refresh.onclick = function () { syncExportPreview(); };
+    });
+    bind('chimieBtnCopyMol', function () {
+      syncExportPreview();
+      copyText(exportFormat('mol'), 'Molfile copié');
+    });
+    bind('chimieBtnClear', clearBoard);
+    bind('chimieBtnRefreshExport', syncExportPreview);
 
-    /* Actualise l’export après interactions sur la planche */
-    if (!root._chimieExportBound) {
-      root._chimieExportBound = true;
-      root.addEventListener('mouseup', function () {
-        setTimeout(syncExportPreview, 80);
-      });
-      root.addEventListener('keyup', function () {
-        setTimeout(syncExportPreview, 80);
-      });
+    if (!root._chimieInteractBound) {
+      root._chimieInteractBound = true;
+      root.addEventListener('mouseup', scheduleExport);
+      root.addEventListener('keyup', scheduleExport);
+      root.addEventListener('touchend', scheduleExport, { passive: true });
     }
   }
 
@@ -245,9 +352,9 @@
 
     if (!_built) {
       root.innerHTML =
-        '<div class="chimie-easy chimie-easy-loading">' +
+        '<div class="chimie-lab chimie-lab-loading">' +
           '<div class="clean-spinner" aria-hidden="true"></div>' +
-          '<p class="anki-mut">Chargement de la planche moléculaire…</p>' +
+          '<p class="anki-mut">Chargement de l’éditeur chimie complet…</p>' +
         '</div>';
     }
 
@@ -262,25 +369,25 @@
         }
       }
       var host = document.getElementById('chimieComposerHost');
-      if (host && !_composer) {
-        mountComposer(host);
-      } else if (host && _composer) {
-        resizeComposer();
-      } else if (host) {
-        mountComposer(host);
+      if (host) {
+        if (!_composer || !host.querySelector('#chimieComposerBoard')) {
+          mountComposer(host);
+        } else {
+          resizeComposer();
+        }
       }
       syncExportPreview();
     }).catch(function (err) {
       _built = false;
-      _composer = null;
+      destroyComposer();
       root.innerHTML =
-        '<div class="chimie-easy">' +
-          '<h2 class="chimie-easy-title">Easy Chimie</h2>' +
+        '<div class="chimie-lab">' +
+          '<h2 class="chimie-lab-title">Labo Chimie</h2>' +
           '<p class="chimie-lab-error">' + esc(err && err.message ? err.message : 'Erreur') + '</p>' +
-          '<p class="anki-mut">Vérifie ta connexion : l’éditeur Kekule est chargé depuis jsDelivr.</p>' +
-          '<button type="button" class="bp" id="chimieEasyRetry">Réessayer</button>' +
+          '<p class="anki-mut">Vérifie ta connexion : Kekule est chargé depuis jsDelivr.</p>' +
+          '<button type="button" class="bp" id="chimieLabRetry">Réessayer</button>' +
         '</div>';
-      var retry = document.getElementById('chimieEasyRetry');
+      var retry = document.getElementById('chimieLabRetry');
       if (retry) retry.addEventListener('click', function () { window.renderChimieLab(); });
     });
   };

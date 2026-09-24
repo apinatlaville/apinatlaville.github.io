@@ -32,7 +32,7 @@ window.APP_TAB_REGISTRY = {
   quickLatex:  { pane: 'paneQuickLatex', label: 'Carte LaTeX',   icon: 'sigma',         needsData: true,  onShow: 'quickLatex',    nav: false },
   homeLab:     { pane: 'paneHomeLab',    label: 'Labo Accueil',  icon: 'layout-list', needsData: true, onShow: 'homeLab', className: 'tab-home-lab' },
   xpLab:       { pane: 'paneXpLab',      label: 'Labo XP',       icon: 'flame',       needsData: true, onShow: 'xpLab',   className: 'tab-xp-lab' },
-  chimieLab:   { pane: 'paneChimieLab',  label: 'Easy Chimie',   icon: 'flask-conical', needsData: false, onShow: 'chimieLab', className: 'tab-chimie-lab' }
+  chimieLab:   { pane: 'paneChimieLab',  label: 'Labo Chimie',   icon: 'flask-conical', needsData: false, onShow: 'chimieLab', className: 'tab-chimie-lab' }
 };
 
 /** Groupes affichés dans la barre d'onglets (ordre conservé) */

@@ -8772,19 +8772,19 @@ body.nav-sidebar-left #paneLatexTest.on {
   .xplab-ladder-xp { text-align: left; }
 }
 
-/* ===== Easy Chimie — planche visuelle (Kekule Composer) ===== */
-.chimie-easy-visual {
-  max-width: 1200px;
+/* ===== Labo Chimie — éditeur structurel complet (Kekule fullFunc) ===== */
+.chimie-lab-full {
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 8px 10px 20px;
+  padding: 6px 8px 18px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-height: 0;
   height: 100%;
   box-sizing: border-box;
 }
-.chimie-easy-loading {
+.chimie-lab-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -8793,7 +8793,7 @@ body.nav-sidebar-left #paneLatexTest.on {
   min-height: 280px;
   padding: 40px 16px;
 }
-.chimie-easy-bar {
+.chimie-lab-top {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
@@ -8804,77 +8804,100 @@ body.nav-sidebar-left #paneLatexTest.on {
   border-radius: 12px;
   background: var(--s1);
 }
-.chimie-easy-title {
+.chimie-lab-title {
   margin: 0 0 4px;
-  font-size: 1.1rem;
+  font-size: 1.12rem;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.chimie-easy-hint {
+.chimie-lab-lead {
   margin: 0;
-  font-size: 13px;
-  max-width: 40rem;
+  font-size: 12.5px;
   line-height: 1.4;
+  max-width: 46rem;
 }
-.chimie-easy-actions {
+.chimie-lab-top-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
+.chimie-lab-howto {
+  margin: 0;
+  font-size: 12px;
+  padding: 0 4px;
+}
 .chimie-composer-host {
   flex: 1 1 auto;
-  min-height: 360px;
+  min-height: 420px;
   border: 1px solid var(--bd);
   border-radius: 12px;
   overflow: hidden;
-  background: #f7f8fb;
+  background: #f4f6fa;
 }
 body.theme-dark .chimie-composer-host {
-  background: #1a2230;
+  background: #151c28;
 }
 .chimie-composer-board {
   width: 100%;
   height: 100%;
-  min-height: 360px;
+  min-height: 420px;
 }
-/* Kekule : un peu plus intégré à la coquille */
 .chimie-composer-host .K-Chem-Composer,
-.chimie-composer-host .Kekule-Chem-Composer {
+.chimie-composer-host .Kekule-Chem-Composer,
+.chimie-composer-host .K-Widget {
   border: 0 !important;
   box-shadow: none !important;
+  max-width: 100%;
 }
-.chimie-easy-export {
+.chimie-lab-export {
   border: 1px solid var(--bd);
   border-radius: 10px;
   background: var(--s1);
   padding: 6px 10px 10px;
 }
-.chimie-easy-export > summary {
+.chimie-lab-export > summary {
   cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   padding: 4px 0;
 }
-.chimie-easy-export-row {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
+.chimie-lab-export-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
   margin-top: 8px;
 }
-.chimie-easy-export-field {
-  flex: 1;
+.chimie-lab-export-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+.chimie-lab-export-block textarea {
   font-family: 'DM Mono', ui-monospace, monospace;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--tx);
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--bd);
   background: var(--bg);
-  color: var(--tx);
   resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+.chimie-lab-export-actions {
+  margin-top: 8px;
 }
 .chimie-lab-error { color: var(--red, #e85d5d); font-size: 13px; }
 
-@media (max-width: 700px) {
-  .chimie-easy-export-row { flex-direction: column; }
+@media (max-width: 800px) {
+  .chimie-lab-export-grid { grid-template-columns: 1fr; }
 }
