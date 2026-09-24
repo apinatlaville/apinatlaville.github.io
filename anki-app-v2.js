@@ -925,6 +925,44 @@
     if (typeof window.formatCardFaceHtml === 'function') return window.formatCardFaceHtml(str);
     return esc(str);
   }
+
+  function sessFaceNeedsMath(str) {
+    var s = String(str == null ? '' : str);
+    return s.indexOf('\\(') >= 0 || /\\[a-zA-Z[{]/.test(s);
+  }
+
+  /** Charge MathLive puis re-peint les faces session (Synchrotron n’avait pas ce pipeline). */
+  function hydrateSessionLatex(root) {
+    var c = S.current;
+    var host = root || $('ovAnkiSession');
+    if (!c || !host) return Promise.resolve();
+    var q = c.question || '';
+    var r = (S.showAnswer && c.reponse) ? (c.reponse || '') : '';
+    if (!sessFaceNeedsMath(q) && !sessFaceNeedsMath(r)) return Promise.resolve();
+
+    var chain = Promise.resolve();
+    if (typeof window.ensureScriptsForTab === 'function') {
+      chain = window.ensureScriptsForTab('quickLatex');
+    }
+    return chain.then(function () {
+      if (typeof window.ensureMathLive === 'function') return window.ensureMathLive();
+    }).then(function () {
+      if (S.current !== c) return;
+      var qEl = host.querySelector('.anki-sess-q');
+      if (qEl) qEl.innerHTML = formatSessFace(q);
+      var rWrap = host.querySelector('.anki-sess-r-body');
+      if (rWrap && r) rWrap.innerHTML = formatSessFace(r);
+      var dockQ = document.querySelector('.sync-dock-detail-q');
+      if (dockQ) dockQ.innerHTML = formatSessFace(q);
+      if (typeof window.fitLatexPreviewMath === 'function') {
+        window.fitLatexPreviewMath(host);
+      }
+    }).catch(function (err) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[Synchrotron] hydrate LaTeX', err);
+      }
+    });
+  }
   function cardTypeKindOf(c) {
     if (window.cardTypeKind) return window.cardTypeKind(c);
     if (isDevoirCard(c)) return 'devoir';
@@ -1390,6 +1428,29 @@
     return c;
   }
   function profileLabel(p) { const pr = window.AnkiAlgoV2.getProfile(p); return pr ? pr.label : p; }
+
+  /** Nom du dossier Y- (quickGroups), jamais le profil legacy « Anglais (court) ». */
+  function quickGroupLabel(c) {
+    if (!c || !c.groupId) return 'Sans dossier';
+    const g = (window.D.quickGroups || []).find(x => x.id === c.groupId);
+    return (g && g.name) ? g.name : String(c.groupId);
+  }
+
+  /** Ligne méta session : X- = profil · Y- = nom du groupe. */
+  function sessMetaHtml(c, useTiming, linkedTitle) {
+    const boost = c && c._blocageActif
+      ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>'
+      : '';
+    const linked = linkedTitle ? ' · ' + esc(linkedTitle) : '';
+    if (isQuickCard(c)) {
+      return `<div class="anki-sess-meta">${esc(quickGroupLabel(c))}${linked}${boost}</div>`;
+    }
+    const prof = profileLabel(c.profil || 'COURS');
+    if (useTiming) {
+      return `<div class="anki-sess-meta">${window.iconHtml('timer', 12)} Cible ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)} · ${esc(prof)}${linked}${boost}</div>`;
+    }
+    return `<div class="anki-sess-meta">${esc(prof)}${linked}${boost}</div>`;
+  }
 
   // ===== Vue principale =====
   window.renderAnkiV2 = function () {
@@ -4228,13 +4289,13 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
             <p class="anki-chrono-hint anki-mut" id="ankiChronoHint">${S.showAnswer ? 'Chrono arrêté · auto-évalue ci-dessous' : (S.chronoRunning ? 'Chrono en cours' : 'Lance le chrono quand tu es prêt(e)')}</p>` : ''}
           </div>
         </div>
-        ${useTiming ? `<div class="anki-sess-meta">${window.iconHtml('timer', 12)} Cible ${window.AnkiAlgoV2.fmtDur(c.tempsCible || 60)} · ${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>` : `<div class="anki-sess-meta">${profileLabel(c.profil || 'COURS')}${linkedTitle ? ' · ' + esc(linkedTitle) : ''}${c._blocageActif ? ' · <span style="color:var(--red);font-weight:700;">' + window.iconLabel('zap', 'BOOST blocage actif') + '</span>' : ''}</div>`}
+        ${sessMetaHtml(c, useTiming, linkedTitle)}
         ${showTitre ? `<div class="anki-sess-titre">${esc(c.titre)}</div>
         <div class="anki-sess-q">${formatSessFace(c.question || '')}</div>` : `<div class="anki-sess-q anki-sess-q--solo">${formatSessFace(c.question || '')}</div>`}
         ${renderSourcesBox(c, false)}
         ${S.showAnswer ? `
           <div class="anki-eval-zone">
-          ${hasReponse ? `<div class="anki-sess-r anki-sess-r-compact"><span class="anki-sess-r-label">Réponse</span><div>${formatSessFace(c.reponse)}</div></div>` : '<p class="anki-mut anki-no-rep-hint">Auto-éval · pas de réponse enregistrée</p>'}
+          ${hasReponse ? `<div class="anki-sess-r anki-sess-r-compact"><span class="anki-sess-r-label">Réponse</span><div class="anki-sess-r-body">${formatSessFace(c.reponse)}</div></div>` : '<p class="anki-mut anki-no-rep-hint">Auto-éval · pas de réponse enregistrée</p>'}
           ${renderSourcesBox(c, true)}
           ${useTiming ? renderSessionTimingPanel(c) : ''}
           <div class="anki-evals anki-evals-compact">
@@ -4270,6 +4331,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     window.hydrateIcons(ov);
     paintChronoDisplays();
     if (isNewDeckCard) ov.scrollTop = 0;
+    hydrateSessionLatex(ov);
   }
 
   function renderSourcesBox(c, isAnswerSide) {

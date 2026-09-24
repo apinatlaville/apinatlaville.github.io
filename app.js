@@ -1592,7 +1592,15 @@ window.renderNotes = function() {
     return;
   }
 
-  wrapper.innerHTML = _notesBuildEvolutionSvg(filtered, metric);
+  /* Graphique rangs : DS uniquement (khôlles restent dans la liste / stats) */
+  const chartDocs = metric === 'rang'
+    ? filtered.filter(c => c.type === 'DS')
+    : filtered;
+  if (!chartDocs.length) {
+    wrapper.innerHTML = `<div class="notes-empty">Aucun rang de DS à afficher sur le graphique.<br>Les khôlles ne sont pas tracées en mode Rangs.</div>`;
+  } else {
+    wrapper.innerHTML = _notesBuildEvolutionSvg(chartDocs, metric);
+  }
 
   if (listEl) {
     listEl.innerHTML = `
@@ -2575,7 +2583,22 @@ async function initApp(user) {
   if (typeof window.renderSyncSessionDock === 'function') window.renderSyncSessionDock();
   if (typeof window.ensureCardCreateFab === 'function') window.ensureCardCreateFab();
 
-  // Démarrer DeviceSession AVANT les saves post-migrate (anti faux-primary LWW)
+  // Débloquer l'UI dès que le rendu est prêt — DeviceSession ne doit pas
+  // garder le splash (présence Firestore ≈ 1–3 s sur Safari).
+  window.appReady = true;
+  if (window.bootMark) window.bootMark('initApp.uiReady');
+  if (typeof window.setBootStep === 'function') window.setBootStep('data');
+  if (window._pendingTab) {
+    const pendingEarly = window._pendingTab;
+    const resetEarly = window._pendingTabReset;
+    window._pendingTab = null;
+    window._pendingTabReset = false;
+    window.switchTab(pendingEarly, resetEarly);
+  }
+  if (typeof window.enterApp === 'function') window.enterApp();
+  if (typeof window.unlockPage === 'function') window.unlockPage('ui ready');
+
+  // DeviceSession AVANT les saves post-migrate (anti faux-primary LWW)
   if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
     var deviceUserIdEarly = (!window.isLocalMode && user && user.sub)
       ? user.sub
@@ -2584,7 +2607,7 @@ async function initApp(user) {
       if (window.bootMark) window.bootMark('initApp.deviceSession.start');
       await bootTimeout(
         Promise.resolve(window.DeviceSession.start(deviceUserIdEarly)),
-        14000,
+        10000,
         'DeviceSession'
       );
       if (window.bootMark) window.bootMark('initApp.deviceSession.done');
@@ -2636,14 +2659,7 @@ async function initApp(user) {
   if (typeof window.bootProfiler !== 'undefined' && window.bootProfiler.refreshPanel) window.bootProfiler.refreshPanel();
   if (typeof window.setBootStep === 'function') window.setBootStep('data');
 
-  if (window._pendingTab) {
-    const pending = window._pendingTab;
-    const reset = window._pendingTabReset;
-    window._pendingTab = null;
-    window._pendingTabReset = false;
-    window.switchTab(pending, reset);
-  }
-  // Toujours sortir du pré-accueil (même si unlockPage déjà appelé par le timer 12s)
+  // enterApp / unlock déjà faits à uiReady ; rappel idempotent au cas où
   if (typeof window.enterApp === 'function') window.enterApp();
   if (typeof window.syncDemoResetUi === 'function') window.syncDemoResetUi();
 

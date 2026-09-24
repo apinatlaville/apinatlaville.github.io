@@ -182,7 +182,7 @@
   }
 
   function withFsTimeout(promise, ms, label) {
-    var msSafe = Math.max(500, ms || 5000);
+    var msSafe = Math.max(500, ms || 4000);
     return Promise.race([
       promise,
       new Promise(function (_, reject) {
@@ -196,7 +196,7 @@
   function writeHub(hub) {
     var ref = presenceRef();
     if (!ref || !window.setDoc) return Promise.resolve(hub);
-    return withFsTimeout(window.setDoc(ref, hub), 6000, 'presence write').then(function () {
+    return withFsTimeout(window.setDoc(ref, hub), 4000, 'presence write').then(function () {
       state.hub = hub;
       return hub;
     }).catch(function (err) {
@@ -215,7 +215,27 @@
     return withFsTimeout(window.getDoc(ref).then(function (snap) {
       if (snap && snap.exists && snap.exists()) return snap.data() || emptyHub();
       return emptyHub();
-    }), 6000, 'presence read');
+    }), 4000, 'presence read');
+  }
+
+  /** Écriture à partir du hub déjà en mémoire (évite un getDoc redondant au boot). */
+  function writeMutatedHub(mutator, preservePrimary) {
+    var hub = cloneHub(state.hub || emptyHub());
+    var keep = {
+      primaryDeviceId: hub.primaryDeviceId,
+      primaryUpdatedAt: hub.primaryUpdatedAt,
+      primaryClaimedAt: hub.primaryClaimedAt
+    };
+    hub = mutator(hub);
+    if (preservePrimary) {
+      var id = getDeviceId();
+      if (keep.primaryDeviceId && keep.primaryDeviceId !== id) {
+        hub.primaryDeviceId = keep.primaryDeviceId;
+        hub.primaryUpdatedAt = keep.primaryUpdatedAt;
+        hub.primaryClaimedAt = keep.primaryClaimedAt;
+      }
+    }
+    return writeHub(hub);
   }
 
   function safeWritePresence(mutator, preservePrimary) {
@@ -286,16 +306,17 @@
   function resolveJoin() {
     if (state.joinResolved) return Promise.resolve();
 
+    // Max 2 lectures + 100 ms : assez pour un second onglet concurrent,
+    // sans les ~1–2 s du poll 4×250 ms d’avant.
     function poll(attempt) {
       return readHubOnce().then(function (hub) {
         state.hub = hub || emptyHub();
         if (remotePrimaryAlive(state.hub) || otherLiving(state.hub).length) return state.hub;
-        if (attempt >= 4) return state.hub;
+        if (attempt >= 2) return state.hub;
         return new Promise(function (resolve) {
-          setTimeout(function () { resolve(poll(attempt + 1)); }, 250);
+          setTimeout(function () { resolve(poll(attempt + 1)); }, 100);
         });
       }).catch(function (err) {
-        // Lecture présence en timeout / erreur : ne pas spammer 8×6s
         console.warn('DeviceSession presence poll:', err && err.message ? err.message : err);
         return state.hub || emptyHub();
       });
@@ -307,6 +328,7 @@
       var pref = state.preferredRole;
       var id = getDeviceId();
       var listedPrimary = state.hub && state.hub.primaryDeviceId;
+      var alone = !remote && !others.length && (!listedPrimary || listedPrimary === id);
 
       // Suivant : Primary déjà là (même lease expiré) OU d'autres appareils déjà connectés
       if ((remote && remote !== id) || (listedPrimary && listedPrimary !== id) || others.length > 0) {
@@ -314,7 +336,7 @@
         state.controlStolen = false;
         state.effectiveRole = CONFIG.ROLES.SECONDARY;
         state.joinResolved = true;
-        return safeWritePresence(function (hub) {
+        return writeMutatedHub(function (hub) {
           return applySecondaryPresence(hub);
         }, true).then(function () { emit(); });
       }
@@ -324,19 +346,20 @@
         state.controlStolen = false;
         state.effectiveRole = CONFIG.ROLES.SECONDARY;
         state.joinResolved = true;
-        return safeWritePresence(function (hub) {
+        return writeMutatedHub(function (hub) {
           return applySecondaryPresence(hub);
         }, true).then(function () { emit(); });
       }
 
-      // Premier / seul → Principal
+      // Premier / seul → Principal (écriture depuis le hub déjà lu ; vérif seulement si doute)
       writePreferredRole(CONFIG.ROLES.PRIMARY);
       state.needsRoleChoice = false;
       state.controlStolen = false;
       state.effectiveRole = CONFIG.ROLES.PRIMARY;
-      return safeWritePresence(function (hub) {
+      return writeMutatedHub(function (hub) {
         return applyClaim(hub);
       }, false).then(function () {
+        if (alone) return state.hub;
         return readHubOnce().then(function (again) {
           state.hub = again || state.hub;
           var winner = remotePrimaryAlive(state.hub) || state.hub.primaryDeviceId;
@@ -347,7 +370,7 @@
             if (!myClaim || theirClaim < myClaim || (theirClaim === myClaim && String(winner) < String(id))) {
               state.effectiveRole = CONFIG.ROLES.SECONDARY;
               state.needsRoleChoice = true;
-              return safeWritePresence(function (hub) {
+              return writeMutatedHub(function (hub) {
                 return applySecondaryPresence(hub);
               }, true);
             }
@@ -355,7 +378,7 @@
           if (others2.length && winner !== id) {
             state.effectiveRole = CONFIG.ROLES.SECONDARY;
             state.needsRoleChoice = true;
-            return safeWritePresence(function (hub) {
+            return writeMutatedHub(function (hub) {
               return applySecondaryPresence(hub);
             }, true);
           }
@@ -365,7 +388,7 @@
         state.joinResolved = true;
         emit();
       });
-    }), 12000, 'DeviceSession.resolveJoin').catch(function (err) {
+    }), 8000, 'DeviceSession.resolveJoin').catch(function (err) {
       console.warn('DeviceSession resolveJoin:', err);
       // Fail-closed : pas de faux PRIMARY qui LWW-écrase un vrai principal
       state.joinResolved = true;

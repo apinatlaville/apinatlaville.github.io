@@ -1054,6 +1054,33 @@
   }
 
   /**
+   * \displaylines{a\\ b} (TeX classique) → gathered MathLive.
+   * Sinon MathLive échoue et on retombe sur le monospace brut.
+   */
+  function normalizeDisplayLines(latex) {
+    var s = String(latex || '').trim();
+    var prefix = s.match(/^\\displaylines\s*\{/);
+    if (!prefix) return s;
+    var start = prefix[0].length;
+    var depth = 1;
+    var i = start;
+    for (; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (ch === '\\') { i++; continue; }
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) break;
+      }
+    }
+    if (depth !== 0) return s;
+    var body = s.slice(start, i);
+    var rest = s.slice(i + 1).trim();
+    var gathered = '\\begin{gathered}' + body + '\\end{gathered}';
+    return rest ? gathered + ' ' + rest : gathered;
+  }
+
+  /**
    * MathLive traite « f » avec une large correction italique + Espaces auto (\,)
    * autour d’un f isolé (ex. coef\,f\,s). On recolle lettre\,f\,lettre → letterfletter
    * sans toucher f\,dx ni le style italique de f.
@@ -1071,7 +1098,9 @@
   function latexToMarkup(latex) {
     if (!latex) return '';
     var normalized = tightenMathliveLetterF(
-      promoteFractionsToDisplay(normalizeVectorLatex(latex))
+      promoteFractionsToDisplay(
+        normalizeDisplayLines(normalizeVectorLatex(latex))
+      )
     );
     var opts = { defaultMode: 'displaystyle', letterShapeStyle: 'french' };
     try {
@@ -1231,11 +1260,11 @@
     boxes.forEach(function (box) {
       /* Lab / Easy : le wrap scrolle déjà en X — le scale coupait le bas des fractions */
       if (box.closest('.latex-lab-preview-wrap')
-          && !box.closest('.qk-drill-prompt, .qk-q, .qk-r, .anki-card-q, .anki-card-a')) {
+          && !box.closest('.qk-drill-prompt, .qk-q, .qk-r, .anki-card-q, .anki-card-a, .anki-sess-q, .anki-sess-r-body')) {
         return;
       }
       var host = box.closest('.qk-drill-prompt')
-        || box.closest('.qk-q, .qk-r, .anki-card-q, .anki-card-a')
+        || box.closest('.qk-q, .qk-r, .anki-card-q, .anki-card-a, .anki-sess-q, .anki-sess-r-body')
         || box.closest('.latex-lab-preview-wrap')
         || box.parentElement;
       var avail = host ? host.clientWidth : 0;
