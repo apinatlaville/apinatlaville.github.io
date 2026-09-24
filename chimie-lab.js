@@ -1,20 +1,21 @@
 /**
  * chimie-lab.js — Labo Chimie (test)
- * Éditeur structurel COMPLET (Kekule Composer fullFunc) :
- * atomes, liaisons, cycles, charges, formules, glyphes/réactions,
- * templates, undo/redo, import/export, inspecteur d’objets.
+ *
+ * Éditeur libre existant : JSME (BSD-3-Clause)
+ *   https://jsme-editor.github.io/  ·  npm: jsme-editor
+ *
+ * Remplace Kekule (trop d’erreurs d’export / outils partiels).
+ * Pour un éditeur encore plus « pro » (Ketcher / Apache 2.0) : ~35 Mo standalone à vendorer.
  */
 (function () {
   'use strict';
 
-  var KEKULE_VER = '1.0.4';
-  var CDN_BASE = 'https://cdn.jsdelivr.net/npm/kekule@' + KEKULE_VER + '/dist';
-  var CDN_JS = CDN_BASE + '/kekule.min.js';
-  var CDN_CSS = CDN_BASE + '/themes/default/kekule.css';
+  var JSME_VER = '2024.4.29';
+  var JSME_SRC = 'https://cdn.jsdelivr.net/npm/jsme-editor@' + JSME_VER + '/jsme.nocache.js';
 
   var _loadPromise = null;
   var _built = false;
-  var _composer = null;
+  var _jsme = null;
   var _exportTimer = null;
 
   function esc(s) {
@@ -29,193 +30,113 @@
     if (typeof window.toast === 'function') window.toast(msg);
   }
 
-  function loadStylesheet(href) {
-    if (document.querySelector('link[data-kekule="' + href + '"]')) return;
-    var link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = href;
-    link.setAttribute('data-kekule', href);
-    document.head.appendChild(link);
-  }
-
-  function ensureKekule() {
-    if (window.Kekule && window.Kekule.Editor && window.Kekule.Editor.Composer) {
-      return Promise.resolve(window.Kekule);
-    }
-    if (_loadPromise) return _loadPromise;
-    _loadPromise = new Promise(function (resolve, reject) {
-      loadStylesheet(CDN_CSS);
-      var s = document.createElement('script');
-      s.src = CDN_JS;
-      s.async = true;
-      s.onload = function () {
-        if (window.Kekule && window.Kekule.Editor && window.Kekule.Editor.Composer) {
-          resolve(window.Kekule);
-        } else {
-          _loadPromise = null;
-          reject(new Error('Kekule chargé sans Composer.'));
-        }
-      };
-      s.onerror = function () {
-        _loadPromise = null;
-        reject(new Error('Impossible de charger Kekule (réseau / CDN).'));
-      };
-      document.head.appendChild(s);
-    });
-    return _loadPromise;
-  }
-
-  function boardHeight() {
+  function boardSize() {
     var h = window.innerHeight || 800;
-    /* Presque plein écran sous la barre d’actions */
-    return Math.max(420, Math.min(780, h - 160)) + 'px';
+    var height = Math.max(400, Math.min(700, h - 200));
+    var host = document.getElementById('chimieJsmeHost');
+    var width = host && host.clientWidth > 80 ? host.clientWidth : Math.min(960, (window.innerWidth || 900) - 80);
+    return { w: Math.max(320, width) + 'px', h: height + 'px' };
   }
 
   /**
-   * Mode « appli web complète » : fullFunc + tous les outils chimie.
-   * (Les exemples C / cycle / Br n’étaient que des cas d’usage.)
+   * JSME appelle window.jsmeOnLoad une fois le runtime prêt.
+   * On enchaîne via une promesse partagée.
    */
-  function configureFullComposer(composer) {
-    try {
-      if (typeof composer.setPredefinedSetting === 'function') {
-        composer.setPredefinedSetting('fullFunc');
-      }
-    } catch (e) { /* ignore */ }
-
-    try {
-      if (typeof composer.setEnableOperHistory === 'function') composer.setEnableOperHistory(true);
-      if (typeof composer.setEnableLoadNewFile === 'function') composer.setEnableLoadNewFile(true);
-      if (typeof composer.setEnableCreateNewDoc === 'function') composer.setEnableCreateNewDoc(true);
-      if (typeof composer.setAllowCreateNewChild === 'function') composer.setAllowCreateNewChild(true);
-      if (typeof composer.setEnableStyleToolbar === 'function') composer.setEnableStyleToolbar(true);
-    } catch (e2) { /* ignore */ }
-
-    try {
-      if (typeof composer.setCommonToolButtons === 'function') {
-        composer.setCommonToolButtons([
-          'newDoc', 'loadData', 'saveData',
-          'undo', 'redo', 'copy', 'cut', 'paste',
-          'zoomIn', 'reset', 'zoomOut',
-          'config', 'objInspector'
-        ]);
-      }
-      if (typeof composer.setChemToolButtons === 'function') {
-        composer.setChemToolButtons([
-          'manipulate', 'erase',
-          'bond', 'atom', 'formula', 'atomAndFormula',
-          'ring', 'charge',
-          'glyph', 'textAndImage', 'textImage'
-        ]);
-      }
-      if (typeof composer.setStyleToolComponentNames === 'function') {
-        composer.setStyleToolComponentNames([
-          'fontName', 'fontSize', 'color', 'textDirection', 'textAlign'
-        ]);
-      }
-      if (typeof composer.setAllowedObjModifierCategories === 'function' && window.Kekule.Editor && window.Kekule.Editor.ObjModifier) {
-        var Cat = window.Kekule.Editor.ObjModifier.Category;
-        composer.setAllowedObjModifierCategories([
-          Cat.GENERAL,
-          Cat.CHEM_STRUCTURE,
-          Cat.STYLE,
-          Cat.GLYPH
-        ].filter(Boolean));
-      }
-    } catch (e3) { /* ignore */ }
-
-    /* Rendu plus lisible (type appli chimie) */
-    try {
-      var rc = composer.getRenderConfigs && composer.getRenderConfigs();
-      if (rc && rc.getLengthConfigs) {
-        var lc = rc.getLengthConfigs();
-        if (lc && lc.setBondLength) lc.setBondLength(1.0);
-      }
-    } catch (e4) { /* ignore */ }
-  }
-
-  function destroyComposer() {
-    if (_composer) {
-      try {
-        if (typeof _composer.finalize === 'function') _composer.finalize();
-      } catch (e) { /* ignore */ }
-      _composer = null;
+  function ensureJsme() {
+    if (window.JSApplet && window.JSApplet.JSME) {
+      return Promise.resolve();
     }
-    var host = document.getElementById('chimieComposerHost');
-    if (host) host.innerHTML = '';
-  }
+    if (_loadPromise) return _loadPromise;
 
-  function mountComposer(host) {
-    if (!host || !window.Kekule) return null;
-    destroyComposer();
-    host.innerHTML = '';
-    var box = document.createElement('div');
-    box.id = 'chimieComposerBoard';
-    box.className = 'chimie-composer-board';
-    host.appendChild(box);
+    _loadPromise = new Promise(function (resolve, reject) {
+      var settled = false;
+      var prev = window.jsmeOnLoad;
 
-    var composer = new window.Kekule.Editor.Composer(box);
-    composer.setDimension('100%', boardHeight());
-    configureFullComposer(composer);
-    _composer = composer;
+      window.jsmeOnLoad = function () {
+        try {
+          if (typeof prev === 'function') prev.apply(this, arguments);
+        } catch (e) { /* ignore */ }
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
 
-    /* Écoute large : changements → export */
-    try {
-      if (typeof composer.addEventListener === 'function') {
-        ['editDone', 'change', 'selectionChange', 'load'].forEach(function (ev) {
-          try {
-            composer.addEventListener(ev, function () { scheduleExport(); });
-          } catch (e) { /* ignore */ }
-        });
+      var existing = document.querySelector('script[data-jsme-lab="1"]');
+      if (existing) {
+        /* Script déjà là : attendre jsmeOnLoad ou API déjà dispo */
+        if (window.JSApplet && window.JSApplet.JSME) {
+          settled = true;
+          resolve();
+        }
+        setTimeout(function () {
+          if (!settled && window.JSApplet && window.JSApplet.JSME) {
+            settled = true;
+            resolve();
+          } else if (!settled) {
+            settled = true;
+            _loadPromise = null;
+            reject(new Error('JSME chargé mais API indisponible.'));
+          }
+        }, 12000);
+        return;
       }
-    } catch (e2) { /* ignore */ }
 
-    return composer;
+      var s = document.createElement('script');
+      s.src = JSME_SRC;
+      s.async = true;
+      s.setAttribute('data-jsme-lab', '1');
+      s.onerror = function () {
+        if (!settled) {
+          settled = true;
+          _loadPromise = null;
+          reject(new Error('Impossible de charger JSME (réseau / CDN).'));
+        }
+      };
+      document.head.appendChild(s);
+
+      setTimeout(function () {
+        if (!settled) {
+          settled = true;
+          _loadPromise = null;
+          reject(new Error('Délai dépassé en chargeant JSME.'));
+        }
+      }, 20000);
+    });
+
+    return _loadPromise;
   }
 
-  function firstMolecule() {
-    if (!_composer || !window.Kekule) return null;
+  function safeCall(fn) {
     try {
-      var mols = _composer.exportObjs(window.Kekule.Molecule);
-      return mols && mols.length ? mols[0] : null;
+      return fn();
     } catch (e) {
       return null;
     }
   }
 
-  function exportFormat(preferred) {
-    var mol = firstMolecule();
-    if (!mol || !window.Kekule || !window.Kekule.IO) return '';
-    var map = {
-      smi: ['smi', 'smiles', 'SMILES'],
-      mol: ['mol', 'mol2000', 'mdl', 'sd'],
-      cml: ['cml', 'CML']
-    };
-    var candidates = map[preferred] || [preferred];
-    for (var i = 0; i < candidates.length; i++) {
-      try {
-        var out = window.Kekule.IO.saveFormatData(mol, candidates[i]);
-        if (out) return String(out).trim();
-      } catch (e) { /* next */ }
-    }
-    /* Fallback : document entier */
-    try {
-      var doc = _composer.getChemObj && _composer.getChemObj();
-      if (doc) {
-        for (var j = 0; j < candidates.length; j++) {
-          try {
-            var out2 = window.Kekule.IO.saveFormatData(doc, candidates[j]);
-            if (out2) return String(out2).trim();
-          } catch (e2) { /* next */ }
-        }
-      }
-    } catch (e3) { /* ignore */ }
-    return '';
+  function getSmiles() {
+    if (!_jsme) return '';
+    return safeCall(function () {
+      if (typeof _jsme.smiles === 'function') return String(_jsme.smiles() || '').trim();
+      if (typeof _jsme.getSmiles === 'function') return String(_jsme.getSmiles() || '').trim();
+      return '';
+    }) || '';
+  }
+
+  function getMolfile() {
+    if (!_jsme) return '';
+    return safeCall(function () {
+      if (typeof _jsme.molFile === 'function') return String(_jsme.molFile() || '').trim();
+      if (typeof _jsme.getMolfile === 'function') return String(_jsme.getMolfile() || '').trim();
+      return '';
+    }) || '';
   }
 
   function copyText(text, okMsg) {
     var t = String(text || '');
     if (!t) {
-      toast('Rien à copier — dessine d’abord une structure');
+      toast('Rien à copier — dessine d’abord une molécule');
       return;
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -226,41 +147,87 @@
     }
   }
 
+  function syncExport() {
+    var smi = getSmiles();
+    var mol = getMolfile();
+    var smiEl = document.getElementById('chimieExportSmi');
+    var molEl = document.getElementById('chimieExportMol');
+    var status = document.getElementById('chimieExportStatus');
+    if (smiEl) smiEl.value = smi;
+    if (molEl) molEl.value = mol;
+    if (status) {
+      status.textContent = smi
+        ? 'Structure prête · SMILES / Molfile à jour'
+        : 'Choisis un outil (C, liaison, cycle…) puis clique sur la planche';
+    }
+  }
+
   function scheduleExport() {
     if (_exportTimer) clearTimeout(_exportTimer);
     _exportTimer = setTimeout(function () {
       _exportTimer = null;
-      syncExportPreview();
-    }, 120);
-  }
-
-  function syncExportPreview() {
-    var smiEl = document.getElementById('chimieExportSmi');
-    var molEl = document.getElementById('chimieExportMol');
-    var smi = exportFormat('smi');
-    var mol = exportFormat('mol');
-    if (smiEl) smiEl.value = smi || '';
-    if (molEl) molEl.value = mol || '';
-    var badge = document.getElementById('chimieExportStatus');
-    if (badge) {
-      badge.textContent = smi
-        ? 'Structure prête · export disponible'
-        : 'Planche vide — utilise la barre d’outils Kekule';
-    }
+      syncExport();
+    }, 150);
   }
 
   function clearBoard() {
-    if (!_composer) return;
+    if (!_jsme) return;
+    safeCall(function () {
+      if (typeof _jsme.clear === 'function') _jsme.clear();
+      else if (typeof _jsme.reset === 'function') _jsme.reset();
+      else if (typeof _jsme.readMolecule === 'function') _jsme.readMolecule('');
+    });
+    syncExport();
+  }
+
+  function destroyJsme() {
+    var host = document.getElementById('chimieJsmeHost');
+    if (host) host.innerHTML = '';
+    _jsme = null;
+  }
+
+  function mountJsme(host) {
+    if (!host || !window.JSApplet || !window.JSApplet.JSME) return null;
+    host.innerHTML = '';
+    var size = boardSize();
+    /* options : GUI complète JSME (atomes, cycles, stéréo, réactions…) */
+    var opts = {
+      options: 'depictAction,newLook,reaction,stereoButton,atomMoveButton,useOCL'
+    };
     try {
-      if (typeof _composer.newDoc === 'function') _composer.newDoc();
-      else if (typeof _composer.setChemObj === 'function') {
-        _composer.setChemObj(new window.Kekule.Molecule());
+      _jsme = new window.JSApplet.JSME(host.id, size.w, size.h, opts);
+    } catch (e1) {
+      try {
+        _jsme = new window.JSApplet.JSME(host.id, size.w, size.h);
+      } catch (e2) {
+        _jsme = null;
+        throw e2;
       }
-    } catch (e) {
-      var host = document.getElementById('chimieComposerHost');
-      if (host) mountComposer(host);
     }
-    syncExportPreview();
+
+    /* Callbacks JSME (selon versions) */
+    safeCall(function () {
+      if (typeof _jsme.setCallBack === 'function') {
+        _jsme.setCallBack('AfterStructureModified', function () { scheduleExport(); });
+        _jsme.setCallBack('onStructureChange', function () { scheduleExport(); });
+      }
+    });
+    safeCall(function () {
+      if (typeof _jsme.setNotifyStructuralChangeJSCallback === 'function') {
+        _jsme.setNotifyStructuralChangeJSCallback(function () { scheduleExport(); });
+      }
+    });
+
+    scheduleExport();
+    return _jsme;
+  }
+
+  function resizeJsme() {
+    if (!_jsme) return;
+    var size = boardSize();
+    safeCall(function () {
+      if (typeof _jsme.setSize === 'function') _jsme.setSize(size.w, size.h);
+    });
   }
 
   function buildShell(root) {
@@ -270,26 +237,26 @@
           '<div class="chimie-lab-top-text">' +
             '<h2 class="chimie-lab-title"><span data-icon="flask-conical"></span> Labo Chimie</h2>' +
             '<p class="chimie-lab-lead anki-mut">' +
-              'Éditeur structurel complet : atomes, liaisons, cycles, charges, formules, ' +
-              'templates, réactions / flèches, import·export, undo — comme une appli chimie web.' +
+              'Éditeur <b>JSME</b> (libre, BSD) — atomes, liaisons, cycles, stéréochimie, réactions. ' +
+              'Pas de SMILES à taper : tu dessines sur la planche.' +
             '</p>' +
           '</div>' +
           '<div class="chimie-lab-top-actions">' +
-            '<button type="button" class="bs" id="chimieBtnUndo" title="Annuler"><span data-icon="undo-2"></span></button>' +
-            '<button type="button" class="bs" id="chimieBtnRedo" title="Rétablir"><span data-icon="refresh-cw"></span></button>' +
             '<button type="button" class="bs" id="chimieBtnCopySmi" title="Copier SMILES">' +
               '<span data-icon="copy"></span> SMILES</button>' +
             '<button type="button" class="bs" id="chimieBtnCopyMol" title="Copier Molfile">MOL</button>' +
-            '<button type="button" class="bs" id="chimieBtnClear" title="Nouvelle planche">' +
+            '<button type="button" class="bs" id="chimieBtnClear" title="Effacer la planche">' +
               '<span data-icon="trash-2"></span></button>' +
           '</div>' +
         '</header>' +
         '<p class="chimie-lab-howto anki-mut" id="chimieExportStatus">' +
-          'Astuce : barre gauche = outils (atome, liaison, cycle…) · barre haut = fichier / zoom / inspecteur' +
+          'Chargement de JSME…' +
         '</p>' +
-        '<div class="chimie-composer-host" id="chimieComposerHost"></div>' +
+        '<div class="chimie-jsme-wrap">' +
+          '<div id="chimieJsmeHost" class="chimie-jsme-host"></div>' +
+        '</div>' +
         '<details class="chimie-lab-export" open>' +
-          '<summary>Export <span class="anki-mut">— SMILES &amp; Molfile (lecture seule, se met à jour)</span></summary>' +
+          '<summary>Export <span class="anki-mut">— mis à jour quand tu modifies la structure</span></summary>' +
           '<div class="chimie-lab-export-grid">' +
             '<label class="chimie-lab-export-block">' +
               '<span>SMILES</span>' +
@@ -301,49 +268,41 @@
             '</label>' +
           '</div>' +
           '<div class="chimie-lab-export-actions">' +
-            '<button type="button" class="bs" id="chimieBtnRefreshExport">Actualiser l’export</button>' +
+            '<button type="button" class="bs" id="chimieBtnRefreshExport">Actualiser</button>' +
           '</div>' +
         '</details>' +
+        '<p class="chimie-lab-credit anki-mut">' +
+          'JSME · Bienfait &amp; Ertl · licence BSD-3-Clause · ' +
+          '<a href="https://jsme-editor.github.io/" target="_blank" rel="noopener">jsme-editor.github.io</a>' +
+        '</p>' +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(root);
   }
 
-  function wireChrome(root) {
-    function bind(id, fn) {
-      var el = document.getElementById(id);
-      if (el) el.onclick = fn;
-    }
-    bind('chimieBtnUndo', function () {
-      try { if (_composer) _composer.undo(); } catch (e) { /* ignore */ }
-      scheduleExport();
-    });
-    bind('chimieBtnRedo', function () {
-      try { if (_composer) _composer.redo(); } catch (e) { /* ignore */ }
-      scheduleExport();
-    });
-    bind('chimieBtnCopySmi', function () {
-      syncExportPreview();
-      copyText(exportFormat('smi'), 'SMILES copié');
-    });
-    bind('chimieBtnCopyMol', function () {
-      syncExportPreview();
-      copyText(exportFormat('mol'), 'Molfile copié');
-    });
-    bind('chimieBtnClear', clearBoard);
-    bind('chimieBtnRefreshExport', syncExportPreview);
+  function wireChrome() {
+    var copyS = document.getElementById('chimieBtnCopySmi');
+    var copyM = document.getElementById('chimieBtnCopyMol');
+    var clear = document.getElementById('chimieBtnClear');
+    var refresh = document.getElementById('chimieBtnRefreshExport');
+    if (copyS) copyS.onclick = function () {
+      syncExport();
+      copyText(getSmiles(), 'SMILES copié');
+    };
+    if (copyM) copyM.onclick = function () {
+      syncExport();
+      copyText(getMolfile(), 'Molfile copié');
+    };
+    if (clear) clear.onclick = clearBoard;
+    if (refresh) refresh.onclick = syncExport;
 
-    if (!root._chimieInteractBound) {
-      root._chimieInteractBound = true;
-      root.addEventListener('mouseup', scheduleExport);
-      root.addEventListener('keyup', scheduleExport);
-      root.addEventListener('touchend', scheduleExport, { passive: true });
+    var wrap = document.getElementById('chimieJsmeHost');
+    if (wrap && !wrap._chimieBound) {
+      wrap._chimieBound = true;
+      wrap.addEventListener('mouseup', scheduleExport);
+      wrap.addEventListener('keyup', scheduleExport);
+      wrap.addEventListener('touchend', scheduleExport, { passive: true });
     }
-  }
-
-  function resizeComposer() {
-    if (!_composer || typeof _composer.setDimension !== 'function') return;
-    try { _composer.setDimension('100%', boardHeight()); } catch (e) { /* ignore */ }
   }
 
   window.renderChimieLab = function () {
@@ -354,41 +313,51 @@
       root.innerHTML =
         '<div class="chimie-lab chimie-lab-loading">' +
           '<div class="clean-spinner" aria-hidden="true"></div>' +
-          '<p class="anki-mut">Chargement de l’éditeur chimie complet…</p>' +
+          '<p class="anki-mut">Chargement de JSME (éditeur libre)…</p>' +
         '</div>';
     }
 
-    ensureKekule().then(function () {
+    ensureJsme().then(function () {
       if (!_built) {
         buildShell(root);
         _built = true;
-        wireChrome(root);
-        if (!window._chimieResizeBound) {
-          window._chimieResizeBound = true;
-          window.addEventListener('resize', resizeComposer);
+        wireChrome();
+        if (!window._chimieJsmeResizeBound) {
+          window._chimieJsmeResizeBound = true;
+          window.addEventListener('resize', function () {
+            var pane = document.getElementById('paneChimieLab');
+            if (pane && !pane.classList.contains('hidden')) resizeJsme();
+          });
         }
       }
-      var host = document.getElementById('chimieComposerHost');
-      if (host) {
-        if (!_composer || !host.querySelector('#chimieComposerBoard')) {
-          mountComposer(host);
-        } else {
-          resizeComposer();
-        }
+
+      var host = document.getElementById('chimieJsmeHost');
+      if (!host) return;
+
+      if (!_jsme || !host.querySelector('div, canvas, table')) {
+        destroyJsme();
+        /* Le conteneur doit avoir un id pour JSME */
+        host.id = 'chimieJsmeHost';
+        mountJsme(host);
+      } else {
+        resizeJsme();
+        syncExport();
       }
-      syncExportPreview();
     }).catch(function (err) {
       _built = false;
-      destroyComposer();
+      destroyJsme();
       root.innerHTML =
         '<div class="chimie-lab">' +
           '<h2 class="chimie-lab-title">Labo Chimie</h2>' +
           '<p class="chimie-lab-error">' + esc(err && err.message ? err.message : 'Erreur') + '</p>' +
-          '<p class="anki-mut">Vérifie ta connexion : Kekule est chargé depuis jsDelivr.</p>' +
+          '<p class="anki-mut">JSME se charge depuis jsDelivr (licence BSD). Vérifie ta connexion.</p>' +
           '<button type="button" class="bp" id="chimieLabRetry">Réessayer</button>' +
         '</div>';
       var retry = document.getElementById('chimieLabRetry');
-      if (retry) retry.addEventListener('click', function () { window.renderChimieLab(); });
+      if (retry) retry.addEventListener('click', function () {
+        _loadPromise = null;
+        window.renderChimieLab();
+      });
     });
   };
 })();
