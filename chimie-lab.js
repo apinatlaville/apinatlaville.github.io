@@ -205,16 +205,10 @@
       }
     }
 
-    /* Callbacks JSME (selon versions) */
+    /* Callback officiel JSME uniquement (évite « Invalid callback name ») */
     safeCall(function () {
       if (typeof _jsme.setCallBack === 'function') {
         _jsme.setCallBack('AfterStructureModified', function () { scheduleExport(); });
-        _jsme.setCallBack('onStructureChange', function () { scheduleExport(); });
-      }
-    });
-    safeCall(function () {
-      if (typeof _jsme.setNotifyStructuralChangeJSCallback === 'function') {
-        _jsme.setNotifyStructuralChangeJSCallback(function () { scheduleExport(); });
       }
     });
 
