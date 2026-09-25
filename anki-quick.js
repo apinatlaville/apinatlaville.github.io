@@ -81,6 +81,25 @@
     );
   }
 
+  /** Bouton libellé « Partage » (dossier ouvert) — plus lisible que les seuls pastilles. */
+  function shareActionButtonHtml(groupId, opts) {
+    opts = opts || {};
+    if (!groupId || groupId === UNGROUPED) return '';
+    const st = shareStateFromGroup(groupInfo(groupId));
+    const dots = shareDotsHtml(st, groupId, { plain: true, compact: true });
+    const label = window.iconLabel ? window.iconLabel('share-2', 'Partage') : 'Partage';
+    const onclick = st.linked
+      ? "window.quickToggleShareBanner('" + jsStr(groupId) + "')"
+      : "window.quickSharePublishGroup&&window.quickSharePublishGroup('" + jsStr(groupId) + "')";
+    const title = st.linked ? 'État et actions de partage' : 'Publier ce dossier sur Partage';
+    const cls = (opts.primary ? 'bp' : 'bs') + ' qk-share-btn';
+    return (
+      '<button type="button" class="' + cls + '" title="' + title + '" onclick="' + onclick + '">' +
+        label + (dots ? ' ' + dots : '') +
+      '</button>'
+    );
+  }
+
   function shareBannerHtml(groupId) {
     if (!groupId || Q.shareBannerGroupId !== groupId) return '';
     const g = groupInfo(groupId);
@@ -795,6 +814,7 @@
         </div>
         <div class="quick-drill-bar" id="qkDrillBar">
           ${renderToolbarDrillOpts()}
+          ${shareActionButtonHtml(navGroup.id)}
           <button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>
         </div>
       </div>` : ''}
@@ -1242,7 +1262,6 @@
           `</button>`
       : '';
     const st = shareStateFromGroup(g);
-    const dots = shareDotsHtml(st, Q.nav.group, { compact: true });
     const banner = shareBannerHtml(Q.nav.group);
     if (st.linked) {
       const c = Q.shareStateCache[Q.nav.group];
@@ -1262,10 +1281,9 @@
             (st.linked ? ` · <code style="font-size:10px;">${esc(st.packId)}</code> v${esc(String(st.installedVersion || '?'))}` : '') +
           `</p>` +
         '</div>' +
-        ((gearBtn || dots)
+        (gearBtn
           ? ('<div class="qk-group-head-actions"><div class="qk-group-head-corner">' +
-              (gearBtn || '') +
-              (dots || '') +
+              gearBtn +
             '</div></div>')
           : '') +
       '</div>' +
@@ -2065,9 +2083,13 @@
   function refreshToolbarDrillOpts() {
     const bar = document.getElementById('qkDrillBar');
     if (!bar) return;
-    const btn = bar.querySelector('button.bp');
-    const btnHtml = btn ? btn.outerHTML : `<button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>`;
-    bar.innerHTML = renderToolbarDrillOpts() + btnHtml;
+    const shareBtn = bar.querySelector('button.qk-share-btn');
+    const reviewBtn = bar.querySelector('button.bp');
+    const shareHtml = shareBtn ? shareBtn.outerHTML : '';
+    const reviewHtml = reviewBtn
+      ? reviewBtn.outerHTML
+      : `<button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>`;
+    bar.innerHTML = renderToolbarDrillOpts() + shareHtml + reviewHtml;
     if (window.hydrateIcons) window.hydrateIcons(bar);
   }
 
