@@ -1612,6 +1612,18 @@
     }
     window.programmeRenderEditInters(ch.cl || '', window.getChapitreInters(ch));
     ov.classList.remove('hidden');
+    if (typeof window.ensureFormLibs === 'function') {
+      Promise.resolve(window.ensureFormLibs()).then(function () {
+        if (typeof window.fcRefreshSelect === 'function' && $('progEditCl')) {
+          /* Re-enhance après ouverture (Choices peut ne pas être prêt au 1er rendu) */
+          var sel = $('progEditCl');
+          var html = sel.innerHTML;
+          var val = sel.value;
+          window.fcRefreshSelect(sel, html);
+          if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(sel, val);
+        }
+      }).catch(function () {});
+    }
   };
 
   window.programmeRenderEditInters = function (clId, selectedInters) {
@@ -1634,11 +1646,19 @@
       var orphan = clObj(want);
       cls = cls.concat([{ id: want, name: (orphan && orphan.name) || want }]);
     }
-    clSel.innerHTML = '<option value="">— Aucun —</option>' + cls.map(function (c) {
+    var clHtml = '<option value="">— Aucun —</option>' + cls.map(function (c) {
       return '<option value="' + esc(c.id) + '"' + (c.id === want ? ' selected' : '') + '>' +
         esc(c.name) + '</option>';
     }).join('');
-    clSel.value = want;
+    /* Choices.js (évite le menu natif Apple / Safari) */
+    if (typeof window.fcRefreshSelect === 'function') {
+      window.fcRefreshSelect(clSel, clHtml);
+      if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(clSel, want);
+      else clSel.value = want;
+    } else {
+      clSel.innerHTML = clHtml;
+      clSel.value = want;
+    }
 
     selectedInters = (selectedInters || []).map(window.normalizeInterSlot).filter(Boolean);
     if (!want) {
@@ -1659,7 +1679,10 @@
 
   window.programmeCloseEdit = function () {
     var ov = $('ovProgrammeEdit');
-    if (ov) ov.classList.add('hidden');
+    if (ov) {
+      if (typeof window.fcDestroyScope === 'function') window.fcDestroyScope(ov);
+      ov.classList.add('hidden');
+    }
   };
 
   window.programmeSaveEdit = function () {
