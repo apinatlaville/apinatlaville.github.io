@@ -1505,6 +1505,11 @@ window.openModalCours = function(opts) {
   } else if (o.chapitreId) {
     window.updateChapitreDropdown(o.chapitreId);
   }
+
+  if (window.$('fgCoursCopies')) window.$('fgCoursCopies').style.display = '';
+  if (window.$('fCopies')) window.$('fCopies').value = '1';
+  if (window.$('fgCoursMore')) window.$('fgCoursMore').open = false;
+  if (typeof window.updateCoursCopiesHint === 'function') window.updateCoursCopiesHint();
   
   if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
   if (typeof window.enhanceFormControls === 'function') {
@@ -1587,11 +1592,43 @@ window.editCours = function(uid, opts) {
     window.$('uidBox').style.display = 'block';
     window.$('uidBox').innerHTML = window.escHtml(c.uid) + '<br><small style="font-size:10px; font-weight:normal; color:var(--mut);">Code permanent</small>';
   }
+
+  if (window.$('fgCoursCopies')) window.$('fgCoursCopies').style.display = 'none';
+  if (window.$('fCopies')) window.$('fCopies').value = '1';
+  if (window.$('fgCoursMore')) {
+    window.$('fgCoursMore').open = !!(c.desc && String(c.desc).trim());
+  }
   
   if(window.$('ovCours')) window.$('ovCours').classList.remove('hidden');
   if (typeof window.enhanceFormControls === 'function') {
     window.enhanceFormControls(window.$('ovCours'));
   }
+};
+
+window.updateCoursCopiesHint = function () {
+  const hint = window.$('fCopiesHint');
+  if (!hint) return;
+  const n = typeof window.getCoursCopiesCount === 'function' ? window.getCoursCopiesCount() : 1;
+  const titleRaw = window.$('fTitle') ? String(window.$('fTitle').value || '').trim() : '';
+  const base = titleRaw || 'Titre';
+  if (n <= 1) {
+    hint.textContent = '→ 1 document';
+    return;
+  }
+  if (n === 2) {
+    hint.textContent = '→ « ' + base + ' 1 », « ' + base + ' 2 »';
+    return;
+  }
+  hint.textContent = '→ « ' + base + ' 1 » … « ' + base + ' ' + n + ' » (' + n + ' docs)';
+};
+
+window.getCoursCopiesCount = function () {
+  if (window.editUid) return 1;
+  const el = window.$('fCopies');
+  if (!el) return 1;
+  const n = parseInt(String(el.value || '1').trim(), 10);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(40, n);
 };
 
 window.saveCours = function() {
@@ -1663,7 +1700,8 @@ window.saveCours = function() {
   if(!obj.date) obj.date = window.localDateISO();
 
   const wasEdit = !!window.editUid;
-  let createdUid = null;
+  let createdUids = [];
+  const copies = wasEdit ? 1 : window.getCoursCopiesCount();
 
   if (window.editUid) {
     const idx = window.D.cours.findIndex(c => c.uid===window.editUid);
@@ -1690,32 +1728,43 @@ window.saveCours = function() {
       window.D.cours[idx] = obj;
     }
   } else {
-    obj.rev = 'green';
-    let newUid = '';
-    if (window.$('fManualUidToggle') && window.$('fManualUidToggle').checked) {
+    const manualOn = !!(window.$('fManualUidToggle') && window.$('fManualUidToggle').checked);
+    if (manualOn && copies > 1) {
+      return window.sysAlert(
+        'La saisie manuelle du code ne fonctionne que pour 1 exemplaire. Désactive-la ou mets le nombre à 1.',
+        'Exemplaires'
+      );
+    }
+
+    let manualUid = '';
+    if (manualOn) {
       const prefixEl = window.$('fUidPrefix');
       const prefix = prefixEl ? prefixEl.textContent.replace('-', '') : mat.substring(0,2).toUpperCase();
       const suffix = window.$('fUidInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      
       if (!suffix) {
         return window.sysAlert("Veuillez taper au moins un caractère dans la case manuelle !", "Erreur de saisie");
       }
-      
-      newUid = prefix + '-' + suffix;
-      const uidTaken = window.D.cours.some(x => x.uid === newUid)
-        || (window.D.exercices || []).some(x => x.id === newUid)
-        || (window.D.devoirs || []).some(x => x.id === newUid)
-        || (window.D.chapitres || []).some(x => x.id === newUid);
+      manualUid = prefix + '-' + suffix;
+      const uidTaken = window.D.cours.some(x => x.uid === manualUid)
+        || (window.D.exercices || []).some(x => x.id === manualUid)
+        || (window.D.devoirs || []).some(x => x.id === manualUid)
+        || (window.D.chapitres || []).some(x => x.id === manualUid);
       if (uidTaken) {
-        return window.sysAlert("Ce code (" + window.escHtml(newUid) + ") est déjà utilisé ! Trouve-en un autre.", "Erreur de code");
+        return window.sysAlert("Ce code (" + window.escHtml(manualUid) + ") est déjà utilisé ! Trouve-en un autre.", "Erreur de code");
       }
-    } else {
-      newUid = window.genUid(mat);
     }
-    obj.uid = newUid;
-    obj.stat = 'pending'; 
-    window.D.cours.unshift(obj);
-    createdUid = newUid;
+
+    /* unshift dans l’ordre N…1 pour que « Titre 1 » apparaisse en premier dans la liste */
+    for (let i = copies; i >= 1; i--) {
+      const copy = Object.assign({}, obj);
+      copy.title = copies === 1 ? title : (title + ' ' + i);
+      copy.rev = 'green';
+      copy.stat = 'pending';
+      copy.uid = (copies === 1 && manualUid) ? manualUid : window.genUid(mat);
+      if (obj.chapitreId) copy.chapitreId = obj.chapitreId;
+      window.D.cours.unshift(copy);
+      createdUids.unshift(copy.uid);
+    }
   }
   
   window.save();
@@ -1727,8 +1776,8 @@ window.saveCours = function() {
   /* Handoff wizard avant les re-renders (évite mode orphelin si un render plante) */
   let wizardHandled = false;
   try {
-    if (!wasEdit && createdUid && typeof window.coursWizardAfterCreate === 'function' && window._coursWizardMode) {
-      wizardHandled = !!window.coursWizardAfterCreate(createdUid, { mat: obj.mat, cl: obj.cl, inter: obj.inter });
+    if (!wasEdit && createdUids.length && typeof window.coursWizardAfterCreate === 'function' && window._coursWizardMode) {
+      wizardHandled = !!window.coursWizardAfterCreate(createdUids, { mat: obj.mat, cl: obj.cl, inter: obj.inter });
     } else if (!wasEdit && typeof window.closeCoursWizard === 'function') {
       window.closeCoursWizard();
       wizardHandled = true;

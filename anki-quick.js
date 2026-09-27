@@ -109,9 +109,9 @@
     lines.push('Pack <code>' + esc(st.packId) + '</code> · installé <b>v' + esc(String(st.installedVersion || '?')) + '</b>' +
       (st.latestVersion != null ? ' · cloud <b>v' + esc(String(st.latestVersion)) + '</b>' : '') + '.');
     if (st.imported) {
-      lines.push('Dossier <b>importé</b> : copie locale. Pour partager tes ajouts, utilise <b>Publier comme nouveau pack</b> (ça ne touche pas le pack d’origine).');
+      lines.push('Dossier <b>importé</b> : tu peux modifier les cartes et <b>Publier une mise à jour</b> (nouvelle version du même pack). Seul le créateur peut supprimer le pack du catalogue.');
     } else {
-      lines.push('Dossier <b>lié à ton pack public</b>. Les autres ne voient tes changements qu’après <b>Publier une mise à jour</b>.');
+      lines.push('Dossier <b>lié au pack public</b>. Les autres ne voient les changements qu’après <b>Publier une mise à jour</b>.');
     }
     if (st.localDirty) {
       lines.push('<span class="qk-share-banner-flag qk-share-banner-flag--yellow">Modifié localement</span> Au moins une carte (ou le nom du dossier) a changé depuis la version installée.');
@@ -126,10 +126,9 @@
       actions.push('<button type="button" class="bp" onclick="window.partageOpenPack && window.partageOpenPack(\'' +
         jsStr(st.packId) + '\')">' + (window.iconLabel ? window.iconLabel('refresh-cw', 'Voir l’update') : 'Voir l’update') + '</button>');
     }
-    if (st.localDirty || st.imported) {
-      const shareLbl = st.imported ? 'Publier comme nouveau pack' : 'Publier une mise à jour';
+    if (st.localDirty) {
       actions.push('<button type="button" class="bs" onclick="window.quickEditGroup(\'' + jsStr(groupId) + '\')">' +
-        (window.iconLabel ? window.iconLabel('share-2', shareLbl) : shareLbl) + '</button>');
+        (window.iconLabel ? window.iconLabel('share-2', 'Publier une mise à jour') : 'Publier une mise à jour') + '</button>');
     }
     actions.push('<button type="button" class="bs" onclick="window.quickToggleShareBanner(\'\')">Fermer</button>');
     return (
@@ -179,8 +178,12 @@
     }
     if (typeof window.dedupeAnkiCardArrays === 'function' && !window._qkDedupeDone) {
       const n = window.dedupeAnkiCardArrays(window.D);
+      let nShare = 0;
+      if (window.QuickShare && typeof window.QuickShare.dedupeAllQuickGroups === 'function') {
+        try { nShare = window.QuickShare.dedupeAllQuickGroups() || 0; } catch (e) { nShare = 0; }
+      }
       window._qkDedupeDone = true;
-      if (n > 0 && typeof window.save === 'function') {
+      if ((n > 0 || nShare > 0) && typeof window.save === 'function') {
         try { window.save(); } catch (e) { /* best-effort */ }
       }
     }
@@ -884,8 +887,8 @@
       : (matId || '—');
     const shareBtnLabel = !(g.shared && g.shared.packId)
       ? 'Partager'
-      : (g.shared.imported ? 'Publier comme nouveau pack' : 'Publier une mise à jour');
-    const canPublishNow = !(g.shared && g.shared.packId) || !!g.shared.localDirty || !!g.shared.imported;
+      : 'Publier une mise à jour';
+    const canPublishNow = !(g.shared && g.shared.packId) || !!g.shared.localDirty;
     ov.classList.remove('hidden');
     ov.innerHTML =
       '<div class="modal qk-groups-modal">' +

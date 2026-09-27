@@ -198,6 +198,7 @@
         && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
       return;
     }
+    if (LAB._saveInFlight) return;
     const H = helpers();
     const d = readFormIntoDraft();
     const err = $('xlabFormError');
@@ -217,6 +218,21 @@
       return;
     }
 
+    if (!LAB.editId && typeof window.findAnkiMainDuplicate === 'function') {
+      var dup = window.findAnkiMainDuplicate({
+        titre: d.titre, question: d.question, reponse: d.reponse, mat: d.mat
+      });
+      if (dup) {
+        if (err) {
+          err.textContent = 'Une carte X- identique existe déjà (' + dup.id + ').';
+          err.classList.add('visible');
+        }
+        return;
+      }
+    }
+
+    LAB._saveInFlight = true;
+
     const existing = (window.AnkiAlgoV2.allExistingIds
       ? window.AnkiAlgoV2.allExistingIds(window.D)
       : (window.D.exercices || []).map(function (c) { return c.id; }));
@@ -227,6 +243,7 @@
     if (LAB.editId) {
       card = (window.D.exercices || []).find(function (c) { return c && c.id === LAB.editId; });
       if (!card) {
+        LAB._saveInFlight = false;
         if (err) { err.textContent = 'Carte introuvable.'; err.classList.add('visible'); }
         return;
       }
@@ -281,6 +298,8 @@
         err.textContent = String(e && e.message || e);
         err.classList.add('visible');
       }
+    }).finally(function () {
+      LAB._saveInFlight = false;
     });
   };
 

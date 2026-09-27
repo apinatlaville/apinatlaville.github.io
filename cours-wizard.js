@@ -1114,21 +1114,26 @@ body.theme-light .cours-create-item:focus-visible {
 
   /**
    * Appelé par saveCours après une création réussie (pas une édition).
-   * @param {string} uid
+   * @param {string|string[]} uidOrUids un uid, ou plusieurs (exemplaires numérotés)
    * @param {{mat?:string,cl?:string,inter?:string}} saved
    * @returns {boolean} true si le wizard a repris la main (batch)
    */
-  window.coursWizardAfterCreate = function (uid, saved) {
+  window.coursWizardAfterCreate = function (uidOrUids, saved) {
     var mode = window._coursWizardMode || (window._coursWizardCtx && window._coursWizardCtx.mode);
     var s = saved || {};
+    var uids = Array.isArray(uidOrUids)
+      ? uidOrUids.filter(Boolean)
+      : (uidOrUids ? [uidOrUids] : []);
     if (mode !== 'batch') {
       window.closeCoursWizard();
       return false;
     }
     STATE.mode = 'batch';
-    STATE.createdCount += 1;
-    STATE.lastUid = uid || null;
-    if (uid && STATE.createdUids.indexOf(uid) === -1) STATE.createdUids.push(uid);
+    uids.forEach(function (uid) {
+      STATE.createdCount += 1;
+      if (STATE.createdUids.indexOf(uid) === -1) STATE.createdUids.push(uid);
+    });
+    STATE.lastUid = uids.length ? uids[uids.length - 1] : null;
     /* Toujours revenir à l’intercalaire du document venant d’être créé */
     if (s.mat && s.cl) {
       STATE.mat = s.mat;

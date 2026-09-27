@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 12;
+  var UI_REV = 14;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -23,7 +23,7 @@
       id: 'freq',
       label: 'Fréquents',
       items: [
-        { label: 'a/b', latex: '\\dfrac{#0}{#1}', title: 'Fraction' },
+        { label: 'a/b', latex: '\\frac{#0}{#1}', title: 'Fraction' },
         { label: '√', latex: '\\sqrt{#0}', title: 'Racine carrée' },
         { label: '∫', latex: '\\int_{#0}^{#1}#2\\,\\mathrm{d}#3', title: 'Intégrale définie' },
         { label: '∑', latex: '\\sum_{#0}^{#1}#2', title: 'Somme' },
@@ -59,7 +59,7 @@
       id: 'base',
       label: 'Bases',
       items: [
-        { label: 'a/b', latex: '\\dfrac{#0}{#1}', title: 'Fraction' },
+        { label: 'a/b', latex: '\\frac{#0}{#1}', title: 'Fraction' },
         { label: 'dfrac', latex: '\\dfrac{#0}{#1}', title: 'Fraction display' },
         { label: 'tfrac', latex: '\\tfrac{#0}{#1}', title: 'Fraction texte' },
         { label: '√', latex: '\\sqrt{#0}', title: 'Racine carrée' },
@@ -1045,12 +1045,11 @@
   }
 
   /**
-   * Fractions lisibles : \\frac → \\dfrac (taille pleine, y compris imbriquées).
-   * Ne touche pas \\dfrac / \\tfrac / \\cfrac / \\dfrac déjà présents.
+   * Conserve le type de fraction choisi (\\frac / \\dfrac / \\tfrac).
+   * (Ancienne promo auto vers \\dfrac retirée — l’affichage suit l’éditeur.)
    */
   function promoteFractionsToDisplay(latex) {
-    if (!latex) return latex;
-    return String(latex).replace(/\\frac(?![a-zA-Z])/g, '\\dfrac');
+    return latex;
   }
 
   /**
@@ -1247,7 +1246,7 @@
     var boxes = root.querySelectorAll('.latex-lab-preview-math');
     if (!boxes.length) return;
     boxes.forEach(function (box) {
-      box.classList.remove('is-fitted');
+      box.classList.remove('is-fitted', 'is-fitted--sess');
       box.style.transform = '';
       box.style.height = '';
       box.style.width = '';
@@ -1272,26 +1271,42 @@
       avail -= 4;
       var need = Math.max(box.scrollWidth, box.offsetWidth, box.getBoundingClientRect().width);
       if (need <= avail + 1) return;
-      var minScale = box.closest('.qk-drill-prompt') ? 0.28 : 0.5;
+      var inSession = !!box.closest('.anki-sess-q, .anki-sess-r-body, #ovAnkiSession');
+      var minScale = box.closest('.qk-drill-prompt') ? 0.28 : (inSession ? 0.42 : 0.5);
       var s = Math.max(minScale, avail / need);
-      /* Mesure hauteur réelle (struts MathLive hors offsetHeight) avant scale */
+      /* Hauteur naturelle : MathLive multi-lignes sous-estime souvent offsetHeight */
       var naturalH = Math.max(
         box.scrollHeight,
         box.offsetHeight,
         box.getBoundingClientRect().height
       );
+      var mlCore = box.querySelector('.ML__mathlive, .ML__content, .ML__base, .ML__latex');
+      if (mlCore) {
+        naturalH = Math.max(
+          naturalH,
+          mlCore.scrollHeight || 0,
+          mlCore.offsetHeight || 0,
+          mlCore.getBoundingClientRect().height || 0
+        );
+      }
+      var multiLine = !!(box.querySelector(
+        '.ML__displaylines, .ML__gathered, .mtable, .ML__array, [class*="displaylines"]'
+      ) || (box.textContent && (box.textContent.match(/\n/g) || []).length >= 1));
       box.style.transformOrigin = 'top center';
       box.style.transform = 'scale(' + s + ')';
-      /* Hauteur = bbox visuelle après scale + marge anti-coupe des indices / dénominateurs */
       void box.offsetWidth;
       var visualH = box.getBoundingClientRect().height;
-      if (!(visualH > 0)) visualH = naturalH * s;
-      box.style.height = Math.ceil(visualH + 6) + 'px';
+      /* Toujours prendre max(mesure, natural×scale) — évite coupe du 2e ligne / dénominateurs */
+      var scaledH = naturalH * s;
+      if (!(visualH > 0) || visualH < scaledH * 0.92) visualH = scaledH;
+      var pad = multiLine || inSession ? 14 : 8;
+      box.style.height = Math.ceil(visualH + pad) + 'px';
       box.style.width = Math.ceil(need * s) + 'px';
       box.style.maxWidth = '100%';
       box.style.marginLeft = 'auto';
       box.style.marginRight = 'auto';
       box.classList.add('is-fitted');
+      if (inSession) box.classList.add('is-fitted--sess');
     });
   }
 

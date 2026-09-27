@@ -6,9 +6,12 @@
   'use strict';
 
   var KIND = 'mes-cours-quick-pack';
-  var SCHEMA = 1;
+  var SCHEMA = 2;
   var LOCAL_KEY = 'mes_cours_shared_packs_v1';
   var COLLECTION = 'sharedPacks';
+  /** Seuil de recouvrement contenu pour rattacher un pack à un dossier existant (anti 2e groupe). */
+  var CONTENT_OVERLAP_RATIO = 0.45;
+  var CONTENT_OVERLAP_MIN_HITS = 2;
 
   var S = {
     view: 'catalog', // catalog | mine | detail
@@ -111,6 +114,20 @@
     return genCode('S-', 4, used);
   }
 
+  function normalizeContentText(s) {
+    return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+  }
+
+  /** Empreinte stable du texte (titre+Q+R) — filet si contentId manquant / divergé. */
+  function contentFingerprint(card) {
+    if (!card) return '';
+    var t = normalizeContentText(card.titre);
+    var q = normalizeContentText(card.question);
+    var r = normalizeContentText(card.reponse);
+    if (!t && !q && !r) return '';
+    return t + '\n' + q + '\n' + r;
+  }
+
   function contentFields(card) {
     return {
       contentId: card.contentId,
@@ -143,9 +160,221 @@
 
   function cardsForGroup(groupId) {
     return (window.D.exercices || []).filter(function (c) {
-      return c && c.groupId === groupId
-        && window.AnkiAlgo && window.AnkiAlgo.cardKind(c) === 'quick';
+      if (!c || c.groupId !== groupId) return false;
+      if (window.AnkiAlgo && typeof window.AnkiAlgo.cardKind === 'function') {
+        return window.AnkiAlgo.cardKind(c) === 'quick';
+      }
+      if (window.AnkiAlgoV2 && typeof window.AnkiAlgoV2.cardKind === 'function') {
+        return window.AnkiAlgoV2.cardKind(c) === 'quick';
+      }
+      /* Fallback si algo pas encore chargé : UIDs Y- */
+      return /^Y-/i.test(String(c.id || ''));
     });
+  }
+
+  function cardSrsScore(c) {
+    if (!c) return 0;
+    var hist = Array.isArray(c.historique) ? c.historique.length : 0;
+    var reps = Number(c.repetitions) || 0;
+    var last = 0;
+    if (hist) {
+      var h = c.historique[hist - 1];
+      last = Date.parse(h && h.date) || 0;
+    }
+    return hist * 1e12 + last + reps * 10;
+  }
+
+  /** Tous les packId associés à un dossier (lien courant + filiation). */
+  function lineagePackIds(shared) {
+    var out = [];
+    var seen = Object.create(null);
+    function add(id) {
+      id = String(id || '').trim();
+      if (!id || seen[id]) return;
+      seen[id] = true;
+      out.push(id);
+    }
+    if (!shared) return out;
+    add(shared.packId);
+    add(shared.originPackId);
+    add(shared.forkedFrom);
+    (shared.relatedPackIds || []).forEach(add);
+    return out;
+  }
+
+  function mergeRelatedPackIds(prevList, extraId, extraList) {
+    var out = [];
+    var seen = Object.create(null);
+    function add(id) {
+      id = String(id || '').trim();
+      if (!id || seen[id]) return;
+      seen[id] = true;
+      out.push(id);
+    }
+    (prevList || []).forEach(add);
+    (extraList || []).forEach(add);
+    add(extraId);
+    return out;
+  }
+
+  function groupLinkedToPackId(g, packId) {
+    if (!g || !packId) return false;
+    return lineagePackIds(g.shared).indexOf(String(packId)) >= 0;
+  }
+
+  /**
+   * Recouvrement contenu (contentId puis empreinte texte) entre un pack et un dossier local.
+   * @returns {{ group:object, hits:number, total:number, ratio:number }|null}
+   */
+  function bestContentOverlapGroup(versionDoc, preferMat) {
+    var packCards = (versionDoc && versionDoc.cards) || [];
+    if (!packCards.length) return null;
+    var best = null;
+    (window.D.quickGroups || []).forEach(function (g) {
+      if (!g || !g.id) return;
+      var local = cardsForGroup(g.id);
+      if (!local.length) return;
+      var byId = Object.create(null);
+      var byFp = Object.create(null);
+      local.forEach(function (c) {
+        if (c.contentId) byId[c.contentId] = c;
+        var fp = contentFingerprint(c);
+        if (fp) byFp[fp] = c;
+      });
+      var hits = 0;
+      packCards.forEach(function (pc) {
+        if (!pc) return;
+        if (pc.contentId && byId[pc.contentId]) { hits++; return; }
+        var fp = contentFingerprint(pc);
+        if (fp && byFp[fp]) hits++;
+      });
+      var ratio = hits / packCards.length;
+      var matBonus = (preferMat && g.mat && g.mat === preferMat) ? 0.01 : 0;
+      var score = hits + matBonus;
+      if (!best || score > best.score || (score === best.score && ratio > best.ratio)) {
+        best = { group: g, hits: hits, total: packCards.length, ratio: ratio, score: score };
+      }
+    });
+    if (!best) return null;
+    if (best.hits >= CONTENT_OVERLAP_MIN_HITS && best.ratio >= CONTENT_OVERLAP_RATIO) return best;
+    if (best.ratio >= 0.85 && best.hits >= 1) return best;
+    return null;
+  }
+
+  /**
+   * Dossier local déjà lié à ce pack (filiation) ou au même contenu.
+   * Ne crée JAMAIS un 2e dossier si un match solide existe.
+   */
+  function findLocalGroupForPack(packId, versionDoc, preferMat) {
+    packId = String(packId || '').trim();
+    if (packId) {
+      var byLineage = (window.D.quickGroups || []).find(function (g) {
+        return groupLinkedToPackId(g, packId);
+      });
+      if (byLineage) return byLineage;
+    }
+    if (versionDoc) {
+      var ov = bestContentOverlapGroup(versionDoc, preferMat);
+      if (ov && ov.group) return ov.group;
+    }
+    return null;
+  }
+
+  function writeSharedLink(g, opts) {
+    opts = opts || {};
+    if (!g) return;
+    var prev = g.shared || {};
+    var packId = opts.packId || prev.packId || '';
+    var origin = opts.originPackId || prev.originPackId || prev.packId || packId;
+    var forkedFrom = opts.forkedFrom != null ? opts.forkedFrom : (prev.forkedFrom || '');
+    var related = mergeRelatedPackIds(
+      prev.relatedPackIds,
+      opts.relatedPackId,
+      opts.relatedPackIds
+    ).filter(function (id) {
+      return id && id !== packId && id !== origin && id !== forkedFrom;
+    });
+    g.shared = {
+      packId: packId,
+      originPackId: origin || packId,
+      forkedFrom: forkedFrom || '',
+      installedVersion: opts.installedVersion != null ? Number(opts.installedVersion) : Number(prev.installedVersion || 0),
+      publishedVersion: opts.publishedVersion != null ? Number(opts.publishedVersion) : prev.publishedVersion,
+      mat: opts.mat != null ? opts.mat : (g.mat || prev.mat || ''),
+      chapitreId: opts.chapitreId != null ? opts.chapitreId : (g.chapitreId || prev.chapitreId || ''),
+      color: opts.color != null ? opts.color : (g.color || prev.color || ''),
+      localDirty: opts.localDirty != null ? !!opts.localDirty : !!prev.localDirty,
+      imported: opts.imported != null ? !!opts.imported : !!prev.imported
+    };
+    if (related.length) g.shared.relatedPackIds = related;
+    if (!g.shared.imported) delete g.shared.imported;
+    if (!g.shared.forkedFrom) delete g.shared.forkedFrom;
+    if (g.shared.publishedVersion == null) delete g.shared.publishedVersion;
+  }
+
+  /**
+   * Supprime les doublons dans un dossier (même contentId ou même empreinte texte).
+   * Conserve la carte au SRS le plus avancé ; adopte le contentId du pack si fourni.
+   * @returns {number} nb de cartes retirées
+   */
+  function dedupeGroupCards(groupId) {
+    var list = cardsForGroup(groupId);
+    if (list.length < 2) return 0;
+    var bestByKey = Object.create(null);
+    var keyOf = function (c) {
+      if (c.contentId) return 'id:' + c.contentId;
+      var fp = contentFingerprint(c);
+      return fp ? 'fp:' + fp : 'uid:' + c.id;
+    };
+    list.forEach(function (c) {
+      var k = keyOf(c);
+      var prev = bestByKey[k];
+      if (!prev || cardSrsScore(c) > cardSrsScore(prev)) bestByKey[k] = c;
+    });
+    /* Fusionne aussi fp ↔ contentId : si A a contentId et B même texte sans id, garde A */
+    var byFp = Object.create(null);
+    Object.keys(bestByKey).forEach(function (k) {
+      var c = bestByKey[k];
+      var fp = contentFingerprint(c);
+      if (!fp) return;
+      var prev = byFp[fp];
+      if (!prev) { byFp[fp] = c; return; }
+      var winner = cardSrsScore(c) >= cardSrsScore(prev) ? c : prev;
+      var loser = winner === c ? prev : c;
+      if (!winner.contentId && loser.contentId) winner.contentId = loser.contentId;
+      byFp[fp] = winner;
+    });
+    var keep = Object.create(null);
+    Object.keys(byFp).forEach(function (fp) { keep[byFp[fp].id] = true; });
+    Object.keys(bestByKey).forEach(function (k) {
+      var c = bestByKey[k];
+      var fp = contentFingerprint(c);
+      if (fp && byFp[fp]) keep[byFp[fp].id] = true;
+      else keep[c.id] = true;
+    });
+    var before = (window.D.exercices || []).length;
+    window.D.exercices = (window.D.exercices || []).filter(function (c) {
+      if (!c || c.groupId !== groupId) return true;
+      var isQuick = false;
+      if (window.AnkiAlgo && typeof window.AnkiAlgo.cardKind === 'function') {
+        isQuick = window.AnkiAlgo.cardKind(c) === 'quick';
+      } else if (window.AnkiAlgoV2 && typeof window.AnkiAlgoV2.cardKind === 'function') {
+        isQuick = window.AnkiAlgoV2.cardKind(c) === 'quick';
+      } else {
+        isQuick = /^Y-/i.test(String(c.id || ''));
+      }
+      if (!isQuick) return true;
+      return !!keep[c.id];
+    });
+    return Math.max(0, before - (window.D.exercices || []).length);
+  }
+
+  function dedupeAllQuickGroups() {
+    var n = 0;
+    (window.D.quickGroups || []).forEach(function (g) {
+      if (g && g.id) n += dedupeGroupCards(g.id);
+    });
+    return n;
   }
 
   function buildVersionPayload(group, cards, version, pub) {
@@ -205,8 +434,12 @@
       cardCount: (versionFinal.cards && versionFinal.cards.length) || meta.cardCount || 0,
       createdAt: (existing && existing.createdAt) || meta.createdAt,
       createdBy: (existing && existing.createdBy) || meta.createdBy,
-      sourceGroupId: meta.sourceGroupId || (existing && existing.sourceGroupId) || ''
+      sourceGroupId: meta.sourceGroupId || (existing && existing.sourceGroupId) || '',
+      forkedFrom: meta.forkedFrom || (existing && existing.forkedFrom) || '',
+      originPackId: meta.originPackId || (existing && existing.originPackId) || meta.forkedFrom || ''
     });
+    if (!metaFinal.forkedFrom) delete metaFinal.forkedFrom;
+    if (!metaFinal.originPackId) delete metaFinal.originPackId;
     pack.meta = metaFinal;
     pack.versions[String(nextVersion)] = versionFinal;
     store.packs[meta.packId] = pack;
@@ -284,10 +517,8 @@
         var packRef = window.doc(window.db, COLLECTION, packId);
         var snap = await transaction.get(packRef);
         var existing = snap.exists() ? (snap.data() || {}) : null;
-        if (existing && existing.createdBy && existing.createdBy.uid
-            && pub.uid && existing.createdBy.uid !== pub.uid) {
-          throw new Error('NOT_OWNER');
-        }
+        /* Collaborative : toute personne connectée peut ajouter une version.
+           createdBy (créateur initial) est figé ; lastPublishedBy = contributeur. */
         var nextVersion = existing && existing.latestVersion != null
           ? Number(existing.latestVersion) + 1
           : 1;
@@ -299,8 +530,13 @@
           createdAt: (existing && existing.createdAt) || meta.createdAt,
           createdBy: (existing && existing.createdBy) || meta.createdBy || pub,
           lastPublishedBy: pub,
-          sourceGroupId: meta.sourceGroupId || (existing && existing.sourceGroupId) || ''
+          sourceGroupId: meta.sourceGroupId || (existing && existing.sourceGroupId) || '',
+          forkedFrom: meta.forkedFrom || (existing && existing.forkedFrom) || '',
+          originPackId: meta.originPackId || (existing && existing.originPackId)
+            || meta.forkedFrom || (existing && existing.forkedFrom) || ''
         });
+        if (!metaFinal.forkedFrom) delete metaFinal.forkedFrom;
+        if (!metaFinal.originPackId) delete metaFinal.originPackId;
         var verRef = window.doc(window.db, COLLECTION, packId, 'versions', String(nextVersion));
         transaction.set(packRef, metaFinal, { merge: true });
         transaction.set(verRef, versionFinal);
@@ -374,27 +610,50 @@
   }
 
   /**
-   * Un dossier → un pack → des versions.
-   * 1) shared.packId local  2) sourceGroupId / nom unique catalogue  3) packId stable uid+dossier
-   * Fork volontaire → nouveau packId aléatoire.
+   * Un dossier → un pack → des versions (collaboratif).
+   * 1) shared.packId local → toujours ce pack (même si tu n’es pas le créateur)
+   * 2) sourceGroupId / nom unique catalogue (tes packs)
+   * 3) packId stable uid+dossier
+   * opts.fork (rare) : nouveau packId séparé — non proposé par l’UI normale.
    */
   async function resolvePublishTarget(g, shared, pub, forking) {
     if (forking) {
-      return { packId: genPackId(), existingMeta: null, forking: true };
+      var origin = (shared && (shared.packId || shared.originPackId)) || '';
+      if (origin) {
+        try {
+          var list = await window.QuickShare.listPacks();
+          var mineForks = (list || []).filter(function (p) {
+            return p && p.packId && p.createdBy && p.createdBy.uid === pub.uid
+              && (p.forkedFrom === origin || p.originPackId === origin
+                || (g && g.id && p.sourceGroupId === g.id));
+          });
+          if (mineForks.length) {
+            mineForks.sort(function (a, b) {
+              return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+            });
+            return {
+              packId: mineForks[0].packId,
+              existingMeta: mineForks[0],
+              forking: true,
+              forkedFrom: mineForks[0].forkedFrom || origin,
+              originPackId: mineForks[0].originPackId || origin
+            };
+          }
+        } catch (e) { /* ignore — nouveau pack */ }
+      }
+      return {
+        packId: genPackId(),
+        existingMeta: null,
+        forking: true,
+        forkedFrom: origin || '',
+        originPackId: (shared && shared.originPackId) || origin || ''
+      };
     }
     var packId = (shared && shared.packId) || '';
     var existingMeta = null;
     if (packId) {
       try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { /* ignore */ }
-      if (existingMeta && !isSamePublisher(existingMeta)) {
-        throw new Error('NOT_OWNER');
-      }
-      if (shared.imported && existingMeta && !isSamePublisher(existingMeta)) {
-        throw new Error('NOT_OWNER');
-      }
-      if (shared.imported && !existingMeta) {
-        throw new Error('NOT_OWNER');
-      }
+      /* Même packId que le dossier lié — créateur ou contributeur */
       return { packId: packId, existingMeta: existingMeta, forking: false };
     }
 
@@ -406,7 +665,14 @@
     packId = stablePackId(pub.uid, g.id);
     try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { existingMeta = null; }
     if (existingMeta && !isSamePublisher(existingMeta)) {
-      return { packId: genPackId(), existingMeta: null, forking: true };
+      /* Collision d’id stable avec un pack tiers sans lien local → id frais, pas un fork « lié » */
+      return {
+        packId: genPackId(),
+        existingMeta: null,
+        forking: false,
+        forkedFrom: '',
+        originPackId: ''
+      };
     }
     return { packId: packId, existingMeta: existingMeta, forking: false };
   }
@@ -517,8 +783,10 @@
           || byNameUnique[String(g.name || '').trim().toLowerCase()];
         if (!meta || !meta.packId) return;
         var ver = Number(meta.latestVersion || 1);
-        g.shared = {
+        writeSharedLink(g, {
           packId: meta.packId,
+          originPackId: meta.originPackId || meta.forkedFrom || meta.packId,
+          forkedFrom: meta.forkedFrom || '',
           installedVersion: ver,
           publishedVersion: ver,
           mat: g.mat || '',
@@ -526,7 +794,7 @@
           color: g.color || '',
           localDirty: false,
           imported: false
-        };
+        });
         n++;
       });
       if (n && typeof window.save === 'function') window.save();
@@ -535,7 +803,13 @@
 
     ensureShareLinks: async function () {
       if (window.QuickShare._relinkPromise) return window.QuickShare._relinkPromise;
-      window.QuickShare._relinkPromise = window.QuickShare.relinkLocalGroupsFromCatalog()
+      window.QuickShare._relinkPromise = Promise.resolve()
+        .then(function () {
+          var nDup = 0;
+          try { nDup = dedupeAllQuickGroups(); } catch (e) { nDup = 0; }
+          if (nDup && typeof window.save === 'function') window.save();
+          return window.QuickShare.relinkLocalGroupsFromCatalog();
+        })
         .catch(function () { return 0; })
         .finally(function () {
           setTimeout(function () { window.QuickShare._relinkPromise = null; }, 8000);
@@ -563,8 +837,11 @@
 
     /**
      * Publie le dossier vers le catalogue.
-     * - Créateur du pack : nouvelle version du même packId (« publier une mise à jour »).
-     * - Sinon : opts.fork → nouveau packId ; sans opts.fork → Error('NOT_OWNER').
+     * - Pack déjà lié (shared.packId) : nouvelle version du même packId
+     *   (créateur ou contributeur — createdBy inchangé).
+     * - Sinon : crée / réutilise ton pack.
+     * - opts.fork : nouveau packId séparé (API rare, pas l’UI par défaut).
+     * Suppression catalogue = créateur initial uniquement (deletePack).
      */
     publishGroup: async function (groupId, opts) {
       opts = opts || {};
@@ -587,6 +864,16 @@
 
       // Numéro de version provisoire : cloud/local l’assignent atomiquement
       var versionDoc = buildVersionPayload(g, cards, 1, pub);
+      var forkedFrom = target.forkedFrom
+        || (existingMeta && existingMeta.forkedFrom)
+        || (opts.fork ? (shared.packId || shared.originPackId || '') : '')
+        || '';
+      var originPackId = target.originPackId
+        || (existingMeta && existingMeta.originPackId)
+        || shared.originPackId
+        || forkedFrom
+        || (opts.fork ? '' : packId)
+        || packId;
       var meta = {
         packId: packId,
         name: g.name || 'Dossier',
@@ -599,15 +886,20 @@
         lastPublishedBy: pub,
         suggestedMat: g.mat || '',
         suggestedColor: g.color || '',
-        sourceGroupId: g.id || (existingMeta && existingMeta.sourceGroupId) || ''
+        sourceGroupId: g.id || (existingMeta && existingMeta.sourceGroupId) || '',
+        schema: SCHEMA
       };
+      if (forkedFrom) meta.forkedFrom = forkedFrom;
+      if (originPackId) meta.originPackId = originPackId;
 
       var result;
       if (canUseCloud()) result = await cloudPublish(meta, versionDoc);
       else result = localPublish(meta, versionDoc);
 
-      g.shared = {
+      writeSharedLink(g, {
         packId: result.meta.packId,
+        originPackId: result.meta.originPackId || originPackId || result.meta.packId,
+        forkedFrom: result.meta.forkedFrom || forkedFrom || '',
         installedVersion: result.version,
         publishedVersion: result.version,
         mat: g.mat || '',
@@ -615,15 +907,18 @@
         color: g.color || '',
         localDirty: false,
         imported: false
-      };
+      });
       if (typeof window.save === 'function') window.save();
       return result;
     },
 
     findLocalGroupByPack: function (packId) {
-      return (window.D.quickGroups || []).find(function (g) {
-        return g && g.shared && g.shared.packId === packId;
-      }) || null;
+      return findLocalGroupForPack(packId, null);
+    },
+
+    /** Filiation + recouvrement contenu (versionDoc / matière optionnels). */
+    findLocalGroupForPack: function (packId, versionDoc, preferMat) {
+      return findLocalGroupForPack(packId, versionDoc, preferMat);
     },
 
     installedLinks: function () {
@@ -631,6 +926,21 @@
         return g && g.shared && g.shared.packId;
       });
     },
+
+    /** Index packId → groupe pour catalogue (tous les ids de filiation). */
+    installedByPackIndex: function () {
+      var index = Object.create(null);
+      (window.D.quickGroups || []).forEach(function (g) {
+        if (!g || !g.shared) return;
+        lineagePackIds(g.shared).forEach(function (id) {
+          if (!index[id]) index[id] = g;
+        });
+      });
+      return index;
+    },
+
+    dedupeGroupCards: dedupeGroupCards,
+    dedupeAllQuickGroups: dedupeAllQuickGroups,
 
     /** Marque un dossier lié à un pack comme modifié localement (non republie). */
     markLocalDirty: function (groupId) {
@@ -679,32 +989,66 @@
 
     previewUpdate: function (groupId, versionDoc) {
       var localCards = cardsForGroup(groupId);
-      var byContent = {};
+      var byContent = Object.create(null);
+      var byFp = Object.create(null);
       localCards.forEach(function (c) {
         if (c.contentId) byContent[c.contentId] = c;
+        var fp = contentFingerprint(c);
+        if (fp && !byFp[fp]) byFp[fp] = c;
       });
-      var packIds = {};
+      var packIds = Object.create(null);
       var added = [];
       var updated = [];
+      var matchedLocal = Object.create(null);
       (versionDoc.cards || []).forEach(function (pc) {
-        if (!pc || !pc.contentId) return;
-        packIds[pc.contentId] = true;
-        var loc = byContent[pc.contentId];
-        if (!loc) added.push(pc);
-        else {
-          var same = (loc.titre || '') === (pc.titre || '')
-            && (loc.question || '') === (pc.question || '')
-            && (loc.reponse || '') === (pc.reponse || '')
-            && (loc.profil || '') === (pc.profil || '')
-            && Number(loc.tempsCible || 0) === Number(pc.tempsCible || 0)
-            && Number(loc.importance || 0) === Number(pc.importance || 0);
-          if (!same) updated.push({ local: loc, pack: pc });
+        if (!pc) return;
+        var loc = null;
+        if (pc.contentId && byContent[pc.contentId]) {
+          loc = byContent[pc.contentId];
+        } else {
+          var fp = contentFingerprint(pc);
+          if (fp && byFp[fp]) loc = byFp[fp];
         }
+        if (pc.contentId) packIds[pc.contentId] = true;
+        if (!loc) {
+          /* Anti-doublon : déjà matché via autre clé */
+          if (pc.contentId && matchedLocal[pc.contentId]) return;
+          var fp2 = contentFingerprint(pc);
+          if (fp2 && matchedLocal['fp:' + fp2]) return;
+          added.push(pc);
+          return;
+        }
+        /* Une carte locale ne doit matcher qu’une carte pack */
+        if (matchedLocal[loc.id]) return;
+        matchedLocal[loc.id] = true;
+        if (loc.contentId) matchedLocal[loc.contentId] = true;
+        var locFp = contentFingerprint(loc);
+        if (locFp) matchedLocal['fp:' + locFp] = true;
+        var same = (loc.titre || '') === (pc.titre || '')
+          && (loc.question || '') === (pc.question || '')
+          && (loc.reponse || '') === (pc.reponse || '')
+          && (loc.profil || '') === (pc.profil || '')
+          && Number(loc.tempsCible || 0) === Number(pc.tempsCible || 0)
+          && Number(loc.importance || 0) === Number(pc.importance || 0)
+          && (!pc.contentId || loc.contentId === pc.contentId);
+        if (!same) updated.push({ local: loc, pack: pc });
       });
       var removed = localCards.filter(function (c) {
-        return c.contentId && !packIds[c.contentId];
+        if (matchedLocal[c.id]) return false;
+        if (c.contentId && packIds[c.contentId]) return false;
+        var fp = contentFingerprint(c);
+        if (fp && matchedLocal['fp:' + fp]) return false;
+        /* Carte locale sans lien pack = « absente du pack » seulement si elle a un contentId pack connu */
+        return !!(c.contentId && !packIds[c.contentId]);
       });
-      return { added: added, updated: updated, removed: removed };
+      var localOnly = localCards.filter(function (c) {
+        if (matchedLocal[c.id]) return false;
+        if (c.contentId && packIds[c.contentId]) return false;
+        var fp = contentFingerprint(c);
+        if (fp && matchedLocal['fp:' + fp]) return false;
+        return !c.contentId || !packIds[c.contentId];
+      });
+      return { added: added, updated: updated, removed: removed, localOnly: localOnly };
     },
 
     applyVersionToGroup: function (groupId, versionDoc, opts) {
@@ -717,16 +1061,16 @@
       if (!g) throw new Error('Dossier local introuvable.');
       if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
 
-      var preview = window.QuickShare.previewUpdate(groupId, versionDoc);
-      var byContent = {};
-      cardsForGroup(groupId).forEach(function (c) {
-        if (c.contentId) byContent[c.contentId] = c;
-      });
+      /* Guérit d’abord les doublons locaux (évite d’empiler encore) */
+      dedupeGroupCards(groupId);
 
-      // Updates
+      var preview = window.QuickShare.previewUpdate(groupId, versionDoc);
+
+      // Updates (+ adoption contentId via empreinte)
       preview.updated.forEach(function (u) {
         var loc = u.local;
         var pc = u.pack;
+        if (pc.contentId && loc.contentId !== pc.contentId) loc.contentId = pc.contentId;
         loc.titre = pc.titre || '';
         loc.question = pc.question || '';
         loc.reponse = pc.reponse || '';
@@ -736,7 +1080,7 @@
         // SRS inchangé
       });
 
-      // Adds
+      // Adds — ordre pack préservé (unshift en sens inverse)
       var existingRaw = null;
       if (window.AnkiAlgoV2 && window.AnkiAlgoV2.allExistingIds) {
         existingRaw = window.AnkiAlgoV2.allExistingIds(window.D);
@@ -748,7 +1092,17 @@
       var used = existingRaw instanceof Set
         ? Array.from(existingRaw)
         : (Array.isArray(existingRaw) ? existingRaw.slice() : Object.keys(existingRaw || {}));
+
+      var newCards = [];
       preview.added.forEach(function (pc) {
+        /* Dernière barrière anti-doublon */
+        var fpAdd = contentFingerprint(pc);
+        var exists = cardsForGroup(groupId).some(function (c) {
+          if (pc.contentId && c.contentId === pc.contentId) return true;
+          if (!fpAdd) return false;
+          return contentFingerprint(c) === fpAdd;
+        });
+        if (exists) return;
         var gen = window.AnkiAlgoV2 && window.AnkiAlgoV2.genExoUid
           ? window.AnkiAlgoV2.genExoUid
           : (window.AnkiAlgo && window.AnkiAlgo.genExoUid);
@@ -763,7 +1117,7 @@
         var today = window.AnkiAlgoV2 && window.AnkiAlgoV2.todayISO
           ? window.AnkiAlgoV2.todayISO()
           : (window.localDateISO ? window.localDateISO() : nowIso().slice(0, 10));
-        window.D.exercices.unshift({
+        newCards.push({
           id: id,
           contentId: pc.contentId,
           titre: pc.titre || '',
@@ -785,6 +1139,9 @@
           dateCreation: nowIso()
         });
       });
+      for (var i = newCards.length - 1; i >= 0; i--) {
+        window.D.exercices.unshift(newCards[i]);
+      }
 
       // Removals — seulement si l’utilisateur a choisi « Supprimer les cartes »
       if (opts.deleteRemoved === true && preview.removed.length) {
@@ -792,16 +1149,52 @@
         window.D.exercices = window.D.exercices.filter(function (c) { return !delIds.has(c.id); });
       }
 
-      if (!g.shared) g.shared = {};
-      g.shared.packId = opts.packId || g.shared.packId;
-      g.shared.installedVersion = versionDoc.version;
+      var prevPack = g.shared && g.shared.packId;
+      var incomingPack = opts.packId || '';
+      /* Ne pas voler le pack primaire d’un dossier « propriétaire » au profit d’un fork tiers */
+      var keepOwnedPrimary = !!(prevPack && g.shared && !g.shared.imported
+        && incomingPack && incomingPack !== prevPack);
+      var origin = opts.originPackId
+        || (g.shared && g.shared.originPackId)
+        || prevPack
+        || incomingPack
+        || '';
+      var forkedFrom = opts.forkedFrom
+        || (opts.packMeta && opts.packMeta.forkedFrom)
+        || (g.shared && g.shared.forkedFrom)
+        || '';
+      var linkOpts = {
+        packId: keepOwnedPrimary ? prevPack : (incomingPack || prevPack || ''),
+        originPackId: origin,
+        forkedFrom: forkedFrom,
+        mat: g.mat || '',
+        chapitreId: g.chapitreId || '',
+        color: g.color || '',
+        relatedPackId: keepOwnedPrimary ? incomingPack : '',
+        relatedPackIds: keepOwnedPrimary ? [incomingPack] : []
+      };
+      if (keepOwnedPrimary) {
+        linkOpts.installedVersion = Number(g.shared.installedVersion || 0);
+        linkOpts.imported = false;
+        linkOpts.localDirty = true;
+      } else {
+        linkOpts.installedVersion = versionDoc.version;
+        linkOpts.imported = opts.imported != null ? opts.imported : !!(g.shared && g.shared.imported);
+        linkOpts.localDirty = false;
+      }
+      writeSharedLink(g, linkOpts);
       var keptLocal = false;
       if (opts.deleteRemoved !== true && preview.removed.length > 0) keptLocal = true;
       if (!keptLocal) {
         keptLocal = cardsForGroup(groupId).some(function (c) { return c && !c.contentId; });
       }
+      if (!keptLocal && preview.localOnly && preview.localOnly.length) keptLocal = true;
+      if (keepOwnedPrimary) keptLocal = true;
       g.shared.localDirty = !!keptLocal;
-      if (versionDoc.name) g.name = versionDoc.name;
+      /* Ne renomme pas un dossier propriétaire avec le nom d’un pack tiers */
+      if (versionDoc.name && !keepOwnedPrimary) g.name = versionDoc.name;
+
+      dedupeGroupCards(groupId);
 
       if (typeof window.save === 'function') window.save();
       return preview;
@@ -816,6 +1209,30 @@
       if (!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
       if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
 
+      /* Garde-fou absolu : jamais un 2e dossier pour le même pack / même contenu */
+      var preferMat = (prefs && prefs.mat) || (packMeta && packMeta.suggestedMat) || '';
+      var existing = findLocalGroupForPack(packMeta && packMeta.packId, versionDoc, preferMat);
+      if (existing) {
+        var existingOwned = !!(existing.shared && existing.shared.packId && !existing.shared.imported);
+        window.QuickShare.applyVersionToGroup(existing.id, versionDoc, {
+          packId: packMeta.packId,
+          originPackId: packMeta.originPackId || packMeta.forkedFrom || packMeta.packId,
+          forkedFrom: packMeta.forkedFrom || '',
+          packMeta: packMeta,
+          deleteRemoved: false,
+          /* Ne pas marquer imported un dossier dont on est déjà le publisher local */
+          imported: existingOwned ? false : true
+        });
+        /* Ne pas écraser le nom/matière d’un dossier propriétaire fusionné */
+        if (!existingOwned) {
+          if (prefs.name) existing.name = prefs.name;
+          if (prefs.mat) existing.mat = prefs.mat;
+          if (prefs.color) existing.color = prefs.color;
+          if (prefs.chapitreId != null) existing.chapitreId = prefs.chapitreId;
+        }
+        return existing;
+      }
+
       var usedG = new Set((window.D.quickGroups || []).map(function (x) { return x.id; }));
       var gid = genCode('QG-', 3, usedG);
       var mat = (prefs.mat || '').trim();
@@ -829,23 +1246,28 @@
         color: color,
         order: window.D.quickGroups.length,
         mat: mat,
-        chapitreId: prefs.chapitreId || '',
-        shared: {
-          packId: packMeta.packId,
-          installedVersion: versionDoc.version,
-          mat: mat,
-          chapitreId: prefs.chapitreId || '',
-          color: color,
-          imported: true,
-          localDirty: false
-        }
+        chapitreId: prefs.chapitreId || ''
       };
+      writeSharedLink(g, {
+        packId: packMeta.packId,
+        originPackId: packMeta.originPackId || packMeta.forkedFrom || packMeta.packId,
+        forkedFrom: packMeta.forkedFrom || '',
+        installedVersion: 0,
+        mat: mat,
+        chapitreId: prefs.chapitreId || '',
+        color: color,
+        imported: true,
+        localDirty: false
+      });
       window.D.quickGroups.push(g);
 
-      // Create empty then apply version (adds all cards)
       window.QuickShare.applyVersionToGroup(gid, versionDoc, {
         packId: packMeta.packId,
-        deleteRemoved: false
+        originPackId: packMeta.originPackId || packMeta.forkedFrom || packMeta.packId,
+        forkedFrom: packMeta.forkedFrom || '',
+        packMeta: packMeta,
+        deleteRemoved: false,
+        imported: true
       });
       return g;
     }
@@ -931,8 +1353,8 @@
   function packRowHtml(p, installed) {
     var local = installed[p.packId];
     var latest = Number(p.latestVersion || 1);
-    var update = local && latest > Number(local.shared.installedVersion || 0);
-    var mat = matiereDisplay(p.suggestedMat);
+    var primary = local && local.shared && local.shared.packId === p.packId;
+    var update = primary && latest > Number(local.shared.installedVersion || 0);
     var actionBtn;
     if (!local) {
       actionBtn = '<button type="button" class="bp partage-row-action" onclick="event.stopPropagation();window.partageImportFromCatalog(\'' +
@@ -942,8 +1364,12 @@
       actionBtn = '<button type="button" class="bp partage-row-action partage-btn-update" onclick="event.stopPropagation();window.partageImportFromCatalog(\'' +
         jsStr(p.packId) + '\')">' +
         (window.iconLabel ? window.iconLabel('refresh-cw', 'Update') : 'Update') + '</button>';
-    } else {
+    } else if (primary) {
       actionBtn = '<span class="partage-badge">Installé</span>';
+    } else {
+      actionBtn = '<button type="button" class="bs partage-row-action" title="Déjà présent via un pack lié — ouvrir pour fusionner / maj" onclick="event.stopPropagation();window.partageImportFromCatalog(\'' +
+        jsStr(p.packId) + '\')">' +
+        (window.iconLabel ? window.iconLabel('link', 'Déjà présent') : 'Déjà présent') + '</button>';
     }
     return (
       '<div class="partage-row partage-row-static">' +
@@ -951,7 +1377,7 @@
           '<strong>' + esc(p.name || p.packId) + '</strong>' +
           '<span class="anki-mut">' + esc(p.packId) +
             ' · ' + esc(String(p.cardCount || 0)) + ' cartes' +
-            (p.suggestedMat ? ' · ' + esc(mat.label) : '') +
+            (p.suggestedMat ? ' · ' + esc(matiereDisplay(p.suggestedMat).label) : '') +
             (p.lastPublishedBy && p.lastPublishedBy.name ? ' · ' + esc(p.lastPublishedBy.name) : '') +
             (p.updatedAt ? ' · ' + esc(formatWhen(p.updatedAt)) : '') +
           '</span>' +
@@ -983,8 +1409,13 @@
       });
     }
     var links = window.QuickShare.installedLinks();
-    var installed = {};
-    links.forEach(function (g) { installed[g.shared.packId] = g; });
+    var installed = window.QuickShare.installedByPackIndex
+      ? window.QuickShare.installedByPackIndex()
+      : (function () {
+          var o = {};
+          links.forEach(function (g) { if (g.shared) o[g.shared.packId] = g; });
+          return o;
+        })();
 
     var order = {};
     (window.CANONICAL_MATIERES || []).forEach(function (c, i) { order[c.id] = i; });
@@ -1130,10 +1561,14 @@
     var versions = await window.QuickShare.listVersions(S.packId);
     S.detail = meta;
     S.versions = versions;
-    var local = window.QuickShare.findLocalGroupByPack(S.packId);
+    var verLatest = versions.length ? versions[0] : null;
+    var local = window.QuickShare.findLocalGroupForPack
+      ? window.QuickShare.findLocalGroupForPack(S.packId, verLatest)
+      : window.QuickShare.findLocalGroupByPack(S.packId);
     var latest = Number(meta.latestVersion || 1);
-    var installed = local ? Number(local.shared.installedVersion || 0) : 0;
-    var needsUpdate = local && latest > installed;
+    var samePrimary = !!(local && local.shared && local.shared.packId === S.packId);
+    var installed = local && samePrimary ? Number(local.shared.installedVersion || 0) : 0;
+    var needsUpdate = samePrimary && latest > installed;
     var selectedVer = versions.length ? Number(versions[0].version) : latest;
 
     var verOpts = versions.map(function (v) {
@@ -1174,8 +1609,12 @@
     } else if (needsUpdate) {
       actionBtn = '<button type="button" class="bp partage-btn-update" onclick="window.partageDoUpdate()">' +
         (window.iconLabel ? window.iconLabel('refresh-cw', 'Update vers dernière') : 'Update') + '</button>';
-    } else {
+    } else if (samePrimary) {
       actionBtn = '<span class="anki-mut">À jour (v' + esc(String(installed)) + ')</span>';
+    } else {
+      actionBtn = '<button type="button" class="bs" onclick="window.partageDoUpdate()">' +
+        (window.iconLabel ? window.iconLabel('git-merge', 'Fusionner dans « ' + (local.name || 'dossier') + ' »') : 'Fusionner') +
+        '</button>';
     }
 
     var ownerBtn = '';
@@ -1196,8 +1635,12 @@
           esc(String(meta.cardCount || 0)) + ' cartes · dernière v' + esc(String(latest)) +
           (meta.lastPublishedBy && meta.lastPublishedBy.name ? ' · ' + esc(meta.lastPublishedBy.name) : '') +
           '</p>' +
-        (local ? '<p class="anki-mut" style="font-size:12px;">Lié au dossier local <b>' + esc(local.name) +
-          '</b> (v' + esc(String(installed)) + ')</p>' : '') +
+        (local ? '<p class="anki-mut" style="font-size:12px;">' +
+          (samePrimary
+            ? ('Lié au dossier local <b>' + esc(local.name) + '</b> (v' + esc(String(installed)) + ')')
+            : ('Déjà présent dans <b>' + esc(local.name) + '</b> (pack lié : ' +
+              esc((local.shared && local.shared.packId) || '—') + ') — pas de second dossier')) +
+          '</p>' : '') +
         '<div class="partage-detail-actions">' +
           actionBtn +
           '<label class="anki-mut" style="font-size:12px;">Version</label>' +
@@ -1302,14 +1745,16 @@
         || await window.QuickShare.getMeta(packId);
       if (!meta) return toast('Pack introuvable.', 'error');
       S.detail = meta;
-      var local = window.QuickShare.findLocalGroupByPack(packId);
+      var ver = await window.QuickShare.getVersion(packId, meta.latestVersion);
+      if (!ver) return toast('Version introuvable.', 'error');
+      var local = window.QuickShare.findLocalGroupForPack
+        ? window.QuickShare.findLocalGroupForPack(packId, ver)
+        : window.QuickShare.findLocalGroupByPack(packId);
       if (local) {
-        var ver = await window.QuickShare.getVersion(packId, meta.latestVersion);
-        if (!ver) return toast('Version introuvable.', 'error');
         await confirmAndApply(local.id, meta, ver);
         return;
       }
-      openImportWizard(meta, null);
+      openImportWizard(meta, ver);
     } catch (e) {
       if (String(e && e.message) === 'SECONDARY_READ_ONLY') return;
       toast(String(e && e.message || e), 'error');
@@ -1325,10 +1770,12 @@
   window.partageDoUpdate = async function () {
     var meta = S.detail;
     if (!meta) return;
-    var local = window.QuickShare.findLocalGroupByPack(meta.packId);
-    if (!local) return;
     var ver = await window.QuickShare.getVersion(meta.packId, meta.latestVersion);
     if (!ver) return toast('Version introuvable.', 'error');
+    var local = window.QuickShare.findLocalGroupForPack
+      ? window.QuickShare.findLocalGroupForPack(meta.packId, ver)
+      : window.QuickShare.findLocalGroupByPack(meta.packId);
+    if (!local) return;
     await confirmAndApply(local.id, meta, ver);
   };
 
@@ -1339,7 +1786,9 @@
     var v = sel ? parseInt(sel.value, 10) : meta.latestVersion;
     var ver = await window.QuickShare.getVersion(meta.packId, v);
     if (!ver) return toast('Version introuvable.', 'error');
-    var local = window.QuickShare.findLocalGroupByPack(meta.packId);
+    var local = window.QuickShare.findLocalGroupForPack
+      ? window.QuickShare.findLocalGroupForPack(meta.packId, ver)
+      : window.QuickShare.findLocalGroupByPack(meta.packId);
     if (!local) {
       openImportWizard(meta, ver);
       return;
@@ -1351,20 +1800,27 @@
     var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
     var installed = g && g.shared ? Number(g.shared.installedVersion || 0) : 0;
     var target = Number(ver.version);
-    if (target === installed) {
+    var samePrimary = !!(g && g.shared && g.shared.packId === meta.packId);
+    if (samePrimary && target === installed) {
       toast('Cette version est déjà installée (v' + target + ').', 'ok');
       return;
     }
 
     var preview = window.QuickShare.previewUpdate(groupId, ver);
+    var localOnlyN = (preview.localOnly && preview.localOnly.length) || 0;
     var localOrphans = cardsForGroup(groupId).filter(function (c) { return c && !c.contentId; }).length;
     var nAbsent = preview.removed.length;
-    var hasLocalKeep = nAbsent > 0 || localOrphans > 0;
-    var isDowngrade = target < installed;
+    var hasLocalKeep = nAbsent > 0 || localOnlyN > 0 || localOrphans > 0;
+    var isDowngrade = samePrimary && target < installed;
     var owns = window.QuickShare.isPackOwner(meta);
+    var relatedNote = !samePrimary
+      ? '<br><span class="anki-mut">Fusion dans le dossier déjà lié « ' +
+        esc((g && g.name) || '') + ' » — aucun second dossier ne sera créé.</span>'
+      : '';
 
     var statsLine = '+' + preview.added.length + ' ajoutée(s) · ~' + preview.updated.length + ' modifiée(s)' +
       (nAbsent ? ' · ' + nAbsent + ' carte(s) présentes chez toi absentes du pack' : '') +
+      (localOnlyN && !nAbsent ? ' · ' + localOnlyN + ' carte(s) locales conservées' : '') +
       (localOrphans ? ' · ' + localOrphans + ' carte(s) locales sans lien pack' : '');
 
     function finishUi(msg) {
@@ -1377,11 +1833,14 @@
       try {
         window.QuickShare.applyVersionToGroup(groupId, ver, {
           packId: meta.packId,
-          deleteRemoved: mode === 'delete'
+          originPackId: meta.originPackId || meta.forkedFrom || (g && g.shared && g.shared.originPackId) || meta.packId,
+          forkedFrom: meta.forkedFrom || '',
+          packMeta: meta,
+          deleteRemoved: mode === 'delete',
+          imported: owns ? false : true
         });
         if (mode === 'merge_publish') {
-          var pubOpts = owns ? {} : { fork: true };
-          var result = await window.QuickShare.publishGroup(groupId, pubOpts);
+          var result = await window.QuickShare.publishGroup(groupId, {});
           finishUi('Mis à jour + publié (pack et cartes locales) : ' +
             result.meta.packId + ' · v' + result.version);
         } else if (mode === 'delete') {
@@ -1411,8 +1870,9 @@
         ? 'Installer la version <b>plus ancienne</b> v' + esc(String(target)) +
           ' (actuellement v' + esc(String(installed)) + ') ?'
         : 'Mettre à jour le contenu vers <b>v' + esc(String(ver.version)) + '</b> ?') +
+        relatedNote +
         '<br><br>' + statsLine +
-        '<br><span class="anki-mut">Tes répétitions (SRS) des cartes conservées ne sont pas modifiées.</span>';
+        '<br><span class="anki-mut">Tes répétitions (SRS) des cartes conservées ne sont pas modifiées. Tes cartes créées en local restent si tu choisis de les garder.</span>';
 
       if (hasLocalKeep && nAbsent > 0) {
         msg += '<br><br>Que faire des cartes locales absentes de cette version ?';
@@ -1548,6 +2008,8 @@
         ver = await window.QuickShare.getVersion(ctx.meta.packId, ctx.meta.latestVersion);
       }
       if (!ver) throw new Error('Version introuvable.');
+      var existed = !!(window.QuickShare.findLocalGroupForPack
+        && window.QuickShare.findLocalGroupForPack(ctx.meta.packId, ver));
       var g = window.QuickShare.createGroupFromVersion(ctx.meta, ver, {
         name: (nameEl && nameEl.value) || ctx.meta.name,
         mat: mat,
@@ -1555,7 +2017,12 @@
         color: ctx.color
       });
       window.partageCloseImport();
-      toast('Pack importé → dossier « ' + g.name + ' ».', 'ok');
+      toast(
+        existed
+          ? 'Contenu fusionné dans « ' + g.name + ' » (aucun second dossier).'
+          : 'Pack importé → dossier « ' + g.name + ' ».',
+        'ok'
+      );
       if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
       S.view = 'mine';
       window.renderPartage();
@@ -1575,7 +2042,7 @@
       var g = (window.D.quickGroups || []).find(function (x) { return x && x.id === groupId; });
       var shared = g && g.shared;
       // Déjà lié + pas de modif locale → pas de fausse « maj » vide
-      if (shared && shared.packId && !shared.imported && !shared.localDirty) {
+      if (shared && shared.packId && !shared.localDirty) {
         return toast('Rien à publier : aucune modification locale depuis la dernière version.', 'ok');
       }
       var run = async function (opts) {
@@ -1587,15 +2054,19 @@
       if (shared && shared.packId) {
         var meta = null;
         try { meta = await window.QuickShare.getMeta(shared.packId); } catch (e) { /* ignore */ }
-        var owns = meta ? window.QuickShare.isPackOwner(meta) : false;
+        var owns = meta ? window.QuickShare.isPackOwner(meta) : true;
         if (!owns) {
-          var forkMsg = 'Tu n’es pas le créateur de ce pack.<br><br>' +
-            '<b>Publier comme nouveau pack</b> crée une entrée séparée dans le catalogue ' +
-            '(tes cartes + éventuelles modifs), sans écraser l’original.';
+          var creatorName = (meta.createdBy && meta.createdBy.name)
+            || (meta.createdBy && meta.createdBy.email)
+            || 'un autre élève';
+          var collabMsg = 'Tu vas publier une <b>nouvelle version</b> du pack créé par <b>' +
+            esc(creatorName) + '</b>.<br><br>' +
+            'Ça met à jour le catalogue pour tout le monde (même pack, pas de doublon). ' +
+            'Seul le créateur peut supprimer le pack du catalogue.';
           if (typeof window.sysConfirm === 'function') {
-            window.sysConfirm(forkMsg, function () { run({ fork: true }); }, 'Nouveau pack');
+            window.sysConfirm(collabMsg, function () { run({}); }, 'Publier la version');
           } else {
-            await run({ fork: true });
+            await run({});
           }
           return;
         }
@@ -1603,24 +2074,6 @@
       await run({});
     } catch (e) {
       if (String(e && e.message) === 'SECONDARY_READ_ONLY') return;
-      if (String(e && e.message) === 'NOT_OWNER') {
-        if (typeof window.sysConfirm === 'function') {
-          window.sysConfirm(
-            'Ce pack appartient à quelqu’un d’autre. Publier comme <b>nouveau pack</b> ?',
-            function () {
-              window.QuickShare.publishGroup(groupId, { fork: true }).then(function (result) {
-                toast('Publié : ' + result.meta.packId + ' · v' + result.version, 'ok');
-                if (typeof window.quickCloseEditGroup === 'function') window.quickCloseEditGroup();
-                if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
-              }).catch(function (err) {
-                toast(String(err && err.message || err), 'error');
-              });
-            },
-            'Nouveau pack'
-          );
-        }
-        return;
-      }
       toast(String(e && e.message || e), 'error');
     }
   };

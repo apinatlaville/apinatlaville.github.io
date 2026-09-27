@@ -2797,17 +2797,51 @@ function _mergeQuickGroupShared(localG, remoteG) {
   if (!lPack && !rPack) return null;
   if (lPack && !rPack) return Object.assign({}, ls);
   if (!lPack && rPack) return Object.assign({}, rs);
+
   var li = Number(ls.installedVersion || 0);
   var ri = Number(rs.installedVersion || 0);
-  var base = ri > li ? Object.assign({}, rs) : Object.assign({}, ls);
-  if (lPack !== rPack) {
-    // Doublon legacy : garder le lien à la version la plus avancée
-    base.packId = ri > li ? rPack : lPack;
-    base.installedVersion = Math.max(li, ri);
-  }
+  var lImp = !!ls.imported;
+  var rImp = !!rs.imported;
+
+  /* Préférer le lien « propriétaire » (non importé) au flag importé d’un autre appareil */
+  var base;
+  if (lImp && !rImp) base = Object.assign({}, rs);
+  else if (rImp && !lImp) base = Object.assign({}, ls);
+  else if (lPack !== rPack) base = ri > li ? Object.assign({}, rs) : Object.assign({}, ls);
+  else base = ri > li ? Object.assign({}, rs) : Object.assign({}, ls);
+
+  base.installedVersion = Math.max(li, ri);
   base.localDirty = !!(ls.localDirty || rs.localDirty);
-  if (ls.imported || rs.imported) base.imported = true;
-  else delete base.imported;
+
+  var origin = ls.originPackId || rs.originPackId || '';
+  var forked = ls.forkedFrom || rs.forkedFrom || '';
+  if (!origin) {
+    if (lPack && rPack && lPack !== rPack) origin = (base.packId === lPack ? rPack : lPack);
+    else origin = base.packId || lPack || rPack;
+  }
+  base.originPackId = origin;
+  if (forked) base.forkedFrom = forked;
+  else delete base.forkedFrom;
+
+  var related = [];
+  var seenR = Object.create(null);
+  function addR(id) {
+    id = String(id || '').trim();
+    if (!id || seenR[id] || id === base.packId) return;
+    seenR[id] = true;
+    related.push(id);
+  }
+  (ls.relatedPackIds || []).forEach(addR);
+  (rs.relatedPackIds || []).forEach(addR);
+  if (lPack && lPack !== base.packId) addR(lPack);
+  if (rPack && rPack !== base.packId) addR(rPack);
+  if (related.length) base.relatedPackIds = related;
+  else delete base.relatedPackIds;
+
+  if (lImp && rImp) base.imported = true;
+  else if (!lImp && !rImp) delete base.imported;
+  else delete base.imported; /* un côté owner → ne pas reforcer imported */
+
   return base;
 }
 
@@ -2858,6 +2892,56 @@ function _cardRecency(c) {
   return hist * 1e12 + last + faits * 10 + reps;
 }
 
+function _normalizeAnkiText(s) {
+  return String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/**
+ * Empreinte contenu cartes principales X- (sync multi-appareils / double création).
+ * Vide si pas une X- ou contenu totalement vide.
+ */
+window.ankiMainContentFingerprint = function (c) {
+  if (!c) return '';
+  var kind = '';
+  if (window.AnkiAlgo && typeof window.AnkiAlgo.cardKind === 'function') {
+    kind = window.AnkiAlgo.cardKind(c);
+  } else if (window.AnkiAlgoV2 && typeof window.AnkiAlgoV2.cardKind === 'function') {
+    kind = window.AnkiAlgoV2.cardKind(c);
+  } else {
+    var id = String(c.id || '');
+    if (/^Y-/i.test(id)) kind = 'quick';
+    else if (/^W-/i.test(id)) kind = 'devoir';
+    else kind = 'main';
+  }
+  if (kind !== 'main') return '';
+  if (c.groupId) return ''; /* Y- déguisée */
+  var t = _normalizeAnkiText(c.titre);
+  var q = _normalizeAnkiText(c.question);
+  var r = _normalizeAnkiText(c.reponse);
+  if (!t && !q && !r) return '';
+  return 'X|' + String(c.mat || '') + '|' + t + '\n' + q + '\n' + r;
+};
+
+/** Première carte X- locale avec la même empreinte (hors id exclue). */
+window.findAnkiMainDuplicate = function (fields, exceptId) {
+  var probe = {
+    id: 'X-PROBE',
+    titre: fields && fields.titre,
+    question: fields && fields.question,
+    reponse: fields && fields.reponse,
+    mat: fields && fields.mat
+  };
+  var fp = window.ankiMainContentFingerprint(probe);
+  if (!fp) return null;
+  var list = (window.D && window.D.exercices) || [];
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    if (!c || (exceptId && c.id === exceptId)) continue;
+    if (window.ankiMainContentFingerprint(c) === fp) return c;
+  }
+  return null;
+};
+
 function _mergeCardArrays(localArr, remoteArr) {
   if (!Array.isArray(localArr)) return Array.isArray(remoteArr) ? remoteArr.slice() : [];
   const byId = Object.create(null);
@@ -2891,11 +2975,14 @@ function _mergeCardArrays(localArr, remoteArr) {
   return localArr;
 }
 
-/** Une seule entrée par id (garde la plus récente). Retourne le nb de doublons retirés. */
+/**
+ * Déduplique par id, puis cartes X- au même contenu (titre+Q+R+matière).
+ * Conserve la carte au SRS le plus avancé. Retourne le nb retiré.
+ */
 window.dedupeAnkiCardArrays = function (D) {
   D = D || window.D;
   if (!D) return 0;
-  function dedupe(arr) {
+  function dedupeById(arr) {
     if (!Array.isArray(arr) || !arr.length) return 0;
     const best = Object.create(null);
     const order = [];
@@ -2916,7 +3003,34 @@ window.dedupeAnkiCardArrays = function (D) {
     orphans.forEach(function (c) { arr.push(c); });
     return Math.max(0, before - arr.length);
   }
-  return dedupe(D.exercices) + dedupe(D.devoirs);
+  function dedupeMainByContent(arr) {
+    if (!Array.isArray(arr) || arr.length < 2) return 0;
+    if (typeof window.ankiMainContentFingerprint !== 'function') return 0;
+    const bestByFp = Object.create(null);
+    arr.forEach(function (c) {
+      if (!c || !c.id) return;
+      const fp = window.ankiMainContentFingerprint(c);
+      if (!fp) return;
+      const prev = bestByFp[fp];
+      if (!prev || _cardRecency(c) > _cardRecency(prev)) bestByFp[fp] = c;
+    });
+    const keep = Object.create(null);
+    Object.keys(bestByFp).forEach(function (fp) { keep[bestByFp[fp].id] = true; });
+    const before = arr.length;
+    const next = [];
+    const seen = Object.create(null);
+    arr.forEach(function (c) {
+      if (!c || !c.id || seen[c.id]) return;
+      const fp = window.ankiMainContentFingerprint(c);
+      if (fp && !keep[c.id]) return; /* doublon contenu */
+      seen[c.id] = true;
+      next.push(c);
+    });
+    arr.length = 0;
+    for (let i = 0; i < next.length; i++) arr.push(next[i]);
+    return Math.max(0, before - arr.length);
+  }
+  return dedupeById(D.exercices) + dedupeById(D.devoirs) + dedupeMainByContent(D.exercices);
 };
 
 /** Fusionne un blob cloud en avance dans window.D (union, pas last-write-wins). */
@@ -2932,6 +3046,9 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
   _mergeCardArrays(window.D.exercices, remote.exercices);
   _mergeCardArrays(window.D.devoirs, remote.devoirs);
   if (typeof window.dedupeAnkiCardArrays === 'function') window.dedupeAnkiCardArrays(window.D);
+  if (window.QuickShare && typeof window.QuickShare.dedupeAllQuickGroups === 'function') {
+    try { window.QuickShare.dedupeAllQuickGroups(); } catch (e) { /* ignore */ }
+  }
   if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
   if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
   _unionByKey(window.D.matieres, remote.matieres, 'id');

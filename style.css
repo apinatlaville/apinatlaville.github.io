@@ -1585,6 +1585,56 @@ body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
   background: color-mix(in srgb, var(--acc) 45%, var(--bd));
 }
 .uidbox { background: var(--s3); border: 1px solid var(--bd); border-radius: 8px; padding: 12px; font-family: 'DM Mono', monospace; font-size: 16px; letter-spacing: 2px; color: var(--acc); text-align: center; margin-bottom: 15px; font-weight: bold; }
+
+.cours-form-more {
+  margin: 4px 0 14px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: var(--s2);
+  padding: 0 12px;
+}
+.cours-form-more-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+.cours-form-more-summary::-webkit-details-marker { display: none; }
+.cours-form-more-summary::marker { content: ''; }
+.cours-form-more-summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 5px solid var(--mut);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.cours-form-more[open] > .cours-form-more-summary::before {
+  transform: rotate(90deg);
+}
+.cours-form-more-summary:hover { color: var(--acc); }
+.cours-form-more-body {
+  padding: 0 0 12px;
+}
+.cours-form-more-body .fg:last-child { margin-bottom: 0; }
+.cours-form-copies-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cours-form-copies-row #fCopies {
+  width: 88px;
+  flex: 0 0 auto;
+}
 .macts { display: flex; gap: 10px; margin-top: 20px; }
 .bp { flex: 1; background: var(--acc); border: none; border-radius: var(--radius-control); padding: 12px; color: #fff; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .bs { flex: 1; background: var(--s2); border: 0.5px solid var(--bd); border-radius: var(--radius-control); padding: 12px; color: var(--txt); font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -2511,10 +2561,11 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 #ovAnkiSession .anki-chrono-frozen-lbl { display: inline-flex; align-items: center; }
 #ovAnkiSession .anki-chrono-hint { max-width: 120px; font-size: 9px; }
 #ovAnkiSession .anki-sess-r-compact {
- padding: 8px 12px;
+ padding: 10px 12px 12px;
  font-size: 14px;
- line-height: 1.4;
+ line-height: 1.45;
  margin-bottom: 8px;
+ overflow: visible;
 }
 #ovAnkiSession .anki-sess-r-label {
  display: block;
@@ -2522,7 +2573,28 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  text-transform: uppercase;
  letter-spacing: 0.5px;
  color: var(--mut);
- margin-bottom: 2px;
+ margin-bottom: 4px;
+}
+#ovAnkiSession .anki-sess-r-body {
+ overflow: visible;
+ max-width: 100%;
+ min-width: 0;
+}
+#ovAnkiSession .anki-sess-q .latex-lab-preview-math,
+#ovAnkiSession .anki-sess-r-body .latex-lab-preview-math {
+ font-size: 1.12em !important;
+ line-height: 1.4 !important;
+ max-width: 100%;
+ overflow: visible;
+ color: var(--txt);
+}
+#ovAnkiSession .anki-sess-q .latex-lab-preview-math.is-fitted,
+#ovAnkiSession .anki-sess-r-body .latex-lab-preview-math.is-fitted,
+#ovAnkiSession .latex-lab-preview-math.is-fitted--sess {
+ /* Ne pas clipper la 2e ligne / dénominateurs après scale */
+ overflow: visible !important;
+ padding-bottom: 10px;
+ box-sizing: content-box;
 }
 #ovAnkiSession .anki-src-box {
  padding: 6px 8px !important;
@@ -2839,6 +2911,7 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
  font-size: 15px;
  line-height: 1.5;
  color: var(--txt);
+ overflow: visible;
 }
 .anki-sess-r-empty {
  font-style: italic;

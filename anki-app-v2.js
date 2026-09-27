@@ -956,6 +956,11 @@
       if (dockQ) dockQ.innerHTML = formatSessFace(q);
       if (typeof window.fitLatexPreviewMath === 'function') {
         window.fitLatexPreviewMath(host);
+        /* 2e passe après layout MathLive (multi-lignes / displaylines) */
+        requestAnimationFrame(function () {
+          if (S.current !== c) return;
+          window.fitLatexPreviewMath(host);
+        });
       }
     }).catch(function (err) {
       if (typeof console !== 'undefined' && console.warn) {
@@ -5578,6 +5583,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         && window.refuseSecondaryFullMutation('Appareil secondaire : création de carte indisponible.')) {
       return;
     }
+    if (window._exoSaveInFlight) return;
     showFormError('exoFormError', '');
     const titre = fieldVal('exoTitre');
     const q = fieldVal('exoQ');
@@ -5642,6 +5648,17 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     let createdCard = null;
     let editSnapshot = null;
     const editId = editingExoId;
+
+    if (!editId && typeof window.findAnkiMainDuplicate === 'function') {
+      const dup = window.findAnkiMainDuplicate({ titre: titre, question: q, reponse: r, mat: matV });
+      if (dup) {
+        showFormError('exoFormError',
+          'Une carte X- identique existe déjà (' + dup.id + '). Modifie-la plutôt que d’en créer une seconde.');
+        return;
+      }
+    }
+
+    window._exoSaveInFlight = true;
 
     if (editId) {
       const c = ankFind(editId);
@@ -5723,6 +5740,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         }
       }
       showFormError('exoFormError', 'Enregistrement impossible — la carte n’a pas été sauvegardée.');
+    }).finally(function () {
+      window._exoSaveInFlight = false;
     });
   };
 
