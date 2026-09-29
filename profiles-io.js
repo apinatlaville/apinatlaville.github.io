@@ -1475,6 +1475,8 @@
             cl: c.cl,
             inter: c.inter,
             note: c.note,
+            noteSur: c.noteSur,
+            noteBrute: c.noteBrute,
             rang: c.rang,
             effectif: c.effectif,
             date: c.date,
@@ -1788,6 +1790,8 @@
           var id = String(n.uid);
           if (nmap[id]) {
             if (n.note !== undefined) nmap[id].note = n.note;
+            if (n.noteSur !== undefined) nmap[id].noteSur = n.noteSur;
+            if (n.noteBrute !== undefined) nmap[id].noteBrute = n.noteBrute;
             if (n.rang !== undefined) nmap[id].rang = n.rang;
             if (n.effectif !== undefined) nmap[id].effectif = n.effectif;
             if (n.date !== undefined && n.date) nmap[id].date = n.date;

@@ -2029,6 +2029,7 @@ bindInput('mainSearchCode', (e) => {
 
 bindClick('btnCancelCours', () => window.closeModalCours());
 bindChange('fType', () => window.toggleNoteField());
+bindChange('fNoteSur', () => { if (typeof window.updateNoteSurUI === 'function') window.updateNoteSurUI(); });
 
 bindChange('fMat', () => {
   if (typeof window.updateUidPrefix === 'function') window.updateUidPrefix();

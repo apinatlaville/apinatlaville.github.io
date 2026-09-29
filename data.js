@@ -599,7 +599,11 @@ window.renderCoursCardHtml = function(c) {
     ${chapBadgeHtml}
     ${c.desc ? `<div class="cdesc">${window.escHtml(c.desc)}</div>` : ''}
     ${c.note || c.rang ? `<div class="cnote">${[
-      c.note ? `Note : ${window.escHtml(c.note)}/20` : '',
+      c.note ? `Note : ${window.escHtml(c.note)}/20${
+        c.noteSur && Number(c.noteSur) !== 20 && c.noteBrute
+          ? ` <span class="anki-mut">(${window.escHtml(String(c.noteBrute))}/${window.escHtml(String(c.noteSur))})</span>`
+          : ''
+      }` : '',
       c.rang ? `Rang : ${window.escHtml(String(c.rang))}${c.effectif ? '/' + window.escHtml(String(c.effectif)) : ''}` : ''
     ].filter(Boolean).join(' · ')}</div>` : ''}
     <div class="cacts" onclick="event.stopPropagation();">
@@ -1109,7 +1113,11 @@ window.doLocate = function(uid) {
           </div>
         </div>
         ${(c.note || c.rang) ? `<div style="text-align:center;font-weight:bold;font-size:16px;color:var(--acc);margin-top:10px;">${[
-          c.note ? `Note : ${window.escHtml(c.note)}/20` : '',
+          c.note ? `Note : ${window.escHtml(c.note)}/20${
+            c.noteSur && Number(c.noteSur) !== 20 && c.noteBrute
+              ? ` <span style="font-weight:normal;font-size:12px;color:var(--mut);">(${window.escHtml(String(c.noteBrute))}/${window.escHtml(String(c.noteSur))})</span>`
+              : ''
+          }` : '',
           c.rang ? `Rang : ${window.escHtml(String(c.rang))}${c.effectif ? '/' + window.escHtml(String(c.effectif)) : ''}` : ''
         ].filter(Boolean).join(' · ')}</div>` : ''}
         ${c.desc ? `<div class="loc-desc">${window.escHtml(c.desc)}</div>` : ''}
@@ -1323,16 +1331,87 @@ window.delCours = function(uid) {
   }, "Suppression d'un document");
 };
 
+/** Barèmes de saisie DS/Khôlle (stockage canonique toujours /20). */
+window.NOTE_SUR_OPTIONS = [20, 10, 90];
+
+window.parseNoteSur = function (v) {
+  const n = parseInt(String(v == null ? '' : v).trim(), 10);
+  if (window.NOTE_SUR_OPTIONS.indexOf(n) >= 0) return n;
+  return 20;
+};
+
+/** Convertit une note brute sur `sur` vers /20 (demi-points). */
+window.noteToSur20 = function (raw, sur) {
+  const s = window.parseNoteSur(sur);
+  const n = parseFloat(String(raw == null ? '' : raw).trim().replace(',', '.'));
+  if (!Number.isFinite(n)) return '';
+  const clamped = Math.max(0, Math.min(s, n));
+  const n20 = (clamped / s) * 20;
+  return String(Math.max(0, Math.min(20, Math.round(n20 * 2) / 2)));
+};
+
+/** Affiche la note stockée /20 dans le barème choisi (édition). */
+window.noteFromSur20 = function (note20, sur) {
+  const s = window.parseNoteSur(sur);
+  const n = parseFloat(String(note20 == null ? '' : note20).trim().replace(',', '.'));
+  if (!Number.isFinite(n)) return '';
+  if (s === 20) return String(Math.max(0, Math.min(20, Math.round(n * 2) / 2)));
+  const raw = (Math.max(0, Math.min(20, n)) / 20) * s;
+  return String(Math.round(raw * 2) / 2);
+};
+
+window.setNoteSurSelect = function (sur) {
+  const v = String(window.parseNoteSur(sur));
+  const el = window.$('fNoteSur');
+  if (!el) return;
+  el.value = v;
+  if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(el, v);
+  else if (el._choices) el._choices.setChoiceByValue(v);
+};
+
+window.updateNoteSurUI = function () {
+  const noteEl = window.$('fNote');
+  const surEl = window.$('fNoteSur');
+  const prev = window.$('fNotePreview');
+  const sur = window.parseNoteSur(surEl ? surEl.value : 20);
+  if (noteEl) {
+    noteEl.max = String(sur);
+    noteEl.step = '0.5';
+    noteEl.placeholder = sur === 20 ? 'Ex: 14.5' : (sur === 10 ? 'Ex: 7.5' : 'Ex: 72');
+  }
+  if (!prev) return;
+  const rawStr = noteEl ? String(noteEl.value || '').trim() : '';
+  if (!rawStr) {
+    prev.style.display = 'none';
+    prev.textContent = '';
+    return;
+  }
+  const n20 = window.noteToSur20(rawStr, sur);
+  if (n20 === '' || sur === 20) {
+    prev.style.display = 'none';
+    prev.textContent = '';
+    return;
+  }
+  prev.style.display = '';
+  prev.textContent = '→ ' + n20 + ' / 20';
+};
+
 window.toggleNoteField = function() {
   const t = window.$('fType') ? window.$('fType').value : '';
   if(window.$('fgNote')) {
     if(t === 'DS' || t === 'KHOLLE') {
       window.$('fgNote').style.display = 'block';
+      if (typeof window.updateNoteSurUI === 'function') window.updateNoteSurUI();
     } else {
       window.$('fgNote').style.display = 'none';
       if(window.$('fNote')) window.$('fNote').value = '';
       if(window.$('fRang')) window.$('fRang').value = '';
       if(window.$('fEffectif')) window.$('fEffectif').value = '';
+      window.setNoteSurSelect(20);
+      if (window.$('fNotePreview')) {
+        window.$('fNotePreview').style.display = 'none';
+        window.$('fNotePreview').textContent = '';
+      }
     }
   }
 };
@@ -1466,7 +1545,9 @@ window.openModalCours = function(opts) {
   if(window.$('fNote')) window.$('fNote').value = '';
   if(window.$('fRang')) window.$('fRang').value = '';
   if(window.$('fEffectif')) window.$('fEffectif').value = '';
+  window.setNoteSurSelect(20);
   window.toggleNoteField();
+  if (typeof window.updateNoteSurUI === 'function') window.updateNoteSurUI();
   window.updateChapitreDropdown(o.chapitreId || '');
   
   if(window.$('fgChapitre')) window.$('fgChapitre').style.display = '';
@@ -1540,7 +1621,17 @@ window.editCours = function(uid, opts) {
   if(window.$('mTitle')) window.$('mTitle').innerHTML = window.iconLabel('pencil', 'Modifier le document');
   if(window.$('fTitle')) window.$('fTitle').value = c.title; 
   if(window.$('fDesc')) window.$('fDesc').value = c.desc || ''; 
-  if(window.$('fNote')) window.$('fNote').value = c.note || '';
+  const noteSur = window.parseNoteSur(c.noteSur);
+  window.setNoteSurSelect(noteSur);
+  if(window.$('fNote')) {
+    if (c.noteBrute != null && c.noteBrute !== '') {
+      window.$('fNote').value = c.noteBrute;
+    } else if (c.note) {
+      window.$('fNote').value = window.noteFromSur20(c.note, noteSur);
+    } else {
+      window.$('fNote').value = '';
+    }
+  }
   if(window.$('fRang')) window.$('fRang').value = c.rang != null && c.rang !== '' ? c.rang : '';
   if(window.$('fEffectif')) window.$('fEffectif').value = c.effectif != null && c.effectif !== '' ? c.effectif : '';
   
@@ -1577,6 +1668,7 @@ window.editCours = function(uid, opts) {
     else if (window.$('fType')._choices) window.$('fType')._choices.setChoiceByValue(c.type || 'COURS');
   }
   window.toggleNoteField();
+  if (typeof window.updateNoteSurUI === 'function') window.updateNoteSurUI();
   window.updateChapitreDropdown(c.chapitreId || '');
 
   /* Cours unité : pas de changement de rattachement via ce formulaire */
@@ -1645,13 +1737,20 @@ window.saveCours = function() {
     return window.sysAlert('Remplis tous les champs obligatoires avant de sauvegarder.', "Erreur de saisie");
   }
   
-  let noteRaw = window.$('fNote') ? window.$('fNote').value : '';
-  if (noteRaw !== '' && noteRaw != null) {
-    const n = parseFloat(String(noteRaw).trim().replace(',', '.'));
-    if (!Number.isFinite(n)) noteRaw = '';
-    else noteRaw = String(Math.max(0, Math.min(20, Math.round(n * 2) / 2)));
-  } else {
-    noteRaw = '';
+  let noteRaw = '';
+  let noteSurVal = 20;
+  let noteBruteVal = '';
+  const noteInput = window.$('fNote') ? window.$('fNote').value : '';
+  if (noteInput !== '' && noteInput != null) {
+    noteSurVal = window.parseNoteSur(window.$('fNoteSur') ? window.$('fNoteSur').value : 20);
+    const n = parseFloat(String(noteInput).trim().replace(',', '.'));
+    if (!Number.isFinite(n)) {
+      noteRaw = '';
+      noteBruteVal = '';
+    } else {
+      noteBruteVal = String(Math.max(0, Math.min(noteSurVal, Math.round(n * 2) / 2)));
+      noteRaw = window.noteToSur20(noteBruteVal, noteSurVal);
+    }
   }
 
   let rangRaw = window.$('fRang') ? window.$('fRang').value : '';
@@ -1678,6 +1777,8 @@ window.saveCours = function() {
     cl, 
     inter, 
     note: noteRaw,
+    noteSur: noteRaw !== '' ? noteSurVal : '',
+    noteBrute: noteRaw !== '' ? noteBruteVal : '',
     rang: rangVal,
     effectif: effectifVal,
     desc: window.$('fDesc')?window.$('fDesc').value.trim():''
@@ -1693,6 +1794,8 @@ window.saveCours = function() {
   
   if (obj.type !== 'DS' && obj.type !== 'KHOLLE') {
     obj.note = '';
+    obj.noteSur = '';
+    obj.noteBrute = '';
     obj.rang = '';
     obj.effectif = '';
   }
