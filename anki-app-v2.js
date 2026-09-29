@@ -1531,7 +1531,7 @@
 
       ${sessionActive ? `
         <div class="anki-session-resume" data-testid="session-resume-bar">
-          <span>${window.iconLabel('pin', `<b>Session du soir en cours</b> — ${sessionRem} carte(s) restante(s)`)}</span>
+          <span>${window.iconLabel('pin', `<b>Session en cours</b> — ${sessionRem} carte(s) restante(s)`)}</span>
           <div>
             <button class="bp" data-testid="btn-reprendre-session" onclick="window.ankiV2ResumeSession()">${window.iconLabel('play', 'Reprendre la session en cours')}</button>
             <button class="bs" data-testid="btn-abandon-session" onclick="window.ankiV2DiscardSession()">${window.iconLabel('trash-2', 'Abandonner')}</button>
@@ -2013,21 +2013,22 @@
               · ${isManualTab ? '<span style="color:var(--gold);">Uniquement ta sélection</span>' : '<span style="color:var(--grn);">Algorithme + ajustements</span>'}
             </p>
           </div>
-          <div class="anki-block-actions" style="align-items:center;">
-            <label class="anki-cockpit-xonly anki-mut" title="Les Y- restent dans la file et la session : elles sont seulement masquées ici.">
-              <input type="checkbox" data-testid="cockpit-show-x-only" ${xOnly ? 'checked' : ''} onchange="window.ankiV2SetCockpitShowXOnly(this.checked)">
-              <span>Afficher seulement X-</span>
-            </label>
-            <button class="bs" data-testid="btn-create-card" onclick="window.openCardTypePicker()" title="Devoir, principale ou rapide">${window.iconLabel('plus', 'Créer')}</button>
-            <button class="bs" data-testid="btn-generer-session-soir" onclick="window.ankiV2GenererSessionSoir()" title="Fige la file actuelle (auto ou manuelle) pour ce soir">${window.iconLabel('pin', 'Session du soir')}</button>
-            <button class="bp" data-testid="btn-commencer-session" onclick="window.startAnkiV2Session()" ${cartes.length === 0 ? "disabled style='opacity:.4;cursor:not-allowed;'" : ""}>${window.iconLabel('play', 'Commencer')}</button>
+          <div class="anki-block-actions anki-cockpit-actions">
+            <button type="button" class="anki-cockpit-btn anki-cockpit-btn--create" data-testid="btn-create-card" onclick="window.openCardTypePicker()" title="Devoir, principale ou rapide">${window.iconLabel('plus', 'Créer')}</button>
+            <button type="button" class="anki-cockpit-btn anki-cockpit-btn--start" data-testid="btn-commencer-session" onclick="window.startAnkiV2Session()" ${cartes.length === 0 ? "disabled" : ""}>${window.iconLabel('play', 'Commencer')}</button>
           </div>
         </div>
         ${!isManualTab ? renderSessionOverflowPicker() : ''}
-        <p class="anki-mut" style="font-size:11px;margin:0 0 8px;">${isManualTab
-          ? window.iconLabel('lightbulb', 'Clique une carte ci-dessous → elle apparaît ici en haut. Glisse pour réordonner.')
-          : window.iconLabel('lightbulb', 'L&apos;algo remplit la file. Clique une carte due pour l&apos;ajouter ou la retirer — le reste de la file est conservé.')
-        }${xOnly ? ' <span style="color:var(--acc);">Vue X- : les Y- restent dans la session mais sont masquées.</span>' : ''}</p>
+        <div class="anki-cockpit-toolbar">
+          <p class="anki-mut anki-cockpit-hint">${isManualTab
+            ? window.iconLabel('lightbulb', 'Clique une carte ci-dessous → elle apparaît ici en haut. Glisse pour réordonner.')
+            : window.iconLabel('lightbulb', 'L&apos;algo remplit la file. Clique une carte due pour l&apos;ajouter ou la retirer — le reste de la file est conservé.')
+          }${xOnly ? ' <span style="color:var(--acc);">Vue X- : les Y- restent dans la session mais sont masquées.</span>' : ''}</p>
+          <label class="anki-cockpit-xonly anki-mut" title="Les Y- restent dans la file et la session : elles sont seulement masquées ici.">
+            <input type="checkbox" data-testid="cockpit-show-x-only" ${xOnly ? 'checked' : ''} onchange="window.ankiV2SetCockpitShowXOnly(this.checked)">
+            <span>Afficher seulement X-</span>
+          </label>
+        </div>
         <div class="anki-queue anki-queue-fixed" id="ankiQueueDrop">
           ${shown.length === 0
             ? (cartes.length && xOnly
@@ -3999,7 +4000,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
   window.ankiV2DiscardSession = function () {
     const M = window.APP_MSG || {};
     window.sysConfirm(
-      M.ABANDON_EVENING || "Abandonner la session du soir ?<br>La file sera effacée — les cartes déjà notées restent enregistrées.",
+      M.ABANDON_EVENING || "Abandonner la session en cours ?<br>La file sera effacée — les cartes déjà notées restent enregistrées.",
       () => {
         S.queue = []; S.current = null; S.stats = { ok: 0, mid: 0, bad: 0, total: 0 };
         S.dernierExerciceModifie = null;
@@ -4345,7 +4346,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       </div>
     ` : `
       <div class="sync-dock-card">
-        <div class="sync-dock-title">${paused ? "Session en pause" : "Session du soir"}</div>
+        <div class="sync-dock-title">${paused ? "Session en pause" : "Session en cours"}</div>
         <div class="sync-dock-meta anki-mut">${done}/${S.stats.total || rest} faites · <b>${S.queue ? S.queue.length : 0}</b> restante(s)</div>
       </div>
       <div class="sync-dock-actions sync-dock-actions-row">
