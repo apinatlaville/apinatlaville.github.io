@@ -318,7 +318,9 @@
         });
       }).catch(function (err) {
         console.warn('DeviceSession presence poll:', err && err.message ? err.message : err);
-        return state.hub || emptyHub();
+        // Fail-closed : ne pas traiter une lecture en échec comme hub vide
+        // (sinon auto-PRIMARY LWW). Laisser remonter au catch de resolveJoin.
+        return Promise.reject(err);
       });
     }
 
@@ -394,6 +396,12 @@
       state.joinResolved = true;
       state.effectiveRole = CONFIG.ROLES.SECONDARY;
       state.needsRoleChoice = true;
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError(
+          'DeviceSession join fail-closed: ' + (err && err.message ? err.message : err),
+          'device-session.js'
+        );
+      }
       emit();
     });
   }

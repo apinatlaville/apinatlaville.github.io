@@ -226,8 +226,9 @@
   }
 
   /**
-   * Profil « coquille » (emptyData / template) — sans cours ni synchrotron
-   * ni structure matières/classeurs personnalisée.
+   * Profil « coquille » — sans cours / synchrotron / cartes.
+   * Une structure matières/classeurs custom ne compte PAS comme contenu :
+   * sinon une shell peut écraser un blob riche (anti-wipe contourné).
    */
   function isEffectivelyEmptyProfile(data) {
     if (!data || typeof data !== 'object' || data._account === true) return true;
@@ -236,8 +237,6 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     if (cours + ex + dv > 0) return false;
     if (data.sessionEnCoursV2) return false;
-    var tmpl = window.emptyData;
-    if (tmpl && structureSignature(data) !== structureSignature(tmpl)) return false;
     return true;
   }
 
@@ -948,7 +947,19 @@
     if (inIndex && !deletedMap[profileId] && (seedPending || announcedBytes > 0)) {
       // Créateur : republie le seed (même coquille template)
       if (localD && isSeedOwner(profileId)) {
-        await publishLocalSeedAndClearPending();
+        var published = await publishLocalSeedAndClearPending();
+        if (!published) {
+          return {
+            docRef: null,
+            accountRef: accountRef,
+            data: localD,
+            profileId: profileId,
+            legacyRoot: false,
+            migrated: false,
+            cloudPending: true,
+            localOnly: true
+          };
+        }
         return {
           docRef: pref,
           accountRef: accountRef,

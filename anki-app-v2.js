@@ -5826,7 +5826,10 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
 
     if (editId) {
       const c = ankFind(editId);
-      if (!c || isDevoirCard(c)) return;
+      if (!c || isDevoirCard(c)) {
+        window._exoSaveInFlight = false;
+        return;
+      }
       editSnapshot = Object.assign({}, c);
       Object.assign(c, {
         titre: titre,
@@ -6702,9 +6705,11 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
 
     // Retirer de la session Synchrotron en cours (déjà révisée) + compter dans S.stats
     let removedFromSession = false;
+    let removedCurrent = false;
     if (S.current && S.current.id === card.id) {
       S.current = null;
       removedFromSession = true;
+      removedCurrent = true;
     }
     if (S.queue && S.queue.length) {
       const before = S.queue.length;
@@ -6723,8 +6728,15 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       S._standaloneSnaps[id].statBucket = statBucket;
     }
     if (removedFromSession) {
-      try { persistSession(); } catch (e) { /* non bloquant */ }
-      try { renderSyncSessionDock(); } catch (e2) { /* dock optionnel */ }
+      try {
+        // Avancer si on a retiré la carte courante (évite session live sans current)
+        if (removedCurrent && typeof nextCard === 'function') {
+          nextCard(false);
+        } else {
+          persistSession();
+          try { renderSyncSessionDock(); } catch (e2) { /* dock optionnel */ }
+        }
+      } catch (e) { /* non bloquant */ }
     }
 
     if (window.D.settings) window.D.settings.ankiLastSession = window.AnkiAlgoV2.todayISO();

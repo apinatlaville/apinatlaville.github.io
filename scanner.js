@@ -425,22 +425,8 @@ window.manualScan = function() {
 window.processScan = function(uid) {
   window.stopCam();
   window.doLocate(uid);
-
-  // Secondaire : initialiser le statut printed → active via patch cloud ciblé
-  if (window.DeviceSession && window.DeviceSession.canSecondaryPatch
-      && window.DeviceSession.canSecondaryPatch()
-      && window.D && Array.isArray(window.D.cours)) {
-    var c = window.D.cours.find(function (x) { return x.uid === uid; });
-    if (c && c.stat === 'printed') {
-      window.DeviceSession.saveSecondaryPatch(function (data) {
-        if (!Array.isArray(data.cours)) return;
-        var row = data.cours.find(function (x) { return x.uid === uid; });
-        if (row && row.stat === 'printed') row.stat = 'active';
-      }).catch(function (err) {
-        console.warn('processScan secondaire:', err);
-      });
-    }
-  }
+  // Activation printed→active uniquement via confirmInit (évite cloud active
+  // pendant que l’UI demande encore confirmation, surtout en Secondaire).
 };
 
 window.stopCam = function() {

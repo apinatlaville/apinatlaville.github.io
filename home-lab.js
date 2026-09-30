@@ -94,7 +94,9 @@
     });
 
     var dmDue = devoirs.filter(function (d) {
-      if (!d || d.statut === 'archive' || d.statut === 'fait') return false;
+      if (!d) return false;
+      var st = String(d.statut || '').toLowerCase();
+      if (st === 'archive' || st === 'fait' || st === 'fini' || st === 'termine' || st === 'terminé') return false;
       var lim = d.dateLimite || d.dateProchaineRevision;
       return lim && lim <= today;
     }).length;

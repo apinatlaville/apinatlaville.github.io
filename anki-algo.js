@@ -1414,6 +1414,8 @@
             localDirty: !!g.shared.localDirty,
             imported: !!g.shared.imported
           };
+          if (g.shared.originPackId) out.shared.originPackId = String(g.shared.originPackId);
+          if (g.shared.forkedFrom) out.shared.forkedFrom = String(g.shared.forkedFrom);
           if (out.shared.publishedVersion == null) delete out.shared.publishedVersion;
           if (!out.shared.localDirty) delete out.shared.localDirty;
           if (!out.shared.imported) delete out.shared.imported;
