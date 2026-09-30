@@ -1624,12 +1624,18 @@
     return worst;
   }
 
+  function clearCockpitManualOrder() {
+    S.manualOrder = null;
+    if (window.D && window.D.sessionEnCoursV2) {
+      window.D.sessionEnCoursV2.manualOrder = null;
+    }
+  }
+
   function applyAutoAdjustments(basePlan, sessionMin) {
     const settings = window.D.settings || {};
     const marge = typeof settings.margeBudget === 'number' ? settings.margeBudget : (window.AnkiAlgoV2.DEFAULT_COEFS && window.AnkiAlgoV2.DEFAULT_COEFS.MARGE_BUDGET_DEFAULT) || 0.92;
     const budget = (sessionMin || 60) * 60 * Math.max(0.5, Math.min(1, marge));
     const overflowExtend = !!settings.ankiSessionOverflow;
-    const ref = window.AnkiAlgoV2.todayISO();
     // excludedIds stocke les ids parent (grille) — les bouts sont W-xxx#n
     let cartes = (basePlan.cartes || []).filter(c => !S.excludedIds.has(cardBaseId(c.id)));
     let used = cartes.reduce((s, c) => s + cardDurationSec(c), 0);
@@ -1640,53 +1646,79 @@
       const c = ankFind(base);
       if (!c || !window.AnkiAlgoV2.isActive(c)) return;
       if (window.AnkiAlgoV2.cardKind(c) === 'devoir' || isDevoirCard(c)) return;
-      const toAdd = [c];
-      toAdd.forEach(card => {
-        const t = cardDurationSec(card);
-        if (overflowExtend) {
-          cartes.push(card);
-          used += t;
-          return;
-        }
-        while (used + t > budget && cartes.length > 0) {
-          const victim = pickLowestPriorityCard(cartes);
-          if (!victim) break;
-          cartes = cartes.filter(x => x.id !== victim.id);
-          used -= cardDurationSec(victim);
-        }
-        if (used + t <= budget || cartes.length === 0) {
-          cartes.push(card);
-          used += t;
-        }
-      });
+      const t = cardDurationSec(c);
+      if (overflowExtend) {
+        cartes.push(c);
+        used += t;
+        return;
+      }
+      // Garde-fou : si une carte n’est pas retirée (id bizarre / NaN), ne pas boucler à l’infini
+      let guard = 0;
+      const guardMax = Math.max(8, cartes.length + 2);
+      while (used + t > budget && cartes.length > 0 && guard++ < guardMax) {
+        const victim = pickLowestPriorityCard(cartes);
+        if (!victim) break;
+        const before = cartes.length;
+        const vid = victim.id;
+        cartes = cartes.filter(x => x !== victim && String(x.id) !== String(vid));
+        if (cartes.length >= before) break;
+        used = Math.max(0, used - cardDurationSec(victim));
+      }
+      if (used + t <= budget || cartes.length === 0) {
+        cartes.push(c);
+        used += t;
+      }
     });
 
-    if (S.manualOrder && S.manualOrder.length) {
-      // Conserve l'ordre manuel pour les cartes encore dans le plan,
-      // puis ajoute les nouvelles éligibles (pull-forward…) à la fin.
-      const map = {};
-      cartes.forEach(c => { map[c.id] = c; });
-      const seen = new Set();
-      const ordered = [];
-      S.manualOrder.forEach(id => {
-        const base = cardBaseId(id);
-        // Ordre manuel = parents ; rattacher tous les bouts de ce parent
-        const matches = cartes.filter(c => c.id === id || cardBaseId(c.id) === base || c.id === base);
-        matches.forEach(c => {
+    // Ordre DnD : array d’ids uniquement
+    if (Array.isArray(S.manualOrder) && S.manualOrder.length) {
+      const isManualTab = S.cockpitMode === 'manual';
+      const byId = {};
+      cartes.forEach(function (c) { if (c && c.id != null) byId[c.id] = c; });
+
+      if (!isManualTab) {
+        // Auto : n’honorer le DnD que s’il réordonne exactement le même set.
+        // Sinon (budget ↑, pins…) → ordre algo (entrelacement), pas d’append en bas.
+        const ordered = [];
+        const seen = new Set();
+        let intact = true;
+        for (let i = 0; i < S.manualOrder.length; i++) {
+          const card = byId[S.manualOrder[i]];
+          if (!card) { intact = false; break; }
+          if (!seen.has(card.id)) {
+            ordered.push(card);
+            seen.add(card.id);
+          }
+        }
+        if (intact && ordered.length === cartes.length && cartes.every(function (c) { return seen.has(c.id); })) {
+          cartes = ordered;
+          used = cartes.reduce(function (s, c) { return s + cardDurationSec(c); }, 0);
+        } else {
+          clearCockpitManualOrder();
+        }
+      } else {
+        // Manuel : conserve l’ordre DnD, ajoute le reste à la fin
+        const seen = new Set();
+        const ordered = [];
+        S.manualOrder.forEach(function (id) {
+          const base = cardBaseId(id);
+          cartes.forEach(function (c) {
+            if (seen.has(c.id)) return;
+            if (c.id === id || cardBaseId(c.id) === base || c.id === base) {
+              ordered.push(c);
+              seen.add(c.id);
+            }
+          });
+        });
+        cartes.forEach(function (c) {
           if (!seen.has(c.id)) {
             ordered.push(c);
             seen.add(c.id);
           }
         });
-      });
-      cartes.forEach(c => {
-        if (!seen.has(c.id)) {
-          ordered.push(c);
-          seen.add(c.id);
-        }
-      });
-      cartes = ordered;
-      used = cartes.reduce((s, c) => s + cardDurationSec(c), 0);
+        cartes = ordered;
+        used = cartes.reduce(function (s, c) { return s + cardDurationSec(c); }, 0);
+      }
     }
 
     return Object.assign({}, basePlan, {
@@ -1780,6 +1812,7 @@
   }
 
   function setSessionMinutesV2(total) {
+    const prev = getSessionMinutesV2();
     const n = Math.max(5, Math.min(300, parseInt(total, 10) || 90));
     if (!window.D.settings) window.D.settings = {};
     if (!window.D.settings.algoV2) window.D.settings.algoV2 = {};
@@ -1787,6 +1820,8 @@
     // Alias legacy (anciens écrans / prompts) — une seule source de vérité
     window.D.settings.ankiSessionMin = n;
     S.sessionMinTonight = n;
+    // Budget changé → abandonner l’ordre DnD figé (sinon nouvelles cartes collées en fin de file)
+    if (n !== prev) clearCockpitManualOrder();
     return n;
   }
 
