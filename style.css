@@ -3618,6 +3618,10 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   width: 100%;
   margin-bottom: 4px;
 }
+.qk-new-group-chapitre,
+.qk-group-create select.fi {
+  width: 100%;
+}
 .qk-groups-sections {
   display: flex;
   flex-direction: column;

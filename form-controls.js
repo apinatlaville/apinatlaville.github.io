@@ -60,6 +60,9 @@
     if (!sel || sel.tagName !== 'SELECT' || sel.multiple || sel.dataset.fcSkip !== undefined) return;
     if (!window.Choices) return;
     if (sel._choices) return;
+    // Dans un overlay scrollable, Choices (position auto) ouvre souvent vers le haut
+    // et se coupe / décalle — laisser le select natif (data-fc-skip) ou forcer bottom.
+    if (sel.closest && sel.closest('.ov')) return;
 
     var n = sel.options ? sel.options.length : 0;
     var inst = new Choices(sel, {
@@ -67,7 +70,7 @@
       itemSelectText: '',
       shouldSort: false,
       allowHTML: false,
-      position: 'auto',
+      position: 'bottom',
       classNames: {
         containerOuter: 'choices fc-choices'
       }

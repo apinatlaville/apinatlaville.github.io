@@ -795,13 +795,23 @@
     return out;
   };
 
-  /** Session chapitre : toutes les cartes actives liées à un coursId (ordre priorité, sans filtre « ce soir »). */
-  V2.buildChapterSession = function (exercices, coursId, sessionMinutes) {
+  /** Session chapitre : cartes actives du chapitre (chapitreId ou cours unité lié). */
+  V2.buildChapterSession = function (exercices, chapterOrCoursId, sessionMinutes) {
     const ref = V2.todayISO();
+    const key = String(chapterOrCoursId || "");
+    let unitUid = "";
+    const isChapitre = !!(window.D && Array.isArray(window.D.chapitres)
+      && window.D.chapitres.some(function (ch) { return ch && ch.id === key; }));
+    if (isChapitre && typeof window.resolveChapitreCoursUid === "function") {
+      unitUid = window.resolveChapitreCoursUid(key) || "";
+    }
     const list = (exercices || []).filter(c => {
       if (!V2.isActive(c)) return false;
+      if (c.chapitreId && String(c.chapitreId) === key) return true;
       const ids = c.coursIds || (c.coursId ? [c.coursId] : []);
-      return ids.includes(coursId);
+      if (ids.includes(key)) return true;
+      if (unitUid && ids.includes(unitUid)) return true;
+      return false;
     });
     // Files séparées : X- puis Y- (scores non comparables entre files)
     const mains = list.filter(c => V2.cardKind(c) === "main")

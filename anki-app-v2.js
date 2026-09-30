@@ -55,7 +55,7 @@
     cockpitMode: 'auto',                   // 'auto' | 'manual'
     cockpitPickKind: '',                   // '' | 'main' (X-) | 'quick' (Y-)
     cockpitFilterMat: '',
-    cockpitFilterCours: '',                // X: chapitre uid · Y: groupId
+    cockpitFilterCours: '',                // X: chapitreId (ou legacy coursUnite uid) · Y: groupId
   };
 
   function cockpitShowXOnly() {
@@ -199,13 +199,24 @@
 
   function cardSansChapitreForMat(c, matId, unitUids) {
     if (c.mat !== matId) return false;
-    if (c.chapitreId) {
-      var ch = (window.D.chapitres || []).find(function (x) { return x && x.id === c.chapitreId; });
-      if (ch && ch.mat === matId) return false;
-    }
+    if (resolveCardChapitreId(c)) return false;
     const ids = cardCoursIdList(c);
     if (!ids.length) return true;
     return !ids.some(uid => unitUids.has(uid));
+  }
+
+  /** Match carte X- ↔ clé cockpit (chapitreId Programme, ou legacy uid cours unité). */
+  function cardMatchesChapterKey(c, key) {
+    if (!c || !key) return false;
+    const chapId = resolveCardChapitreId(c);
+    if (chapId && chapId === key) return true;
+    const ids = cardCoursIdList(c);
+    if (ids.includes(key)) return true;
+    if (typeof window.resolveChapitreCoursUid === 'function') {
+      const uid = window.resolveChapitreCoursUid(key);
+      if (uid && ids.includes(uid)) return true;
+    }
+    return false;
   }
 
   function getCockpitPickBaseList() {
@@ -269,7 +280,7 @@
       const uids = chapterUnitUidsForMat(S.cockpitFilterMat);
       list = list.filter(c => cardSansChapitreForMat(c, S.cockpitFilterMat, uids));
     } else if (S.cockpitFilterCours) {
-      list = list.filter(c => cardCoursIdList(c).includes(S.cockpitFilterCours));
+      list = list.filter(c => cardMatchesChapterKey(c, S.cockpitFilterCours));
     }
     return list;
   }
@@ -304,14 +315,18 @@
           const g = ((window.D.quickGroups || []).find(x => x.id === S.cockpitFilterCours));
           leafLabel = (g && g.name) || S.cockpitFilterCours;
         } else {
-          const co = (window.D.cours || []).find(x => x.uid === S.cockpitFilterCours);
-          if (co) leafLabel = co.title || co.uid;
-          else if (typeof window.listChapitres === 'function') {
-            const ch = window.listChapitres({ mat: S.cockpitFilterMat }).find(c =>
-              (c.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
-                ? window.resolveChapitreCoursUid(c.id) : '')) === S.cockpitFilterCours
-            );
-            if (ch) leafLabel = ch.title || ch.id;
+          const chById = (window.D.chapitres || []).find(x => x && x.id === S.cockpitFilterCours);
+          if (chById) leafLabel = chById.title || chById.id;
+          else {
+            const co = (window.D.cours || []).find(x => x.uid === S.cockpitFilterCours);
+            if (co) leafLabel = co.title || co.uid;
+            else if (typeof window.listChapitres === 'function') {
+              const ch = window.listChapitres({ mat: S.cockpitFilterMat }).find(c =>
+                (c.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
+                  ? window.resolveChapitreCoursUid(c.id) : '')) === S.cockpitFilterCours
+              );
+              if (ch) leafLabel = ch.title || ch.id;
+            }
           }
         }
       }
@@ -406,13 +421,11 @@
     let tiles = '';
     if (typeof window.listChapitres === 'function') {
       window.listChapitres({ mat: matId }).forEach(ch => {
-        const uid = ch.coursUniteUid || (typeof window.resolveChapitreCoursUid === 'function'
-          ? window.resolveChapitreCoursUid(ch.id) : '');
-        if (!uid) return;
-        const n = matCards.filter(c => cardCoursIdList(c).includes(uid)).length;
+        if (!ch || !ch.id) return;
+        const n = matCards.filter(c => cardMatchesChapterKey(c, ch.id)).length;
         if (!n) return;
         tiles += (
-          `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(m.color)}" onclick="window.ankiV2CockpitPickChapter('${jsPick(uid)}')">` +
+          `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(m.color)}" onclick="window.ankiV2CockpitPickChapter('${jsPick(ch.id)}')">` +
             `<span class="cours-bc-tile-name">${esc(ch.title || ch.id)}</span>` +
             `<span class="cours-bc-tile-meta">${n} carte${n > 1 ? 's' : ''}</span>` +
           `</button>`
@@ -5938,15 +5951,16 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     if (typeof window.showTab === 'function') window.showTab('agenda');
   };
 
-  window.ankiV2PlayChapter = function (coursId) {
+  window.ankiV2PlayChapter = function (chapterOrCoursId) {
     ensure();
-    if (!coursId) return;
+    if (!chapterOrCoursId) return;
     restoreSessionFromStorageIfAny();
     if (sessionIsLive()) {
       return promptSessionConflict('btn-commencer-session');
     }
     const sessionMin = getSessionMinutesV2();
-    const plan = window.AnkiAlgoV2.buildChapterSession(ankSessionPool(), coursId, sessionMin);
+    const key = String(chapterOrCoursId);
+    const plan = window.AnkiAlgoV2.buildChapterSession(ankSessionPool(), key, sessionMin);
     if (!plan.cartes.length) return window.sysAlert("Aucune carte active pour ce chapitre.", "Synchrotron V2");
     S.queue = plan.cartes.slice();
     // Mode custom : applique bien le SRS (contrairement au mode « colle » d'entraînement)

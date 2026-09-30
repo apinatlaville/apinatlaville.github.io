@@ -1331,13 +1331,15 @@ window.delCours = function(uid) {
   }, "Suppression d'un document");
 };
 
-/** Barèmes de saisie DS/Khôlle (stockage canonique toujours /20). */
-window.NOTE_SUR_OPTIONS = [20, 10, 90];
+/** Barème de saisie DS/Khôlle (libre) — stockage canonique toujours /20. */
+window.NOTE_SUR_MIN = 1;
+window.NOTE_SUR_MAX = 200;
+window.NOTE_SUR_PRESETS = [20, 10, 90];
 
 window.parseNoteSur = function (v) {
-  const n = parseInt(String(v == null ? '' : v).trim(), 10);
-  if (window.NOTE_SUR_OPTIONS.indexOf(n) >= 0) return n;
-  return 20;
+  const n = parseFloat(String(v == null ? '' : v).trim().replace(',', '.'));
+  if (!Number.isFinite(n) || n < window.NOTE_SUR_MIN) return 20;
+  return Math.min(window.NOTE_SUR_MAX, Math.round(n * 2) / 2);
 };
 
 /** Convertit une note brute sur `sur` vers /20 (demi-points). */
@@ -1361,12 +1363,10 @@ window.noteFromSur20 = function (note20, sur) {
 };
 
 window.setNoteSurSelect = function (sur) {
-  const v = String(window.parseNoteSur(sur));
+  const v = window.parseNoteSur(sur);
   const el = window.$('fNoteSur');
-  if (!el) return;
-  el.value = v;
-  if (typeof window.fcSetSelectValue === 'function') window.fcSetSelectValue(el, v);
-  else if (el._choices) el._choices.setChoiceByValue(v);
+  if (el) el.value = String(v);
+  if (typeof window.updateNoteSurUI === 'function') window.updateNoteSurUI();
 };
 
 window.updateNoteSurUI = function () {
@@ -1377,8 +1377,12 @@ window.updateNoteSurUI = function () {
   if (noteEl) {
     noteEl.max = String(sur);
     noteEl.step = '0.5';
-    noteEl.placeholder = sur === 20 ? 'Ex: 14.5' : (sur === 10 ? 'Ex: 7.5' : 'Ex: 72');
+    noteEl.placeholder = sur === 20 ? 'Ex: 14.5' : ('Ex: ' + (Math.round(sur * 0.7 * 2) / 2));
   }
+  document.querySelectorAll('.note-sur-preset').forEach(function (btn) {
+    const v = parseFloat(btn.getAttribute('data-sur'));
+    btn.classList.toggle('on', Number.isFinite(v) && v === sur);
+  });
   if (!prev) return;
   const rawStr = noteEl ? String(noteEl.value || '').trim() : '';
   if (!rawStr) {
