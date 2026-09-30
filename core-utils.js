@@ -5,6 +5,98 @@
 (function () {
   window.$ = window.$ || function (id) { return document.getElementById(id); };
 
+  // ── Journal diagnostic (onglet Logs) — capture tôt, avant le reste de l’app ──
+  window.appDiagLog = window.appDiagLog || [];
+  window.appErrors = window.appErrors || [];
+  window._diagLogMax = 2500;
+  window._diagLogHookedConsole = false;
+  window._diagLogHookedAlgo = false;
+
+  function _diagSafeString(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') return v;
+    if (v instanceof Error) return v.name + ': ' + v.message + (v.stack ? '\n' + v.stack : '');
+    try {
+      return JSON.stringify(v, function (_k, val) {
+        if (typeof val === 'function') return '[fn]';
+        if (val && typeof val === 'object') {
+          if (val.nodeType) return '[DOM]';
+          if (typeof val.length === 'number' && val.length > 80) return '[array ' + val.length + ']';
+        }
+        return val;
+      }, 0);
+    } catch (e) {
+      try { return String(v); } catch (e2) { return '[unserializable]'; }
+    }
+  }
+
+  function _diagArgsToMsg(args) {
+    var out = [];
+    for (var i = 0; i < args.length; i++) out.push(_diagSafeString(args[i]));
+    return out.join(' ');
+  }
+
+  window.pushDiagLog = function (level, msg, source, extra) {
+    try {
+      if (!window.appDiagLog) window.appDiagLog = [];
+      var entry = {
+        t: new Date().toISOString(),
+        time: new Date().toLocaleTimeString(),
+        level: level || 'info',
+        msg: _diagSafeString(msg).slice(0, 8000),
+        source: source || '',
+        extra: extra != null ? _diagSafeString(extra).slice(0, 4000) : ''
+      };
+      window.appDiagLog.push(entry);
+      if (window.appDiagLog.length > window._diagLogMax) {
+        window.appDiagLog.splice(0, window.appDiagLog.length - window._diagLogMax);
+      }
+      if (window._activeTab === 'logs') {
+        clearTimeout(window._diagRenderT);
+        window._diagRenderT = setTimeout(function () {
+          if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
+        }, 250);
+      }
+    } catch (e) { /* ne jamais casser l’app pour un log */ }
+    return null;
+  };
+
+  window.installDiagConsoleHook = function () {
+    if (window._diagLogHookedConsole || typeof console === 'undefined') return;
+    window._diagLogHookedConsole = true;
+    var levels = ['log', 'info', 'warn', 'error', 'debug'];
+    levels.forEach(function (lv) {
+      var orig = console[lv] && console[lv].bind ? console[lv].bind(console) : null;
+      if (!orig) return;
+      console[lv] = function () {
+        try {
+          window.pushDiagLog(lv === 'log' ? 'info' : lv, _diagArgsToMsg(arguments), 'console');
+        } catch (e) { /* ignore */ }
+        return orig.apply(console, arguments);
+      };
+    });
+  };
+
+  window.installDiagAlgoHook = function () {
+    if (window._diagLogHookedAlgo) return;
+    var algo = window.AnkiAlgo;
+    if (!algo || typeof algo.log !== 'function') return;
+    window._diagLogHookedAlgo = true;
+    var prev = algo.log.bind(algo);
+    algo.log = function (action, details) {
+      try {
+        window.pushDiagLog('algo', String(action || 'event'), 'AnkiAlgo', details || null);
+      } catch (e) { /* ignore */ }
+      return prev(action, details);
+    };
+  };
+
+  window.installDiagConsoleHook();
+  window.addEventListener('unhandledrejection', function (ev) {
+    var reason = ev && ev.reason;
+    window.pushDiagLog('error', _diagSafeString(reason), 'unhandledrejection');
+  });
+
   /** Media query mobile unique (alignée sur ui-shell / nav) */
   window.MQ_MOBILE = '(max-width: 767px)';
   window.isMobileViewport = function () {
@@ -164,6 +256,9 @@
       lineno: opts.lineno != null ? opts.lineno : 0
     };
     window.appErrors.push(entry);
+    if (typeof window.pushDiagLog === 'function') {
+      window.pushDiagLog('error', entry.msg, entry.source + (entry.lineno ? ':' + entry.lineno : ''), null);
+    }
     if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
     if (opts.toast) {
       window.showToast(opts.toastMsg != null ? opts.toastMsg : entry.msg, {

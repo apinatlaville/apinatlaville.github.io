@@ -1681,27 +1681,135 @@ window.exportCsv = function() {
 };
 
 window.renderErrorLogs = function() {
+  if (typeof window.installDiagAlgoHook === 'function') window.installDiagAlgoHook();
   const container = window.$('errorLogContainer');
-  if(!container) return;
-  
-  if(!window.appErrors || window.appErrors.length === 0) {
+  if (!container) return;
+
+  const filterEl = window.$('diagLogFilter');
+  const filter = (filterEl && filterEl.value) || 'all';
+  const diag = (window.appDiagLog || []).slice();
+  const errs = (window.appErrors || []).map(function (e) {
+    return {
+      t: null,
+      time: e.time,
+      level: 'error',
+      msg: e.msg,
+      source: (e.source || '') + (e.lineno ? ':' + e.lineno : ''),
+      extra: ''
+    };
+  });
+  // Fusion : diag + erreurs legacy non déjà reprises
+  let rows = diag.length ? diag.slice() : errs.slice();
+  if (diag.length && errs.length) {
+    // garder aussi appErrors récents absents du diag (sessions anciennes)
+    errs.forEach(function (e) {
+      const already = diag.some(function (d) {
+        return d.level === 'error' && d.msg === e.msg && d.time === e.time;
+      });
+      if (!already) rows.push(e);
+    });
+  }
+  if (filter !== 'all') {
+    rows = rows.filter(function (r) { return r.level === filter; });
+  }
+  const recent = rows.slice(-400).reverse();
+
+  if (!recent.length) {
     container.innerHTML = typeof window.uiEmpty === 'function'
-      ? window.uiEmpty('Aucune erreur détectée. Tout va bien.', { icon: 'circle-check' })
-      : '<div class="ui-empty">Aucune erreur détectée. Tout va bien.</div>';
+      ? window.uiEmpty('Aucun log pour l’instant. Navigue un peu (Rapide, Partage…) puis reviens ici.', { icon: 'circle-check' })
+      : '<div class="ui-empty">Aucun log pour l’instant.</div>';
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(container);
     return;
   }
-  
-  container.innerHTML = window.appErrors.map(function(e) {
-    return typeof window.uiLogEntry === 'function'
-      ? window.uiLogEntry(e)
-      : '<div class="ui-log-entry"><div class="ui-log-msg">' + window.escHtml(e.msg) + '</div></div>';
-  }).reverse().join('');
+
+  container.innerHTML = recent.map(function (e) {
+    const lvl = e.level || 'info';
+    const meta = (e.time || '') + (e.source ? ' · ' + e.source : '') + ' · ' + lvl;
+    const extra = e.extra ? '<pre class="ui-log-extra">' + window.escHtml(String(e.extra).slice(0, 1200)) + '</pre>' : '';
+    return (
+      '<div class="ui-log-entry ui-log-entry--' + window.escHtml(lvl) + '">' +
+        '<div class="ui-log-meta">' + window.escHtml(meta) + '</div>' +
+        '<div class="ui-log-msg">' + window.escHtml(e.msg) + '</div>' +
+        extra +
+      '</div>'
+    );
+  }).join('');
+};
+
+window.buildDiagExportText = function () {
+  const lines = [];
+  lines.push('=== Mes Cours — export diagnostic ===');
+  lines.push('Quand: ' + new Date().toISOString());
+  lines.push('Cache: ' + (window.__BOOT_CACHE_V || '?'));
+  lines.push('UA: ' + (navigator.userAgent || ''));
+  lines.push('Mode: ' + (localStorage.getItem('active_mode') || '?'));
+  try {
+    const groups = (window.D && window.D.quickGroups) || [];
+    lines.push('quickGroups: ' + groups.length);
+    groups.forEach(function (g) {
+      if (!g) return;
+      const sh = g.shared && g.shared.packId
+        ? ' pack=' + g.shared.packId + ' v=' + (g.shared.installedVersion || '?')
+        : ' (local)';
+      lines.push('  - ' + (g.id || '?') + ' «' + (g.name || '') + '» mat=' + (g.mat || '') + sh);
+    });
+  } catch (e) {
+    lines.push('quickGroups: (erreur lecture)');
+  }
+  lines.push('--- logs (' + ((window.appDiagLog || []).length) + ') ---');
+  (window.appDiagLog || []).forEach(function (e) {
+    lines.push(
+      '[' + (e.t || e.time || '') + '] ' + (e.level || '') + ' ' + (e.source || '') + ' | ' + (e.msg || '') +
+      (e.extra ? ' | ' + e.extra : '')
+    );
+  });
+  if (window.appErrors && window.appErrors.length) {
+    lines.push('--- appErrors (' + window.appErrors.length + ') ---');
+    window.appErrors.forEach(function (e) {
+      lines.push('[' + (e.time || '') + '] ' + (e.source || '') + ' | ' + (e.msg || ''));
+    });
+  }
+  return lines.join('\n');
+};
+
+window.copyDiagLogs = function () {
+  const text = window.buildDiagExportText();
+  const done = function (ok) {
+    if (typeof window.showToast === 'function') {
+      window.showToast(ok ? 'Journal copié — tu peux le coller dans un message.' : 'Copie impossible — sélectionne le texte manuellement.', {
+        type: ok ? 'ok' : 'error'
+      });
+    }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function () { done(true); }).catch(function () {
+      window._fallbackCopyDiag(text, done);
+    });
+  } else {
+    window._fallbackCopyDiag(text, done);
+  }
+};
+
+window._fallbackCopyDiag = function (text, done) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    done(!!ok);
+  } catch (e) {
+    done(false);
+  }
 };
 
 window.clearErrorLogs = function() {
-  window.sysConfirm("Vider l'historique des erreurs ?", () => {
+  window.sysConfirm("Vider tout le journal diagnostic ?", () => {
     window.appErrors = [];
+    window.appDiagLog = [];
     window.renderErrorLogs();
   }, "Logs");
 };

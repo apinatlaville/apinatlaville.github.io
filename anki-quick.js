@@ -763,12 +763,18 @@
 
   window.renderFlashcards = function () {
     ensure();
+    if (typeof window.installDiagAlgoHook === 'function') window.installDiagAlgoHook();
     if (window.QuickShare && typeof window.QuickShare.ensureShareLinks === 'function'
         && !window.QuickShare._relinkFromRender) {
       window.QuickShare._relinkFromRender = true;
       window.QuickShare.ensureShareLinks().then(function (n) {
         window.QuickShare._relinkFromRender = false;
-        if (n > 0) window.renderFlashcards();
+        // Une seule re-passe max (évite boucle save ↔ relink ↔ render)
+        if (n > 0 && !window.QuickShare._relinkRerenderDone) {
+          window.QuickShare._relinkRerenderDone = true;
+          setTimeout(function () { window.QuickShare._relinkRerenderDone = false; }, 15000);
+          window.renderFlashcards();
+        }
       }).catch(function () { window.QuickShare._relinkFromRender = false; });
     }
     const root = $("paneFlashcards");
@@ -1596,10 +1602,17 @@
       mat: mat,
       chapitreId: chapitreId
     });
+    if (typeof window.pushDiagLog === 'function') {
+      window.pushDiagLog('info', 'Dossier Rapide créé', 'Rapide', { id: id, name: name, mat: mat });
+    }
     if (typeof window.save === 'function') window.save();
     if (el) el.value = '';
     Q.newGroupColor = defaultGroupColor(mat);
     refreshGroupsModalBody();
+    // Afficher tout de suite dans l’onglet Rapide (pas seulement après « Enregistrer »)
+    if (typeof window.renderFlashcards === 'function' && $("paneFlashcards")) {
+      try { window.renderFlashcards(); } catch (e) { /* ignore */ }
+    }
     if (typeof window.showToast === 'function') window.showToast('Dossier « ' + name + ' » créé.', { type: 'ok' });
     const again = $('qkNewGroupName');
     if (again) again.focus();

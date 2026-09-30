@@ -746,6 +746,8 @@
     /**
      * Si le lien shared manque en local (sync), rattache les dossiers aux packs
      * déjà publiés (même sourceGroupId ou packId stable) → indicateur Partage.
+     * ⚠️ Jamais par nom seul : supprimer puis recréer « Interférence » ne doit pas
+     * réattacher un vieux pack catalogue (ghost share / dossier « invisible »).
      */
     relinkLocalGroupsFromCatalog: async function () {
       var pub = publisherInfo();
@@ -757,7 +759,6 @@
       });
       var bySrc = {};
       var byId = {};
-      var nameCount = {};
       mine.forEach(function (p) {
         byId[p.packId] = p;
         if (p.sourceGroupId) {
@@ -766,21 +767,12 @@
             bySrc[p.sourceGroupId] = p;
           }
         }
-        var nk = String(p.name || '').trim().toLowerCase();
-        if (nk) nameCount[nk] = (nameCount[nk] || 0) + 1;
-      });
-      var byNameUnique = {};
-      mine.forEach(function (p) {
-        var nk = String(p.name || '').trim().toLowerCase();
-        if (nk && nameCount[nk] === 1) byNameUnique[nk] = p;
       });
       var n = 0;
       (window.D.quickGroups || []).forEach(function (g) {
         if (!g || !g.id) return;
         if (g.shared && g.shared.packId) return;
-        var meta = bySrc[g.id]
-          || byId[stablePackId(pub.uid, g.id)]
-          || byNameUnique[String(g.name || '').trim().toLowerCase()];
+        var meta = bySrc[g.id] || byId[stablePackId(pub.uid, g.id)];
         if (!meta || !meta.packId) return;
         var ver = Number(meta.latestVersion || 1);
         writeSharedLink(g, {
@@ -796,6 +788,11 @@
           imported: false
         });
         n++;
+        if (typeof window.pushDiagLog === 'function') {
+          window.pushDiagLog('info', 'Relink dossier → pack', 'QuickShare', {
+            groupId: g.id, name: g.name, packId: meta.packId
+          });
+        }
       });
       if (n && typeof window.save === 'function') window.save();
       return n;

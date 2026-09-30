@@ -139,9 +139,48 @@ body.theme-light {
 }
 .ui-panel--logs {
   min-height: 200px;
+  max-height: min(70vh, 640px);
+  overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+.ui-toolbar--logs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.ui-logs-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.ui-logs-filter .fi {
+  min-width: 110px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.ui-log-entry--error { border-left: 3px solid var(--red); }
+.ui-log-entry--warn { border-left: 3px solid var(--gold); }
+.ui-log-entry--algo { border-left: 3px solid var(--acc); }
+.ui-log-entry--info,
+.ui-log-entry--debug { border-left: 3px solid var(--bd); }
+.ui-log-extra {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: rgba(0,0,0,.2);
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  color: var(--mut);
+  max-height: 120px;
+  overflow: auto;
 }
 
 body.ui-finder .ui-panel {

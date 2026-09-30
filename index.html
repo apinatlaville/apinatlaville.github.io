@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260930b';
+  window.__BOOT_CACHE_V = '20260930c';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -537,11 +537,22 @@
 
 <div class="pane ui-pane" id="paneLogs">
   <div class="ui-section">
-    <h2 class="ui-section-title ui-section-title--danger"><span data-icon="bug"></span> Journal des Erreurs</h2>
-    <p class="ui-section-desc">Cet écran capture automatiquement les erreurs système ou de réseau. Si l'application a un comportement étrange, regarde ici.</p>
+    <h2 class="ui-section-title ui-section-title--danger"><span data-icon="bug"></span> Journal diagnostic</h2>
+    <p class="ui-section-desc">Erreurs, console, événements Rapide / Partage / Synchrotron. En cas de bug : <b>Copier tout</b> et envoie le texte.</p>
   </div>
-  <div class="ui-toolbar">
-    <button class="bs" onclick="window.clearErrorLogs()"><span data-icon="trash-2"></span> Vider le journal</button>
+  <div class="ui-toolbar ui-toolbar--logs">
+    <button type="button" class="bp" onclick="window.copyDiagLogs()"><span data-icon="copy"></span> Copier tout</button>
+    <button type="button" class="bs" onclick="window.clearErrorLogs()"><span data-icon="trash-2"></span> Vider</button>
+    <label class="anki-mut ui-logs-filter">
+      Filtre
+      <select id="diagLogFilter" class="fi" onchange="window.renderErrorLogs()">
+        <option value="all">Tout</option>
+        <option value="error">Erreurs</option>
+        <option value="warn">Warn</option>
+        <option value="info">Info</option>
+        <option value="algo">Algo</option>
+      </select>
+    </label>
   </div>
   <div id="errorLogContainer" class="ui-panel ui-panel--logs"></div>
 </div>
