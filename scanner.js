@@ -32,7 +32,9 @@ window.getBarcodeURL = function(text) {
     });
     return canvas.toDataURL("image/png");
   } catch(e) {
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur JsBarcode: " + e.message, source: 'scanner.js' });
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Erreur JsBarcode: ' + (e && e.message ? e.message : e), 'scanner.js');
+    }
     return '';
   }
 };
@@ -398,6 +400,12 @@ window._openCamImpl = function() {
         if(window.$('camSt')) {
           window.$('camSt').style.color = 'var(--red)';
           window.$('camSt').innerHTML = window.iconLabel('circle-x', "Erreur d'accès à la caméra.");
+        }
+        if (typeof window.recordAppError === 'function') {
+          window.recordAppError(
+            "Erreur d'accès à la caméra: " + (err && err.message ? err.message : err),
+            'scanner.js'
+          );
         }
       });
     } catch(e) {

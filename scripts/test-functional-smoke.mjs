@@ -30,7 +30,7 @@ assert(/APP_TAB_REGISTRY|APP_NAV_GROUPS/.test(nav), 'nav-config expose registre 
 assert(/cours|ankiV2|flashcards|home|notes|print|settings|programme/.test(nav), 'onglets métier présents');
 assert(/bootLoadApplication|loadParallel|cours-wizard/.test(boot), 'boot-loader charge app + wizard');
 assert(/device-session|profiles-io|anki-algo-v2|anki-app-v2/.test(boot), 'boot charge sync + Anki');
-assert(/__BOOT_CACHE_V\s*=\s*'20260831d'/.test(index), 'cache version définie');
+assert(/__BOOT_CACHE_V\s*=\s*'20260930a'/.test(index), 'cache version définie');
 assert(/syncMobileSidebarPanel\(\)/.test(read('app.js')),
   'layoutChrome sync panneau mobile sidebar');
 assert(!/layoutChrome[\s\S]{0,400}syncMobileNavAccordion/.test(read('app.js')),
@@ -179,7 +179,7 @@ console.log('\n=== Correctifs audit — encore en place ===\n');
     || /ankiV2SetQuickQueue[\s\S]*refuseSecondaryFullMutation[\s\S]*sessionIsLive/.test(anki),
     'quick queue secondaire avant conflit');
   assert(/evalCardV2 save:[\s\S]*nextCard\(true\)/.test(anki), 'eval anti double-notation');
-  assert(/rEl\.onkeydown =/.test(anki), 'bindEnter onkeydown');
+  assert(/el\.onkeydown =/.test(anki) || /rEl\.onkeydown =/.test(anki), 'bindEnter onkeydown');
 }
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);

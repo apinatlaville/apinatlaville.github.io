@@ -10,10 +10,49 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20260929e';
+  window.__BOOT_CACHE_V = '20260930a';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
+<script>
+  /* Filet très tôt : avant core-utils / boot-profiler (qui enchaîne sur onerror). */
+  window.appErrors = window.appErrors || [];
+  window.onerror = function (message, source, lineno, colno, error) {
+    var shortSource = source ? String(source).split('/').pop() : 'Inconnu';
+    var prefix = (window.APP_MSG && window.APP_MSG.ERROR_PREFIX) || 'Erreur : ';
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError(message, shortSource, {
+        lineno: lineno,
+        toast: true,
+        toastMsg: prefix + message
+      });
+    } else {
+      window.appErrors.push({
+        time: new Date().toLocaleTimeString(),
+        msg: String(message == null ? '' : message),
+        source: shortSource,
+        lineno: lineno != null ? lineno : 0
+      });
+    }
+    return false;
+  };
+  window.addEventListener('unhandledrejection', function (event) {
+    if (window.__appRejectionHandlerReady) return;
+    var raw = event && event.reason;
+    var errorMsg = raw && raw.message ? raw.message : (raw != null ? String(raw) : 'Erreur asynchrone inconnue');
+    var prefix = (window.APP_MSG && window.APP_MSG.ERROR_PREFIX) || 'Erreur : ';
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError(errorMsg, 'Async', { toast: true, toastMsg: prefix + errorMsg });
+    } else {
+      window.appErrors.push({
+        time: new Date().toLocaleTimeString(),
+        msg: String(errorMsg),
+        source: 'Async',
+        lineno: 0
+      });
+    }
+  });
+</script>
 <script>
   (function () {
     var v = window.__BOOT_CACHE_V || '1';
@@ -32,25 +71,6 @@
     addJs('icons.js');
     addJs('fuse.js', ' onerror="window.recordScriptLoadError&&window.recordScriptLoadError(\'fuse.js\',true)"');
   })();
-</script>
-
-<script>
-  window.appErrors = [];
-  window.onerror = function(message, source, lineno, colno, error) {
-    const shortSource = source ? source.split('/').pop() : 'Inconnu';
-    const prefix = (window.APP_MSG && window.APP_MSG.ERROR_PREFIX) || 'Erreur : ';
-    if (typeof window.recordAppError === 'function') {
-      window.recordAppError(message, shortSource, {
-        lineno: lineno,
-        toast: true,
-        toastMsg: prefix + message
-      });
-    } else {
-      window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: message, source: shortSource, lineno: lineno });
-      if (typeof window.showToast === 'function') window.showToast(prefix + message);
-    }
-    return false;
-  };
 </script>
 
 <style>

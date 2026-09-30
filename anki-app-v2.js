@@ -4618,6 +4618,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
           console.error('ankiV2UndoLastEval save:', e);
           S._evalBusy = false;
           try { renderSessionOverlay(); } catch (e2) { /* ignore */ }
+          if (typeof window.recordAppError === 'function') {
+            window.recordAppError('Synchrotron undo save: ' + (e && e.message ? e.message : e), 'anki-app-v2');
+          }
           if (typeof window.sysAlert === 'function'
               && !/SECONDARY_READ_ONLY|synchronisation cloud/i.test(String(e && e.message))) {
             window.sysAlert('Retour local OK, mais la sauvegarde a échoué — réessaie.', 'Synchrotron');
@@ -4626,6 +4629,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       } catch (err) {
         S._evalBusy = false;
         console.error('ankiV2UndoLastEval:', err);
+        if (typeof window.recordAppError === 'function') {
+          window.recordAppError('Synchrotron undo: ' + (err && err.message ? err.message : err), 'anki-app-v2');
+        }
         if (typeof window.sysAlert === 'function') {
           window.sysAlert('Erreur en revenant à la carte précédente.', 'Synchrotron');
         }
@@ -4802,6 +4808,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       nextCard(true);
     }).catch(function (err) {
       console.error('evalCardV2 save:', err);
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('Synchrotron eval save: ' + (err && err.message ? err.message : err), 'anki-app-v2');
+      }
       // Notation déjà appliquée en mémoire (local souvent OK) — avancer pour
       // empêcher une double notation si on se contentait de relâcher _evalBusy.
       try {
@@ -4813,6 +4822,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     } catch (e) {
       S._evalBusy = false;
       console.error('evalCardV2:', e);
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('Synchrotron eval: ' + (e && e.message ? e.message : e), 'anki-app-v2');
+      }
       if (typeof window.sysAlert === 'function') {
         window.sysAlert('Erreur lors de l’évaluation — réessaie.', 'Synchrotron');
       }
@@ -4828,6 +4840,9 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     } catch (err) {
       S._evalBusy = false;
       console.error('ankiV2SkipCard:', err);
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('Synchrotron skip: ' + (err && err.message ? err.message : err), 'anki-app-v2');
+      }
       if (typeof window.sysAlert === 'function') {
         window.sysAlert('Erreur en passant la carte — réessaie.', 'Synchrotron');
       }

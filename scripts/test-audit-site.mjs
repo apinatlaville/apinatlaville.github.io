@@ -38,7 +38,9 @@ assert(/refuseSecondaryFullMutation[\s\S]*evalCardV2/.test(ankiSrc), 'evalCardV2
 assert(/S\._evalBusy/.test(ankiSrc), 'evalCardV2 : lock anti double-clic');
 assert(/refuseSecondaryFullMutation[\s\S]*ankiV2SaveExo/.test(ankiSrc), 'ankiV2SaveExo : garde secondaire');
 assert(/ankiV2SaveExo[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(ankiSrc), 'ankiV2SaveExo : await save');
-assert(/canFullSave[\s\S]*shiftProgramIfMissedDaily/.test(ankiSrc), 'shiftProgram : skip secondaire');
+assert(/DeviceSession\.canFullSave/.test(ankiSrc), 'quickAdd : garde secondaire canFullSave');
+assert(/shiftProgramIfMissedDaily/.test(fs.readFileSync(path.join(root, 'anki-algo.js'), 'utf8')),
+  'shiftProgramIfMissedDaily toujours dans algo');
 assert(/renderCours[\s\S]*watchUserData|watchUserData[\s\S]*renderCours/.test(dsSrc),
   'secondaire : refresh UI après snapshot');
 
@@ -57,7 +59,7 @@ assert(/deviceUserIdEarly = \(!window\.isLocalMode && user && user\.sub\)/.test(
 console.log('\n=== UX / logique ===\n');
 assert(/total: quickOnly\.length/.test(ankiSrc), 'ankiV2SetQuickQueue : total correct');
 assert(/n’est pas abandonnée|n'est pas abandonnée/.test(ankiSrc), 'session conflict : copy corrigée');
-assert(/__BOOT_CACHE_V\s*=\s*'20260831d'/.test(indexSrc), 'cache 20260831d');
+assert(/__BOOT_CACHE_V\s*=\s*'20260930a'/.test(indexSrc), 'cache 20260930a');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

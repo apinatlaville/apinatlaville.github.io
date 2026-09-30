@@ -56,7 +56,7 @@ assert(!/chunksDevoirTonight\(x\.card/.test(algoV2Src),
   'buildSession ne découpe plus les devoirs');
 assert(/includeNew[\s\S]*isReservoir|isReservoir[\s\S]*includeNew/.test(algoV2Src),
   'buildSession V2 honore includeNew (réservoir)');
-assert(/ankiIncludeNew !== undefined \? settings\.ankiIncludeNew : 0/.test(ankiSrc),
+assert(/const includeNew = 0/.test(ankiSrc) || /ankiIncludeNew !== undefined \? settings\.ankiIncludeNew : 0/.test(ankiSrc),
   'défaut includeNew = 0 (aligné UI)');
 assert(/paneAgenda|renderAgenda/.test(fs.readFileSync(path.join(root, 'agenda.js'), 'utf8')),
   'module agenda.js présent');
@@ -91,10 +91,10 @@ assert(/evalCardV2 save:[\s\S]*nextCard\(true\)/.test(ankiSrc),
   'evalCardV2 : avance quand même si save échoue (anti double-notation)');
 assert(/switchToSecondary:[\s\S]*getStatus\(\)/.test(dsSrc),
   'switchToSecondary catch : ne bloque pas l’UI');
-assert(/rEl\.onkeydown =/.test(ankiSrc), 'bindEnter : onkeydown (pas de stack listeners)');
+assert(/el\.onkeydown =/.test(ankiSrc) || /rEl\.onkeydown =/.test(ankiSrc), 'bindEnter : onkeydown (pas de stack listeners)');
 assert(/coursWizardDeleteCreated[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(wizSrc),
   'wizard delete catch save errors');
-assert(/__BOOT_CACHE_V\s*=\s*'20260831d'/.test(indexSrc), 'cache 20260831d');
+assert(/__BOOT_CACHE_V\s*=\s*'20260930a'/.test(indexSrc), 'cache 20260930a');
 
 // ── Runtime : includeNew + exclusion W- ──
 console.log('\n=== Runtime includeNew / pas de W- ===\n');

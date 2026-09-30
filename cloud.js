@@ -179,6 +179,12 @@ function launchAppWhenReady(payload) {
         window.bootLog('error', 'launchApp.timeout', { attempts: attempts });
       }
       console.error("❌ CRITIQUE : app.js n'a pas chargé à temps.");
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError("CRITIQUE : app.js n'a pas chargé à temps (" + attempts + " tentatives)", 'cloud.js', {
+          toast: true,
+          sticky: true
+        });
+      }
       if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
       else showLoginUi();
       const loginOverlay = document.getElementById('loginOverlay');
@@ -306,6 +312,9 @@ window.handleCredentialResponse = async function(response) {
     setGoogleAuthBusy(false);
     const M = window.APP_MSG || {};
     const msg = (M.AUTH_FIREBASE || "Erreur d'authentification Firebase") + ' : ' + authError.message;
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError(msg, 'cloud.js', { toast: false });
+    }
     if (typeof window.sysAlert === 'function') window.sysAlert(window.escHtml(msg), M.ERROR || 'Erreur');
     else if (typeof window.showToast === 'function') window.showToast(msg);
     else alert(msg);
@@ -333,6 +342,9 @@ window.signOut = async function() {
       await window.auth.signOut();
     } catch (e) {
       console.error("Erreur à la déconnexion :", e);
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('Déconnexion: ' + (e && e.message ? e.message : e), 'cloud.js');
+      }
     }
   }
 
@@ -396,6 +408,11 @@ window.checkSavedSession = async function() {
     }
   } catch (e) {
     console.error("Firebase indisponible :", e);
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Firebase indisponible: ' + (e && e.message ? e.message : e), 'cloud.js', {
+        toast: true
+      });
+    }
     if (window.bootMark) window.bootMark('auth.checkSavedSession.error', { error: e.message });
     showLoginUi();
   }

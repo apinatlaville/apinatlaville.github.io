@@ -1,3 +1,4 @@
+window.__appRejectionHandlerReady = true;
 window.addEventListener('unhandledrejection', function(event) {
   const raw = event.reason;
   const errorMsg = raw && raw.message ? raw.message : (raw != null ? String(raw) : 'Erreur asynchrone inconnue');
@@ -2439,8 +2440,13 @@ async function initApp(user) {
         window.D = null;
       }
     }
-    if(window.appErrors) window.appErrors.push({ time: new Date().toLocaleTimeString(), msg: "Erreur Init: " + e.message, source: 'app.js' });
-    if (window.bootMark) window.bootMark('initApp.error', { error: e.message });
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Erreur Init: ' + (e && e.message ? e.message : e), 'app.js', {
+        toast: true,
+        toastMsg: ((window.APP_MSG && window.APP_MSG.ERROR_PREFIX) || 'Erreur : ') + (e && e.message ? e.message : e)
+      });
+    }
+    if (window.bootMark) window.bootMark('initApp.error', { error: e && e.message });
     console.error("Erreur d'initialisation :", e);
     window.cloudConnected = false;
   }
@@ -3107,6 +3113,13 @@ window.save = function() {
   });
   window._saveChain = result.catch(function(e) {
     console.error('save queue:', e);
+    if (typeof window.recordAppError === 'function') {
+      var msg = e && e.message ? e.message : String(e);
+      // Bruit attendu (secondaire / save désactivée) — pas dans le journal.
+      if (!/SECONDARY_READ_ONLY|SAVE_DISABLED/i.test(msg)) {
+        window.recordAppError('File sauvegarde: ' + msg, 'app.js');
+      }
+    }
   });
   return result;
 };
@@ -3302,9 +3315,8 @@ window.initAppAfterAuth = function(user) {
     var done = Promise.resolve().then(function () { return initApp(user); });
     return done.catch(function (e) {
       console.error('initAppAfterAuth:', e);
-      if (typeof window.recordAppError === 'function') {
-        window.recordAppError('initAppAfterAuth: ' + (e && e.message ? e.message : e), 'app.js');
-      }
+      // Ne pas double-logger ici : initApp (fatal) et cloud.js (launchApp.failed) le font déjà.
+      throw e;
     }).finally(function () {
       // Filet : ne jamais rester bloqué sur le splash après auth / mode local
       try {

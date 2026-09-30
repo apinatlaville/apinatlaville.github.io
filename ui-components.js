@@ -165,9 +165,11 @@
   };
 
   window.uiLogEntry = function (entry) {
+    var meta = esc(entry.time) + ' — Source: ' + esc(entry.source);
+    if (entry.lineno) meta += ' · L' + esc(String(entry.lineno));
     return (
       '<div class="ui-log-entry">' +
-      '<div class="ui-log-meta">' + esc(entry.time) + ' — Source: ' + esc(entry.source) + '</div>' +
+      '<div class="ui-log-meta">' + meta + '</div>' +
       '<div class="ui-log-msg">' + esc(entry.msg) + '</div>' +
       '</div>'
     );
