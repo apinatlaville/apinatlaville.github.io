@@ -136,27 +136,38 @@ span.flatpickr-weekday {
   -webkit-backdrop-filter: blur(28px) saturate(1.85);
   overflow: hidden;
 }
-/* Dropdown porté sur body depuis un overlay (évite clip overflow + look Safari natif) */
+.choices.fc-choices .choices__list--dropdown .choices__item,
+.choices.fc-choices .choices__list[aria-expanded] .choices__item,
+.fc-choices-dropdown--portal .choices__item {
+  color: #e8eefc !important;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+/* Survol / focus clavier : fond bleu opaque + texte blanc (lisible hors thème OS) */
+.choices.fc-choices .choices__list--dropdown .choices__item--selectable.is-highlighted,
+.choices.fc-choices .choices__list[aria-expanded] .choices__item--selectable.is-highlighted,
+.fc-choices-dropdown--portal .choices__item--selectable.is-highlighted {
+  background: #3a6fd8 !important;
+  color: #ffffff !important;
+}
+/* Dropdown porté sur body : hors de .choices → mêmes couleurs explicites */
 .fc-choices-dropdown--portal.choices__list--dropdown,
 .fc-choices-dropdown--portal.choices__list[aria-expanded] {
   margin-top: 0;
   max-height: min(50vh, 320px);
   overflow-y: auto;
-  background: #141824;
+  background: #141824 !important;
+  color: #e8eefc;
   border: 0.5px solid rgba(130, 165, 255, 0.22);
   border-radius: 12px;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
   z-index: 10050;
+  /* Empêche Safari / mode clair OS d’imposer un fond blanc sur :hover */
+  color-scheme: dark;
 }
-.choices.fc-choices .choices__list--dropdown .choices__item,
-.choices.fc-choices .choices__list[aria-expanded] .choices__item {
-  color: var(--txt);
-  font-size: 13px;
-  padding: 10px 12px;
-}
-.choices.fc-choices .choices__list--dropdown .choices__item--selectable.is-highlighted,
-.choices.fc-choices .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
-  background: rgba(91, 154, 255, 0.18);
+.choices.fc-choices .choices__list--dropdown,
+.choices.fc-choices .choices__list[aria-expanded] {
+  color-scheme: dark;
 }
 .choices.fc-choices .choices__input {
   background: transparent;

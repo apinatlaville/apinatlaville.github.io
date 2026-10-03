@@ -1,42 +1,9 @@
 /**
- * home-lab.js — Labo Accueil : maquettes plein écran (comme le vrai Accueil)
+ * home-lab.js — Labo Accueil : maquette « Trois portes » (test Système)
+ * Base Doc · Synchrotron · Rapide + stats / XP / dock code.
  */
 (function () {
   'use strict';
-
-  var IDEAS = [
-    {
-      id: 'code',
-      title: 'Code au centre',
-      pitch: 'Ouvrir un doc = geste principal'
-    },
-    {
-      id: 'portes',
-      title: 'Trois portes',
-      pitch: 'Base Doc · Sync · Rapide'
-    },
-    {
-      id: 'jour',
-      title: 'Aujourd’hui',
-      pitch: 'Ce qui presse, d’abord'
-    },
-    {
-      id: 'sync',
-      title: 'Révision d’abord',
-      pitch: 'Synchrotron en tête'
-    }
-  ];
-
-  var _view = null;
-  var _pick = null;
-  try {
-    _pick = localStorage.getItem('homeLabPick') || null;
-    _view = localStorage.getItem('homeLabView') || _pick || 'portes';
-  } catch (e) {
-    _pick = null;
-    _view = 'portes';
-  }
-  if (!IDEAS.some(function (i) { return i.id === _view; })) _view = 'portes';
 
   function esc(s) {
     return typeof window.escHtml === 'function'
@@ -82,8 +49,11 @@
 
     var dueX = 0;
     var dueY = 0;
+    var reservoir = 0;
     exos.forEach(function (c) {
-      if (!c || c.statut !== 'actif') return;
+      if (!c) return;
+      if (c.statut === 'reservoir') { reservoir++; return; }
+      if (c.statut !== 'actif') return;
       var due = c.dateProchaineRevision;
       if (!due || due > today) return;
       var kind = window.AnkiAlgoV2 && window.AnkiAlgoV2.cardKind
@@ -105,6 +75,23 @@
       orphans = (oc.cours || 0) + (oc.anki || 0);
     }
 
+    var xp = null;
+    try {
+      if (window.XpLab && typeof window.XpLab.compute === 'function') {
+        var snap = window.XpLab.compute();
+        xp = {
+          level: snap.prog.level,
+          title: snap.prog.title.title,
+          pct: snap.prog.pct,
+          into: snap.prog.into,
+          need: snap.prog.need,
+          streak: snap.streak,
+          todayXp: snap.todayXp,
+          totalXp: snap.totalXp
+        };
+      }
+    } catch (eXp) { /* ignore */ }
+
     return {
       docs: cours.length,
       fiches: cours.filter(function (c) { return c.type === 'FICHE'; }).length,
@@ -113,7 +100,9 @@
       dueY: dueY,
       dmDue: dmDue,
       orphans: orphans,
-      today: today
+      reservoir: reservoir,
+      today: today,
+      xp: xp
     };
   }
 
@@ -130,53 +119,62 @@
     );
   }
 
-  function brandBlock(name, sub) {
+  function fmt(n) {
+    return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+  }
+
+  function statsStrip(s) {
+    var due = s.dueX + s.dueY;
+    var chips = [
+      { ico: 'clipboard-list', n: s.docs, l: 'docs', go: 'cours' },
+      { ico: 'dna', n: due, l: 'dues', go: 'ankiV2', hot: due > 0 },
+      { ico: 'zap', n: s.dueY, l: 'Y-', go: 'flashcards' },
+      { ico: 'qr-code', n: s.qrTodo, l: 'QR', go: 'print', hot: s.qrTodo > 0 }
+    ];
+    if (s.xp) {
+      chips.unshift({
+        ico: 'flame',
+        n: 'Niv.' + s.xp.level,
+        l: s.xp.pct + '%',
+        go: 'xpLab',
+        xp: true
+      });
+    }
     return (
-      '<div class="hlab-brand-block">' +
-        '<div class="hlab-brand">Mes Cours <span class="hlab-edition">PC*</span></div>' +
-        '<p class="hlab-greet">' +
-          (name ? 'Bonjour, <b>' + esc(name) + '</b>' : 'Bonjour') +
-          (sub ? ' <span class="hlab-dot">·</span> ' + esc(sub) : '') +
-        '</p>' +
+      '<div class="hlab-stats" role="group" aria-label="Aperçu rapide">' +
+        chips.map(function (c) {
+          return (
+            '<button type="button" class="hlab-stat' +
+              (c.hot ? ' is-hot' : '') + (c.xp ? ' is-xp' : '') +
+              '" data-go="' + c.go + '">' +
+              '<span class="hlab-stat-ico">' + icon(c.ico, 14) + '</span>' +
+              '<span class="hlab-stat-n">' + esc(String(c.n)) + '</span>' +
+              '<span class="hlab-stat-l">' + esc(c.l) + '</span>' +
+            '</button>'
+          );
+        }).join('') +
+        (s.xp
+          ? '<div class="hlab-stat-xpbar" title="' + esc(s.xp.title) + ' · ' +
+              fmt(s.xp.into) + '/' + fmt(s.xp.need) + ' XP">' +
+              '<div class="hlab-stat-xpfill" style="width:' + s.xp.pct + '%"></div>' +
+            '</div>'
+          : '') +
       '</div>'
     );
   }
 
-  function mockCode(s, name) {
-    return (
-      '<div class="hlab-stage hlab-stage-code">' +
-        '<div class="hlab-stage-bg" aria-hidden="true"></div>' +
-        '<div class="hlab-stage-inner">' +
-          brandBlock(name, dateLabel()) +
-          '<h3 class="hlab-hero-title">Ouvrir un document</h3>' +
-          '<p class="hlab-hero-sub">Tape le code barre du polycopié — comme sur l’Accueil.</p>' +
-          codeBoxesHtml() +
-          '<div class="hlab-cta-row">' +
-            '<button type="button" class="bp hlab-cta-main" id="hlabBtnOpen">Ouvrir</button>' +
-            '<button type="button" class="bs" id="hlabBtnCam">' + icon('camera', 16) + ' Scanner</button>' +
-          '</div>' +
-          '<div class="hlab-rail">' +
-            '<button type="button" class="hlab-rail-btn" data-go="ankiV2">' +
-              icon('dna', 16) + '<span>Synchrotron</span>' +
-              (s.dueX + s.dueY ? '<em>' + (s.dueX + s.dueY) + '</em>' : '') +
-            '</button>' +
-            '<button type="button" class="hlab-rail-btn" data-go="cours">' +
-              icon('clipboard-list', 16) + '<span>Base Doc</span>' +
-            '</button>' +
-            '<button type="button" class="hlab-rail-btn" id="hlabBtnKholle">' +
-              icon('dice-5', 16) + '<span>Khôlle</span>' +
-            '</button>' +
-          '</div>' +
-          (s.qrTodo
-            ? '<p class="hlab-foot-note">' + icon('qr-code', 14) + ' ' + s.qrTodo + ' QR à initialiser</p>'
-            : '<p class="hlab-foot-note hlab-ok">' + icon('sparkles', 14) + ' Tous les QR sont à jour</p>') +
-        '</div>' +
-      '</div>'
-    );
+  function portalBadge(text, tone) {
+    if (!text) return '';
+    return '<span class="hlab-portal-badge hlab-badge-' + (tone || 'acc') + '">' + esc(text) + '</span>';
   }
 
   function mockPortes(s, name) {
     var due = s.dueX + s.dueY;
+    var syncTone = due > 8 ? 'red' : (due > 0 ? 'grn' : 'mut');
+    var syncBadge = due > 0 ? due + ' dues' : 'À jour';
+    var docBadge = s.orphans ? s.orphans + ' à ranger' : (s.qrTodo ? s.qrTodo + ' QR' : null);
+    var rapideBadge = s.dueY > 0 ? s.dueY + ' Y-' : null;
+
     return (
       '<div class="hlab-stage hlab-stage-portes">' +
         '<div class="hlab-stage-bg" aria-hidden="true"></div>' +
@@ -188,36 +186,48 @@
             '<p class="hlab-greet hlab-greet-lg">' +
               (name ? 'Bonjour, <b>' + esc(name) + '</b>' : 'Bonjour') +
               ' <span class="hlab-dot">·</span> ' + esc(dateLabel()) +
+              (s.xp && s.xp.streak
+                ? ' <span class="hlab-dot">·</span> ' + icon('flame', 14) + ' ' + s.xp.streak + ' j'
+                : '') +
             '</p>' +
-            '<p class="hlab-portes-tagline">Choisis ta porte — docs, révision, ou flash rapide.</p>' +
+            '<p class="hlab-portes-tagline">Trois portes — docs, révision espacée, ou flash rapide.</p>' +
+            statsStrip(s) +
           '</header>' +
           '<div class="hlab-portals" role="navigation" aria-label="Accès principaux">' +
             '<button type="button" class="hlab-portal hlab-portal-doc" data-go="cours" style="--i:0">' +
+              portalBadge(docBadge, s.orphans ? 'gold' : 'acc') +
               '<span class="hlab-portal-num" aria-hidden="true">01</span>' +
               '<span class="hlab-portal-ico">' + icon('clipboard-list', 32) + '</span>' +
               '<strong class="hlab-portal-title">Base Doc</strong>' +
               '<span class="hlab-portal-metric">' + s.docs + ' document' + (s.docs !== 1 ? 's' : '') + '</span>' +
               '<span class="hlab-portal-hint">' +
-                (s.fiches ? s.fiches + ' fiches' : 'Cours, TD, DS') +
-                (s.orphans ? ' · ' + s.orphans + ' à ranger' : '') +
+                (s.fiches ? s.fiches + ' fiches · ' : '') +
+                'Cours, TD, DS' +
+                (s.qrTodo ? ' · ' + s.qrTodo + ' QR à traiter' : '') +
               '</span>' +
               '<span class="hlab-portal-cta">Entrer ' + icon('arrow-right', 14) + '</span>' +
             '</button>' +
             '<button type="button" class="hlab-portal hlab-portal-sync" data-go="ankiV2" style="--i:1">' +
+              portalBadge(syncBadge, syncTone) +
               '<span class="hlab-portal-num" aria-hidden="true">02</span>' +
               '<span class="hlab-portal-ico">' + icon('dna', 32) + '</span>' +
               '<strong class="hlab-portal-title">Synchrotron</strong>' +
               '<span class="hlab-portal-metric">' + due + ' due' + (due !== 1 ? 's' : '') + ' aujourd’hui</span>' +
               '<span class="hlab-portal-hint">' + s.dueX + ' X- · ' + s.dueY + ' Y-' +
-                (s.dmDue ? ' · ' + s.dmDue + ' DM' : '') + '</span>' +
-              '<span class="hlab-portal-cta">Réviser ' + icon('arrow-right', 14) + '</span>' +
+                (s.dmDue ? ' · ' + s.dmDue + ' DM' : '') +
+                (s.reservoir ? ' · ' + s.reservoir + ' en réservoir' : '') +
+              '</span>' +
+              '<span class="hlab-portal-cta">' + (due ? 'Réviser' : 'Ouvrir') + ' ' + icon('arrow-right', 14) + '</span>' +
             '</button>' +
             '<button type="button" class="hlab-portal hlab-portal-rapide" data-go="flashcards" style="--i:2">' +
+              portalBadge(rapideBadge, 'gold') +
               '<span class="hlab-portal-num" aria-hidden="true">03</span>' +
               '<span class="hlab-portal-ico">' + icon('zap', 32) + '</span>' +
               '<strong class="hlab-portal-title">Rapide</strong>' +
-              '<span class="hlab-portal-metric">' + s.dueY + ' Y- due' + (s.dueY !== 1 ? 's' : '') + '</span>' +
-              '<span class="hlab-portal-hint">Vocab, formules — session courte</span>' +
+              '<span class="hlab-portal-metric">' +
+                (s.dueY ? s.dueY + ' Y- due' + (s.dueY !== 1 ? 's' : '') : 'Session libre') +
+              '</span>' +
+              '<span class="hlab-portal-hint">Vocab, formules — 5 à 15 min</span>' +
               '<span class="hlab-portal-cta">Lancer ' + icon('arrow-right', 14) + '</span>' +
             '</button>' +
           '</div>' +
@@ -230,91 +240,19 @@
             '<div class="hlab-dock-actions">' +
               '<button type="button" class="bp" id="hlabBtnOpen">Ouvrir</button>' +
               '<button type="button" class="bs" id="hlabBtnCam">' + icon('camera', 14) + ' Scan</button>' +
-              '<button type="button" class="bs" id="hlabBtnKholle">' + icon('dice-5', 14) + '</button>' +
+              '<button type="button" class="bs" id="hlabBtnKholle" title="Khôlle">' + icon('dice-5', 14) + '</button>' +
             '</div>' +
           '</div>' +
+          (s.xp
+            ? '<p class="hlab-xp-foot">' +
+                icon('flame', 14) + ' <b>Niv. ' + s.xp.level + '</b> · ' + esc(s.xp.title) +
+                ' · +' + fmt(s.xp.todayXp) + ' XP aujourd’hui' +
+                ' <button type="button" class="hlab-link" data-go="xpLab">Voir progression</button>' +
+              '</p>'
+            : '') +
         '</div>' +
       '</div>'
     );
-  }
-
-  function mockJour(s, name) {
-    var rows = [];
-    if (s.dmDue) rows.push({ tone: 'red', label: 'Devoirs', detail: s.dmDue + ' à traiter', go: 'agenda', ico: 'clipboard-list' });
-    if (s.dueX || s.dueY) {
-      rows.push({
-        tone: 'acc', label: 'Révisions', detail: s.dueX + ' X- · ' + s.dueY + ' Y-', go: 'ankiV2', ico: 'dna'
-      });
-    }
-    if (s.qrTodo) rows.push({ tone: 'gold', label: 'QR', detail: s.qrTodo + ' à imprimer ou scanner', go: 'print', ico: 'qr-code' });
-    if (s.orphans) rows.push({ tone: 'gold', label: 'À ranger', detail: s.orphans + ' élément' + (s.orphans !== 1 ? 's' : ''), go: 'orphelins', ico: 'inbox' });
-    if (!rows.length) {
-      rows.push({ tone: 'ok', label: 'Rien d’urgent', detail: 'Ouvre un doc ou lance une session libre', go: 'cours', ico: 'sparkles' });
-    }
-    var list = rows.map(function (r) {
-      return (
-        '<button type="button" class="hlab-day-row hlab-tone-' + r.tone + '" data-go="' + r.go + '">' +
-          '<span class="hlab-day-ico">' + icon(r.ico, 18) + '</span>' +
-          '<span class="hlab-day-txt">' +
-            '<span class="hlab-day-lab">' + esc(r.label) + '</span>' +
-            '<span class="hlab-day-det">' + esc(r.detail) + '</span>' +
-          '</span>' +
-          '<span class="hlab-day-go">' + icon('arrow-right', 16) + '</span>' +
-        '</button>'
-      );
-    }).join('');
-
-    return (
-      '<div class="hlab-stage hlab-stage-jour">' +
-        '<div class="hlab-stage-bg" aria-hidden="true"></div>' +
-        '<div class="hlab-stage-inner hlab-stage-inner-wide">' +
-          brandBlock(name, dateLabel()) +
-          '<h3 class="hlab-hero-title">Aujourd’hui</h3>' +
-          '<div class="hlab-day-list">' + list + '</div>' +
-          '<div class="hlab-slim-bar" style="margin-top:22px;">' +
-            '<span class="hlab-slim-lbl">Code</span>' +
-            codeBoxesHtml() +
-            '<button type="button" class="bp" id="hlabBtnOpen">Go</button>' +
-            '<button type="button" class="bs" id="hlabBtnKholle">' + icon('dice-5', 14) + ' Khôlle</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>'
-    );
-  }
-
-  function mockSync(s, name) {
-    var due = s.dueX + s.dueY;
-    return (
-      '<div class="hlab-stage hlab-stage-sync">' +
-        '<div class="hlab-stage-bg" aria-hidden="true"></div>' +
-        '<div class="hlab-stage-inner">' +
-          brandBlock(name, 'Révision') +
-          '<div class="hlab-sync-hero">' +
-            '<div class="hlab-sync-count">' + due + '</div>' +
-            '<div class="hlab-sync-meta">' +
-              '<strong>Cartes dues</strong>' +
-              '<span>' + s.dueX + ' principales · ' + s.dueY + ' rapides' +
-                (s.dmDue ? ' · ' + s.dmDue + ' DM' : '') + '</span>' +
-            '</div>' +
-            '<button type="button" class="bp hlab-sync-go" data-go="ankiV2">' +
-              icon('play', 16) + ' Lancer Synchrotron</button>' +
-          '</div>' +
-          '<div class="hlab-slim-bar">' +
-            '<span class="hlab-slim-lbl">Doc</span>' +
-            codeBoxesHtml() +
-            '<button type="button" class="bp" id="hlabBtnOpen">Ouvrir</button>' +
-            '<button type="button" class="bs" data-go="cours">Base Doc</button>' +
-          '</div>' +
-        '</div>' +
-      '</div>'
-    );
-  }
-
-  function renderStage(id, s, name) {
-    if (id === 'portes') return mockPortes(s, name);
-    if (id === 'jour') return mockJour(s, name);
-    if (id === 'sync') return mockSync(s, name);
-    return mockCode(s, name);
   }
 
   function checkLabCode(force) {
@@ -364,21 +302,6 @@
   }
 
   function bind(root) {
-    root.querySelectorAll('[data-view]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        _view = btn.getAttribute('data-view');
-        try { localStorage.setItem('homeLabView', _view); } catch (e) { /* ignore */ }
-        window.renderHomeLab();
-      });
-    });
-    var prefer = root.querySelector('[data-prefer]');
-    if (prefer) {
-      prefer.addEventListener('click', function () {
-        _pick = _view;
-        try { localStorage.setItem('homeLabPick', _pick); } catch (e) { /* ignore */ }
-        window.renderHomeLab();
-      });
-    }
     root.querySelectorAll('[data-go]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
@@ -409,30 +332,17 @@
     if (!pane) return;
     var s = stats();
     var name = userName();
-    var idea = IDEAS.find(function (i) { return i.id === _view; }) || IDEAS[0];
-    var isPicked = _pick === idea.id;
-
-    var switcher = IDEAS.map(function (i) {
-      return (
-        '<button type="button" class="hlab-sw' + (_view === i.id ? ' is-on' : '') + '" data-view="' + i.id + '">' +
-          '<strong>' + esc(i.title) + '</strong>' +
-          '<span>' + esc(i.pitch) + '</span>' +
-        '</button>'
-      );
-    }).join('');
 
     pane.innerHTML =
       '<div class="hlab-shell">' +
-        '<div class="hlab-toolbar">' +
+        '<div class="hlab-toolbar hlab-toolbar-solo">' +
           '<div class="hlab-toolbar-left">' +
-            '<span class="hlab-lab-tag">' + icon('layout-list', 14) + ' Labo</span>' +
-            '<div class="hlab-switcher" role="tablist">' + switcher + '</div>' +
+            '<span class="hlab-lab-tag">' + icon('layout-list', 14) + ' Labo Accueil · test</span>' +
+            '<span class="hlab-lab-note">Maquette « Trois portes » — pas encore l’Accueil officiel</span>' +
           '</div>' +
-          '<button type="button" class="bp hlab-prefer' + (isPicked ? ' is-picked' : '') + '" data-prefer="1">' +
-            (isPicked ? icon('check', 14) + ' Préférence' : 'Je préfère celle-ci') +
-          '</button>' +
+          '<button type="button" class="bs" data-go="xpLab">' + icon('flame', 14) + ' Progression</button>' +
         '</div>' +
-        '<div class="hlab-canvas">' + renderStage(idea.id, s, name) + '</div>' +
+        '<div class="hlab-canvas">' + mockPortes(s, name) + '</div>' +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(pane);

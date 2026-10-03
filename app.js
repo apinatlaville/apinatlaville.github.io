@@ -474,8 +474,8 @@ document.addEventListener('click', function(e) {
         if (!window._sysDialogSticky) window.closeSysDialog();
       } 
       else if (ov.id === 'ovMove') ov.classList.add('hidden');
-      else if (ov.id === 'ovExo' || ov.id === 'ovDevoir') ov.classList.add('hidden');
-      /* ovQuickCreate / ovQuickLatex : pas de fermeture au clic extérieur (évite de perdre la saisie) */
+      /* ovExo / ovQuickCreate / ovQuickLatex : pas de fermeture au clic extérieur (évite de perdre la saisie) */
+      else if (ov.id === 'ovDevoir') ov.classList.add('hidden');
     }
   });
   const w = window.$('fabWrapper');

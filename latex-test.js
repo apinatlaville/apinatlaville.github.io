@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 17;
+  var UI_REV = 19;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -1155,16 +1155,78 @@
     return out;
   }
 
-  /** Contenu « haut » qui exige des délimiteurs extensibles avec glyphes milieu. */
-  function latexBodyNeedsStretchyMiddles(body) {
-    return /\\(?:frac|dfrac|tfrac|sqrt|begin|overrightarrow|overset|underset|lVert|rVert|left|bigl|Bigl)/.test(body)
-      || /\\\\/.test(body);
+  /** Compte \\frac / \\tfrac / \\cfrac (pas dfrac — déjà « tall »). */
+  function countFracs(body) {
+    var n = 0;
+    var re = /\\(?:frac|tfrac|cfrac)\s*/g;
+    while (re.exec(body) !== null) n++;
+    return n;
   }
 
   /**
-   * MathLive 0.110 : \\left…\\right autour d’une fraction ommet souvent ⎜
-   * → parenthèses trop courtes qui débordent sur la ligne du dessus (gathered).
-   * Contournement aperçu : \\rule{0pt}{2.6em} invisible pour forcer l’assemblage Size4.
+   * Contenu vraiment « haut » → hack \\rule Size4 (multiligne / matrices /
+   * fractions imbriquées / dfrac). Un \\left imbriqué plat (ensembles, etc.)
+   * ne doit PAS gonfler les accolades externes.
+   */
+  function latexBodyNeedsStretchyMiddles(body) {
+    var s = String(body || '');
+    if (/\\\\/.test(s)) return true;
+    if (/\\begin\s*\{/.test(s)) return true;
+    if (/\\(?:dfrac|displaystyle)/.test(s)) return true;
+    if (/\\(?:overrightarrow|overset|underset)/.test(s)) return true;
+    if (countFracs(s) >= 2) return true;
+    if (/\\sqrt[\s\d]*\{[^}]*\\(?:frac|dfrac|tfrac)/.test(s)) return true;
+    return false;
+  }
+
+  /** Une seule fraction simple : garder \\left…\\right sans rule. */
+  function latexBodyHasSimpleFrac(body) {
+    var s = String(body || '');
+    if (latexBodyNeedsStretchyMiddles(s)) return false;
+    return countFracs(s) === 1 || /\\sqrt/.test(s);
+  }
+
+  /** Corps plat (texte, ∈, ∃, indices…) → \\bigl/\\bigr plutôt que Size4. */
+  function latexBodyIsFlat(body) {
+    var s = String(body || '');
+    if (latexBodyNeedsStretchyMiddles(s)) return false;
+    if (latexBodyHasSimpleFrac(s)) return false;
+    return true;
+  }
+
+  function stretchyRuleHeight(body) {
+    var s = String(body || '');
+    if (/\\\\/.test(s) || /\\begin\s*\{/.test(s)) return '2.6em';
+    if (/\\(?:dfrac|displaystyle)/.test(s)) return '2.2em';
+    return '2.0em';
+  }
+
+  /** Mappe le token \\left/\\right vers \\bigl/\\bigr (aperçu uniquement). */
+  function toBigDelim(side, tok) {
+    var t = String(tok || '');
+    var prefix = side === 'right' ? '\\bigr' : '\\bigl';
+    if (t === '(' || t === ')' || t === '[' || t === ']' || t === '|' || t === '.' || t === '/') {
+      return prefix + t;
+    }
+    if (t === '{' || t === '\\{' || t === '\\lbrace') return prefix + '\\{';
+    if (t === '}' || t === '\\}' || t === '\\rbrace') return prefix + '\\}';
+    if (t === '\\lvert' || t === '\\rvert') return prefix + '|';
+    if (t === '\\lVert' || t === '\\rVert' || t === '\\|') return prefix + '\\|';
+    if (t === '\\langle') return prefix + '\\langle';
+    if (t === '\\rangle') return prefix + '\\rangle';
+    if (t === '\\lfloor') return prefix + '\\lfloor';
+    if (t === '\\rfloor') return prefix + '\\rfloor';
+    if (t === '\\lceil') return prefix + '\\lceil';
+    if (t === '\\rceil') return prefix + '\\rceil';
+    /* fallback : laisser left/right */
+    return (side === 'right' ? '\\right' : '\\left') + t;
+  }
+
+  /**
+   * MathLive 0.110 :
+   * - contenu haut : \\rule pour forcer l’assemblage Size4 (⎜)
+   * - fraction simple : \\left…\\right tel quel
+   * - corps plat : \\bigl…\\bigr (évite accolades/parenthèses géantes type {y∈E…})
    * (Ne modifie pas la valeur éditée / sauvegardée — uniquement latexToMarkup.)
    */
   function normalizeStretchyDelims(latex) {
@@ -1188,7 +1250,7 @@
       var openTok = openCh;
       var afterOpen = leftCmdEnd + 1;
       if (openCh === '\\') {
-        var mOpen = s.slice(leftCmdEnd).match(/^\\(lbrace|rbrace|lvert|rvert|lVert|rVert|langle|rangle|\{|\}|\||\.|[\[\]()])/);
+        var mOpen = s.slice(leftCmdEnd).match(/^\\(lbrace|rbrace|lvert|rvert|lVert|rVert|langle|rangle|lfloor|rfloor|lceil|rceil|\{|\}|\||\.|[\[\]()])/);
         if (!mOpen) {
           out += s.charAt(i);
           i++;
@@ -1197,7 +1259,6 @@
         openTok = mOpen[0];
         afterOpen = leftCmdEnd + openTok.length;
       }
-      /* Cherche \\right correspondant (profondeur left/right) */
       var depth = 1;
       var j = afterOpen;
       var rightAt = -1;
@@ -1216,21 +1277,24 @@
             if (rPos >= s.length) break;
             var rCh = s.charAt(rPos);
             if (rCh === '\\') {
-              var mR = s.slice(rPos).match(/^\\(lbrace|rbrace|lvert|rvert|lVert|rVert|langle|rangle|\{|\}|\||\.|[\[\]()])/);
+              var mR = s.slice(rPos).match(/^\\(lbrace|rbrace|lvert|rvert|lVert|rVert|langle|rangle|lfloor|rfloor|lceil|rceil|\{|\}|\||\.|[\[\]()])/);
               rightTok = mR ? mR[0] : '\\';
               rightAt = rPos + rightTok.length;
             } else {
               rightTok = rCh;
               rightAt = rPos + 1;
             }
-            var body = s.slice(afterOpen, j);
-            if (latexBodyNeedsStretchyMiddles(body) && body.indexOf('\\rule{0pt}') < 0) {
-              out += '\\left' + openTok + body + '\\rule{0pt}{2.6em}\\right' + rightTok;
+            var rawBody = s.slice(afterOpen, j);
+            var body = normalizeStretchyDelims(rawBody);
+            if (latexBodyNeedsStretchyMiddles(rawBody)) {
+              out += '\\left' + openTok + body + '\\rule{0pt}{' + stretchyRuleHeight(rawBody) + '}\\right' + rightTok;
+            } else if (latexBodyIsFlat(rawBody)) {
+              out += toBigDelim('left', openTok) + body + toBigDelim('right', rightTok);
             } else {
-              out += s.slice(i, rightAt);
+              out += '\\left' + openTok + body + '\\right' + rightTok;
             }
             i = rightAt;
-            rightAt = -2; /* marker: handled */
+            rightAt = -2;
             break;
           }
           j += 6;

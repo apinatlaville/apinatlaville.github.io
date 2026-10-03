@@ -1,29 +1,32 @@
 /**
- * xp-lab.js — Labo Progression : XP + niveaux exponentiels (cartes révisées)
- * Courbe ×1.5 · titres type classement prépa · bonus streak sur l’XP.
+ * xp-lab.js — Labo Progression : XP + niveaux (cartes révisées)
+ * Courbe ×1.38 · titres classement prépa · streak · semaine.
  */
 (function () {
   'use strict';
 
-  var BASE_XP = 40;
-  var GROWTH = 1.5;
-  var MAX_LEVEL = 60;
-  /** +4 % d’XP par jour de streak après J1, plafond ×1,60 */
-  var STREAK_STEP = 0.04;
-  var STREAK_CAP = 1.6;
+  var BASE_XP = 36;
+  var GROWTH = 1.38;
+  var MAX_LEVEL = 80;
+  /** +5 % d’XP par jour de streak après J1, plafond ×1,75 */
+  var STREAK_STEP = 0.05;
+  var STREAK_CAP = 1.75;
 
-  /** Paliers façon classement écoles (humour prépa) — du filet de sécu au graal */
+  /** Paliers façon classement écoles (humour prépa) */
   var TITLES = [
-    { min: 1,  title: 'Polytech',              blurb: 'Le filet de sécu — tu es sur le tableau' },
-    { min: 3,  title: 'Textile Roubaix',       blurb: 'ENSAIT vibes — original, mais on vise plus haut' },
-    { min: 6,  title: 'CCP Bourgogne',         blurb: 'Concours commun — tu tiens le rythme' },
-    { min: 10, title: 'Mines Alès',            blurb: 'Groupe Mines — ça commence à sentir bon' },
-    { min: 14, title: 'Phelma',                blurb: 'Grenoble INP — physique & électro, sérieux' },
-    { min: 19, title: 'Ensimag',               blurb: 'Info Grenoble — tu sors du lot' },
-    { min: 25, title: 'Centrale Méditerranée', blurb: 'Ex-Centrale Marseille — très bon tableau' },
-    { min: 32, title: 'Centrale Lyon',         blurb: 'Top Centrale — presque le sommet' },
-    { min: 38, title: 'Mines Paris',           blurb: 'ParisTech — le dream board' },
-    { min: 45, title: 'Polytechnique',         blurb: 'X — le graal. Casert et bicorne mental.' }
+    { min: 1,  title: 'Polytech',              blurb: 'Le filet — tu es sur le tableau' },
+    { min: 3,  title: 'Textile Roubaix',       blurb: 'ENSAIT vibes — original, on vise plus haut' },
+    { min: 5,  title: 'UTBM',                  blurb: 'Tech & terrain — tu prends le rythme' },
+    { min: 8,  title: 'CCP Bourgogne',         blurb: 'Concours commun — sérieux' },
+    { min: 12, title: 'Mines Alès',            blurb: 'Groupe Mines — ça sent bon' },
+    { min: 16, title: 'Phelma',                blurb: 'Grenoble INP — physique & électro' },
+    { min: 21, title: 'Ensimag',               blurb: 'Info Grenoble — tu sors du lot' },
+    { min: 27, title: 'Centrale Méditerranée', blurb: 'Très bon tableau' },
+    { min: 33, title: 'Centrale Lyon',         blurb: 'Top Centrale — presque le sommet' },
+    { min: 40, title: 'CentraleSupélec',       blurb: 'Le rêve mixte' },
+    { min: 48, title: 'Mines Paris',           blurb: 'ParisTech — dream board' },
+    { min: 58, title: 'Polytechnique',         blurb: 'X — le graal. Casert mental.' },
+    { min: 70, title: 'X★ Ultime',             blurb: 'Au-delà du classement — légende PC*' }
   ];
 
   function esc(s) {
@@ -53,6 +56,13 @@
     return t;
   }
 
+  function nextTitleAfter(level) {
+    for (var i = 0; i < TITLES.length; i++) {
+      if (TITLES[i].min > level) return TITLES[i];
+    }
+    return null;
+  }
+
   function streakMultiplier(streakDays) {
     var d = Math.max(0, streakDays | 0);
     if (d <= 1) return 1;
@@ -67,41 +77,32 @@
     return 'main';
   }
 
-  /**
-   * Durée prise en compte (secondes) : temps réel de la révision si dispo,
-   * sinon temps cible de la carte (défaut 60 s).
-   */
   function durationSeconds(card, h) {
     if (h && typeof h.tempsReel === 'number' && h.tempsReel > 0) return h.tempsReel;
     if (card && typeof card.tempsCible === 'number' && card.tempsCible > 0) return card.tempsCible;
     return 60;
   }
 
-  /** XP de base (sans streak) pour une entrée d’historique. */
   function xpForEntry(card, h) {
     var kind = cardKind(card);
     var q = (h && typeof h.qScore === 'number') ? h.qScore : 5;
     q = Math.max(0, Math.min(10, q));
-    var qMult = 0.4 + 0.1 * q; // 0 → ×0.4 · 5 → ×0.9 · 10 → ×1.4
+    var qMult = 0.45 + 0.1 * q; // 0 → ×0.45 · 5 → ×0.95 · 10 → ×1.45
 
     if (kind === 'quick') {
-      // Y- = 1/15 d’une X- de 5 min (base 2+5 = 7 XP → ~0,47 × qualité → typiquement 1 XP)
       var refFiveMinX = 2 + 5 * 1.0;
-      return Math.max(1, Math.round((refFiveMinX / 15) * qMult));
+      return Math.max(1, Math.round((refFiveMinX / 12) * qMult));
     }
 
     var min = durationSeconds(card, h) / 60;
     min = Math.max(0.5, Math.min(90, min));
 
     if (kind === 'devoir') {
-      // W- : un peu moins rentable / min que les X-
-      var baseW = 3 + min * 0.75;
+      var baseW = 3 + min * 0.8;
       return Math.max(1, Math.round(baseW * qMult));
     }
 
-    // X- : ~1 XP / minute de travail (cible ou réel) × qualité
-    // 5 min → ~7 · 15 min → ~17 · 20 min → ~22 (avant qMult / streak)
-    var baseX = 2 + min * 1.0;
+    var baseX = 2 + min * 1.05;
     return Math.max(1, Math.round(baseX * qMult));
   }
 
@@ -121,6 +122,12 @@
 
   function daysBetween(a, b) {
     return Math.round((parseDay(b) - parseDay(a)) / 86400000);
+  }
+
+  function shiftDay(iso, delta) {
+    var d = parseDay(iso);
+    d.setDate(d.getDate() + delta);
+    return d.toISOString().slice(0, 10);
   }
 
   function collectReviews() {
@@ -170,7 +177,7 @@
       into = need;
     }
     var pct = need ? Math.min(100, Math.round((into / need) * 100)) : 100;
-    var nextTitle = titleFor(Math.min(MAX_LEVEL, level + 1));
+    var nextTitle = nextTitleAfter(level) || titleFor(level);
     return {
       totalXp: totalXp,
       level: level,
@@ -178,7 +185,8 @@
       need: need,
       pct: pct,
       title: titleFor(level),
-      nextTitle: nextTitle
+      nextTitle: nextTitle,
+      nextSchool: nextTitleAfter(level)
     };
   }
 
@@ -209,6 +217,7 @@
     var todayXp = 0;
     var todayCount = 0;
     var todayMult = 1;
+    var xpByDay = {};
 
     reviews.forEach(function (r) {
       var st = r.day ? (streakAtDay[r.day] || 1) : 1;
@@ -217,6 +226,7 @@
       var bonus = xp - r.baseXp;
       totalXp += xp;
       streakBonusXp += Math.max(0, bonus);
+      if (r.day) xpByDay[r.day] = (xpByDay[r.day] || 0) + xp;
       if (r.day === today) {
         todayXp += xp;
         todayCount++;
@@ -224,7 +234,6 @@
       }
     });
 
-    // Streak actuel (jusqu’à aujourd’hui, ou hier si pas encore révisé)
     var streak = 0;
     var cursor = new Date(today + 'T12:00:00');
     if (!byDay[today]) cursor.setDate(cursor.getDate() - 1);
@@ -234,15 +243,49 @@
       streak++;
       cursor.setDate(cursor.getDate() - 1);
     }
-    var liveMult = streakMultiplier(Math.max(streak, byDay[today] ? streak : 0));
+    var liveMult = streakMultiplier(streak || 0);
     if (byDay[today]) liveMult = streakMultiplier(streak);
-    else if (streak > 0) liveMult = streakMultiplier(streak); // hier encore actif : prochaines cartes = streak+1 si tu révises aujourd’hui
     var nextDayMult = streakMultiplier(byDay[today] ? streak : streak + 1);
+
+    var week = [];
+    var weekXp = 0;
+    var weekMax = 1;
+    for (var w = 6; w >= 0; w--) {
+      var dKey = shiftDay(today, -w);
+      var dXp = xpByDay[dKey] || 0;
+      weekXp += dXp;
+      if (dXp > weekMax) weekMax = dXp;
+      var label = '';
+      try {
+        label = parseDay(dKey).toLocaleDateString('fr-FR', { weekday: 'narrow' });
+      } catch (eL) {
+        label = dKey.slice(8);
+      }
+      week.push({ day: dKey, xp: dXp, label: label, isToday: dKey === today });
+    }
 
     var prog = progressFromXp(totalXp);
     var ladder = [];
-    for (var L = Math.max(1, prog.level); L <= Math.min(MAX_LEVEL, prog.level + 5); L++) {
+    for (var L = Math.max(1, prog.level); L <= Math.min(MAX_LEVEL, prog.level + 6); L++) {
       ladder.push({ level: L, xp: xpToAdvance(L), current: L === prog.level });
+    }
+
+    /* Pace : XP / jour sur 14 j actifs → jours estimés jusqu’au prochain niveau */
+    var recentDays = days.slice(-14);
+    var recentXp = 0;
+    recentDays.forEach(function (d) { recentXp += (xpByDay[d] || 0); });
+    var avgPerActiveDay = recentDays.length ? recentXp / recentDays.length : 0;
+    var remain = Math.max(0, prog.need - prog.into);
+    var etaDays = avgPerActiveDay > 0 ? Math.ceil(remain / avgPerActiveDay) : null;
+
+    var school = prog.nextSchool;
+    var schoolPct = 100;
+    var schoolLevelsLeft = 0;
+    if (school) {
+      schoolLevelsLeft = Math.max(0, school.min - prog.level);
+      var spanStart = prog.title.min || 1;
+      var span = Math.max(1, school.min - spanStart);
+      schoolPct = Math.min(100, Math.round(((prog.level - spanStart) / span) * 100));
     }
 
     return {
@@ -258,7 +301,14 @@
       nextDayMult: nextDayMult,
       prog: prog,
       ladder: ladder,
-      daysActive: days.length
+      daysActive: days.length,
+      week: week,
+      weekXp: weekXp,
+      weekMax: weekMax,
+      avgPerActiveDay: avgPerActiveDay,
+      etaDays: etaDays,
+      schoolPct: schoolPct,
+      schoolLevelsLeft: schoolLevelsLeft
     };
   }
 
@@ -276,6 +326,8 @@
     streakMultiplier: streakMultiplier,
     compute: compute,
     TITLES: TITLES,
+    GROWTH: GROWTH,
+    BASE_XP: BASE_XP,
     onReview: function (card, qScore) {
       var before = window._xpLabLastLevel;
       var snap = compute();
@@ -298,6 +350,28 @@
     }
   };
 
+  function titleTier(idx) {
+    if (idx >= 11) return 'x';
+    if (idx >= 8) return 'or';
+    if (idx >= 4) return 'argent';
+    return 'bronze';
+  }
+
+  function ringSvg(pct) {
+    var r = 46;
+    var c = 2 * Math.PI * r;
+    var p = Math.max(0, Math.min(100, pct | 0));
+    var off = c * (1 - p / 100);
+    return (
+      '<svg class="xplab-ring" viewBox="0 0 112 112" aria-hidden="true">' +
+        '<circle class="xplab-ring-track" cx="56" cy="56" r="' + r + '"/>' +
+        '<circle class="xplab-ring-fill" cx="56" cy="56" r="' + r + '"' +
+          ' stroke-dasharray="' + c.toFixed(2) + '"' +
+          ' stroke-dashoffset="' + off.toFixed(2) + '"/>' +
+      '</svg>'
+    );
+  }
+
   window.renderXpLab = function () {
     var pane = document.getElementById('paneXpLab');
     if (!pane) return;
@@ -308,63 +382,112 @@
     var ladderHtml = d.ladder.map(function (row) {
       return (
         '<div class="xplab-ladder-row' + (row.current ? ' is-cur' : '') + '">' +
-          '<span class="xplab-ladder-lv">Niv. ' + row.level + ' → ' + (row.level + 1) + '</span>' +
+          '<span class="xplab-ladder-lv">Niv.&nbsp;' + row.level + '</span>' +
           '<span class="xplab-ladder-bar"><i style="width:' +
             (row.current ? p.pct : (row.level < p.level ? 100 : 0)) + '%"></i></span>' +
-          '<span class="xplab-ladder-xp">' + fmt(row.xp) + ' XP</span>' +
+          '<span class="xplab-ladder-xp">' + fmt(row.xp) + '</span>' +
         '</div>'
       );
     }).join('');
 
-    var titlesHtml = TITLES.map(function (t, idx) {
+    var pathHtml = TITLES.map(function (t, idx) {
       var unlocked = p.level >= t.min;
       var current = unlocked && (idx === TITLES.length - 1 || p.level < TITLES[idx + 1].min);
+      var tier = titleTier(idx);
       return (
-        '<div class="xplab-title-chip' + (unlocked ? ' is-on' : '') + (current ? ' is-cur' : '') + '">' +
-          '<strong>' + esc(t.title) + '</strong>' +
-          '<span>dès niv. ' + t.min + '</span>' +
+        '<li class="xplab-path-node tier-' + tier +
+          (unlocked ? ' is-on' : '') + (current ? ' is-cur' : '') + '">' +
+          '<span class="xplab-path-dot" aria-hidden="true"></span>' +
+          '<div class="xplab-path-body">' +
+            '<div class="xplab-path-top">' +
+              '<strong>' + esc(t.title) + '</strong>' +
+              '<span class="xplab-path-lv">niv. ' + t.min + '</span>' +
+            '</div>' +
+            '<p>' + esc(t.blurb) + '</p>' +
+            (current ? '<em class="xplab-path-you">Position actuelle</em>' : '') +
+          '</div>' +
+        '</li>'
+      );
+    }).join('');
+
+    var weekHtml = d.week.map(function (day) {
+      var h = d.weekMax ? Math.max(10, Math.round((day.xp / d.weekMax) * 100)) : 10;
+      if (!day.xp) h = 5;
+      return (
+        '<div class="xplab-week-col' + (day.isToday ? ' is-today' : '') + (day.xp ? ' has-xp' : '') +
+          '" title="' + esc(day.day) + ' · +' + fmt(day.xp) + ' XP">' +
+          '<span class="xplab-week-val">' + (day.xp ? fmt(day.xp) : '') + '</span>' +
+          '<div class="xplab-week-bar" style="height:' + h + '%"></div>' +
+          '<span class="xplab-week-d">' + esc(day.label) + '</span>' +
         '</div>'
       );
     }).join('');
 
     var streakPct = Math.round(((d.liveMult - 1) / (STREAK_CAP - 1)) * 100);
+    var school = p.nextSchool;
+    var curTier = 'bronze';
+    for (var ti = 0; ti < TITLES.length; ti++) {
+      if (p.level >= TITLES[ti].min) curTier = titleTier(ti);
+    }
 
     pane.innerHTML =
       '<div class="xplab-page">' +
-        '<header class="xplab-hero">' +
+        '<header class="xplab-hero tier-' + curTier + '">' +
           '<div class="xplab-hero-bg" aria-hidden="true"></div>' +
+          '<div class="xplab-hero-grid" aria-hidden="true"></div>' +
           '<div class="xplab-hero-inner">' +
-            '<p class="xplab-lab-tag">' + icon('flame', 14) + ' Labo Progression · échelle écoles</p>' +
+            '<p class="xplab-lab-tag"><span class="xplab-lab-dot"></span> Labo Progression · test</p>' +
             '<div class="xplab-level-row">' +
-              '<div class="xplab-level-badge">' +
-                '<span class="xplab-level-n">' + p.level + '</span>' +
-                '<span class="xplab-level-lbl">Niveau</span>' +
+              '<div class="xplab-medal" aria-label="Niveau ' + p.level + ', ' + p.pct + ' %">' +
+                ringSvg(p.pct) +
+                '<div class="xplab-medal-core">' +
+                  '<span class="xplab-level-n">' + p.level + '</span>' +
+                  '<span class="xplab-level-lbl">Niveau</span>' +
+                '</div>' +
               '</div>' +
               '<div class="xplab-level-meta">' +
-                '<h2>' + esc(p.title.title) + '</h2>' +
-                '<p>' + esc(p.title.blurb) + '</p>' +
-                '<div class="xplab-bar" role="progressbar" aria-valuenow="' + p.pct + '" aria-valuemin="0" aria-valuemax="100">' +
+                '<p class="xplab-school-eyebrow">Classement</p>' +
+                '<h2 class="xplab-school-name">' + esc(p.title.title) + '</h2>' +
+                '<p class="xplab-school-blurb">' + esc(p.title.blurb) + '</p>' +
+                '<div class="xplab-bar" role="progressbar" aria-valuenow="' + p.pct +
+                  '" aria-valuemin="0" aria-valuemax="100">' +
                   '<div class="xplab-bar-fill" style="width:' + p.pct + '%"></div>' +
                 '</div>' +
-                '<p class="xplab-bar-lbl">' + fmt(p.into) + ' / ' + fmt(p.need) + ' XP → niv. ' + (p.level + 1) +
-                  (p.nextTitle && p.nextTitle.title !== p.title.title
-                    ? ' <span class="xplab-mut">(' + esc(p.nextTitle.title) + ')</span>'
-                    : '') +
-                  ' · ' + p.pct + '%</p>' +
+                '<div class="xplab-bar-meta">' +
+                  '<span>' + fmt(p.into) + ' <small>/ ' + fmt(p.need) + ' XP</small></span>' +
+                  '<span class="xplab-bar-pct">' + p.pct + '%</span>' +
+                  '<span>→ niv. ' + Math.min(MAX_LEVEL, p.level + 1) + '</span>' +
+                '</div>' +
               '</div>' +
             '</div>' +
           '</div>' +
         '</header>' +
 
-        '<section class="xplab-streak-banner">' +
+        (school
+          ? '<section class="xplab-school">' +
+              '<div class="xplab-school-mark" aria-hidden="true"></div>' +
+              '<div class="xplab-school-txt">' +
+                '<strong>Prochain palier</strong>' +
+                '<span>' + esc(school.title) + '</span>' +
+              '</div>' +
+              '<div class="xplab-school-mid">' +
+                '<div class="xplab-school-bar"><i style="width:' + d.schoolPct + '%"></i></div>' +
+                '<span class="xplab-school-hint">encore ' + d.schoolLevelsLeft +
+                  ' niveau' + (d.schoolLevelsLeft !== 1 ? 'x' : '') + ' · dès niv. ' + school.min + '</span>' +
+              '</div>' +
+              '<span class="xplab-school-pct">' + d.schoolPct + '%</span>' +
+            '</section>'
+          : '') +
+
+        '<section class="xplab-streak-banner' + (d.streak > 0 ? ' is-hot' : '') + '">' +
           '<div class="xplab-streak-left">' +
-            '<div class="xplab-streak-fire">' + icon('flame', 22) + '</div>' +
+            '<div class="xplab-streak-fire">' + icon('flame', 20) + '</div>' +
             '<div>' +
               '<strong>' + d.streak + ' jour' + (d.streak !== 1 ? 's' : '') + ' d’affilée</strong>' +
-              '<p>Bonus actif ' + fmtMult(d.liveMult) + ' sur chaque carte' +
-                (d.streak < 16
-                  ? ' · demain si tu enchaînes : ' + fmtMult(d.nextDayMult)
-                  : ' · plafond atteint') +
+              '<p>Bonus ' + fmtMult(d.liveMult) +
+                (d.liveMult < STREAK_CAP
+                  ? ' · demain ' + fmtMult(d.nextDayMult)
+                  : ' · plafond') +
               '</p>' +
             '</div>' +
           '</div>' +
@@ -375,44 +498,57 @@
 
         '<section class="xplab-kpis">' +
           '<div class="xplab-kpi"><div class="xplab-kpi-n">' + fmt(d.totalXp) + '</div><div class="xplab-kpi-l">XP total</div></div>' +
-          '<div class="xplab-kpi"><div class="xplab-kpi-n">+' + fmt(d.streakBonusXp) + '</div><div class="xplab-kpi-l">dont bonus streak</div></div>' +
+          '<div class="xplab-kpi"><div class="xplab-kpi-n">+' + fmt(d.weekXp) + '</div><div class="xplab-kpi-l">7 jours</div></div>' +
           '<div class="xplab-kpi"><div class="xplab-kpi-n">' + fmt(d.reviews) + '</div><div class="xplab-kpi-l">Révisions</div></div>' +
           '<div class="xplab-kpi xplab-kpi-acc"><div class="xplab-kpi-n">+' + fmt(d.todayXp) + '</div>' +
-            '<div class="xplab-kpi-l">Aujourd’hui · ' + d.todayCount + ' carte' + (d.todayCount !== 1 ? 's' : '') +
+            '<div class="xplab-kpi-l">Aujourd’hui · ' + d.todayCount +
               (d.todayMult > 1 ? ' · ' + fmtMult(d.todayMult) : '') + '</div></div>' +
+        '</section>' +
+
+        '<section class="xplab-card xplab-week-card">' +
+          '<div class="xplab-week-head">' +
+            '<h3>Activité</h3>' +
+            '<span class="xplab-mut">' +
+              (d.etaDays != null
+                ? '~' + d.etaDays + ' j actifs → prochain niveau'
+                : 'Révise pour estimer le rythme') +
+            '</span>' +
+          '</div>' +
+          '<div class="xplab-week">' + weekHtml + '</div>' +
+        '</section>' +
+
+        '<section class="xplab-card xplab-path-card">' +
+          '<div class="xplab-week-head">' +
+            '<h3>Parcours des écoles</h3>' +
+            '<span class="xplab-mut">Du filet au X</span>' +
+          '</div>' +
+          '<ol class="xplab-path">' + pathHtml + '</ol>' +
         '</section>' +
 
         '<div class="xplab-grid">' +
           '<section class="xplab-card">' +
-            '<h3>Courbe exponentielle</h3>' +
-            '<p class="xplab-mut">Chaque niveau coûte ×' + GROWTH + ' plus d’XP (base ' + BASE_XP + '). ' +
-              '1→2 = ' + fmt(xpToAdvance(1)) + ' XP · 10→11 = ' + fmt(xpToAdvance(10)) + ' XP.</p>' +
+            '<h3>Courbe</h3>' +
+            '<p class="xplab-mut">×' + GROWTH + ' par niveau · base ' + BASE_XP +
+              ' · max ' + MAX_LEVEL + '</p>' +
             '<div class="xplab-ladder">' + ladderHtml + '</div>' +
           '</section>' +
           '<section class="xplab-card">' +
-            '<h3>Comment gagner de l’XP</h3>' +
+            '<h3>Gagner de l’XP</h3>' +
             '<ul class="xplab-rules">' +
-              '<li><b>X-</b> : ~1 XP / min (temps réel, sinon cible) × qualité</li>' +
-              '<li><b>Y-</b> : 1/15 d’une X- de 5 min (~1 XP)</li>' +
-              '<li><b>W-</b> : ~0,75 XP / min × qualité</li>' +
-              '<li><b>Streak</b> : +4&nbsp;% / jour (max ' + fmtMult(STREAK_CAP) + ')</li>' +
-              '<li>Une X- de 20 min rapporte ~4× plus qu’une de 5 min</li>' +
+              '<li><b>X-</b> ~1 XP/min × qualité</li>' +
+              '<li><b>Y-</b> ~1/12 d’une X- de 5 min</li>' +
+              '<li><b>W-</b> ~0,8 XP/min × qualité</li>' +
+              '<li><b>Streak</b> +5&nbsp;%/j (max ' + fmtMult(STREAK_CAP) + ')</li>' +
             '</ul>' +
             '<div class="xplab-split">' +
-              '<div><span class="xplab-split-n">' + (d.byKind.main || 0) + '</span> X-</div>' +
-              '<div><span class="xplab-split-n">' + (d.byKind.quick || 0) + '</span> Y-</div>' +
-              '<div><span class="xplab-split-n">' + (d.byKind.devoir || 0) + '</span> W-</div>' +
+              '<div><span class="xplab-split-n">' + (d.byKind.main || 0) + '</span>X-</div>' +
+              '<div><span class="xplab-split-n">' + (d.byKind.quick || 0) + '</span>Y-</div>' +
+              '<div><span class="xplab-split-n">' + (d.byKind.devoir || 0) + '</span>W-</div>' +
             '</div>' +
           '</section>' +
         '</div>' +
 
-        '<section class="xplab-card" style="margin-top:14px;">' +
-          '<h3>Tableau des écoles</h3>' +
-          '<p class="xplab-mut">Comme le fantasme du classement APB/Parcoursup ingénieurs — tu montes école par école.</p>' +
-          '<div class="xplab-titles">' + titlesHtml + '</div>' +
-        '</section>' +
-
-        '<p class="xplab-foot">Labo — XP recalculé sur ton historique réel (streak inclus a posteriori).</p>' +
+        '<p class="xplab-foot">Labo — XP recalculé sur l’historique. Pas encore sur l’Accueil officiel.</p>' +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(pane);
