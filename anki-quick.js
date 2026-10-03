@@ -1404,7 +1404,7 @@
       return '<option value="' + esc(ch.id) + '"' + (ch.id === selectedId ? ' selected' : '') + '>' +
         esc(lab) + '</option>';
     }).join('');
-    return '<select id="' + esc(sid) + '" class="fi qk-new-group-chapitre" data-fc-skip aria-label="Chapitre du dossier">' +
+    return '<select id="' + esc(sid) + '" class="fi qk-new-group-chapitre" aria-label="Chapitre du dossier">' +
       opts + '</select>';
   }
 
@@ -1412,7 +1412,7 @@
     const mats = typeof window.listSelectableMatieres === 'function'
       ? window.listSelectableMatieres({ includeId: selectedId || '' })
       : (window.D.matieres || []);
-    return `<select id="qkNewGroupMat" class="fi qk-new-group-mat" data-fc-skip required aria-label="Matière du dossier" onchange="window.quickGroupsMatChanged(this.value)">` +
+    return `<select id="qkNewGroupMat" class="fi qk-new-group-mat" required aria-label="Matière du dossier" onchange="window.quickGroupsMatChanged(this.value)">` +
       `<option value="">— Choisir une matière —</option>` +
       mats.map(function (m) {
         return `<option value="${esc(m.id)}"${selectedId && m.id === selectedId ? ' selected' : ''}>${esc(m.label)} — ${esc(m.name)}</option>`;

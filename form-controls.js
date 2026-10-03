@@ -60,22 +60,59 @@
     if (!sel || sel.tagName !== 'SELECT' || sel.multiple || sel.dataset.fcSkip !== undefined) return;
     if (!window.Choices) return;
     if (sel._choices) return;
-    // Dans un overlay scrollable, Choices (position auto) ouvre souvent vers le haut
-    // et se coupe / décalle — laisser le select natif (data-fc-skip) ou forcer bottom.
-    if (sel.closest && sel.closest('.ov')) return;
 
     var n = sel.options ? sel.options.length : 0;
+    var inOv = !!(sel.closest && sel.closest('.ov'));
     var inst = new Choices(sel, {
       searchEnabled: n > 12,
       itemSelectText: '',
       shouldSort: false,
       allowHTML: false,
+      // Toujours vers le bas — évite le flip « auto » mal cadré dans les modals
       position: 'bottom',
       classNames: {
         containerOuter: 'choices fc-choices'
       }
     });
     sel._choices = inst;
+
+    // Dans un overlay scrollable, le dropdown est clipé : le passer en fixed sur body.
+    if (inOv && inst.passedElement && inst.passedElement.element) {
+      var el = inst.passedElement.element;
+      el.addEventListener('showDropdown', function () {
+        try {
+          var dd = inst.dropdown && inst.dropdown.element;
+          var outer = inst.containerOuter && inst.containerOuter.element;
+          if (!dd || !outer) return;
+          var rect = outer.getBoundingClientRect();
+          if (dd.parentElement !== document.body) {
+            document.body.appendChild(dd);
+            dd.classList.add('fc-choices-dropdown--portal');
+          }
+          dd.style.position = 'fixed';
+          dd.style.top = Math.round(rect.bottom + 6) + 'px';
+          dd.style.left = Math.round(rect.left) + 'px';
+          dd.style.width = Math.round(rect.width) + 'px';
+          dd.style.zIndex = '10050';
+        } catch (e) { /* ignore */ }
+      });
+      el.addEventListener('hideDropdown', function () {
+        try {
+          var dd = inst.dropdown && inst.dropdown.element;
+          var outer = inst.containerOuter && inst.containerOuter.element;
+          if (!dd || !outer) return;
+          if (dd.parentElement === document.body) {
+            outer.appendChild(dd);
+            dd.classList.remove('fc-choices-dropdown--portal');
+          }
+          dd.style.position = '';
+          dd.style.top = '';
+          dd.style.left = '';
+          dd.style.width = '';
+          dd.style.zIndex = '';
+        } catch (e2) { /* ignore */ }
+      });
+    }
   };
 
   window.fcEnhanceDate = function (inp) {

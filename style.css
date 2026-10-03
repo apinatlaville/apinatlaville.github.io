@@ -123,7 +123,7 @@ body.tmpl-glass .dash-card, body.tmpl-glass .fi,
 body.tmpl-glass .chart-container, body.tmpl-glass .mr, body.tmpl-glass .fc-front,
 body.tmpl-glass .todo-item, body.tmpl-glass .stc,
 body.tmpl-glass .chip, body.tmpl-glass .cbt, body.tmpl-glass .uid-badge,
-body.tmpl-glass .ov .modal, body.tmpl-glass .fab-mini, body.tmpl-glass .toggle-btn,
+body.tmpl-glass .fab-mini, body.tmpl-glass .toggle-btn,
 body.tmpl-glass .anki-card-block, body.tmpl-glass .kpi, body.tmpl-glass .search-field {
  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -1453,7 +1453,36 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 .set-sub { font-size: 11px; color: var(--mut); margin-top: 4px; }
 .toggle-btn { background: var(--s3); border: 1px solid var(--bd); color: var(--txt); padding: 8px 14px; border-radius: 8px; font-size: 12px; cursor: pointer; font-weight: bold; }
 
-.ov { position: fixed; inset: 0; background: rgba(10, 14, 28, 0.52); backdrop-filter: blur(40px) saturate(1.85); -webkit-backdrop-filter: blur(40px) saturate(1.85); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 14px; }
+.ov {
+  position: fixed;
+  inset: 0;
+  /* Pas de backdrop-filter ici : associé à overflow-y il fait clignoter (Safari/WebKit). */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+/* Couche de flou fixe (derrière le modal) — fixed = hors du scroll, évite le recomposite */
+.ov::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(10, 14, 28, 0.52);
+  backdrop-filter: blur(28px) saturate(1.7);
+  -webkit-backdrop-filter: blur(28px) saturate(1.7);
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+.ov > * {
+  position: relative;
+  z-index: 1;
+}
 /* Overlay ouvert : scroll uniquement dans l’overlay / le modal, pas la page derrière */
 html:has(.ov:not(.hidden)),
 body:has(.ov:not(.hidden)) {
@@ -1462,6 +1491,22 @@ body:has(.ov:not(.hidden)) {
 body:has(.ov:not(.hidden)) .app-content {
   overflow: hidden !important;
   overscroll-behavior: none;
+}
+/* Coupe les flous glass du fond (cartes, KPI…) — source des « cubes » qui clignotent */
+body:has(.ov:not(.hidden)) .app-shell,
+body:has(.ov:not(.hidden)) .app-content,
+body:has(.ov:not(.hidden)) .app-content .card,
+body:has(.ov:not(.hidden)) .app-content .pcard,
+body:has(.ov:not(.hidden)) .app-content .cl-card,
+body:has(.ov:not(.hidden)) .app-content .anki-card-block,
+body:has(.ov:not(.hidden)) .app-content .kpi,
+body:has(.ov:not(.hidden)) .app-content .dash-card,
+body:has(.ov:not(.hidden)) .app-content .cours-bc-tile,
+body:has(.ov:not(.hidden)) .app-content .sticky-top,
+body:has(.ov:not(.hidden)) .sidebar,
+body:has(.ov:not(.hidden)) .hdr {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 .ov:not(.hidden) {
   overscroll-behavior: contain;
@@ -1490,7 +1535,17 @@ body:has(.ov:not(.hidden)) .app-content {
   margin-bottom: auto;
   flex-shrink: 0;
 }
-body.theme-light .ov { background: rgba(224, 230, 242, 0.62); }
+body.theme-light .ov::before { background: rgba(224, 230, 242, 0.62); }
+/* Modal dans l’overlay : pas de 2ᵉ backdrop-filter (double flou = artefacts) */
+body.tmpl-glass .ov .modal {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(18, 22, 34, 0.94);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+body.tmpl-glass.theme-light .ov .modal {
+  background: rgba(236, 240, 248, 0.96);
+}
 #ovSysDialog { z-index: 2000; }
 .anki-ov-devoir { background: rgba(8, 10, 22, 0.72); }
 .anki-modal-devoir {
@@ -7544,6 +7599,17 @@ body.nav-sidebar-left #paneLatexTest.on {
 .anki-card-a .ML__mathit[style="margin-right:0.11em"] {
   margin-right: 0 !important;
 }
+/* Grec droit (french) : MathLive garde le skew italique → θ̇ / θ̈ désaxés */
+.latex-lab-preview-math .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center,
+.qk-q .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center,
+.qk-r .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center,
+.qk-drill-prompt .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center,
+.anki-card-q .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center,
+.anki-card-a .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center,
+.anki-sess-q .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center,
+.anki-sess-r-body .ML__vlist:has(.lcGreek.ML__cmr) > span.ML__center {
+  margin-left: 0 !important;
+}
 /* Cartes / Rapide : taille relative au texte de la carte (pas le 1.45rem du labo) */
 .qk-q .latex-lab-preview-math,
 .qk-r .latex-lab-preview-math,
@@ -7565,11 +7631,7 @@ body.nav-sidebar-left #paneLatexTest.on {
   stroke: currentColor;
   stroke-width: 1px;
 }
-/* Assemblage multi-glyphes (Size1–4) : moins de coutures visibles */
-.latex-lab .ML__delim-mult > span,
-.latex-lab-preview-math .ML__delim-mult > span {
-  line-height: 0;
-}
+/* Ne pas forcer line-height:0 sur .ML__delim-mult > span (casse la hauteur Size4 / ⎜). */
 .latex-lab-fallback-math {
   font-family: 'DM Mono', ui-monospace, monospace;
   font-size: 0.95rem;

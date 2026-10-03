@@ -55,7 +55,6 @@ body.ui-juin20.tmpl-glass .stc,
 body.ui-juin20.tmpl-glass .chip,
 body.ui-juin20.tmpl-glass .cbt,
 body.ui-juin20.tmpl-glass .uid-badge,
-body.ui-juin20.tmpl-glass .ov .modal,
 body.ui-juin20.tmpl-glass .fab-mini,
 body.ui-juin20.tmpl-glass .toggle-btn,
 body.ui-juin20.tmpl-glass .anki-card-block,
@@ -67,6 +66,18 @@ body.ui-juin20.tmpl-glass .ui-panel {
   box-shadow: var(--glass-shadow);
   border: 0.5px solid var(--bd);
   background: var(--glass-surface), var(--s1);
+}
+
+/* Modal overlay : pas de double backdrop-filter (clignotements Safari) */
+body.ui-juin20.tmpl-glass .ov .modal {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(18, 22, 34, 0.94);
+  box-shadow: var(--glass-shadow);
+  border: 0.5px solid var(--bd);
+}
+body.ui-juin20.theme-light.tmpl-glass .ov .modal {
+  background: rgba(236, 240, 248, 0.96);
 }
 
 body.ui-juin20.tmpl-glass .sticky-top,

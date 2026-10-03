@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 14;
+  var UI_REV = 17;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -35,6 +35,7 @@
         { label: 'ce{}', latex: '\\ce{#0}', title: 'Formule chimie mhchem' },
         { label: '≤', latex: '\\leq', title: 'Inférieur ou égal' },
         { label: 'α', latex: '\\alpha', title: 'Alpha' },
+        { label: 'π', latex: '\\pi', title: 'Pi' },
         { label: '×', latex: '\\times', title: 'Multiplication' },
         { label: '·', latex: '\\cdot', title: 'Point médian' },
         { label: '∞', latex: '\\infty', title: 'Infini' },
@@ -75,6 +76,7 @@
         { label: '[ ]', latex: '\\left[#0\\right]', title: 'Crochets auto' },
         { label: '{ }', latex: '\\left\\{#0\\right\\}', title: 'Accolades auto' },
         { label: 'e^{}', latex: 'e^{#0}', title: 'Exponentielle e^x' },
+        { label: 'π', latex: '\\pi', title: 'Pi' },
         { label: '10^', latex: '10^{#0}', title: 'Puissance de 10' },
         { label: 'n!', latex: '#0!', title: 'Factorielle' },
         { label: 'C(n,k)', latex: '\\binom{#0}{#1}', title: 'Coefficient binomial' },
@@ -143,6 +145,13 @@
         { label: 'OM', latex: '\\overrightarrow{OM}', title: 'Vecteur position OM' },
         { label: 'AB', latex: '\\overrightarrow{AB}', title: 'Vecteur AB' },
         { label: 'i,j,k', latex: '\\vec{i},\\,\\vec{j},\\,\\vec{k}', title: 'Base canonique ℝ³' },
+        { label: 'ê_r', latex: '\\vec{e}_{r}', title: 'Vecteur unitaire radial (polaire / cylindrique)' },
+        { label: 'ê_θ', latex: '\\vec{e}_{\\theta}', title: 'Vecteur unitaire orthoradial (polaire / cylindrique)' },
+        { label: 'ê_z', latex: '\\vec{e}_{z}', title: 'Vecteur unitaire axial (cylindrique)' },
+        { label: 'ê_φ', latex: '\\vec{e}_{\\varphi}', title: 'Vecteur unitaire azimutal (sphérique)' },
+        { label: 'pol.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta}', title: 'Base polaire (ê_r, ê_θ)' },
+        { label: 'cyl.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{z}', title: 'Base cylindrique (ê_r, ê_θ, ê_z)' },
+        { label: 'sph.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{\\varphi}', title: 'Base sphérique (ê_r, ê_θ, ê_φ)' },
         { label: 'u·v', latex: '#0\\cdot#1', title: 'Produit scalaire' },
         { label: 'u×v', latex: '#0\\times#1', title: 'Produit vectoriel' },
         { label: '‖u‖', latex: '\\lVert#0\\rVert', title: 'Norme d\'un vecteur' },
@@ -228,8 +237,8 @@
         { label: 'ς', latex: '\\varsigma', title: 'Sigma final' },
         { label: 'τ', latex: '\\tau', title: 'Tau' },
         { label: 'υ', latex: '\\upsilon', title: 'Upsilon minuscule' },
-        { label: 'φ', latex: '\\phi', title: 'Phi' },
-        { label: 'ϕ', latex: '\\varphi', title: 'Phi variante' },
+        { label: 'φ', latex: '\\varphi', title: 'Phi (moderne / varphi) — forme bouclée' },
+        { label: 'ϕ', latex: '\\phi', title: 'Phi TeX classique (\\phi)' },
         { label: 'χ', latex: '\\chi', title: 'Chi' },
         { label: 'ψ', latex: '\\psi', title: 'Psi minuscule' },
         { label: 'ω', latex: '\\omega', title: 'Oméga minuscule' },
@@ -498,6 +507,13 @@
         { label: 'Δ', latex: '\\Delta#0', title: 'Laplacien' },
         { label: '∇²', latex: '\\nabla^{2}#0', title: 'Laplacien (nabla²)' },
         { label: '→F', latex: '\\overrightarrow{#0}', title: 'Vecteur' },
+        { label: 'ê_r', latex: '\\vec{e}_{r}', title: 'Vecteur unitaire radial (polaire / cylindrique)' },
+        { label: 'ê_θ', latex: '\\vec{e}_{\\theta}', title: 'Vecteur unitaire orthoradial (polaire / cylindrique)' },
+        { label: 'ê_z', latex: '\\vec{e}_{z}', title: 'Vecteur unitaire axial (cylindrique)' },
+        { label: 'ê_φ', latex: '\\vec{e}_{\\varphi}', title: 'Vecteur unitaire azimutal (sphérique)' },
+        { label: 'pol.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta}', title: 'Base polaire (ê_r, ê_θ)' },
+        { label: 'cyl.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{z}', title: 'Base cylindrique (ê_r, ê_θ, ê_z)' },
+        { label: 'sph.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{\\varphi}', title: 'Base sphérique (ê_r, ê_θ, ê_φ)' },
         { label: '×', latex: '\\times', title: 'Produit vectoriel' },
         { label: '·', latex: '\\cdot', title: 'Produit scalaire' },
         { label: '⟨x⟩', latex: '\\left\\langle#0\\right\\rangle', title: 'Moyenne (physique)' },
@@ -720,7 +736,7 @@
       extras.push('chimie', 'chemistry', 'chimestry', 'molecule', 'reaction', 'equilibre');
     }
     if (group.id === 'physique') {
-      extras.push('physique', 'mecanique', 'unite');
+      extras.push('physique', 'mecanique', 'unite', 'polaire', 'cylindrique', 'spherique');
     }
     if (group.id === 'proba') {
       extras.push('proba', 'probabilite', 'statistique');
@@ -742,7 +758,10 @@
       extras.push('matrice', 'systeme', 'determinant');
     }
     if (group.id === 'vecteurs') {
-      extras.push('vecteur', 'fleche', 'colonne', 'norme', 'scalaire', 'vectoriel', 'projection');
+      extras.push('vecteur', 'fleche', 'colonne', 'norme', 'scalaire', 'vectoriel', 'projection', 'polaire', 'cylindrique', 'spherique', 'unitaire');
+    }
+    if (/\bpolaire\b|\bcylindrique\b|\bspherique\b|\bunitaire\b|\be_r\b|\beth?eta\b/.test(t + ' ' + lab)) {
+      extras.push('polaire', 'cylindrique', 'spherique', 'er', 'etheta', 'ez', 'base');
     }
     if (/\bvecteur\b/.test(t)) extras.push('vecteur', 'fleche');
     if (/\bderivee\b|\bpartielle\b/.test(t)) extras.push('derivee', 'differentielle');
@@ -1045,6 +1064,189 @@
   }
 
   /**
+   * MathLive 0.110 convertLatexToMarkup : pmatrix/bmatrix/… à ≥3 lignes
+   * omettent les glyphes milieu (⎜) → parenthèses trop petites, 3ᵉ ligne dehors.
+   * Contournement : \\left( \\begin{array}{…} … \\end{array} \\right) (idem [ | ‖ {).
+   */
+  var TALL_MATRIX_DELIMS = {
+    pmatrix: { left: '\\left(', right: '\\right)' },
+    bmatrix: { left: '\\left[', right: '\\right]' },
+    Bmatrix: { left: '\\left\\{', right: '\\right\\}' },
+    vmatrix: { left: '\\left|', right: '\\right|' },
+    Vmatrix: { left: '\\left\\|', right: '\\right\\|' }
+  };
+
+  function countMatrixRowsAndCols(body) {
+    var rows = 1;
+    var maxCols = 1;
+    var cols = 1;
+    var depth = 0;
+    var i = 0;
+    while (i < body.length) {
+      var ch = body.charAt(i);
+      if (ch === '\\') {
+        if (body.charAt(i + 1) === '\\' && depth === 0) {
+          rows++;
+          if (cols > maxCols) maxCols = cols;
+          cols = 1;
+          i += 2;
+          continue;
+        }
+        i += 2;
+        continue;
+      }
+      if (ch === '{') { depth++; i++; continue; }
+      if (ch === '}') { depth = Math.max(0, depth - 1); i++; continue; }
+      if (ch === '&' && depth === 0) { cols++; i++; continue; }
+      i++;
+    }
+    if (cols > maxCols) maxCols = cols;
+    return { rows: rows, cols: maxCols };
+  }
+
+  function normalizeTallMatrixDelims(latex) {
+    var s = String(latex || '');
+    if (!/\\begin\{[pbBvV]matrix\}/.test(s)) return s;
+    var out = '';
+    var i = 0;
+    while (i < s.length) {
+      var m = s.slice(i).match(/^\\begin\{([pbBvV]matrix)\}/);
+      if (!m || !TALL_MATRIX_DELIMS[m[1]]) {
+        out += s.charAt(i);
+        i++;
+        continue;
+      }
+      var env = m[1];
+      var startBody = i + m[0].length;
+      var depth = 1;
+      var j = startBody;
+      var endTag = '\\end{' + env + '}';
+      while (j < s.length) {
+        if (s.startsWith('\\begin{' + env + '}', j)) {
+          depth++;
+          j += ('\\begin{' + env + '}').length;
+          continue;
+        }
+        if (s.startsWith(endTag, j)) {
+          depth--;
+          if (depth === 0) break;
+          j += endTag.length;
+          continue;
+        }
+        j++;
+      }
+      if (depth !== 0) {
+        out += s.charAt(i);
+        i++;
+        continue;
+      }
+      var body = s.slice(startBody, j);
+      var dims = countMatrixRowsAndCols(body);
+      if (dims.rows < 3) {
+        out += s.slice(i, j + endTag.length);
+        i = j + endTag.length;
+        continue;
+      }
+      var colSpec = new Array(dims.cols + 1).join('c');
+      var delim = TALL_MATRIX_DELIMS[env];
+      out += delim.left + '\\begin{array}{' + colSpec + '}' + body + '\\end{array}' + delim.right;
+      i = j + endTag.length;
+    }
+    return out;
+  }
+
+  /** Contenu « haut » qui exige des délimiteurs extensibles avec glyphes milieu. */
+  function latexBodyNeedsStretchyMiddles(body) {
+    return /\\(?:frac|dfrac|tfrac|sqrt|begin|overrightarrow|overset|underset|lVert|rVert|left|bigl|Bigl)/.test(body)
+      || /\\\\/.test(body);
+  }
+
+  /**
+   * MathLive 0.110 : \\left…\\right autour d’une fraction ommet souvent ⎜
+   * → parenthèses trop courtes qui débordent sur la ligne du dessus (gathered).
+   * Contournement aperçu : \\rule{0pt}{2.6em} invisible pour forcer l’assemblage Size4.
+   * (Ne modifie pas la valeur éditée / sauvegardée — uniquement latexToMarkup.)
+   */
+  function normalizeStretchyDelims(latex) {
+    var s = String(latex || '');
+    if (!/\\left/.test(s)) return s;
+    var out = '';
+    var i = 0;
+    while (i < s.length) {
+      if (!s.startsWith('\\left', i)) {
+        out += s.charAt(i);
+        i++;
+        continue;
+      }
+      var leftCmdEnd = i + 5; /* after \left */
+      while (leftCmdEnd < s.length && /\s/.test(s.charAt(leftCmdEnd))) leftCmdEnd++;
+      if (leftCmdEnd >= s.length) {
+        out += s.slice(i);
+        break;
+      }
+      var openCh = s.charAt(leftCmdEnd);
+      var openTok = openCh;
+      var afterOpen = leftCmdEnd + 1;
+      if (openCh === '\\') {
+        var mOpen = s.slice(leftCmdEnd).match(/^\\(lbrace|rbrace|lvert|rvert|lVert|rVert|langle|rangle|\{|\}|\||\.|[\[\]()])/);
+        if (!mOpen) {
+          out += s.charAt(i);
+          i++;
+          continue;
+        }
+        openTok = mOpen[0];
+        afterOpen = leftCmdEnd + openTok.length;
+      }
+      /* Cherche \\right correspondant (profondeur left/right) */
+      var depth = 1;
+      var j = afterOpen;
+      var rightAt = -1;
+      var rightTok = '';
+      while (j < s.length) {
+        if (s.startsWith('\\left', j)) {
+          depth++;
+          j += 5;
+          continue;
+        }
+        if (s.startsWith('\\right', j)) {
+          depth--;
+          if (depth === 0) {
+            var rPos = j + 6;
+            while (rPos < s.length && /\s/.test(s.charAt(rPos))) rPos++;
+            if (rPos >= s.length) break;
+            var rCh = s.charAt(rPos);
+            if (rCh === '\\') {
+              var mR = s.slice(rPos).match(/^\\(lbrace|rbrace|lvert|rvert|lVert|rVert|langle|rangle|\{|\}|\||\.|[\[\]()])/);
+              rightTok = mR ? mR[0] : '\\';
+              rightAt = rPos + rightTok.length;
+            } else {
+              rightTok = rCh;
+              rightAt = rPos + 1;
+            }
+            var body = s.slice(afterOpen, j);
+            if (latexBodyNeedsStretchyMiddles(body) && body.indexOf('\\rule{0pt}') < 0) {
+              out += '\\left' + openTok + body + '\\rule{0pt}{2.6em}\\right' + rightTok;
+            } else {
+              out += s.slice(i, rightAt);
+            }
+            i = rightAt;
+            rightAt = -2; /* marker: handled */
+            break;
+          }
+          j += 6;
+          continue;
+        }
+        if (s.charAt(j) === '\\') { j += 2; continue; }
+        j++;
+      }
+      if (rightAt === -2) continue;
+      out += s.charAt(i);
+      i++;
+    }
+    return out;
+  }
+
+  /**
    * Conserve le type de fraction choisi (\\frac / \\dfrac / \\tfrac).
    * (Ancienne promo auto vers \\dfrac retirée — l’affichage suit l’éditeur.)
    */
@@ -1055,28 +1257,38 @@
   /**
    * \displaylines{a\\ b} (TeX classique) → gathered MathLive.
    * Sinon MathLive échoue et on retombe sur le monospace brut.
+   * Aussi : a\\newline b (hors env) → gathered.
    */
   function normalizeDisplayLines(latex) {
     var s = String(latex || '').trim();
     var prefix = s.match(/^\\displaylines\s*\{/);
-    if (!prefix) return s;
-    var start = prefix[0].length;
-    var depth = 1;
-    var i = start;
-    for (; i < s.length; i++) {
-      var ch = s.charAt(i);
-      if (ch === '\\') { i++; continue; }
-      if (ch === '{') depth++;
-      else if (ch === '}') {
-        depth--;
-        if (depth === 0) break;
+    if (prefix) {
+      var start = prefix[0].length;
+      var depth = 1;
+      var i = start;
+      for (; i < s.length; i++) {
+        var ch = s.charAt(i);
+        if (ch === '\\') { i++; continue; }
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) break;
+        }
+      }
+      if (depth !== 0) return s;
+      var body = s.slice(start, i);
+      var rest = s.slice(i + 1).trim();
+      var gathered = '\\begin{gathered}' + body + '\\end{gathered}';
+      return rest ? gathered + ' ' + rest : gathered;
+    }
+    /* a\newline b hors environnement → gathered (évite chevauchement aperçu) */
+    if (/\\newline\b/.test(s) && !/\\begin\{(gathered|aligned|align\*?|array|matrix|pmatrix|bmatrix)/.test(s)) {
+      var parts = s.split(/\\newline\b/);
+      if (parts.length >= 2) {
+        return '\\begin{gathered}' + parts.map(function (p) { return p.trim(); }).filter(Boolean).join('\\\\') + '\\end{gathered}';
       }
     }
-    if (depth !== 0) return s;
-    var body = s.slice(start, i);
-    var rest = s.slice(i + 1).trim();
-    var gathered = '\\begin{gathered}' + body + '\\end{gathered}';
-    return rest ? gathered + ' ' + rest : gathered;
+    return s;
   }
 
   /**
@@ -1098,7 +1310,11 @@
     if (!latex) return '';
     var normalized = tightenMathliveLetterF(
       promoteFractionsToDisplay(
-        normalizeDisplayLines(normalizeVectorLatex(latex))
+        normalizeStretchyDelims(
+          normalizeTallMatrixDelims(
+            normalizeDisplayLines(normalizeVectorLatex(latex))
+          )
+        )
       )
     );
     var opts = { defaultMode: 'displaystyle', letterShapeStyle: 'french' };
@@ -1312,18 +1528,34 @@
 
   function insertMathNewline(mf) {
     if (!mf) return;
+    var before = '';
+    try {
+      before = mf.getValue ? mf.getValue('latex') : (mf.value || '');
+    } catch (e) {
+      before = mf.value || '';
+    }
+    function changed() {
+      var after = '';
+      try {
+        after = mf.getValue ? mf.getValue('latex') : (mf.value || '');
+      } catch (e2) {
+        after = mf.value || '';
+      }
+      return after !== before;
+    }
+    /* MathLive 0.110 : addRow est souvent un no-op — préférer \\ → \displaylines */
     try {
       if (typeof mf.executeCommand === 'function') {
-        try {
-          mf.executeCommand('addRow');
-          return;
-        } catch (e0) { /* ignore */ }
-        try {
-          mf.executeCommand(['insert', '\\\\']);
-          return;
-        } catch (e1) { /* ignore */ }
+        mf.executeCommand(['insert', '\\\\']);
+        if (changed()) return;
       }
-    } catch (e) { /* ignore */ }
+    } catch (e1) { /* ignore */ }
+    try {
+      if (typeof mf.executeCommand === 'function') {
+        mf.executeCommand('addRow');
+        if (changed()) return;
+      }
+    } catch (e0) { /* ignore */ }
     try {
       if (typeof mf.executeCommand === 'function') {
         mf.executeCommand(['insert', '\\newline ']);
@@ -1629,19 +1861,30 @@
       if ('defaultMode' in mf) mf.defaultMode = 'math';
       mf.setAttribute('default-mode', 'math');
     } catch (e2) { /* ignore */ }
-    injectMathFieldFSpacingFix(mf);
+    injectMathFieldRenderFixes(mf);
   }
 
-  /** Annule la correction italique MathLive sur f (margin-right:0.11em) dans le shadow DOM. */
-  function injectMathFieldFSpacingFix(mf) {
+  /**
+   * Correctifs rendu MathLive dans le shadow DOM de l’éditeur :
+   * - f : correction italique trop large (margin-right 0.11em)
+   * - grec droit (letterShapeStyle french) : skew TeX sur accents → points désaxés (θ̇, θ̈…)
+   */
+  function injectMathFieldRenderFixes(mf) {
     if (!mf || !mf.shadowRoot) return;
-    if (mf.shadowRoot.querySelector('style[data-tight-f]')) return;
+    if (mf.shadowRoot.querySelector('style[data-ml-render-fixes]')) return;
     var style = document.createElement('style');
-    style.setAttribute('data-tight-f', '1');
+    style.setAttribute('data-ml-render-fixes', '1');
     style.textContent =
       '.ML__mathit[style="margin-right:0.11em"],' +
-      '.ML__mathit[style=\'margin-right:0.11em\']{margin-right:0!important}';
+      '.ML__mathit[style=\'margin-right:0.11em\']{margin-right:0!important}' +
+      /* Grec upright : pas de skew italique sur \\dot / \\ddot */
+      '.ML__vlist:has(.lcGreek.ML__cmr)>span.ML__center{margin-left:0!important}';
     mf.shadowRoot.appendChild(style);
+  }
+
+  /** @deprecated alias — anciens appels */
+  function injectMathFieldFSpacingFix(mf) {
+    injectMathFieldRenderFixes(mf);
   }
 
   /** Recolle coef\,f\,s → coeffs dans l’éditeur après un espace auto. */
@@ -1937,6 +2180,9 @@
   window.ensureMathLive = ensureMathLive;
   window.latexToMarkup = latexToMarkup;
   window.normalizeVectorLatex = normalizeVectorLatex;
+  window.normalizeTallMatrixDelims = normalizeTallMatrixDelims;
+  window.normalizeStretchyDelims = normalizeStretchyDelims;
+  window.normalizeDisplayLines = normalizeDisplayLines;
   window.latexBuildInline = latexBuildInline;
   window.formatCardFaceHtml = formatCardFaceHtml;
   window.formatQuickCardHtml = formatCardFaceHtml; /* alias Rapide */
