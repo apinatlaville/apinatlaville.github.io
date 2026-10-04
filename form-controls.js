@@ -87,6 +87,37 @@
     });
     sel._choices = inst;
 
+    /**
+     * Choices écoute mousedown sur containerOuter uniquement.
+     * Si le dropdown est porté sur body, un clic sur une option est « hors conteneur »
+     * → hideDropdown sans sélection (matière / chapitre figés).
+     */
+    function bindPortalChoicePick(dd) {
+      if (!dd || dd._fcPortalPickBound) return;
+      dd._fcPortalPickBound = true;
+      dd.addEventListener('mousedown', function (ev) {
+        var t = ev.target;
+        if (!t || !t.closest) return;
+        var choiceEl = t.closest('[data-choice-selectable]');
+        if (!choiceEl || choiceEl.hasAttribute('data-choice-disabled')) return;
+        var val = choiceEl.getAttribute('data-value');
+        if (val == null) return;
+        try {
+          var ta = document.createElement('textarea');
+          ta.innerHTML = val;
+          val = ta.value;
+        } catch (eDec) { /* keep raw */ }
+        try {
+          inst.setChoiceByValue(val);
+          if (sel.value !== val) sel.value = val;
+          sel.dispatchEvent(new Event('change', { bubbles: true }));
+          if (typeof inst.hideDropdown === 'function') inst.hideDropdown(true);
+        } catch (err) { /* ignore */ }
+        ev.preventDefault();
+        ev.stopPropagation();
+      }, true);
+    }
+
     // Dans un overlay scrollable, le dropdown est clipé : le passer en fixed sur body.
     if (inOv && inst.passedElement && inst.passedElement.element) {
       var el = inst.passedElement.element;
@@ -105,6 +136,7 @@
           dd.style.left = Math.round(rect.left) + 'px';
           dd.style.width = Math.round(rect.width) + 'px';
           dd.style.zIndex = '10050';
+          bindPortalChoicePick(dd);
         } catch (e) { /* ignore */ }
       });
       el.addEventListener('hideDropdown', function () {
