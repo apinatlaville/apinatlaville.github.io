@@ -6,12 +6,23 @@
   'use strict';
 
   var FP_OPTS = {
-    locale: (window.flatpickr && window.flatpickr.l10ns && window.flatpickr.l10ns.fr) || 'default',
+    locale: (window.flatpickr && window.flatpickr.l10ns && window.flatpickr.l10ns.fr) || {
+      firstDayOfWeek: 1,
+      weekdays: {
+        shorthand: ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'],
+        longhand: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+      },
+      months: {
+        shorthand: ['janv', 'févr', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
+        longhand: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
+      }
+    },
     dateFormat: 'Y-m-d',
     altInput: true,
     altFormat: 'j F Y',
     disableMobile: false,
-    allowInput: false
+    allowInput: false,
+    weekNumbers: false
   };
 
   function $(id) { return document.getElementById(id); }
@@ -251,6 +262,7 @@
       altInput: false,
       inline: true,
       disableMobile: true,
+      weekNumbers: false,
       defaultDate: cur || null,
       appendTo: mount || document.body,
       onChange: function (_selected, dateStr) {

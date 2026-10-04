@@ -359,6 +359,7 @@ window.initHeaderCountdownDatePicker = function () {
     altInput: false,
     allowInput: false,
     disableMobile: true,
+    weekNumbers: false,
     appendTo: document.body,
     defaultDate: /^\d{4}-\d{2}-\d{2}$/.test(initial) ? initial : null,
     onChange: function (selectedDates, dateStr) {

@@ -16,7 +16,7 @@
   var TITLES = [
     { min: 1,  title: 'Polytech',              blurb: 'Le filet — tu es sur le tableau' },
     { min: 3,  title: 'Textile Roubaix',       blurb: 'ENSAIT vibes — original, on vise plus haut' },
-    { min: 5,  title: 'UTBM',                  blurb: 'Tech & terrain — tu prends le rythme' },
+    { min: 5,  title: 'USMB/UGA',              blurb: 'Savoie & Grenoble — tu prends le rythme' },
     { min: 8,  title: 'CCP Bourgogne',         blurb: 'Concours commun — sérieux' },
     { min: 12, title: 'Mines Alès',            blurb: 'Groupe Mines — ça sent bon' },
     { min: 16, title: 'Phelma',                blurb: 'Grenoble INP — physique & électro' },

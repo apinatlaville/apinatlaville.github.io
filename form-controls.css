@@ -42,13 +42,26 @@ span.flatpickr-weekday {
   color: var(--mut) !important;
   font-weight: 600;
   font-size: 11px;
+  width: 14.2857143%;
+  max-width: 39px;
+}
+/* Grille stricte 7 colonnes (max-width:36px faisait rentrer 8 jours/ligne → dates décalées). */
+.flatpickr-days {
+  width: 307.875px;
+}
+.dayContainer {
+  width: 307.875px !important;
+  min-width: 307.875px !important;
+  max-width: 307.875px !important;
 }
 .flatpickr-day {
   color: var(--txt) !important;
   border-radius: 8px !important;
-  max-width: 36px;
-  height: 36px;
-  line-height: 36px;
+  width: 14.2857143% !important;
+  flex-basis: 14.2857143% !important;
+  max-width: 39px !important;
+  height: 39px;
+  line-height: 39px;
 }
 .flatpickr-day:hover,
 .flatpickr-day:focus {
