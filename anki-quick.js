@@ -1192,7 +1192,7 @@
               '<h3 class="cours-bc-level-title">' + title + '</h3>' +
               '<p class="cours-bc-level-sub anki-mut">' + sub + '</p>' +
             '</div>' +
-            '<button type="button" class="bp qk-due-tonight" onclick="window.quickStartSynchrotronY()" ' +
+            '<button type="button" class="bp ui-btn-sm qk-due-tonight" onclick="window.quickStartSynchrotronY()" ' +
               (dueN ? '' : 'disabled ') +
               'title="Session algo : Y- overdue / actives / bientôt, tous dossiers mélangés">' +
               window.iconLabel('moon', dueN ? ('Due ce soir · ' + dueN) : 'Rien de dû') +
@@ -1756,11 +1756,15 @@
       .replace(/\s+/g, '');
   };
 
+  const DRILL_SIZE_PRESETS = [10, 20, 30, 50];
+
   const DRILL = {
     phase: 'setup',
     label: '',
     pool: [],
     queue: [],
+    sessionCards: [],
+    sessionLimit: 20,
     idx: 0,
     random: true,
     swap: false,
@@ -1781,6 +1785,10 @@
     DRILL.random = st.random !== false;
     DRILL.swap = st.swap === true;
     DRILL.typeMode = st.typeMode === true;
+    const lim = st.sessionLimit;
+    if (lim === 0 || lim === 'all') DRILL.sessionLimit = 0;
+    else if (typeof lim === 'number' && lim > 0) DRILL.sessionLimit = lim;
+    else DRILL.sessionLimit = 20;
   }
 
   function persistDrillPrefs() {
@@ -1789,11 +1797,28 @@
     window.D.settings.ankiQuickDrill = {
       random: !!DRILL.random,
       swap: !!DRILL.swap,
-      typeMode: !!DRILL.typeMode
+      typeMode: !!DRILL.typeMode,
+      sessionLimit: DRILL.sessionLimit === 0 ? 0 : (DRILL.sessionLimit || 20)
     };
     if (typeof window.save === 'function') {
       try { window.save(); } catch (e) { /* prefs locales */ }
     }
+  }
+
+  function clampSessionLimit(poolLen) {
+    const n = poolLen | 0;
+    if (n <= 0) return 0;
+    if (!DRILL.sessionLimit || DRILL.sessionLimit <= 0) return 0;
+    if (DRILL.sessionLimit >= n) return 0;
+    return DRILL.sessionLimit;
+  }
+
+  function pickSessionSubset(pool) {
+    const src = (pool || []).slice();
+    const lim = clampSessionLimit(src.length);
+    if (!lim) return src;
+    if (DRILL.random) return shuffleCards(src).slice(0, lim);
+    return src.slice(0, lim);
   }
 
   function shuffleCards(arr) {
@@ -1877,8 +1902,12 @@
       readDrillPrefs();
       DRILL.pool = cards.slice();
       DRILL.label = label || 'Groupe';
-      buildDrillQueue(DRILL.pool);
-      DRILL.phase = 'card';
+      DRILL.sessionCards = [];
+      DRILL.queue = [];
+      DRILL.phase = 'setup';
+      DRILL.revealed = false;
+      DRILL.typed = '';
+      DRILL.check = null;
       const ov = ensureDrillOverlay();
       ov.classList.remove('hidden');
       renderDrill();
@@ -2152,13 +2181,50 @@
     if (window.hydrateIcons) window.hydrateIcons(bar);
   }
 
+  function renderSetupSizeChips(poolLen) {
+    const n = poolLen | 0;
+    const lim = clampSessionLimit(n);
+    const effective = lim || n;
+    let html = '<div class="qk-drill-opts qk-drill-sizes" role="group" aria-label="Nombre de cartes">';
+    DRILL_SIZE_PRESETS.forEach(function (p) {
+      if (p >= n) return;
+      const on = lim === p;
+      html += '<button type="button" class="qk-drill-chip' + (on ? ' on' : '') +
+        '" onclick="window.quickDrillSetLimit(' + p + ')">' + p + '</button>';
+    });
+    html += '<button type="button" class="qk-drill-chip' + (lim === 0 ? ' on' : '') +
+      '" onclick="window.quickDrillSetLimit(0)">Toutes · ' + n + '</button>';
+    html += '</div>';
+    html += '<p class="qk-drill-hint">Session de <b>' + effective + '</b> carte' +
+      (effective > 1 ? 's' : '') +
+      (lim ? ' (tirées parmi ' + n + ')' : '') + '.</p>';
+    return html;
+  }
+
   function renderDrill() {
     const root = document.getElementById('qkDrillRoot');
     const ov = document.getElementById('ovQuickDrill');
     if (!root || !ov || ov.classList.contains('hidden')) return;
 
     let body = '';
-    if (DRILL.phase === 'done') {
+    if (DRILL.phase === 'setup') {
+      const n = DRILL.pool.length;
+      body = `
+        ${drillTopBar(window.iconLabel('zap', esc(DRILL.label)))}
+        <p class="qk-drill-setup-count">${n} carte${n > 1 ? 's' : ''} disponible${n > 1 ? 's' : ''}</p>
+        <p class="qk-drill-hint">Choisis combien en réviser maintenant — le reste reste dû pour plus tard.</p>
+        ${renderSetupSizeChips(n)}
+        <div class="qk-drill-opts" role="group" aria-label="Options de révision">
+          ${optChip(DRILL.random, 'shuffle', 'Aléatoire', "window.quickDrillToggle('random')")}
+          ${optChip(DRILL.swap, 'arrow-left-right', DRILL.swap ? 'Verso → recto' : 'Recto → verso', "window.quickDrillToggle('swap')")}
+          ${optChip(DRILL.typeMode, 'keyboard', 'Écrire', "window.quickDrillToggle('type')")}
+        </div>
+        <div class="qk-drill-acts qk-drill-acts-col">
+          <button type="button" class="bp" onclick="window.quickDrillBegin()">${window.iconLabel('play', 'Commencer')}</button>
+          <button type="button" class="bs" onclick="window.quickDrillClose({force:true})">${window.iconLabel('x', 'Annuler')}</button>
+        </div>
+      `;
+    } else if (DRILL.phase === 'done') {
       const cts = drillCounts();
       const missed = DRILL.queue.filter(function (c) {
         const v = DRILL.results[c.id];
@@ -2276,11 +2342,21 @@
     else if (which === 'type') DRILL.typeMode = !DRILL.typeMode;
     persistDrillPrefs();
     refreshToolbarDrillOpts();
+    if (DRILL.phase === 'setup') renderDrill();
+  };
+
+  window.quickDrillSetLimit = function (n) {
+    const v = Math.max(0, parseInt(n, 10) || 0);
+    DRILL.sessionLimit = v;
+    persistDrillPrefs();
+    if (DRILL.phase === 'setup') renderDrill();
   };
 
   window.quickDrillBegin = function () {
     if (!DRILL.pool.length) return;
-    buildDrillQueue(DRILL.pool);
+    const subset = pickSessionSubset(DRILL.pool);
+    DRILL.sessionCards = subset.slice();
+    buildDrillQueue(subset);
     DRILL.phase = 'card';
     renderDrill();
   };
@@ -2391,7 +2467,10 @@
       if (!missed.length) return;
       buildDrillQueue(missed);
     } else {
-      buildDrillQueue(DRILL.pool);
+      const again = (DRILL.sessionCards && DRILL.sessionCards.length)
+        ? DRILL.sessionCards
+        : pickSessionSubset(DRILL.pool);
+      buildDrillQueue(again);
     }
     DRILL.phase = 'card';
     renderDrill();
