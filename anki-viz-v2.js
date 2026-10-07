@@ -374,10 +374,10 @@
           <div class="av-formula">phase = f(repetitions, ease)   — code getPhase()
 
 apprentissage  si  rep &lt; 3  OU  ease &lt; 2,2
-consolidation  sinon si  rep &lt; 8  OU  ease &lt; 2,4
-mature         sinon  (rep ≥ 8 ET ease ≥ 2,4)
+consolidation  sinon si  rep &lt; 5  OU  ease &lt; 2,4
+mature         sinon  (rep ≥ 5 ET ease ≥ 2,4)
 
-Ex. : rep=10 et ease=2,3 → encore consolidation (ease trop bas)</div>
+Ex. : rep=6 et ease=2,3 → encore consolidation (ease trop bas)</div>
           <p style="font-size:12px;margin:0;">Un échec baisse l’ease → la carte peut <b>retomber en apprentissage</b> ; hors mature, les fenêtres ★ sont effacées.</p>
           <div class="av-map" style="margin-top:12px;">
             <div class="av-map-row">
@@ -414,12 +414,12 @@ Ex. : rep=10 et ease=2,3 → encore consolidation (ease trop bas)</div>
               </tr>
               <tr>
                 <td><span class="av-phase-pill av-phase-consolidation">consolidation</span></td>
-                <td>sinon si rep &lt; 8 <b>ou</b> ease &lt; 2,4</td>
+                <td>sinon si rep &lt; 5 <b>ou</b> ease &lt; 2,4</td>
                 <td>Encore des paliers · date exacte · « soon » jusqu’à 4 jours</td>
               </tr>
               <tr>
                 <td><span class="av-phase-pill av-phase-mature">mature</span></td>
-                <td>rep ≥ 8 <b>et</b> ease ≥ 2,4</td>
+                <td>rep ≥ 5 <b>et</b> ease ≥ 2,4</td>
                 <td>Après un succès : <b>fenêtres ★</b> (tu peux revoir n’importe quand dans la bande)</td>
               </tr>
             </tbody>

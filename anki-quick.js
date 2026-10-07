@@ -1163,19 +1163,50 @@
     return `<nav class="cours-bc-bar" aria-label="Fil d’Ariane Rapide">${crumbs}</nav>`;
   }
 
+  /** Y- actives dues ce soir (algo Synchrotron), tous dossiers mélangés. */
+  function getSynchrotronYDueCards() {
+    const A = window.AnkiAlgoV2;
+    if (!A || typeof A.sortByQuickPriority !== 'function') return [];
+    const pull = !(A.getSettings && A.getSettings().pullForward === false);
+    const ref = typeof A.todayISO === 'function' ? A.todayISO() : null;
+    return A.sortByQuickPriority(window.D.exercices || [], ref)
+      .map(function (x) { return x.card; })
+      .filter(function (c) {
+        return !!(c && typeof A.isEligibleTonight === 'function' && A.isEligibleTonight(c, ref, pull));
+      });
+  }
+
   function renderQuickArianeRoot() {
     const sections = groupsByMat();
     const noneStats = countGroupCards(UNGROUPED);
     const hasGroups = sections.some(sec => sec.groups.length > 0);
     const linkedIds = [];
+    const dueY = getSynchrotronYDueCards();
+    const dueN = dueY.length;
+
+    function rootDueHead(title, sub) {
+      return (
+        '<div class="cours-bc-level-head">' +
+          '<div class="qk-root-head-row">' +
+            '<div>' +
+              '<h3 class="cours-bc-level-title">' + title + '</h3>' +
+              '<p class="cours-bc-level-sub anki-mut">' + sub + '</p>' +
+            '</div>' +
+            '<button type="button" class="bp qk-due-tonight" onclick="window.quickStartSynchrotronY()" ' +
+              (dueN ? '' : 'disabled ') +
+              'title="Session algo : Y- overdue / actives / bientôt, tous dossiers mélangés">' +
+              window.iconLabel('moon', dueN ? ('Due ce soir · ' + dueN) : 'Rien de dû') +
+            '</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }
 
     let bodyHtml = '';
     if (hasGroups) {
-      bodyHtml += (
-        '<div class="cours-bc-level-head">' +
-          '<h3 class="cours-bc-level-title">Choisir un dossier</h3>' +
-          '<p class="cours-bc-level-sub anki-mut">Classés par matière · puis révise ou ajoute des cartes.</p>' +
-        '</div>'
+      bodyHtml += rootDueHead(
+        'Choisir un dossier',
+        'Classés par matière · ou révise toutes les Y- dues (mélangées).'
       );
       bodyHtml += sections.map(sec => {
         const m = sec.mat;
@@ -1236,12 +1267,10 @@
         '</div>'
       );
     } else if (!hasGroups && noneStats.total) {
-      bodyHtml = (
-        '<div class="cours-bc-level-head">' +
-          '<h3 class="cours-bc-level-title">Cartes sans dossier</h3>' +
-          '<p class="cours-bc-level-sub anki-mut">Crée des dossiers via <b>Créer → Créer un dossier</b>.</p>' +
-        '</div>' + bodyHtml
-      );
+      bodyHtml = rootDueHead(
+        'Cartes sans dossier',
+        'Crée des dossiers via <b>Créer → Créer un dossier</b> · ou révise les Y- dues.'
+      ) + bodyHtml;
     }
 
     // Refresh remote update flags (debounced via cache age)
@@ -1686,6 +1715,20 @@
     if (!list.length) return window.sysAlert("Aucune carte Y- active à réviser.", "Rapide");
     const g = groupNavMeta(Q.nav.group);
     openQuickDrill(list, (g && g.name) || 'Groupe');
+  };
+
+  /** Session Synchrotron Y- seule : dues ce soir, tous dossiers, UI drill Rapide. */
+  window.quickStartSynchrotronY = function () {
+    const list = getSynchrotronYDueCards();
+    if (!list.length) {
+      if (typeof window.showToast === 'function') {
+        window.showToast('Aucune Y- due ce soir.', { type: 'warn' });
+      } else {
+        window.sysAlert('Aucune Y- due ce soir (overdue / active / bientôt).', 'Rapide');
+      }
+      return;
+    }
+    openQuickDrill(list, 'Due ce soir');
   };
 
   /** Réviser un dossier Rapide (groupId) hors navigation courante. */

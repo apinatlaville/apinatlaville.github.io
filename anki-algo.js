@@ -21,17 +21,23 @@
 
   /**
    * Paliers SM-2 pour cartes principales X- (selon ★ d'importance).
-   * Calibrés pour exos classiques PC* (~15–20 min) :
-   * ~150–250 classiques / an · 5–7 exos/soir max → paliers larges, jamais 2× le même jour
-   * (chaque étape ≥ 2 j). Ease initiale unique (= DEFAULT_EASE) : les ★ différencient
-   * déjà via les étapes (+ léger multiplicateur d'intervalle).
+   * Horizon ~6 mois : ★1/★2 annexes plus larges · ★3–5 plus serrés avant fenêtres mature.
+   * Chaque étape ★3+ ≥ 2 j. Ease initiale unique (= DEFAULT_EASE).
    */
   ALGO.DEFAULT_MAIN_STAR_STEPS = {
-    1: { steps: [3, 9, 21, 45, 90], ease: 2.5, label: "★1 — faible" },
-    2: { steps: [3, 7, 16, 35, 70], ease: 2.5, label: "★2" },
-    3: { steps: [2, 6, 14, 30, 60], ease: 2.5, label: "★3 — standard" },
-    4: { steps: [2, 5, 11, 24, 48], ease: 2.5, label: "★4" },
-    5: { steps: [2, 4, 9, 18, 36], ease: 2.5, label: "★5 — prioritaire" }
+    1: { steps: [3, 8, 16, 28, 42], ease: 2.5, label: "★1 — faible" },
+    2: { steps: [3, 6, 12, 22, 34], ease: 2.5, label: "★2" },
+    3: { steps: [2, 5, 10, 16, 24], ease: 2.5, label: "★3 — standard" },
+    4: { steps: [2, 4, 7, 12, 17], ease: 2.5, label: "★4" },
+    5: { steps: [2, 3, 5, 8, 12], ease: 2.5, label: "★5 — prioritaire" }
+  };
+  /** Usine 2026-09 (migration → 2026-10 si non personnalisée). */
+  ALGO.PREV_MAIN_STAR_STEPS_20260910 = {
+    1: { steps: [3, 9, 21, 45, 90], ease: 2.5 },
+    2: { steps: [3, 7, 16, 35, 70], ease: 2.5 },
+    3: { steps: [2, 6, 14, 30, 60], ease: 2.5 },
+    4: { steps: [2, 5, 11, 24, 48], ease: 2.5 },
+    5: { steps: [2, 4, 9, 18, 36], ease: 2.5 }
   };
   /** Anciens défauts (migration one-shot si l’utilisateur n’a jamais personnalisé). */
   ALGO.LEGACY_MAIN_STAR_STEPS = {
@@ -1336,13 +1342,12 @@
     delete card.priorite;
   };
 
-  /** True si les paliers stockés correspondent encore à l’ancienne usine. */
-  ALGO._isLegacyMainStarSteps = function (stored) {
-    if (!stored || typeof stored !== 'object') return false;
-    const leg = ALGO.LEGACY_MAIN_STAR_STEPS;
+  /** True si les paliers stockés correspondent à une usine donnée (legacy / prev). */
+  ALGO._matchesMainStarFactory = function (stored, factory) {
+    if (!stored || typeof stored !== 'object' || !factory) return false;
     for (let s = 1; s <= 5; s++) {
       const a = stored[s] || stored[String(s)];
-      const b = leg[s];
+      const b = factory[s];
       if (!a || !b || !Array.isArray(a.steps)) return false;
       if (a.steps.length !== b.steps.length) return false;
       for (let i = 0; i < b.steps.length; i++) {
@@ -1351,6 +1356,9 @@
       if (a.ease != null && Number(a.ease) !== b.ease) return false;
     }
     return true;
+  };
+  ALGO._isLegacyMainStarSteps = function (stored) {
+    return ALGO._matchesMainStarFactory(stored, ALGO.LEGACY_MAIN_STAR_STEPS);
   };
 
   /** Migration données : W- → devoirs, attente → reservoir, priorite → importance. */
@@ -1367,6 +1375,16 @@
         D.settings.ankiMainStarSteps = JSON.parse(JSON.stringify(ALGO.DEFAULT_MAIN_STAR_STEPS));
       }
       D.settings._mainStarStepsV20260910 = true;
+    }
+    /* Paliers X- usine 2026-10 : plus serrés ★3–5, annexes ★1–2, mature à 5 paliers */
+    if (!D.settings._mainStarStepsV20261006) {
+      const cur = D.settings.ankiMainStarSteps || D.settings.ankiQuickStarSteps;
+      if (!cur
+          || ALGO._isLegacyMainStarSteps(cur)
+          || ALGO._matchesMainStarFactory(cur, ALGO.PREV_MAIN_STAR_STEPS_20260910)) {
+        D.settings.ankiMainStarSteps = JSON.parse(JSON.stringify(ALGO.DEFAULT_MAIN_STAR_STEPS));
+      }
+      D.settings._mainStarStepsV20261006 = true;
     }
     /* Y- : paliers type Anki (migration one-shot si usine ancienne) */
     if (!D.settings._quickStepsV20260910) {

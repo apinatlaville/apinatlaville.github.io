@@ -292,13 +292,13 @@
     }
   };
 
-  /** learning | consolidation | mature */
+  /** learning | consolidation | mature — mature dès 5 réussites = fin des 5 paliers (et ease ≥ 2,4). */
   V2.getPhase = function (card) {
     if (!card) return "learning";
     const rep = card.repetitions || 0;
     const ease = card.ease || 2.5;
     if (rep < 3 || ease < 2.2) return "learning";
-    if (rep < 8 || ease < 2.4) return "consolidation";
+    if (rep < 5 || ease < 2.4) return "consolidation";
     return "mature";
   };
 

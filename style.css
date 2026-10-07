@@ -992,6 +992,21 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   padding: 0 2px;
 }
 .cours-bc-level-head { margin-bottom: 12px; }
+.qk-root-head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.qk-due-tonight {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.qk-due-tonight:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .cours-bc-level-title { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
 .cours-bc-level-sub { margin: 0; font-size: 12px; }
 .qk-group-head {
@@ -7625,13 +7640,27 @@ body.nav-sidebar-left #paneLatexTest.on {
 /* Délimiteurs étirés : protéger fill/stroke (évite parenthèses « hérissées ») */
 .latex-lab .ML__stretchy svg,
 .latex-lab-preview-math .ML__stretchy svg,
-.latex-lab math-field .ML__stretchy svg {
+.latex-lab math-field .ML__stretchy svg,
+.qk-drill-prompt .ML__stretchy svg,
+.anki-sess-q .ML__stretchy svg,
+.anki-sess-r-body .ML__stretchy svg {
   fill: currentColor !important;
   fill-opacity: 1 !important;
   stroke: currentColor;
   stroke-width: 1px;
 }
-/* Ne pas forcer line-height:0 sur .ML__delim-mult > span (casse la hauteur Size4 / ⎜). */
+/*
+ * line-height du parent (drill/session) écarte les morceaux Size4 (⎜ manquant).
+ * Serrer le conteneur multi-glyphes ; ne pas toucher aux > span individuellement.
+ */
+.latex-lab-preview-math .ML__delim-mult,
+.qk-drill-prompt .ML__delim-mult,
+.anki-sess-q .ML__delim-mult,
+.anki-sess-r-body .ML__delim-mult,
+.anki-card-q .ML__delim-mult,
+.anki-card-a .ML__delim-mult {
+  line-height: 0 !important;
+}
 .latex-lab-fallback-math {
   font-family: 'DM Mono', ui-monospace, monospace;
   font-size: 0.95rem;

@@ -3663,7 +3663,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
 
       <div class="anki-card-block">
         <h3>${window.iconLabel('star', 'Cartes principales (X-) — intervalles par ★')}</h3>
-        <p class="anki-mut">Chaque carte X- suit le palier SM-2 de son nombre d'étoiles (plus de ★ → paliers plus courts, mais <b>toujours ≥ 2 jours</b> : jamais deux fois le même jour après un succès). Ease initiale identique pour tous (2,5) — les ★ font la différence via les étapes. Calibré pour exos classiques PC* (~15–20 min).</p>
+        <p class="anki-mut">Chaque carte X- suit le palier SM-2 de son nombre d'étoiles (★1–2 annexes plus larges · ★3–5 plus serrés et écartés). Étapes ★3+ <b>≥ 2 jours</b>. Après <b>5 réussites</b> (+ ease ≥ 2,4) → phase mature / fenêtres ★. Ease initiale 2,5 pour tous.</p>
         <div class="anki-prof-grid">${mainStarHtml}</div>
         <button class="bs" onclick="window.ankiV2ResetMainStarSteps()" style="margin-top:10px;">${window.iconLabel('refresh-cw', 'Intervalles par défaut')}</button>
       </div>

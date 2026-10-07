@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 19;
+  var UI_REV = 20;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -1065,15 +1065,16 @@
 
   /**
    * MathLive 0.110 convertLatexToMarkup : pmatrix/bmatrix/… à ≥3 lignes
-   * omettent les glyphes milieu (⎜) → parenthèses trop petites, 3ᵉ ligne dehors.
-   * Contournement : \\left( \\begin{array}{…} … \\end{array} \\right) (idem [ | ‖ {).
+   * omettent les glyphes milieu (⎜) → parenthèses en morceaux.
+   * 3 lignes : \\Biggl/\\Biggr (glyphe fixe, fiable en session/drill).
+   * 4+ : \\left/\\right + array (+ rule stretchy ensuite).
    */
   var TALL_MATRIX_DELIMS = {
-    pmatrix: { left: '\\left(', right: '\\right)' },
-    bmatrix: { left: '\\left[', right: '\\right]' },
-    Bmatrix: { left: '\\left\\{', right: '\\right\\}' },
-    vmatrix: { left: '\\left|', right: '\\right|' },
-    Vmatrix: { left: '\\left\\|', right: '\\right\\|' }
+    pmatrix: { left: '\\left(', right: '\\right)', bigLeft: '\\Biggl(', bigRight: '\\Biggr)' },
+    bmatrix: { left: '\\left[', right: '\\right]', bigLeft: '\\Biggl[', bigRight: '\\Biggr]' },
+    Bmatrix: { left: '\\left\\{', right: '\\right\\}', bigLeft: '\\Biggl\\{', bigRight: '\\Biggr\\}' },
+    vmatrix: { left: '\\left|', right: '\\right|', bigLeft: '\\Biggl|', bigRight: '\\Biggr|' },
+    Vmatrix: { left: '\\left\\|', right: '\\right\\|', bigLeft: '\\Biggl\\|', bigRight: '\\Biggr\\|' }
   };
 
   function countMatrixRowsAndCols(body) {
@@ -1149,7 +1150,12 @@
       }
       var colSpec = new Array(dims.cols + 1).join('c');
       var delim = TALL_MATRIX_DELIMS[env];
-      out += delim.left + '\\begin{array}{' + colSpec + '}' + body + '\\end{array}' + delim.right;
+      var arrayBody = '\\begin{array}{' + colSpec + '}' + body + '\\end{array}';
+      if (dims.rows === 3 && delim.bigLeft) {
+        out += delim.bigLeft + arrayBody + delim.bigRight;
+      } else {
+        out += delim.left + arrayBody + delim.right;
+      }
       i = j + endTag.length;
     }
     return out;
