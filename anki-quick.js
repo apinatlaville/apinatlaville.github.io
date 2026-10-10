@@ -910,6 +910,11 @@
           renderGroupsChapitreSelect(matId, g.chapitreId || '', 'qkEditGroupChapitre') +
           '<label class="qk-group-create-lbl">Couleur</label>' +
           renderGroupColorDots('edit', Q.editGroupColor, { forEdit: true }) +
+          '<label class="anki-check-row qk-group-bidir-row" for="qkEditGroupBidir">' +
+            '<input type="checkbox" id="qkEditGroupBidir"' + (g.bidirectional ? ' checked' : '') + '>' +
+            '<span><b>Recto ↔ verso</b> — les cartes peuvent tomber dans les deux sens ' +
+            '(Due ce soir et Synchrotron), au hasard.</span>' +
+          '</label>' +
           (g.shared && g.shared.packId
             ? '<p class="anki-mut" style="font-size:12px;margin:8px 0 0;">Pack partagé <code>' + esc(g.shared.packId) +
               '</code> · v' + esc(String(g.shared.installedVersion || '?')) +
@@ -985,12 +990,16 @@
       return;
     }
     const chSel = $('qkEditGroupChapitre');
+    const bidirEl = $('qkEditGroupBidir');
+    const bidir = !!(bidirEl && bidirEl.checked);
     const nameChanged = name !== String(g.name || '');
+    const bidirChanged = !!g.bidirectional !== bidir;
     g.name = name;
     g.mat = mat;
     g.chapitreId = (chSel && chSel.value) ? String(chSel.value) : '';
     g.color = Q.editGroupColor || g.color || defaultGroupColor(mat);
-    if (nameChanged && typeof window.quickMarkGroupLocalDirty === 'function') {
+    g.bidirectional = bidir;
+    if ((nameChanged || bidirChanged) && typeof window.quickMarkGroupLocalDirty === 'function') {
       window.quickMarkGroupLocalDirty(g.id);
     }
     if (typeof window.save === 'function') window.save();
@@ -1769,6 +1778,7 @@
     random: true,
     swap: false,
     typeMode: false,
+    cardSwap: {},
     revealed: false,
     typed: '',
     check: null,
@@ -1779,6 +1789,56 @@
     _undoGen: 0,
     _bound: false
   };
+
+  function groupAllowsBidirectional(g) {
+    return !!(g && g.bidirectional);
+  }
+
+  function cardGroupBidirectional(c) {
+    if (!c || !c.groupId) return false;
+    return groupAllowsBidirectional(groupInfo(c.groupId));
+  }
+
+  /** Exposé pour le Synchrotron (même règle dossier). */
+  window.quickCardAllowsBidirectional = function (c) {
+    return cardGroupBidirectional(c);
+  };
+
+  function drillCardMeta(c) {
+    if (!c) return { groupName: 'Sans dossier', matLabel: '?', matColor: '#6a7088' };
+    const g = c.groupId ? groupInfo(c.groupId) : null;
+    const groupName = g && g.name
+      ? g.name
+      : (c.groupId ? String(c.groupId) : 'Sans dossier');
+    const matId = c.mat || (g && inferGroupMat(g)) || '';
+    const m = matInfo(matId);
+    return {
+      groupName: groupName,
+      matLabel: (m && (m.label || m.name)) || matId || '?',
+      matColor: (m && m.color) || (g && g.color) || '#6a7088'
+    };
+  }
+
+  function drillCardMetaHtml(c) {
+    const meta = drillCardMeta(c);
+    return (
+      '<div class="qk-drill-card-meta">' +
+        '<span class="qk-drill-mat" style="--mat-color:' + esc(meta.matColor) + '">' + esc(meta.matLabel) + '</span>' +
+        '<span class="qk-drill-group-sep" aria-hidden="true">·</span>' +
+        '<span class="qk-drill-group">' + esc(meta.groupName) + '</span>' +
+      '</div>'
+    );
+  }
+
+  function resolveDrillSwap(c) {
+    if (DRILL.swap) return true;
+    if (!cardGroupBidirectional(c) || !c || !c.id) return false;
+    if (!DRILL.cardSwap) DRILL.cardSwap = {};
+    if (DRILL.cardSwap[c.id] == null) {
+      DRILL.cardSwap[c.id] = Math.random() < 0.5;
+    }
+    return !!DRILL.cardSwap[c.id];
+  }
 
   function readDrillPrefs() {
     const st = (window.D && window.D.settings && window.D.settings.ankiQuickDrill) || {};
@@ -1837,7 +1897,8 @@
   function drillFaces(c) {
     const q = (c && c.question) || '';
     const r = (c && c.reponse) || '';
-    if (DRILL.swap) return { prompt: r || q, expected: r ? q : '', swapped: true, empty: !r };
+    const swapped = resolveDrillSwap(c);
+    if (swapped) return { prompt: r || q, expected: r ? q : '', swapped: true, empty: !r };
     return { prompt: q, expected: r, swapped: false, empty: !r };
   }
 
@@ -1923,6 +1984,7 @@
     DRILL.srsPending = {};
     DRILL.gradeStack = [];
     DRILL._localSnaps = {};
+    DRILL.cardSwap = {};
     DRILL._undoGen = (DRILL._undoGen || 0) + 1;
     DRILL.revealed = false;
     DRILL.typed = '';
@@ -2263,13 +2325,14 @@
           ? `<div class="qk-drill-ok-wash qk-drill-flash--${esc(DRILL.check.flash)}" aria-hidden="true"></div>`
           : ''}
         ${drillTopBar(window.iconLabel('zap', esc(DRILL.label)))}
+        ${drillCardMetaHtml(c)}
         <div class="qk-drill-progress">
           <span>${DRILL.idx + 1} / ${DRILL.queue.length}</span>
           <span class="qk-drill-mini-ok">${cts.ok} bon${cts.ok > 1 ? 's' : ''}</span>
           <span class="qk-drill-mini-mid">${cts.mid} étourd.</span>
           <span class="qk-drill-mini-bad">${cts.bad} ratée${cts.bad > 1 ? 's' : ''}</span>
         </div>
-        <p class="qk-drill-hint">${DRILL.swap ? 'Verso → recto (ex. EN → FR).' : 'Recto → verso (ex. FR → EN).'}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
+        <p class="qk-drill-hint">${faces.swapped ? 'Verso → recto (ex. EN → FR).' : 'Recto → verso (ex. FR → EN).'}${!DRILL.swap && cardGroupBidirectional(c) ? ' · dossier bidirectionnel' : ''}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
         <div class="qk-drill-card">
           <div class="qk-drill-face-lbl">${faces.swapped ? 'Verso (indice)' : 'Recto'}</div>
           <div class="qk-drill-prompt">${formatFace(faces.prompt) || '<em>Face vide</em>'}</div>

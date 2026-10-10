@@ -4145,6 +4145,37 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   margin: 0 0 6px;
   color: var(--txt);
 }
+.qk-drill-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 2px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.qk-drill-mat {
+  color: var(--mat-color, var(--acc));
+  background: color-mix(in srgb, var(--mat-color, var(--acc)) 16%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--mat-color, var(--acc)) 45%, transparent);
+  border-radius: 999px;
+  padding: 3px 9px;
+  letter-spacing: 0.02em;
+}
+.qk-drill-group-sep {
+  color: var(--mut);
+  opacity: 0.55;
+}
+.qk-drill-group {
+  color: var(--txt);
+  opacity: 0.92;
+}
+.qk-group-bidir-row {
+  margin-top: 12px;
+  align-items: flex-start;
+}
 .qk-drill-progress {
   display: flex;
   gap: 10px;

@@ -19,6 +19,7 @@
   const S = {
     view: "cockpit",
     queue: [], current: null, showAnswer: false,
+    faceSwapById: Object.create(null),
     chronoStart: 0, chronoElapsed: 0, chronoInt: null,
     chronoRunning: false,
     chronoPausedAt: 0, chronoPausedAccum: 0,
@@ -989,8 +990,9 @@
     var c = S.current;
     var host = root || $('ovAnkiSession');
     if (!c || !host) return Promise.resolve();
-    var q = c.question || '';
-    var r = (S.showAnswer && c.reponse) ? (c.reponse || '') : '';
+    var faces = sessionFaces(c);
+    var q = faces.prompt || '';
+    var r = (S.showAnswer && faces.answer) ? (faces.answer || '') : '';
     if (!sessFaceNeedsMath(q) && !sessFaceNeedsMath(r)) return Promise.resolve();
 
     var chain = Promise.resolve();
@@ -1494,6 +1496,35 @@
     return (g && g.name) ? g.name : String(c.groupId);
   }
 
+  function quickGroupBidirectional(c) {
+    if (typeof window.quickCardAllowsBidirectional === 'function') {
+      return !!window.quickCardAllowsBidirectional(c);
+    }
+    if (!c || !c.groupId) return false;
+    const g = (window.D.quickGroups || []).find(x => x.id === c.groupId);
+    return !!(g && g.bidirectional);
+  }
+
+  /** Sens d’affichage Y- pour cette présentation (stable jusqu’à la prochaine file). */
+  function sessionFaceSwap(c) {
+    if (!isQuickCard(c) || !quickGroupBidirectional(c) || !c.id) return false;
+    if (!S.faceSwapById) S.faceSwapById = Object.create(null);
+    if (S.faceSwapById[c.id] == null) {
+      S.faceSwapById[c.id] = Math.random() < 0.5;
+    }
+    return !!S.faceSwapById[c.id];
+  }
+
+  function sessionFaces(c) {
+    const q = (c && c.question) || '';
+    const r = (c && c.reponse) || '';
+    const swapped = sessionFaceSwap(c);
+    if (swapped) {
+      return { prompt: r || q, answer: r ? q : '', swapped: true, hasAnswer: !!(r && r.trim()) };
+    }
+    return { prompt: q, answer: r, swapped: false, hasAnswer: !!(r && r.trim()) };
+  }
+
   /** Ligne méta session : X- = profil · Y- = nom du groupe. */
   function sessMetaHtml(c, useTiming, linkedTitle) {
     const boost = c && c._blocageActif
@@ -1501,7 +1532,8 @@
       : '';
     const linked = linkedTitle ? ' · ' + esc(linkedTitle) : '';
     if (isQuickCard(c)) {
-      return `<div class="anki-sess-meta">${esc(quickGroupLabel(c))}${linked}${boost}</div>`;
+      const dir = sessionFaceSwap(c) ? ' · verso → recto' : '';
+      return `<div class="anki-sess-meta">${esc(quickGroupLabel(c))}${dir}${linked}${boost}</div>`;
     }
     const prof = profileLabel(c.profil || 'COURS');
     if (useTiming) {
@@ -3900,6 +3932,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     S.queue = [];
     S.stats = { ok: 0, mid: 0, bad: 0, total: 0 };
     S.showAnswer = false;
+    S.faceSwapById = Object.create(null);
     S.dernierExerciceModifie = null;
     S.sessionGeneree = false;
     clearPersistedSession();
@@ -3930,6 +3963,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       excludedIds: Array.from(S.excludedIds),
       cockpitMode: S.cockpitMode,
       showAnswer:   !!S.showAnswer,
+      faceSwapById: S.faceSwapById ? Object.assign({}, S.faceSwapById) : {},
       chronoElapsed: S.chronoElapsed || 0,
       sliderValue:  S.sliderValue,
       sessionTempsManuel: S.sessionTempsManuel,
@@ -3990,6 +4024,12 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       }
     }
     S.showAnswer = !!sec.showAnswer;
+    S.faceSwapById = Object.create(null);
+    if (sec.faceSwapById && typeof sec.faceSwapById === 'object') {
+      Object.keys(sec.faceSwapById).forEach(function (id) {
+        S.faceSwapById[id] = !!sec.faceSwapById[id];
+      });
+    }
     S.chronoElapsed = typeof sec.chronoElapsed === 'number' ? sec.chronoElapsed : 0;
     S.chronoRunning = false;
     if (sec.sliderValue != null) S.sliderValue = sec.sliderValue;
@@ -4255,10 +4295,12 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
 
   function renderDockCardDetail(c) {
     if (!c) return '';
+    const faces = sessionFaces(c);
+    const titre = (!isQuickCard(c) && c.titre) ? c.titre : '';
     return `
       <div class="sync-dock-detail">
-        ${c.titre ? `<div class="sync-dock-detail-titre">${esc(c.titre)}</div>` : ''}
-        <div class="sync-dock-detail-q">${formatSessFace(c.question || '')}</div>
+        ${titre ? `<div class="sync-dock-detail-titre">${esc(titre)}</div>` : ''}
+        <div class="sync-dock-detail-q">${formatSessFace(faces.prompt || '')}</div>
         ${renderDockSources(c)}
         ${(c.coursIds || []).length ? `<div class="sync-dock-detail-links anki-mut">${(c.coursIds || []).map(uid => {
           const co = (window.D.cours || []).find(x => x.uid === uid);
@@ -4378,10 +4420,10 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
           <span class="anki-tag" style="background:${matColor}22;color:${matColor};border:1px solid ${matColor}">${esc(mat(c.mat).label)}</span>
           ${cardUsesSessionTiming(c) ? renderChronoBlock(true) : ''}
         </div>
-        <div class="sync-dock-title">${esc(c.titre || c.question || c.id)}</div>
+        <div class="sync-dock-title">${esc((!isQuickCard(c) && c.titre) || sessionFaces(c).prompt || c.id)}</div>
         <div class="sync-dock-meta anki-mut">${sessStatsHtml(S.stats.ok, S.stats.mid, S.stats.bad)} · reste ${S.queue.length}</div>
         ${S.dockShowCardDetail ? renderDockCardDetail(c) : `
-          <div class="sync-dock-preview anki-mut">${formatSessFace((c.question || '').slice(0, 120))}${(c.question || '').length > 120 ? '…' : ''}</div>
+          <div class="sync-dock-preview anki-mut">${formatSessFace((sessionFaces(c).prompt || '').slice(0, 120))}${(sessionFaces(c).prompt || '').length > 120 ? '…' : ''}</div>
           ${renderDockSources(c)}
         `}
         <button type="button" class="sync-dock-link-btn" onclick="window.ankiV2DockToggleCardDetail()">${S.dockShowCardDetail ? window.iconLabel('chevron-down', 'Réduire') : window.iconLabel('book-open', 'Énoncé complet & sources livre')}</button>
@@ -4460,7 +4502,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       const co = (window.D.cours || []).find(x => x.uid === uid);
       return co ? co.uid + " · " + co.title : uid;
     }).join(' · ');
-    const hasReponse = c.reponse && c.reponse.trim().length;
+    const faces = sessionFaces(c);
+    const hasReponse = faces.hasAnswer;
     const isQuick = isQuickCard(c);
     // Y- : 3 boutons seulement (pas de note /10)
     const showSlider = !isQuick && (window.D.settings && window.D.settings.ankiShowSlider !== false);
@@ -4468,12 +4511,13 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     const useTiming = cardUsesSessionTiming(c);
     const evalBadLbl = isQuick ? 'Raté' : 'Blocage';
     const evalGoodLbl = isQuick ? 'Bon' : 'Parfait';
+    const answerLbl = faces.swapped ? 'Recto (réponse)' : 'Réponse';
 
     const isNewDeckCard = S._deckLastCardId !== c.id;
     S._deckLastCardId = c.id;
-    const qText = (c.question || '').trim();
+    const qText = (faces.prompt || '').trim();
     const tText = (c.titre || '').trim();
-    const showTitre = tText && tText.toLowerCase() !== qText.toLowerCase();
+    const showTitre = !isQuick && tText && tText.toLowerCase() !== qText.toLowerCase();
 
     ov.innerHTML = `
       <div class="anki-deck-scene" style="--deck-accent:${m.color}">
@@ -4493,11 +4537,11 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         </div>
         ${sessMetaHtml(c, useTiming, linkedTitle)}
         ${showTitre ? `<div class="anki-sess-titre">${esc(c.titre)}</div>
-        <div class="anki-sess-q">${formatSessFace(c.question || '')}</div>` : `<div class="anki-sess-q anki-sess-q--solo">${formatSessFace(c.question || '')}</div>`}
+        <div class="anki-sess-q">${formatSessFace(faces.prompt || '')}</div>` : `<div class="anki-sess-q anki-sess-q--solo">${formatSessFace(faces.prompt || '')}</div>`}
         ${renderSourcesBox(c, false)}
         ${S.showAnswer ? `
           <div class="anki-eval-zone">
-          ${hasReponse ? `<div class="anki-sess-r anki-sess-r-compact"><span class="anki-sess-r-label">Réponse</span><div class="anki-sess-r-body">${formatSessFace(c.reponse)}</div></div>` : '<p class="anki-mut anki-no-rep-hint">Auto-éval · pas de réponse enregistrée</p>'}
+          ${hasReponse ? `<div class="anki-sess-r anki-sess-r-compact"><span class="anki-sess-r-label">${answerLbl}</span><div class="anki-sess-r-body">${formatSessFace(faces.answer)}</div></div>` : '<p class="anki-mut anki-no-rep-hint">Auto-éval · pas de réponse enregistrée</p>'}
           ${renderSourcesBox(c, true)}
           ${useTiming ? renderSessionTimingPanel(c) : ''}
           <div class="anki-evals anki-evals-compact">
