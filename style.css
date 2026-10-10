@@ -1127,6 +1127,56 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   font-size: 15px;
   font-weight: 700;
 }
+.pia-consent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.pia-consent-opt {
+  align-items: flex-start;
+  padding: 8px 10px;
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  background: rgba(120, 120, 128, 0.06);
+}
+.pia-diff {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bd);
+  font-size: 13px;
+}
+.pia-diff-summary {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(91, 154, 255, 0.1);
+  border: 1px solid rgba(91, 154, 255, 0.3);
+  font-size: 13px;
+}
+.pia-diff-summary p { margin: 6px 0 0; line-height: 1.4; }
+.pia-diff-add {
+  background: rgba(80, 216, 144, 0.1);
+  border-color: rgba(80, 216, 144, 0.35);
+}
+.pia-diff-upd {
+  background: rgba(240, 192, 96, 0.1);
+  border-color: rgba(240, 192, 96, 0.4);
+}
+.pia-diff-del {
+  background: rgba(240, 112, 112, 0.1);
+  border-color: rgba(240, 112, 112, 0.4);
+}
+.pia-diff-old {
+  color: var(--mut);
+  text-decoration: line-through;
+  font-size: 12px;
+}
+.pia-diff-new {
+  color: var(--txt);
+  font-size: 12px;
+}
 .qk-portage-card {
   max-width: min(720px, 96vw);
   width: 100%;
