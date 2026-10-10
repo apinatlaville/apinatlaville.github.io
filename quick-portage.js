@@ -320,6 +320,40 @@
     };
   }
 
+  function groupDisplayName(gid) {
+    var g = allGroups().find(function (x) { return x && x.id === gid; });
+    return g ? String(g.name || g.id || '').trim() : String(gid || '');
+  }
+
+  /**
+   * Parmi les dossiers, celui qui contient le plus d’ids demandés (suggestion UX).
+   * @returns {{ groupId:string, name:string, hit:number, total:number }|null}
+   */
+  function suggestGroupForIds(ids) {
+    var want = {};
+    var total = 0;
+    (ids || []).forEach(function (id) {
+      id = String(id || '').trim();
+      if (!id || want[id]) return;
+      want[id] = true;
+      total++;
+    });
+    if (!total) return null;
+    var best = null;
+    allGroups().forEach(function (g) {
+      if (!g || !g.id) return;
+      var hit = 0;
+      cardsInGroup(g.id).forEach(function (c) {
+        if (c && c.id && want[String(c.id)]) hit++;
+      });
+      if (!hit) return;
+      if (!best || hit > best.hit) {
+        best = { groupId: g.id, name: String(g.name || g.id).trim(), hit: hit, total: total };
+      }
+    });
+    return best;
+  }
+
   /**
    * @param {object} obj
    * @param {{ allowReplace?:boolean, groupId?:string, uiMode?:string }} ctx
@@ -357,21 +391,39 @@
     if (uiMode === 'complete' && mode === 'full') {
       errors.push('mode "full" interdit en Compléter (crée un nouveau dossier via Créer).');
     }
-    if (mode === 'patch') {
-      if (uiMode !== 'complete') {
-        errors.push('mode "patch" réservé à Compléter.');
-      }
-      if (!allowReplace) {
-        errors.push('mode "patch" refusé — active « Autoriser remplacement et suppression » avant de vérifier.');
-      }
+    if (mode === 'patch' && uiMode !== 'complete') {
+      errors.push('mode "patch" réservé à l’onglet Compléter.');
     }
-    /* Refuse update/remove cachés dans un payload delta/full si consentement OFF */
+    var patchNeedsConsent = mode === 'patch' && !allowReplace;
+    var sneakyUpd = [];
+    var sneakyRem = [];
     if (!allowReplace && obj.changes && typeof obj.changes === 'object' && !Array.isArray(obj.changes)) {
-      var sneakyUpd = Array.isArray(obj.changes.update) ? obj.changes.update : [];
-      var sneakyRem = Array.isArray(obj.changes.remove) ? obj.changes.remove : [];
-      if (sneakyUpd.length || sneakyRem.length) {
-        errors.push('update/remove présents alors que le remplacement est désactivé.');
-      }
+      sneakyUpd = Array.isArray(obj.changes.update) ? obj.changes.update : [];
+      sneakyRem = Array.isArray(obj.changes.remove) ? obj.changes.remove : [];
+    }
+    if (patchNeedsConsent || sneakyUpd.length || sneakyRem.length) {
+      errors.push(
+        'Active « Autoriser remplacement et suppression » (étape 2) avant de vérifier un patch — ' +
+        'sinon seules les ajouts (mode delta) sont acceptés.'
+      );
+      /* Stop ici : évite 30+ lignes « id absent » alors que le consentement manque. */
+      return {
+        ok: false,
+        errors: errors,
+        cards: [],
+        meta: {
+          mode: mode,
+          title: String(obj.title || '').trim(),
+          matiere: String(obj.matiere || obj.matiereId || '').trim(),
+          matiereId: null,
+          bidirectional: !!obj.bidirectional,
+          summary: String(obj.summary || '').trim(),
+          changes: null,
+          destructive: false,
+          raw: obj,
+          needsAllowReplace: true
+        }
+      };
     }
 
     var title = String(obj.title || '').trim();
@@ -397,11 +449,8 @@
       var addRaw = Array.isArray(ch.add) ? ch.add : [];
       var updRaw = Array.isArray(ch.update) ? ch.update : [];
       var remRaw = Array.isArray(ch.remove) ? ch.remove : [];
-      if (!allowReplace && (updRaw.length || remRaw.length)) {
-        errors.push('Modifications/suppressions refusées — active « Autoriser remplacement et suppression ».');
-      }
       if (!targetGroupId) {
-        errors.push('Dossier cible requis pour un patch.');
+        errors.push('Dossier cible requis pour un patch — choisis-le à l’étape 1.');
       }
       var byId = Object.create(null);
       if (targetGroupId) {
@@ -419,6 +468,7 @@
       });
       var update = [];
       var seenUpd = Object.create(null);
+      var missingUpd = [];
       updRaw.forEach(function (c, idx) {
         var n = idx + 1;
         if (!c || typeof c !== 'object') {
@@ -432,8 +482,9 @@
         if (id) seenUpd[id] = true;
         if (!qr.q) errors.push('changes.update #' + n + ' : "q" vide.');
         if (!qr.r) errors.push('changes.update #' + n + ' : "r" vide.');
-        if (id && !byId[id]) {
-          errors.push('changes.update #' + n + ' : id « ' + id + ' » absent du dossier cible.');
+        if (id && targetGroupId && !byId[id]) {
+          missingUpd.push(id);
+          return;
         }
         if (id && byId[id] && qr.q && qr.r) {
           update.push({
@@ -447,6 +498,7 @@
       });
       var remove = [];
       var seenRem = Object.create(null);
+      var missingRem = [];
       remRaw.forEach(function (rawId, idx) {
         var n = idx + 1;
         var id = '';
@@ -464,26 +516,48 @@
           return;
         }
         seenRem[id] = true;
-        if (!byId[id]) {
-          errors.push('changes.remove #' + n + ' : id « ' + id + ' » absent du dossier cible.');
+        if (targetGroupId && !byId[id]) {
+          missingRem.push(id);
           return;
         }
         if (seenUpd[id]) {
           errors.push('id « ' + id + ' » à la fois dans update et remove — ambigu.');
           return;
         }
-        remove.push({
-          id: id,
-          q: String(byId[id].question || byId[id].titre || '').trim(),
-          r: String(byId[id].reponse || '').trim()
-        });
+        if (byId[id]) {
+          remove.push({
+            id: id,
+            q: String(byId[id].question || byId[id].titre || '').trim(),
+            r: String(byId[id].reponse || '').trim()
+          });
+        }
       });
+      if (missingUpd.length || missingRem.length) {
+        var allMissing = missingUpd.concat(missingRem);
+        var folderLab = groupDisplayName(targetGroupId) || targetGroupId;
+        var show = allMissing.slice(0, 5);
+        errors.push(
+          allMissing.length + ' id introuvable(s) dans « ' + folderLab + ' »' +
+          (show.length ? ' (ex. ' + show.join(', ') + (allMissing.length > 5 ? ', …' : '') + ')' : '') + '.'
+        );
+        var hint = suggestGroupForIds(allMissing);
+        if (hint && hint.groupId !== targetGroupId && hint.hit > 0) {
+          errors.push(
+            'Astuce : ' + hint.hit + '/' + hint.total + ' de ces id sont dans « ' + hint.name +
+            ' » — sélectionne ce dossier à l’étape 1 (celui du kit copié).'
+          );
+        } else if (!hint || hint.hit === 0) {
+          errors.push(
+            'Aucun dossier local ne contient ces id — recolle le kit « + dossier » à l’IA, ou vérifie qu’elle n’a pas inventé les id.'
+          );
+        }
+      }
       var summary = String(obj.summary || '').trim();
       if ((update.length || remove.length) && !summary) {
         errors.push('summary obligatoire dès qu’il y a une modification ou une suppression.');
       }
       if (!add.length && !update.length && !remove.length) {
-        errors.push('changes vide — au moins un add, update ou remove.');
+        errors.push('changes vide — au moins un add, update ou remove valide.');
       }
       meta.summary = summary;
       meta.changes = { add: add, update: update, remove: remove };
@@ -866,6 +940,7 @@
 
   var S = {
     mode: 'create', // create | complete
+    completeMatId: '',
     completeGroupId: '',
     importRaw: '',
     validated: null,
@@ -875,21 +950,69 @@
     allowReplace: false
   };
 
-  function matOptionsHtml(selected) {
-    return allMats().map(function (m) {
+  function groupMatId(g) {
+    return g && g.mat ? String(g.mat) : '';
+  }
+
+  function matsWithQuickGroups() {
+    var seen = Object.create(null);
+    allGroups().forEach(function (g) {
+      var mid = groupMatId(g);
+      if (mid) seen[mid] = true;
+    });
+    return allMats().filter(function (m) { return m && seen[m.id]; });
+  }
+
+  function groupsForMat(matId) {
+    var mid = String(matId || '').trim();
+    var list = allGroups().slice();
+    if (mid) list = list.filter(function (g) { return groupMatId(g) === mid; });
+    return list.sort(function (a, b) {
+      return String(a.name || '').localeCompare(String(b.name || ''), 'fr');
+    });
+  }
+
+  /** Assure cohérence matière ↔ dossier sélectionné. */
+  function syncCompleteMatGroup() {
+    if (S.completeGroupId) {
+      var g = allGroups().find(function (x) { return x && x.id === S.completeGroupId; });
+      if (!g) {
+        S.completeGroupId = '';
+      } else {
+        var gm = groupMatId(g);
+        if (S.completeMatId && gm && S.completeMatId !== gm) {
+          S.completeGroupId = '';
+        } else if (!S.completeMatId && gm) {
+          S.completeMatId = gm;
+        }
+      }
+    }
+    if (S.completeMatId && !allMats().some(function (m) { return m.id === S.completeMatId; })) {
+      S.completeMatId = '';
+      S.completeGroupId = '';
+    }
+  }
+
+  function matOptionsHtml(selected, opts) {
+    opts = opts || {};
+    var mats = opts.onlyWithGroups ? matsWithQuickGroups() : allMats();
+    var html = '';
+    if (opts.placeholder) {
+      html += '<option value="">' + esc(opts.placeholder) + '</option>';
+    }
+    html += mats.map(function (m) {
       var sel = m.id === selected ? ' selected' : '';
       return '<option value="' + esc(m.id) + '"' + sel + '>' + esc(matLabel(m) || m.id) + '</option>';
     }).join('');
+    return html;
   }
 
-  function groupOptionsHtml(selected) {
-    return allGroups().slice().sort(function (a, b) {
-      return String(a.name || '').localeCompare(String(b.name || ''), 'fr');
-    }).map(function (g) {
+  function groupOptionsHtml(selected, matFilter) {
+    var list = groupsForMat(matFilter);
+    return list.map(function (g) {
       var sel = g.id === selected ? ' selected' : '';
-      var mat = allMats().find(function (m) { return m.id === g.mat; });
       var n = cardsInGroup(g.id).length;
-      var lab = (g.name || g.id) + (mat ? ' · ' + matLabel(mat) : '') + ' (' + n + ')';
+      var lab = (g.name || g.id) + ' (' + n + ')';
       return '<option value="' + esc(g.id) + '"' + sel + '>' + esc(lab) + '</option>';
     }).join('');
   }
@@ -898,22 +1021,19 @@
     if (!items || !items.length) return '';
     var cls = kind === 'add' ? 'pia-diff-add' : (kind === 'upd' ? 'pia-diff-upd' : 'pia-diff-del');
     var title = kind === 'add' ? 'Ajouts' : (kind === 'upd' ? 'Modifications' : 'Suppressions');
-    var rows = items.slice(0, 20).map(function (it) {
+    var rows = items.map(function (it) {
       if (kind === 'upd') {
         return '<li><code>' + esc(it.id) + '</code><br>' +
-          '<span class="pia-diff-old">' + esc((it.prevQ || '').slice(0, 60)) + ' → ' + esc((it.prevR || '').slice(0, 60)) + '</span><br>' +
-          '<span class="pia-diff-new">' + esc((it.q || '').slice(0, 60)) + ' → ' + esc((it.r || '').slice(0, 60)) + '</span></li>';
+          '<span class="pia-diff-old">' + esc(it.prevQ || '') + ' → ' + esc(it.prevR || '') + '</span><br>' +
+          '<span class="pia-diff-new">' + esc(it.q || '') + ' → ' + esc(it.r || '') + '</span></li>';
       }
       return '<li>' +
         (it.id ? '<code>' + esc(it.id) + '</code> · ' : '') +
-        '<span class="qk-portage-q">' + esc((it.q || '').slice(0, 80)) + '</span> → ' +
-        '<span class="qk-portage-r">' + esc((it.r || '').slice(0, 80)) + '</span></li>';
+        '<span class="qk-portage-q">' + esc(it.q || '') + '</span> → ' +
+        '<span class="qk-portage-r">' + esc(it.r || '') + '</span></li>';
     }).join('');
-    if (items.length > 20) {
-      rows += '<li class="anki-mut">… +' + (items.length - 20) + '</li>';
-    }
     return '<div class="pia-diff ' + cls + '"><b>' + title + ' (' + items.length + ')</b>' +
-      '<ol class="qk-portage-preview-list">' + rows + '</ol></div>';
+      '<ol class="qk-portage-preview-list pia-diff-scroll">' + rows + '</ol></div>';
   }
 
   function renderImportPreviewHtml() {
@@ -931,10 +1051,11 @@
     var destHtml = '';
     if (forceExisting) {
       S.target = 'existing';
+      syncCompleteMatGroup();
       destHtml =
         '<p class="qk-portage-dest-label">Destination (mode Compléter)</p>' +
         '<label class="fg"><span>Dossier</span><select class="fi" id="qkPortExistGroup">' +
-          groupOptionsHtml(S.completeGroupId || '') + '</select></label>';
+          groupOptionsHtml(S.completeGroupId || '', S.completeMatId) + '</select></label>';
     } else {
       destHtml =
         '<p class="qk-portage-dest-label">Destination</p>' +
@@ -948,15 +1069,22 @@
         '<div id="qkPortTargetNew" class="qk-portage-target-fields' +
           (S.target === 'new' ? '' : ' hidden') + '">' +
           '<label class="fg"><span>Nom</span><input type="text" class="fi" id="qkPortNewTitle" value="' + esc(preferredTitle) + '"></label>' +
-          '<label class="fg"><span>Matière</span><select class="fi" id="qkPortNewMat">' + matOptionsHtml(preferredMat) + '</select></label>' +
+          '<label class="fg"><span>Matière</span><select class="fi" id="qkPortNewMat">' +
+            matOptionsHtml(preferredMat) + '</select></label>' +
           '<label class="qk-portage-check"><input type="checkbox" id="qkPortNewBidir"' +
             (v.meta.bidirectional ? ' checked' : '') + '> Recto ↔ verso</label>' +
         '</div>' +
         '<div id="qkPortTargetExist" class="qk-portage-target-fields' +
           (S.target === 'existing' ? '' : ' hidden') + '">' +
           (allGroups().length
-            ? '<label class="fg"><span>Dossier</span><select class="fi" id="qkPortExistGroup">' +
-                groupOptionsHtml(S.completeGroupId) + '</select></label>'
+            ? '<label class="fg"><span>Matière</span><select class="fi" id="qkPortExistMat" ' +
+                'onchange="window.QuickPortage.onExistMatChange(this.value)">' +
+                matOptionsHtml(S.completeMatId, { placeholder: '— matière —', onlyWithGroups: true }) +
+              '</select></label>' +
+              (S.completeMatId
+                ? '<label class="fg"><span>Dossier</span><select class="fi" id="qkPortExistGroup">' +
+                    groupOptionsHtml(S.completeGroupId, S.completeMatId) + '</select></label>'
+                : '<p class="anki-mut">Choisis d’abord une matière.</p>')
             : '<p class="anki-mut">Aucun dossier.</p>') +
         '</div>';
     }
@@ -1026,7 +1154,10 @@
   }
 
   function renderCompleteSection() {
+    syncCompleteMatGroup();
+    var mid = S.completeMatId;
     var gid = S.completeGroupId;
+    var matsAvail = matsWithQuickGroups();
     var exportBlock = '';
     if (gid) {
       try {
@@ -1041,6 +1172,10 @@
       } catch (e) {
         exportBlock = '<p class="anki-mut">' + esc(e.message) + '</p>';
       }
+    } else if (!mid) {
+      exportBlock = '<p class="anki-mut">Choisis d’abord une matière, puis un dossier Y-.</p>';
+    } else if (!groupsForMat(mid).length) {
+      exportBlock = '<p class="anki-mut">Aucun dossier Y- pour cette matière.</p>';
     } else {
       exportBlock = '<p class="anki-mut">Choisis un dossier Rapide Y- ci-dessus.</p>';
     }
@@ -1050,14 +1185,27 @@
     var pastePh = S.allowReplace
       ? '{ "mode": "patch", "summary": "...", "changes": { ... } }'
       : '{ "mode": "delta", "cards": [...] }';
+    var groupSelect = mid
+      ? ('<label class="fg"><span>Dossier Rapide</span>' +
+          '<select class="fi" id="piaCompleteGroup" onchange="window.QuickPortage.onCompleteGroupChange(this.value)"' +
+            (groupsForMat(mid).length ? '' : ' disabled') + '>' +
+            '<option value="">— choisir —</option>' +
+            groupOptionsHtml(gid, mid) +
+          '</select></label>')
+      : '<p class="anki-mut" style="margin:0 0 8px;">Le sélecteur de dossier s’affiche après la matière.</p>';
     return '' +
       '<section class="pia-section">' +
         '<h3 class="pia-h3">1 · Dossier à compléter</h3>' +
-        '<label class="fg"><span>Dossier Rapide</span>' +
-          '<select class="fi" id="piaCompleteGroup" onchange="window.QuickPortage.onCompleteGroupChange(this.value)">' +
-            '<option value="">— choisir —</option>' +
-            groupOptionsHtml(gid) +
+        '<p class="anki-mut pia-lead">Matière d’abord, puis uniquement les dossiers Y- de cette matière.</p>' +
+        '<label class="fg"><span>Matière</span>' +
+          '<select class="fi" id="piaCompleteMat" onchange="window.QuickPortage.onCompleteMatChange(this.value)"' +
+            (matsAvail.length ? '' : ' disabled') + '>' +
+            matOptionsHtml(mid, {
+              placeholder: matsAvail.length ? '— choisir —' : 'Aucun dossier Y-',
+              onlyWithGroups: true
+            }) +
           '</select></label>' +
+        groupSelect +
         exportBlock +
       '</section>' +
       '<section class="pia-section">' +
@@ -1160,10 +1308,25 @@
       S.validated = null;
       paintPane();
     },
-    onCompleteGroupChange: function (id) {
-      S.completeGroupId = String(id || '');
+    onCompleteMatChange: function (matId) {
+      S.completeMatId = String(matId || '');
+      S.completeGroupId = '';
       S.validated = null;
       paintPane();
+    },
+    onCompleteGroupChange: function (id) {
+      S.completeGroupId = String(id || '');
+      if (S.completeGroupId) {
+        var g = allGroups().find(function (x) { return x && x.id === S.completeGroupId; });
+        if (g && groupMatId(g)) S.completeMatId = groupMatId(g);
+      }
+      S.validated = null;
+      paintPane();
+    },
+    onExistMatChange: function (matId) {
+      S.completeMatId = String(matId || '');
+      S.completeGroupId = '';
+      refreshImportPreview();
     },
     showKitPreview: function (hint) {
       var el = document.getElementById('piaKitPreview');
@@ -1217,8 +1380,13 @@
     validatePaste: function () {
       var ta = document.getElementById('qkPortagePaste');
       S.importRaw = ta ? ta.value : '';
-      if (S.mode === 'complete') S.target = 'existing';
-      else S.target = 'new';
+      if (S.mode === 'complete') {
+        S.target = 'existing';
+        var sel = document.getElementById('piaCompleteGroup');
+        if (sel) S.completeGroupId = String(sel.value || '');
+      } else {
+        S.target = 'new';
+      }
       var ctx = validateContextFromUI();
       if (S.mode === 'complete') ctx.groupId = S.completeGroupId || '';
       S.validated = parseAndValidate(S.importRaw, ctx);
@@ -1231,6 +1399,12 @@
         } else {
           toast(S.validated.cards.length + ' carte(s) OK.', 'ok');
         }
+      } else if (S.validated.meta && S.validated.meta.needsAllowReplace) {
+        toast('Active « Autoriser remplacement et suppression », puis re-vérifie.', 'warn');
+        var consent = document.querySelector('input[name="piaAllowReplace"][value="1"]');
+        if (consent && consent.scrollIntoView) {
+          try { consent.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e1) { /* ignore */ }
+        }
       } else {
         toast('Portage invalide — vois les erreurs.', 'error');
       }
@@ -1241,7 +1415,11 @@
       var reader = new FileReader();
       reader.onload = function () {
         S.importRaw = String(reader.result || '');
-        if (S.mode === 'complete') S.target = 'existing';
+        if (S.mode === 'complete') {
+          S.target = 'existing';
+          var selF = document.getElementById('piaCompleteGroup');
+          if (selF) S.completeGroupId = String(selF.value || '');
+        }
         var ctx = validateContextFromUI();
         if (S.mode === 'complete') ctx.groupId = S.completeGroupId || '';
         S.validated = parseAndValidate(S.importRaw, ctx);
@@ -1249,7 +1427,11 @@
         var ta = document.getElementById('qkPortagePaste');
         if (ta) ta.value = S.importRaw;
         if (S.validated.ok) toast('Fichier OK.', 'ok');
-        else toast('Fichier invalide — vois les erreurs.', 'error');
+        else if (S.validated.meta && S.validated.meta.needsAllowReplace) {
+          toast('Active « Autoriser remplacement et suppression », puis re-vérifie.', 'warn');
+        } else {
+          toast('Fichier invalide — vois les erreurs.', 'error');
+        }
       };
       reader.onerror = function () { toast('Lecture fichier impossible.', 'error'); };
       reader.readAsText(f);

@@ -536,15 +536,15 @@
     }
 
     function anyFaceNeedsMath(nodes) {
-      var needs = false;
-      nodes.forEach(function (el) {
-        var id = el.getAttribute('data-card-face-id');
-        var side = el.getAttribute('data-card-face-side') || 'q';
-        var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
-        if (!c) return;
-        var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
-        if (faceNeedsMath(raw)) needs = true;
-      });
+    var needs = false;
+    nodes.forEach(function (el) {
+      var id = el.getAttribute('data-card-face-id');
+      var side = el.getAttribute('data-card-face-side') || 'q';
+      var c = window.AnkiAlgo && window.AnkiAlgo.findCard(window.D, id);
+      if (!c) return;
+      var raw = side === 'r' ? (c.reponse || '') : (c.question || '');
+      if (faceNeedsMath(raw)) needs = true;
+    });
       return needs;
     }
 
@@ -791,10 +791,10 @@
 
     root.innerHTML = `
       <div class="quick-pane-toolbar">
-        <div class="quick-head">
-          <h2>${window.iconLabel('zap', 'Rapide — cartes Y-')}</h2>
+      <div class="quick-head">
+        <h2>${window.iconLabel('zap', 'Rapide — cartes Y-')}</h2>
           <p>Choisis un <b>dossier</b> dans le fil d’Ariane, puis révise ou crée des cartes. Nouvelle carte → <b>active directement</b>.</p>
-        </div>
+      </div>
         <div class="quick-toolbar-actions">
           <div class="cours-create-menu" id="quickCreateMenu">
             <button type="button" class="cours-create-trigger" id="btnQuickCreateMenu"
@@ -817,7 +817,7 @@
                 <strong><span data-icon="folder" data-icon-size="14"></span> Créer un dossier</strong>
                 <span class="hint">Classer tes cartes Y- par matière</span>
               </button>
-            </div>
+          </div>
           </div>
         </div>
       </div>
@@ -832,7 +832,7 @@
           ${renderToolbarDrillOpts()}
           ${shareActionButtonHtml(navGroup.id)}
           <button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>
-        </div>
+      </div>
       </div>` : ''}
 
       <div id="qkSections" class="quick-bc-root"></div>
@@ -891,8 +891,8 @@
     if (!g) return;
     if (typeof window.refuseSecondaryFullMutation === 'function'
         && window.refuseSecondaryFullMutation('Appareil secondaire : édition de dossier indisponible.')) {
-      return;
-    }
+        return;
+      }
     Q.editGroupId = gid;
     Q.editGroupColor = g.color || defaultGroupColor(inferGroupMat(g));
     let ov = $('ovQuickEditGroup');
@@ -1028,37 +1028,192 @@
     if (typeof window.showToast === 'function') window.showToast('Dossier mis à jour.', { type: 'ok' });
   };
 
+  function resetSysDialogWidth() {
+    const ov = $('ovSysDialog');
+    const modal = ov && ov.querySelector('.modal');
+    if (modal) modal.style.maxWidth = '';
+  }
+
+  function releaseShareOnGroupDelete(g) {
+    if (window.QuickShare && typeof window.QuickShare.releaseGroupShareOnDelete === 'function') {
+      try { window.QuickShare.releaseGroupShareOnDelete(g); } catch (e) { /* best-effort */ }
+    }
+  }
+
+  function removeQuickGroupRecord(id) {
+    window.D.quickGroups = (window.D.quickGroups || []).filter(x => x.id !== id);
+    window.D.quickGroups.forEach((x, i) => { x.order = i; });
+    if (Q.nav.group === id) Q.nav.group = '';
+  }
+
+  /** Supprime le dossier ; les cartes Y- passent en « Sans dossier ». */
+  function deleteQuickGroupKeepCards(g, id) {
+    releaseShareOnGroupDelete(g);
+    removeQuickGroupRecord(id);
+    (window.D.exercices || []).forEach(c => {
+      if (c && c.groupId === id) delete c.groupId;
+    });
+  }
+
+  /** Supprime le dossier et toutes les cartes Y- qu’il contient. */
+  function deleteQuickGroupAndCards(g, id) {
+    releaseShareOnGroupDelete(g);
+    removeQuickGroupRecord(id);
+    window.D.exercices = (window.D.exercices || []).filter(c => {
+      if (!c || c.groupId !== id) return true;
+      return !isQuickCard(c);
+    });
+  }
+
+  /**
+   * Confirmation 1/2 (wipe) : recopier le nom exact du dossier.
+   * Puis confirmation 2/2 via sysConfirm.
+   */
+  function confirmWipeGroupWithTypedName(g, id, count, after) {
+    const expected = String(g.name || '').trim() || String(g.id || '').trim() || 'SUPPRIMER';
+    const title = 'Supprimer les cartes';
+    const msgHtml =
+      'Confirmation <b>1 / 2</b> — pour supprimer le dossier <b>« ' + esc(expected) + ' »</b> ' +
+      'et ses <b>' + count + '</b> carte(s) Y-, recopie son nom exact ci-dessous.' +
+      '<div class="qk-del-type" style="margin-top:14px;text-align:left;">' +
+        '<label class="qk-group-create-lbl" for="qkDelGroupTypeInput">Nom du dossier</label>' +
+        '<input type="text" id="qkDelGroupTypeInput" class="fi" autocomplete="off" ' +
+          'spellcheck="false" placeholder="' + escAttr(expected) + '" ' +
+          'oninput="window._qkDelTypeSync()" ' +
+          'onkeydown="if(event.key===\'Enter\'){event.preventDefault();window._qkDelTypeContinue();}">' +
+        '<p id="qkDelGroupTypeHint" class="anki-mut" style="margin:8px 0 0;font-size:12px;">' +
+          'Le bouton reste inactif tant que le nom ne correspond pas.</p>' +
+      '</div>';
+
+    const ov = $('ovSysDialog');
+    const modal = ov && ov.querySelector('.modal');
+    if (modal) modal.style.maxWidth = '400px';
+    if ($('sysDialogTitle')) $('sysDialogTitle').textContent = title;
+    if ($('sysDialogMsg')) $('sysDialogMsg').innerHTML = msgHtml;
+
+    window._qkDelTypeSync = function () {
+      const inp = $('qkDelGroupTypeInput');
+      const btn = $('qkDelGroupTypeBtn');
+      const hint = $('qkDelGroupTypeHint');
+      const ok = !!(inp && String(inp.value || '').trim() === expected);
+      if (btn) {
+        btn.disabled = !ok;
+        btn.style.opacity = ok ? '1' : '0.45';
+        btn.style.pointerEvents = ok ? '' : 'none';
+      }
+      if (hint) {
+        hint.textContent = ok
+          ? 'Nom reconnu — tu pourras encore confirmer une dernière fois.'
+          : 'Le bouton reste inactif tant que le nom ne correspond pas.';
+      }
+    };
+    window._qkDelTypeContinue = function () {
+      const inp = $('qkDelGroupTypeInput');
+      if (!inp || String(inp.value || '').trim() !== expected) {
+        window._qkDelTypeSync();
+        return;
+      }
+      if (typeof window.closeSysDialog === 'function') window.closeSysDialog();
+      const msg2 =
+        'Confirmation 2 / 2 — dernière étape.\n\n' +
+        count + ' carte(s) Y- du dossier « ' + expected + ' » seront définitivement supprimées avec le dossier.\n' +
+        'Irréversible. Continuer ?';
+      const goWipe = function () {
+        deleteQuickGroupAndCards(g, id);
+        after();
+      };
+      if (typeof window.sysConfirm === 'function') {
+        window.sysConfirm(msg2, goWipe, 'Suppression définitive');
+      } else if (window.confirm(msg2)) {
+        goWipe();
+      }
+    };
+
+    if ($('sysDialogActs')) {
+      $('sysDialogActs').style.flexWrap = 'wrap';
+      $('sysDialogActs').innerHTML =
+        '<button type="button" class="bs ui-btn-surface" style="flex:1;" ' +
+          'onclick="window.closeSysDialog()">Annuler</button>' +
+        '<button type="button" class="bp ui-btn-accent" id="qkDelGroupTypeBtn" disabled ' +
+          'style="flex:1;background:var(--red);color:#fff;border-color:var(--red);opacity:0.45;pointer-events:none;" ' +
+          'onclick="window._qkDelTypeContinue()">Continuer</button>';
+    }
+    if (ov) ov.classList.remove('hidden');
+    setTimeout(function () {
+      const inp = $('qkDelGroupTypeInput');
+      if (inp) inp.focus();
+      window._qkDelTypeSync();
+    }, 30);
+  }
+
+  /**
+   * Flux commun : choix garder cartes / supprimer cartes (+ double confirm si wipe).
+   * @param {string} id
+   * @param {{ after?: function }} hooks
+   */
+  function promptDeleteQuickGroup(id, hooks) {
+    hooks = hooks || {};
+    const after = typeof hooks.after === 'function' ? hooks.after : function () {};
+    if (typeof window.refuseSecondaryFullMutation === 'function'
+        && window.refuseSecondaryFullMutation('Appareil secondaire : suppression de dossier indisponible.')) {
+      return;
+    }
+    ensure();
+    const g = groupInfo(id);
+    if (!g) { after(); return; }
+    const count = (window.D.exercices || []).filter(c => isQuickCard(c) && c.groupId === id).length;
+    const label = String(g.name || '').trim() || id;
+
+    const goKeep = function () {
+      deleteQuickGroupKeepCards(g, id);
+      after();
+    };
+
+    if (!count) {
+      const msgEmpty = 'Supprimer le dossier « ' + label + ' » ? (aucune carte)';
+      if (typeof window.sysConfirm === 'function') {
+        window.sysConfirm(msgEmpty, goKeep, 'Dossier');
+      } else {
+        goKeep();
+      }
+      return;
+    }
+
+    const msg =
+      'Supprimer le dossier « ' + label + ' » ?\n' +
+      count + ' carte(s) Y- concernées.\n\n' +
+      '• Dossier seul → les cartes passent en « Sans dossier ».\n' +
+      '• Dossier + cartes → suppression définitive (nom à recopier, 2 confirmations).';
+
+    if (typeof window.sysConfirmChoices === 'function') {
+      window.sysConfirmChoices(msg, [
+        { id: 'keep', label: 'Dossier seul (garder les cartes)', primary: true },
+        { id: 'wipe', label: 'Dossier + cartes', danger: true }
+      ], 'Dossier', function (choice) {
+        if (choice === 'keep') goKeep();
+        else if (choice === 'wipe') confirmWipeGroupWithTypedName(g, id, count, after);
+      });
+      return;
+    }
+
+    /* Fallback sans sysConfirmChoices */
+    if (window.confirm(msg + '\n\nOK = dossier seul. Annuler puis…')) {
+      goKeep();
+    }
+  }
+
+  window.resetSysDialogWidth = resetSysDialogWidth;
+
   window.quickEditGroupDelete = function () {
     const id = Q.editGroupId;
     if (!id) return;
     window.quickCloseEditGroup();
-    const after = function () {
-      if (typeof window.save === 'function') window.save();
-      window.renderFlashcards();
-    };
-    const g = groupInfo(id);
-    if (!g) { after(); return; }
-    const count = (window.D.exercices || []).filter(c => isQuickCard(c) && c.groupId === id).length;
-    const msg = count
-      ? 'Supprimer le dossier « ' + g.name + ' » ? ' + count + ' carte(s) passeront en « Sans dossier ».'
-      : 'Supprimer le dossier « ' + g.name + ' » ?';
-    const doDel = function () {
-      if (window.QuickShare && typeof window.QuickShare.releaseGroupShareOnDelete === 'function') {
-        try { window.QuickShare.releaseGroupShareOnDelete(g); } catch (e) { /* best-effort */ }
+    promptDeleteQuickGroup(id, {
+      after: function () {
+        if (typeof window.save === 'function') window.save();
+        window.renderFlashcards();
       }
-      window.D.quickGroups = (window.D.quickGroups || []).filter(x => x.id !== id);
-      (window.D.exercices || []).forEach(c => {
-        if (c && c.groupId === id) delete c.groupId;
-      });
-      window.D.quickGroups.forEach((x, i) => { x.order = i; });
-      if (Q.nav.group === id) Q.nav.group = '';
-      after();
-    };
-    if (typeof window.sysConfirm === 'function') {
-      window.sysConfirm(msg, doDel, 'Dossier');
-    } else {
-      doDel();
-    }
+    });
   };
 
   window.quickActivate = function (id) {
@@ -1166,20 +1321,20 @@
     if (!split.active.length && !split.reservoir.length) {
       return '<div class="cours-bc-empty">Aucune carte dans ce groupe.</div>';
     }
-    return `
+      return `
       ${split.reservoir.length ? `
-        <div class="quick-reservoir-block">
-          <div class="quick-reservoir-hdr">
-            <span>${window.iconLabel('hourglass', 'Réservoir Y-')}</span>
+              <div class="quick-reservoir-block">
+                <div class="quick-reservoir-hdr">
+                  <span>${window.iconLabel('hourglass', 'Réservoir Y-')}</span>
             ${activateMatId ? `<button class="bs" onclick="event.stopPropagation();window.quickActivateMat('${esc(activateMatId)}')">${window.iconLabel('zap', 'Activer toute la matière')}</button>` : ''}
-          </div>
+                </div>
           <div class="quick-grid">${split.reservoir.map(renderCard).join('')}</div>
-        </div>` : ''}
+              </div>` : ''}
       ${split.active.length ? `
-        <div class="quick-active-block">
-          <p class="anki-mut" style="font-size:11px;margin:8px 0;">${window.iconLabel('play', 'Actives')}</p>
+              <div class="quick-active-block">
+                <p class="anki-mut" style="font-size:11px;margin:8px 0;">${window.iconLabel('play', 'Actives')}</p>
           <div class="quick-grid">${split.active.map(renderCard).join('')}</div>
-        </div>` : ''}
+              </div>` : ''}
     `;
   }
 
@@ -1226,7 +1381,7 @@
             '</div>' +
             '<button type="button" class="bp ui-btn-sm qk-due-tonight" onclick="window.quickStartSynchrotronY()" ' +
               (dueN ? '' : 'disabled ') +
-              'title="Session algo : Y- overdue / actives / bientôt, tous dossiers mélangés">' +
+              'title="Session algo : Y- overdue / actives / bientôt — tu choisis les matières">' +
               window.iconLabel('moon', dueN ? ('Due ce soir · ' + dueN) : 'Rien de dû') +
             '</button>' +
           '</div>' +
@@ -1238,7 +1393,7 @@
     if (hasGroups) {
       bodyHtml += rootDueHead(
         'Choisir un dossier',
-        'Classés par matière · ou révise toutes les Y- dues (mélangées).'
+        'Classés par matière · ou Due ce soir (filtre matières + mélange).'
       );
       bodyHtml += sections.map(sec => {
         const m = sec.mat;
@@ -1262,7 +1417,7 @@
               `</div>` +
             `</div>`
           );
-        }).join('');
+    }).join('');
         return (
           `<section class="quick-group-section">` +
             `<div class="anki-lib-group-hdr" style="border-left:4px solid ${esc(m.color)};">` +
@@ -1697,30 +1852,9 @@
   };
 
   window.quickDeleteGroup = function (id) {
-    ensure();
-    const g = groupInfo(id);
-    if (!g) return;
-    const count = (window.D.exercices || []).filter(c => isQuickCard(c) && c.groupId === id).length;
-    const msg = count
-      ? 'Supprimer le dossier « ' + g.name + ' » ? ' + count + ' carte(s) passeront en « Sans dossier ».'
-      : 'Supprimer le dossier « ' + g.name + ' » ?';
-    const doDel = function () {
-      if (window.QuickShare && typeof window.QuickShare.releaseGroupShareOnDelete === 'function') {
-        try { window.QuickShare.releaseGroupShareOnDelete(g); } catch (e) { /* best-effort */ }
-      }
-      window.D.quickGroups = (window.D.quickGroups || []).filter(x => x.id !== id);
-      (window.D.exercices || []).forEach(c => {
-        if (c && c.groupId === id) delete c.groupId;
-      });
-      window.D.quickGroups.forEach((x, i) => { x.order = i; });
-      if (Q.nav.group === id) Q.nav.group = '';
-      refreshGroupsModalBody();
-    };
-    if (typeof window.sysConfirm === 'function') {
-      window.sysConfirm(msg, doDel, 'Dossier');
-    } else {
-      doDel();
-    }
+    promptDeleteQuickGroup(id, {
+      after: function () { refreshGroupsModalBody(); }
+    });
   };
 
   window.quickSaveGroupsModal = function () {
@@ -1763,7 +1897,7 @@
       }
       return;
     }
-    openQuickDrill(list, 'Due ce soir');
+    openQuickDrill(list, 'Due ce soir', { matFilter: true });
   };
 
   /** Réviser un dossier Rapide (groupId) hors navigation courante. */
@@ -1813,7 +1947,11 @@
     srsPending: {},
     gradeStack: [],
     _undoGen: 0,
-    _bound: false
+    _bound: false,
+    /** Due ce soir : filtre matières (setup). */
+    matFilter: false,
+    matBuckets: [],
+    selectedMats: null
   };
 
   function groupAllowsBidirectional(g) {
@@ -1984,7 +2122,104 @@
     }).catch(function () { return false; });
   }
 
-  function openQuickDrill(cards, label) {
+  function dueMatKey(matId) {
+    return matId ? String(matId) : '__none__';
+  }
+
+  /** Buckets matières pour le pool Due ce soir (tri programme). */
+  function buildDueMatBuckets(cards) {
+    const map = Object.create(null);
+    (cards || []).forEach(function (c) {
+      if (!c) return;
+      const mid = c.mat || '';
+      const key = dueMatKey(mid);
+      if (!map[key]) {
+        const info = mid ? matInfo(mid) : { id: '', label: '?', name: 'Sans matière', color: '#6a7088' };
+        map[key] = {
+          key: key,
+          id: mid,
+          label: (info.label || info.name || mid || 'Sans matière'),
+          name: info.name || '',
+          color: info.color || '#6a7088',
+          count: 0
+        };
+      }
+      map[key].count += 1;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+      const oa = matOrderIndex(a.id);
+      const ob = matOrderIndex(b.id);
+      if (oa !== ob) return oa - ob;
+      return String(a.label).localeCompare(String(b.label), 'fr');
+    });
+  }
+
+  function initDrillMatFilter(cards, enabled) {
+    DRILL.matFilter = !!enabled;
+    DRILL.matBuckets = DRILL.matFilter ? buildDueMatBuckets(cards) : [];
+    if (!DRILL.matFilter || DRILL.matBuckets.length < 2) {
+      /* Une seule matière : pas de UI filtre (tout est déjà sélectionné). */
+      DRILL.matFilter = DRILL.matFilter && DRILL.matBuckets.length >= 2;
+      DRILL.selectedMats = Object.create(null);
+      DRILL.matBuckets.forEach(function (b) { DRILL.selectedMats[b.key] = true; });
+      return;
+    }
+    DRILL.selectedMats = Object.create(null);
+    DRILL.matBuckets.forEach(function (b) { DRILL.selectedMats[b.key] = true; });
+  }
+
+  function filteredSetupPool() {
+    if (!DRILL.matFilter || !DRILL.selectedMats) return DRILL.pool.slice();
+    return DRILL.pool.filter(function (c) {
+      if (!c) return false;
+      return !!DRILL.selectedMats[dueMatKey(c.mat || '')];
+    });
+  }
+
+  function countSelectedDueMats() {
+    if (!DRILL.selectedMats) return 0;
+    let n = 0;
+    Object.keys(DRILL.selectedMats).forEach(function (k) {
+      if (DRILL.selectedMats[k]) n += 1;
+    });
+    return n;
+  }
+
+  function renderSetupMatChips() {
+    if (!DRILL.matFilter || !DRILL.matBuckets || DRILL.matBuckets.length < 2) return '';
+    const selN = countSelectedDueMats();
+    let html = '<div class="qk-drill-mats">';
+    html += '<div class="qk-drill-mats-head">' +
+      '<span class="qk-drill-mats-title">Matières</span>' +
+      '<span class="qk-drill-mats-acts">' +
+        '<button type="button" class="qk-drill-mats-link" onclick="window.quickDrillMatsAll(true)">Toutes</button>' +
+        '<button type="button" class="qk-drill-mats-link" onclick="window.quickDrillMatsAll(false)">Aucune</button>' +
+      '</span></div>';
+    html += '<div class="qk-drill-opts qk-drill-mat-chips" role="group" aria-label="Matières à réviser">';
+    DRILL.matBuckets.forEach(function (b) {
+      const on = !!(DRILL.selectedMats && DRILL.selectedMats[b.key]);
+      const lab = (b.label || '?') + ' · ' + b.count;
+      html += '<button type="button" class="qk-drill-chip qk-drill-mat-chip' + (on ? ' on' : '') + '"' +
+        ' style="--mat-color:' + esc(b.color || '#6a7088') + '"' +
+        ' onclick="window.quickDrillToggleMat(\'' + jsStr(b.key) + '\')" ' +
+        'aria-pressed="' + (on ? 'true' : 'false') + '">' +
+        '<span class="qk-drill-mat-dot" aria-hidden="true"></span>' +
+        esc(lab) +
+      '</button>';
+    });
+    html += '</div>';
+    if (!selN) {
+      html += '<p class="qk-drill-hint qk-drill-hint--warn">Choisis au moins une matière.</p>';
+    } else {
+      html += '<p class="qk-drill-hint">Filtre actif · ' + selN + ' matière' + (selN > 1 ? 's' : '') +
+        ' · ' + filteredSetupPool().length + ' carte(s) dues.</p>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function openQuickDrill(cards, label, opts) {
+    opts = opts || {};
     ensureDrillEngine().then(function () {
       readDrillPrefs();
       DRILL.pool = cards.slice();
@@ -1995,6 +2230,7 @@
       DRILL.revealed = false;
       DRILL.typed = '';
       DRILL.check = null;
+      initDrillMatFilter(cards, !!opts.matFilter);
       const ov = ensureDrillOverlay();
       ov.classList.remove('hidden');
       renderDrill();
@@ -2296,19 +2532,27 @@
 
     let body = '';
     if (DRILL.phase === 'setup') {
-      const n = DRILL.pool.length;
+      const filtered = filteredSetupPool();
+      const n = filtered.length;
+      const totalDue = DRILL.pool.length;
+      const beginDisabled = !n;
       body = `
         ${drillTopBar(window.iconLabel('zap', esc(DRILL.label)))}
-        <p class="qk-drill-setup-count">${n} carte${n > 1 ? 's' : ''} disponible${n > 1 ? 's' : ''}</p>
+        <p class="qk-drill-setup-count">${n} carte${n > 1 ? 's' : ''} disponible${n > 1 ? 's' : ''}` +
+          (DRILL.matFilter && n !== totalDue
+            ? ` <span class="anki-mut">(sur ${totalDue} dues)</span>`
+            : '') +
+        `</p>
+        ${renderSetupMatChips()}
         <p class="qk-drill-hint">Choisis combien en réviser maintenant — le reste reste dû pour plus tard.</p>
-        ${renderSetupSizeChips(n)}
+        ${n ? renderSetupSizeChips(n) : '<p class="qk-drill-hint qk-drill-hint--warn">Aucune carte avec ce filtre.</p>'}
         <div class="qk-drill-opts" role="group" aria-label="Options de révision">
           ${optChip(DRILL.random, 'shuffle', 'Aléatoire', "window.quickDrillToggle('random')")}
           ${optChip(DRILL.swap, 'arrow-left-right', DRILL.swap ? 'Verso → recto' : 'Recto → verso', "window.quickDrillToggle('swap')")}
           ${optChip(DRILL.typeMode, 'keyboard', 'Écrire', "window.quickDrillToggle('type')")}
         </div>
         <div class="qk-drill-acts qk-drill-acts-col">
-          <button type="button" class="bp" onclick="window.quickDrillBegin()">${window.iconLabel('play', 'Commencer')}</button>
+          <button type="button" class="bp" ${beginDisabled ? 'disabled ' : ''}onclick="window.quickDrillBegin()">${window.iconLabel('play', 'Commencer')}</button>
           <button type="button" class="bs" onclick="window.quickDrillClose({force:true})">${window.iconLabel('x', 'Annuler')}</button>
         </div>
       `;
@@ -2441,9 +2685,26 @@
     if (DRILL.phase === 'setup') renderDrill();
   };
 
+  window.quickDrillToggleMat = function (matKey) {
+    if (!DRILL.matFilter || !DRILL.selectedMats) return;
+    const key = String(matKey || '');
+    DRILL.selectedMats[key] = !DRILL.selectedMats[key];
+    if (DRILL.phase === 'setup') renderDrill();
+  };
+
+  window.quickDrillMatsAll = function (on) {
+    if (!DRILL.matFilter || !DRILL.selectedMats || !DRILL.matBuckets) return;
+    const val = !!on;
+    DRILL.matBuckets.forEach(function (b) {
+      DRILL.selectedMats[b.key] = val;
+    });
+    if (DRILL.phase === 'setup') renderDrill();
+  };
+
   window.quickDrillBegin = function () {
-    if (!DRILL.pool.length) return;
-    const subset = pickSessionSubset(DRILL.pool);
+    const pool = filteredSetupPool();
+    if (!pool.length) return;
+    const subset = pickSessionSubset(pool);
     DRILL.sessionCards = subset.slice();
     buildDrillQueue(subset);
     DRILL.phase = 'card';

@@ -109,6 +109,9 @@ window.sysConfirmChoices = function (msg, choices, title, onChoice) {
 
 window.closeSysDialog = function() {
   window._sysDialogSticky = false;
+  if (typeof window.resetSysDialogWidth === 'function') {
+    try { window.resetSysDialogWidth(); } catch (e) { /* ignore */ }
+  }
   if(window.$('ovSysDialog')) window.$('ovSysDialog').classList.add('hidden');
 };
 

@@ -1177,6 +1177,13 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
   color: var(--txt);
   font-size: 12px;
 }
+.pia-diff-scroll {
+  max-height: min(42vh, 360px);
+  overflow: auto;
+  margin: 8px 0 0;
+  padding-right: 6px;
+  -webkit-overflow-scrolling: touch;
+}
 .qk-portage-card {
   max-width: min(720px, 96vw);
   width: 100%;
@@ -4332,6 +4339,59 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   width: min(440px, 94vw);
 }
 .qk-drill-hint { font-size: 11px; color: var(--mut); text-align: center; margin: 0 0 14px; line-height: 1.4; }
+.qk-drill-hint--warn { color: var(--gold); }
+.qk-drill-mats {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--bd);
+  background: rgba(120, 120, 128, 0.06);
+  text-align: left;
+}
+.qk-drill-mats-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.qk-drill-mats-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--txt);
+}
+.qk-drill-mats-acts { display: flex; gap: 10px; flex-shrink: 0; }
+.qk-drill-mats-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--acc);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.qk-drill-mats-link:hover { opacity: 0.85; }
+.qk-drill-mat-chips { margin: 0; justify-content: flex-start; }
+.qk-drill-mat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: color-mix(in oklab, var(--mat-color, var(--bd)) 55%, var(--bd)) !important;
+}
+.qk-drill-mat-chip.on {
+  border-color: var(--mat-color, var(--acc)) !important;
+  background: color-mix(in oklab, var(--mat-color, var(--acc)) 22%, var(--s2)) !important;
+}
+.qk-drill-mat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mat-color, var(--mut));
+  flex-shrink: 0;
+}
 .qk-drill-setup-count {
   text-align: center;
   font-size: 14px;
