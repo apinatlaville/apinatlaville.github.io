@@ -4822,13 +4822,17 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       // Avance mémoire puis 1 save (currentId à jour) — pas de skipPersist stale
       const cont = advanceSessionQueueInMemory();
       Promise.resolve(persistSession()).then(function () {
-        S._evalBusy = false;
-        if (!cont) return endSession();
-        if (S.sessionUI === 'full') {
-          runDeckExitThen(function () { renderSessionOverlay(); });
-        } else {
-          renderSessionOverlay();
+        if (!cont) {
+          S._evalBusy = false;
+          return endSession();
         }
+        // Garder _evalBusy jusqu’après render : sinon double-clic pendant l’anim note la carte suivante
+        const finish = function () {
+          renderSessionOverlay();
+          S._evalBusy = false;
+        };
+        if (S.sessionUI === 'full') runDeckExitThen(finish);
+        else finish();
       }).catch(function (err) {
         console.error('evalCardV2 devoir save:', err);
         S._evalBusy = false;
@@ -4924,14 +4928,18 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     // Évite skipPersist qui laissait sessionEnCoursV2 sur la carte déjà notée.
     const cont = advanceSessionQueueInMemory();
     Promise.resolve(persistSession()).then(function () {
-      S._evalBusy = false;
-      if (!cont) return endSession();
-      // DOM montre encore l’ancienne carte → anim sortie puis render suivante
-      if (S.sessionUI === 'full') {
-        runDeckExitThen(function () { renderSessionOverlay(); });
-      } else {
-        renderSessionOverlay();
+      if (!cont) {
+        S._evalBusy = false;
+        return endSession();
       }
+      // DOM montre encore l’ancienne carte → anim puis render.
+      // _evalBusy reste true jusqu’au render (évite de noter B pendant l’anim de A).
+      const finish = function () {
+        renderSessionOverlay();
+        S._evalBusy = false;
+      };
+      if (S.sessionUI === 'full') runDeckExitThen(finish);
+      else finish();
     }).catch(function (err) {
       console.error('evalCardV2 save:', err);
       // Note déjà mutée sur la carte en mémoire ; UI avance pour éviter double saisie.
