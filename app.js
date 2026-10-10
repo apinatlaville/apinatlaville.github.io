@@ -2709,8 +2709,12 @@ async function initApp(user) {
   if (typeof window.enterApp === 'function') window.enterApp();
   if (typeof window.unlockPage === 'function') window.unlockPage('ui ready');
 
-  // DeviceSession AVANT les saves post-migrate (anti faux-primary LWW)
-  if (typeof window.DeviceSession !== 'undefined' && typeof window.DeviceSession.start === 'function') {
+  // DeviceSession AVANT les saves post-migrate (anti faux-primary LWW).
+  // Sans cloudConnected, la présence Firestore échoue aussi (mêmes timeouts WebChannel)
+  // — inutile d’empiler des getDoc presence après un fetch cloud déjà en échec.
+  if (window.cloudConnected
+      && typeof window.DeviceSession !== 'undefined'
+      && typeof window.DeviceSession.start === 'function') {
     var deviceUserIdEarly = (!window.isLocalMode && user && user.sub)
       ? user.sub
       : null;

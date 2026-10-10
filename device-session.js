@@ -39,6 +39,8 @@
 
   var _writeChain = Promise.resolve();
   var _claimInFlight = false;
+  /** Évite d’empiler des getDoc/setDoc orphelins quand un heartbeat dépasse l’intervalle. */
+  var _hbInFlight = false;
 
   function now() { return Date.now(); }
 
@@ -238,24 +240,72 @@
     return writeHub(hub);
   }
 
+  /** Mutate + setDoc sur un hub déjà lu (1 écriture, pas de 2e getDoc). */
+  function mutateFreshHub(fresh, mutator, preservePrimary) {
+    var hub = cloneHub(fresh || emptyHub());
+    var keep = {
+      primaryDeviceId: hub.primaryDeviceId,
+      primaryUpdatedAt: hub.primaryUpdatedAt,
+      primaryClaimedAt: hub.primaryClaimedAt
+    };
+    hub = mutator(hub);
+    if (preservePrimary) {
+      var id = getDeviceId();
+      if (keep.primaryDeviceId && keep.primaryDeviceId !== id) {
+        hub.primaryDeviceId = keep.primaryDeviceId;
+        hub.primaryUpdatedAt = keep.primaryUpdatedAt;
+        hub.primaryClaimedAt = keep.primaryClaimedAt;
+      }
+    }
+    return writeHub(hub);
+  }
+
   function safeWritePresence(mutator, preservePrimary) {
     return readHubOnce().then(function (fresh) {
-      var hub = cloneHub(fresh || emptyHub());
-      var keep = {
-        primaryDeviceId: hub.primaryDeviceId,
-        primaryUpdatedAt: hub.primaryUpdatedAt,
-        primaryClaimedAt: hub.primaryClaimedAt
-      };
-      hub = mutator(hub);
-      if (preservePrimary) {
-        var id = getDeviceId();
-        if (keep.primaryDeviceId && keep.primaryDeviceId !== id) {
-          hub.primaryDeviceId = keep.primaryDeviceId;
-          hub.primaryUpdatedAt = keep.primaryUpdatedAt;
-          hub.primaryClaimedAt = keep.primaryClaimedAt;
-        }
-      }
-      return writeHub(hub);
+      state.hub = fresh || emptyHub();
+      return mutateFreshHub(fresh, mutator, preservePrimary);
+    });
+  }
+
+  /**
+   * Attache onSnapshot une seule fois et attend le 1er hub.
+   * Évite le couple getDoc×N au join puis Listen (saturait WebChannel Safari).
+   */
+  function ensureHubListener() {
+    if (state.unsubHub) return Promise.resolve(state.hub || emptyHub());
+    var ref = presenceRef();
+    if (!ref || !window.onSnapshot) {
+      return readHubOnce().then(function (hub) {
+        state.hub = hub || emptyHub();
+        return state.hub;
+      });
+    }
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        readHubOnce().then(function (hub) {
+          state.hub = hub || emptyHub();
+          resolve(state.hub);
+        }, reject);
+      }, 4000);
+      state.unsubHub = window.onSnapshot(ref, function (snap) {
+        onHubSnapshot(snap);
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(state.hub || emptyHub());
+      }, function (err) {
+        console.warn('DeviceSession presence listen:', err);
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        readHubOnce().then(function (hub) {
+          state.hub = hub || emptyHub();
+          resolve(state.hub);
+        }, reject);
+      });
     });
   }
 
@@ -306,15 +356,16 @@
   function resolveJoin() {
     if (state.joinResolved) return Promise.resolve();
 
-    // Max 2 lectures + 100 ms : assez pour un second onglet concurrent,
-    // sans les ~1–2 s du poll 4×250 ms d’avant.
-    function poll(attempt) {
-      return readHubOnce().then(function (hub) {
+    // Listen d’abord (1 canal), courte pause pour un 2e onglet concurrent, puis 1 setDoc.
+    // Avant : getDoc×2 + setDoc puis onSnapshot → WebChannel saturé / timeouts Safari.
+    function loadHubForJoin() {
+      return ensureHubListener().then(function (hub) {
         state.hub = hub || emptyHub();
-        if (remotePrimaryAlive(state.hub) || otherLiving(state.hub).length) return state.hub;
-        if (attempt >= 2) return state.hub;
+        if (remotePrimaryAlive(state.hub) || otherLiving(state.hub).length) {
+          return state.hub;
+        }
         return new Promise(function (resolve) {
-          setTimeout(function () { resolve(poll(attempt + 1)); }, 100);
+          setTimeout(function () { resolve(state.hub || emptyHub()); }, 150);
         });
       }).catch(function (err) {
         console.warn('DeviceSession presence poll:', err && err.message ? err.message : err);
@@ -322,7 +373,7 @@
       });
     }
 
-    return withFsTimeout(poll(1).then(function () {
+    return withFsTimeout(loadHubForJoin().then(function () {
       var remote = remotePrimaryAlive(state.hub);
       var others = otherLiving(state.hub);
       var pref = state.preferredRole;
@@ -360,9 +411,11 @@
         return applyClaim(hub);
       }, false).then(function () {
         if (alone) return state.hub;
-        return readHubOnce().then(function (again) {
-          state.hub = again || state.hub;
-          var winner = remotePrimaryAlive(state.hub) || state.hub.primaryDeviceId;
+        // Listener déjà actif : laisser arriver le snapshot post-écriture plutôt qu’un getDoc.
+        return new Promise(function (resolve) {
+          setTimeout(function () { resolve(state.hub || emptyHub()); }, 200);
+        }).then(function () {
+          var winner = remotePrimaryAlive(state.hub) || (state.hub && state.hub.primaryDeviceId);
           var others2 = otherLiving(state.hub);
           if (winner && winner !== id) {
             var theirClaim = Number(state.hub.primaryClaimedAt || 0);
@@ -419,50 +472,54 @@
   function heartbeat() {
     if (!state.started || window.isLocalMode || !state.userId) return;
     if (!state.joinResolved) return;
-    if (_claimInFlight) return;
+    if (_claimInFlight || _hbInFlight) return;
 
     // Primary : heartbeat même hors focus pour garder le lease
     var hidden = document.visibilityState && document.visibilityState !== 'visible';
     if (hidden && state.effectiveRole !== CONFIG.ROLES.PRIMARY) return;
 
+    _hbInFlight = true;
     enqueuePresence(function () {
-      return readHubOnce().then(function (fresh) {
+      // Cause des timeouts : readHubOnce + safeWritePresence (= 2e getDoc) + setDoc.
+      // Listener live → hub déjà frais, 1 setDoc. Sinon 1 getDoc + 1 setDoc.
+      var load = state.unsubHub
+        ? Promise.resolve(state.hub || emptyHub())
+        : readHubOnce();
+      return load.then(function (fresh) {
         state.hub = fresh || emptyHub();
         var id = getDeviceId();
         var hubPrimaryId = state.hub.primaryDeviceId;
         var remote = remotePrimaryAlive(state.hub);
 
+        function write(mutator, preservePrimary) {
+          return mutateFreshHub(state.hub, mutator, preservePrimary).then(function () { emit(); });
+        }
+
         if (state.effectiveRole === CONFIG.ROLES.PRIMARY && !state.needsRoleChoice) {
           // On détient encore le claim dans le hub (même lease un peu vieux) → refresh
           if (hubPrimaryId === id) {
-            return safeWritePresence(function (hub) {
-              return refreshPrimaryLease(hub);
-            }, false).then(function () { emit(); });
+            return write(function (hub) { return refreshPrimaryLease(hub); }, false);
           }
           if (remote && remote !== id) {
             state.effectiveRole = CONFIG.ROLES.SECONDARY;
             state.controlStolen = true;
-            return safeWritePresence(function (hub) {
-              return applySecondaryPresence(hub);
-            }, true).then(function () { emit(); });
+            return write(function (hub) { return applySecondaryPresence(hub); }, true);
           }
           // Claim vide et personne d'autre → reclaim
           if (!hubPrimaryId && otherLiving(state.hub).length === 0) {
-            return safeWritePresence(function (hub) {
-              return applyClaim(hub);
-            }, false).then(function () { emit(); });
+            return write(function (hub) { return applyClaim(hub); }, false);
           }
           // Sinon rester Primary localement et retenter plus tard (ne pas se rétrograder)
-          return safeWritePresence(function (hub) {
-            return touchSelf(hub, CONFIG.ROLES.PRIMARY);
-          }, true).then(function () { emit(); });
+          return write(function (hub) { return touchSelf(hub, CONFIG.ROLES.PRIMARY); }, true);
         }
 
-        return safeWritePresence(function (hub) {
-          return applySecondaryPresence(hub);
-        }, true).then(function () { emit(); });
+        return write(function (hub) { return applySecondaryPresence(hub); }, true);
       }).catch(function (err) {
         console.warn('DeviceSession heartbeat:', err);
+      }).then(function () {
+        _hbInFlight = false;
+      }, function () {
+        _hbInFlight = false;
       });
     });
   }
@@ -536,11 +593,14 @@
     bindPageLifecycle();
 
     return resolveJoin().then(function () {
-      var ref = presenceRef();
-      if (ref && window.onSnapshot) {
-        state.unsubHub = window.onSnapshot(ref, onHubSnapshot, function (err) {
-          console.warn('DeviceSession presence listen:', err);
-        });
+      // Listener déjà posé par ensureHubListener pendant resolveJoin.
+      if (!state.unsubHub) {
+        var ref = presenceRef();
+        if (ref && window.onSnapshot) {
+          state.unsubHub = window.onSnapshot(ref, onHubSnapshot, function (err) {
+            console.warn('DeviceSession presence listen:', err);
+          });
+        }
       }
       startHeartbeat();
       setTimeout(heartbeat, 500);
@@ -558,6 +618,7 @@
     state.needsRoleChoice = false;
     state.controlStolen = false;
     _claimInFlight = false;
+    _hbInFlight = false;
   }
 
   function claimPrimary() {

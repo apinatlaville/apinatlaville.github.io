@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20261008a';
+  window.__BOOT_CACHE_V = '20261010c';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -989,7 +989,17 @@
       const app = initializeApp(firebaseConfig);
       // ignoreUndefinedProperties : évite qu’un champ undefined fasse échouer TOUTE
       // écriture (index profils / blobs) → « bascule cloud échouée » + tailles 0 o
-      const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
+      // Safari (et certains proxys) cassent WebChannel → getDoc/Listen restent pendus
+      // jusqu’au timeout 30s (« Cloud indisponible ») + « transport errored ».
+      var ua = navigator.userAgent || '';
+      var isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|Android/i.test(ua);
+      var fsOpts = { ignoreUndefinedProperties: true };
+      if (isSafari) {
+        fsOpts.experimentalForceLongPolling = true;
+      } else {
+        fsOpts.experimentalAutoDetectLongPolling = true;
+      }
+      const db = initializeFirestore(app, fsOpts);
       const auth = getAuth(app);
 
       window.db = db;
