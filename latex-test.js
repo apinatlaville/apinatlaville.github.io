@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 21;
+  var UI_REV = 22;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -1055,11 +1055,17 @@
 
   /**
    * \\vec{AB} n’aligne la flèche que sur la 1ʳᵉ lettre — bascule vers \\overrightarrow{} si besoin.
+   * MathLive exporte souvent \\vec{L_O} (indice DANS le groupe) : une seule lettre + scripts
+   * doit rester en \\vec{}, sinon aperçu → \\overrightarrow + hack \\rule → parenthèses géantes.
    */
   function normalizeVectorLatex(latex) {
     if (!latex) return latex;
     return String(latex).replace(/\\vec\{([^}]*)\}/g, function (_, inner) {
-      var core = inner.replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, 'X').replace(/[_^{}\\, ]/g, '');
+      var core = String(inner)
+        .replace(/\\[a-zA-Z]+(\{[^}]*\})?/g, 'X')
+        .replace(/[_^]\{[^}]*\}/g, '')
+        .replace(/[_^][A-Za-z0-9]/g, '')
+        .replace(/[{}\\, ]/g, '');
       if (core.length > 1) return '\\overrightarrow{' + inner + '}';
       return '\\vec{' + inner + '}';
     });
@@ -1175,13 +1181,15 @@
    * Contenu vraiment « haut » → hack \\rule Size4 (multiligne / matrices /
    * fractions imbriquées / dfrac). Un \\left imbriqué plat (ensembles, etc.)
    * ne doit PAS gonfler les accolades externes.
+   * \\overrightarrow{F_i} seul n’est PAS assez haut : le \\rule rendait une
+   * parenthèse géante (souvent sans \\right visible) à côté d’un \\sum.
    */
   function latexBodyNeedsStretchyMiddles(body) {
     var s = String(body || '');
     if (/\\\\/.test(s)) return true;
     if (/\\begin\s*\{/.test(s)) return true;
     if (/\\(?:dfrac|displaystyle)/.test(s)) return true;
-    if (/\\(?:overrightarrow|overset|underset)/.test(s)) return true;
+    if (/\\(?:overset|underset)/.test(s)) return true;
     if (countFracs(s) >= 2) return true;
     if (/\\sqrt[\s\d]*\{[^}]*\\(?:frac|dfrac|tfrac)/.test(s)) return true;
     return false;
@@ -2629,5 +2637,23 @@
         host.innerHTML = '';
       }
     };
+  };
+
+  /** Catalogue exhaustif des snippets LaTeX (Portage IA / kits). */
+  window.LatexLab = window.LatexLab || {};
+  window.LatexLab.getSnipCatalog = function () {
+    return SNIP_GROUPS.map(function (g) {
+      return {
+        id: g.id,
+        label: g.label || g.id || '',
+        items: (g.items || []).map(function (it) {
+          return {
+            label: it.label || '',
+            latex: it.latex || '',
+            title: it.title || ''
+          };
+        })
+      };
+    });
   };
 })();

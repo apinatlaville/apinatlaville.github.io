@@ -81,22 +81,15 @@
     );
   }
 
-  /** Bouton Portage (export JSON / kit Liam) — distinct du Partage cloud. */
-  function portageActionButtonHtml(groupId) {
-    if (!groupId || groupId === UNGROUPED) return '';
-    const label = window.iconLabel ? window.iconLabel('file-text', 'Portage') : 'Portage';
-    return '<button type="button" class="bs qk-portage-btn" title="Exporter / kit Liam (hors-ligne)" ' +
-      'onclick="window.QuickPortage&&window.QuickPortage.openExport(\'' + jsStr(groupId) + '\')">' +
-      label + '</button>';
-  }
-
   /** Bouton libellé « Partage » (dossier ouvert) — plus lisible que les seuls pastilles. */
   function shareActionButtonHtml(groupId, opts) {
     opts = opts || {};
     if (!groupId || groupId === UNGROUPED) return '';
     const st = shareStateFromGroup(groupInfo(groupId));
     const dots = shareDotsHtml(st, groupId, { plain: true, compact: true });
-    const label = window.iconLabel ? window.iconLabel('share-2', 'Partage') : 'Partage';
+    /* Pas lié = « Publier » (évite de croire que le dossier est déjà partagé). */
+    const btnTxt = st.linked ? 'Partage' : 'Publier';
+    const label = window.iconLabel ? window.iconLabel('share-2', btnTxt) : btnTxt;
     const onclick = st.linked
       ? "window.quickToggleShareBanner('" + jsStr(groupId) + "')"
       : "window.quickSharePublishGroup&&window.quickSharePublishGroup('" + jsStr(groupId) + "')";
@@ -340,13 +333,15 @@
   function genGroupId() {
     const used = new Set((window.D.quickGroups || []).map(g => g.id));
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for (let n = 0; n < 2000; n++) {
+    /* 6 chars : évite réutilisation d’un vieux sourceGroupId de pack (ghost share). */
+    for (let n = 0; n < 4000; n++) {
       let s = 'QG-';
-      for (let i = 0; i < 3; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+      for (let i = 0; i < 6; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
       if (!used.has(s)) return s;
     }
-    return 'QG-' + Date.now().toString(36).slice(-3).toUpperCase();
+    return 'QG-' + Date.now().toString(36).slice(-6).toUpperCase();
   }
+  window.quickGenGroupId = genGroupId;
 
   function nextGroupColor() {
     const n = (window.D.quickGroups || []).length;
@@ -643,7 +638,6 @@
     const btnSingle = document.getElementById('btnQuickCreateSingle');
     const btnBatch = document.getElementById('btnQuickCreateBatch');
     const btnFolder = document.getElementById('btnQuickCreateFolder');
-    const btnPortage = document.getElementById('btnQuickPortageImport');
     if (trigger && trigger.dataset.bound !== '1') {
       trigger.dataset.bound = '1';
       trigger.addEventListener('click', function (e) {
@@ -670,17 +664,6 @@
       btnFolder.addEventListener('click', function () {
         window.closeQuickCreateMenu();
         window.quickOpenCreateFolder();
-      });
-    }
-    if (btnPortage && btnPortage.dataset.bound !== '1') {
-      btnPortage.dataset.bound = '1';
-      btnPortage.addEventListener('click', function () {
-        window.closeQuickCreateMenu();
-        if (window.QuickPortage && typeof window.QuickPortage.openImport === 'function') {
-          window.QuickPortage.openImport();
-        } else if (typeof window.showToast === 'function') {
-          window.showToast('Portage pas encore chargé — rouvre l’onglet Rapide.', { type: 'warn' });
-        }
       });
     }
     if (!window._quickCreateMenuDocBound) {
@@ -834,11 +817,6 @@
                 <strong><span data-icon="folder" data-icon-size="14"></span> Créer un dossier</strong>
                 <span class="hint">Classer tes cartes Y- par matière</span>
               </button>
-              <div class="cours-create-sep" role="separator"></div>
-              <button type="button" class="cours-create-item" id="btnQuickPortageImport" role="menuitem">
-                <strong><span data-icon="download" data-icon-size="14"></span> Importer un Portage</strong>
-                <span class="hint">Coller / fichier JSON (Liam, delta ou full)</span>
-              </button>
             </div>
           </div>
         </div>
@@ -853,7 +831,6 @@
         <div class="quick-drill-bar" id="qkDrillBar">
           ${renderToolbarDrillOpts()}
           ${shareActionButtonHtml(navGroup.id)}
-          ${portageActionButtonHtml(navGroup.id)}
           <button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>
         </div>
       </div>` : ''}
@@ -1066,6 +1043,9 @@
       ? 'Supprimer le dossier « ' + g.name + ' » ? ' + count + ' carte(s) passeront en « Sans dossier ».'
       : 'Supprimer le dossier « ' + g.name + ' » ?';
     const doDel = function () {
+      if (window.QuickShare && typeof window.QuickShare.releaseGroupShareOnDelete === 'function') {
+        try { window.QuickShare.releaseGroupShareOnDelete(g); } catch (e) { /* best-effort */ }
+      }
       window.D.quickGroups = (window.D.quickGroups || []).filter(x => x.id !== id);
       (window.D.exercices || []).forEach(c => {
         if (c && c.groupId === id) delete c.groupId;
@@ -1725,6 +1705,9 @@
       ? 'Supprimer le dossier « ' + g.name + ' » ? ' + count + ' carte(s) passeront en « Sans dossier ».'
       : 'Supprimer le dossier « ' + g.name + ' » ?';
     const doDel = function () {
+      if (window.QuickShare && typeof window.QuickShare.releaseGroupShareOnDelete === 'function') {
+        try { window.QuickShare.releaseGroupShareOnDelete(g); } catch (e) { /* best-effort */ }
+      }
       window.D.quickGroups = (window.D.quickGroups || []).filter(x => x.id !== id);
       (window.D.exercices || []).forEach(c => {
         if (c && c.groupId === id) delete c.groupId;
@@ -2277,16 +2260,12 @@
     const bar = document.getElementById('qkDrillBar');
     if (!bar) return;
     const shareBtn = bar.querySelector('button.qk-share-btn');
-    const portageBtn = bar.querySelector('button.qk-portage-btn');
     const reviewBtn = bar.querySelector('button.bp');
     const shareHtml = shareBtn ? shareBtn.outerHTML : '';
-    const portageHtml = portageBtn ? portageBtn.outerHTML : (
-      Q.nav.group && Q.nav.group !== UNGROUPED ? portageActionButtonHtml(Q.nav.group) : ''
-    );
     const reviewHtml = reviewBtn
       ? reviewBtn.outerHTML
       : `<button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>`;
-    bar.innerHTML = renderToolbarDrillOpts() + shareHtml + portageHtml + reviewHtml;
+    bar.innerHTML = renderToolbarDrillOpts() + shareHtml + reviewHtml;
     if (window.hydrateIcons) window.hydrateIcons(bar);
   }
 

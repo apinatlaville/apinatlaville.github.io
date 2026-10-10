@@ -1,6 +1,7 @@
 /**
- * quick-portage.js — Portage Rapide (Y-) : export / import JSON + kit Liam
- * Hors-ligne (presse-papiers / fichier). Distinct du Partage cloud.
+ * quick-portage.js — Portage IA (onglet Système)
+ * Export / import JSON des dossiers Rapide Y- + kit IA (LaTeX exhaustif).
+ * Distinct du Partage cloud. Plus d’UI dans l’onglet Rapide.
  */
 (function () {
   'use strict';
@@ -67,26 +68,45 @@
     return null;
   }
 
-  function latexCheatSheet() {
-    return [
-      'LaTeX dans q/r :',
-      '  Inline  : $x^2+1$',
-      '  Display : $$\\\\frac{a}{b}$$',
-      'Commandes utiles (échappe les \\\\ en JSON) :',
-      '  \\\\frac{a}{b}  \\\\sqrt{x}  \\\\sum_{i=1}^{n}  \\\\int_{a}^{b}',
-      '  \\\\overrightarrow{u}  \\\\begin{pmatrix}a&b\\\\\\\\c&d\\\\end{pmatrix}',
-      '  \\\\alpha \\\\pi \\\\leq \\\\neq \\\\times \\\\cdot \\\\infty \\\\rightarrow \\\\Rightarrow',
-      '  \\\\mathbb{R}  \\\\in  \\\\sin  \\\\ln  \\\\ce{H2O}  \\\\left(|x|\\\\right)',
-      '  Produit vectoriel : \\\\wedge  (affiché ∧)'
-    ].join('\n');
+  function latexCatalogText() {
+    var lines = [
+      '## LaTeX — règles Mes Cours',
+      '- Inline dans q/r : $...$  |  Display : $$...$$',
+      '- Dans le JSON, chaque \\ LaTeX doit être doublé : \\\\frac{a}{b} → s’écrit "\\\\frac{a}{b}" dans la chaîne JSON.',
+      '- Pas de HTML. Pas de Markdown hors du JSON. Guillemets dans le texte : \\"',
+      '- Chimie : \\\\ce{H2O} (mhchem). Matrices : \\\\begin{pmatrix}...\\\\end{pmatrix}',
+      '- Délimiteurs auto : \\\\left( \\\\right)  \\\\left| \\\\right|',
+      '- Produit vectoriel : \\\\wedge',
+      ''
+    ];
+    var catalog = null;
+    if (window.LatexLab && typeof window.LatexLab.getSnipCatalog === 'function') {
+      try { catalog = window.LatexLab.getSnipCatalog(); } catch (e) { catalog = null; }
+    }
+    if (!catalog || !catalog.length) {
+      lines.push('(Catalogue LaTeX indisponible — ouvre d’abord Portage IA pour charger le labo.)');
+      return lines.join('\n');
+    }
+    lines.push('## Catalogue LaTeX complet (toutes les commandes du labo)');
+    lines.push('Format : label | latex | titre');
+    catalog.forEach(function (g) {
+      lines.push('');
+      lines.push('### ' + (g.label || g.id || 'Groupe'));
+      (g.items || []).forEach(function (it) {
+        var latex = String(it.latex || '').replace(/\\/g, '\\\\');
+        lines.push('- ' + (it.label || '?') + ' | `' + latex + '` | ' + (it.title || ''));
+      });
+    });
+    return lines.join('\n');
   }
 
   function buildKitText(opts) {
     opts = opts || {};
+    var modeHint = opts.modeHint === 'delta' ? 'delta' : (opts.modeHint === 'full' ? 'full' : null);
     var parts = [];
-    parts.push('# Kit Portage — Mes Cours (Rapide Y-)');
+    parts.push('# Kit Portage IA — Mes Cours (fiches Rapide Y-)');
     parts.push('');
-    parts.push('Tu es un assistant qui génère des fiches Anki Rapide pour Mes Cours.');
+    parts.push('Tu es une IA qui génère des fiches Anki Rapide pour Mes Cours PC*.');
     parts.push('Réponds UNIQUEMENT avec un objet JSON valide (pas de prose autour, ou un seul bloc ```json).');
     parts.push('');
     parts.push('## Schéma');
@@ -94,25 +114,44 @@
       format: FORMAT,
       version: VERSION,
       kind: KIND,
-      mode: 'full | delta',
+      mode: modeHint || 'full | delta',
       title: 'Nom du dossier',
       matiere: 'Nom ou id matière (ex. Anglais)',
       bidirectional: false,
-      cards: [{ q: 'recto / question', r: 'verso / réponse' }]
+      cards: [{ q: 'recto / question', r: 'verso / réponse (LaTeX OK dans $...$)' }]
     }, null, 2));
     parts.push('');
     parts.push('## Règles critiques');
     parts.push('- format="' + FORMAT + '", version=' + VERSION + ', kind="' + KIND + '", cards[] non vide.');
     parts.push('- Chaque carte : "q" et "r" non vides (chaînes JSON).');
-    parts.push('- mode "full" : lot complet (nouveau dossier ou lot initial).');
-    parts.push('- mode "delta" : UNIQUEMENT les NOUVELLES cartes. Ne recopié PAS les cartes déjà fournies / déjà dans le dossier.');
-    parts.push('- Si l’utilisateur joint un export existant et demande des ajouts → mode "delta" + nouvelles cartes seulement.');
+    parts.push('- mode "full" : lot complet pour CRÉER un nouveau dossier.');
+    parts.push('- mode "delta" : UNIQUEMENT les NOUVELLES cartes pour COMPLÉTER un dossier. Ne recopié JAMAIS les cartes déjà fournies.');
+    if (modeHint === 'delta') {
+      parts.push('- MODE IMPOSÉ : "delta" — nouvelles cartes seulement.');
+    } else if (modeHint === 'full') {
+      parts.push('- MODE IMPOSÉ : "full" — lot initial complet.');
+    }
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
     parts.push('');
-    parts.push(latexCheatSheet());
+    parts.push(latexCatalogText());
     parts.push('');
-    parts.push('## Exemple delta');
+    parts.push('## Exemple full (créer)');
+    parts.push(JSON.stringify({
+      format: FORMAT,
+      version: VERSION,
+      kind: KIND,
+      mode: 'full',
+      title: 'Mots de liaison',
+      matiere: 'Anglais',
+      bidirectional: true,
+      cards: [
+        { q: 'although', r: 'bien que / quoique' },
+        { q: 'Energy $E=mc^2$', r: 'Énergie-masse' }
+      ]
+    }, null, 2));
+    parts.push('');
+    parts.push('## Exemple delta (compléter)');
     parts.push(JSON.stringify({
       format: FORMAT,
       version: VERSION,
@@ -127,10 +166,10 @@
     }, null, 2));
     if (opts.includeExport && opts.exportObj) {
       parts.push('');
-      parts.push('## Dossier actuel de l’utilisateur (contexte — ne pas tout recopier si tu ajoutes)');
+      parts.push('## Dossier actuel (contexte — NE PAS tout recopier)');
       parts.push(JSON.stringify(opts.exportObj, null, 2));
       parts.push('');
-      parts.push('→ Si tu ajoutes des fiches : réponds en mode "delta" avec SEULEMENT les nouvelles cartes.');
+      parts.push('→ Réponds en mode "delta" avec SEULEMENT les nouvelles cartes.');
     }
     return parts.join('\n');
   }
@@ -316,14 +355,15 @@
   }
 
   function genGroupIdLocal() {
+    if (typeof window.quickGenGroupId === 'function') return window.quickGenGroupId();
     var used = new Set(allGroups().map(function (g) { return g.id; }));
     var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    for (var n = 0; n < 2000; n++) {
+    for (var n = 0; n < 4000; n++) {
       var s = 'QG-';
-      for (var i = 0; i < 3; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+      for (var i = 0; i < 6; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
       if (!used.has(s)) return s;
     }
-    return 'QG-' + Date.now().toString(36).slice(-3).toUpperCase();
+    return 'QG-' + Date.now().toString(36).slice(-6).toUpperCase();
   }
 
   function existingExoIds() {
@@ -480,99 +520,16 @@
     });
   }
 
-  /* ========== UI ========== */
+  /* ========== UI onglet Système ========== */
 
   var S = {
+    mode: 'create', // create | complete
+    completeGroupId: '',
     importRaw: '',
     validated: null,
     target: 'new',
-    exportGroupId: '',
     importBusy: false
   };
-
-  function ensureOverlay() {
-    var ov = document.getElementById('ovQuickPortage');
-    if (ov) return ov;
-    ov = document.createElement('div');
-    ov.id = 'ovQuickPortage';
-    ov.className = 'ov ov-scroll hidden';
-    ov.innerHTML =
-      '<div class="ov-card qk-portage-card" role="dialog" aria-labelledby="qkPortageTitle">' +
-        '<div class="ov-head">' +
-          '<h3 id="qkPortageTitle">' + (window.iconLabel ? window.iconLabel('file-text', 'Portage') : 'Portage') + '</h3>' +
-          '<button type="button" class="bs" onclick="window.QuickPortage.close()">' +
-            (window.iconLabel ? window.iconLabel('x', 'Fermer') : 'Fermer') +
-          '</button>' +
-        '</div>' +
-        '<div id="qkPortageBody" class="qk-portage-body"></div>' +
-      '</div>';
-    document.body.appendChild(ov);
-    ov.addEventListener('click', function (e) {
-      if (e.target === ov) window.QuickPortage.close();
-    });
-    return ov;
-  }
-
-  function openOverlay(mode, groupId) {
-    var ov = ensureOverlay();
-    S.exportGroupId = groupId || '';
-    var body = document.getElementById('qkPortageBody');
-    var title = document.getElementById('qkPortageTitle');
-    if (mode === 'export') {
-      if (title) title.innerHTML = window.iconLabel ? window.iconLabel('copy', 'Portage — exporter') : 'Portage — exporter';
-      body.innerHTML = renderExportPane(groupId);
-    } else if (mode === 'guide') {
-      if (title) title.innerHTML = window.iconLabel ? window.iconLabel('book-open', 'Portage — kit Liam') : 'Portage — kit Liam';
-      body.innerHTML = renderGuidePane(groupId);
-    } else {
-      if (title) title.innerHTML = window.iconLabel ? window.iconLabel('download', 'Portage — importer') : 'Portage — importer';
-      S.importRaw = '';
-      S.validated = null;
-      S.target = 'new';
-      body.innerHTML = renderImportPane();
-    }
-    ov.classList.remove('hidden');
-    if (window.hydrateIcons) window.hydrateIcons(ov);
-  }
-
-  function renderExportPane(groupId) {
-    var obj;
-    try { obj = serializeGroup(groupId); } catch (e) {
-      return '<p class="anki-mut">Impossible d’exporter : ' + esc(e.message) + '</p>';
-    }
-    var pretty = JSON.stringify(obj, null, 2);
-    return '' +
-      '<p class="anki-mut qk-portage-lead">Contenu pédagogique seulement (pas de SRS). Envoie ça à Liam + le kit, ou copie le kit+dossier d’un coup.</p>' +
-      '<p><b>' + esc(obj.title) + '</b> · ' + obj.cards.length + ' carte(s)' +
-        (obj.bidirectional ? ' · recto↔verso' : '') + '</p>' +
-      '<pre class="qk-portage-pre" id="qkPortageExportPre">' + esc(pretty) + '</pre>' +
-      '<div class="qk-portage-actions">' +
-        '<button type="button" class="bp" onclick="window.QuickPortage.copyExport(\'' + jsStr(groupId) + '\')">Copier JSON</button>' +
-        '<button type="button" class="bs" onclick="window.QuickPortage.downloadExport(\'' + jsStr(groupId) + '\')">Télécharger .portage.json</button>' +
-        '<button type="button" class="bs" onclick="window.QuickPortage.copyKitAndGroup(\'' + jsStr(groupId) + '\')">Copier kit Liam + dossier</button>' +
-        '<button type="button" class="bs" onclick="window.QuickPortage.openGuide(\'' + jsStr(groupId) + '\')">Voir le kit</button>' +
-      '</div>';
-  }
-
-  function renderGuidePane(groupId) {
-    var kit = buildKitText({
-      includeExport: !!groupId,
-      exportObj: groupId ? (function () {
-        try { return serializeGroup(groupId); } catch (e) { return null; }
-      })() : null
-    });
-    return '' +
-      '<p class="anki-mut qk-portage-lead">Colle ce kit à Liam. S’il complète un dossier : <b>mode delta = nouvelles cartes seulement</b>, pas besoin de tout remettre.</p>' +
-      '<pre class="qk-portage-pre qk-portage-pre--kit" id="qkPortageKitPre">' + esc(kit) + '</pre>' +
-      '<div class="qk-portage-actions">' +
-        '<button type="button" class="bp" onclick="window.QuickPortage.copyKit(' +
-          (groupId ? '\'' + jsStr(groupId) + '\'' : 'null') + ')">Copier le kit' +
-          (groupId ? ' + dossier' : '') + '</button>' +
-        (groupId
-          ? '<button type="button" class="bs" onclick="window.QuickPortage.openExport(\'' + jsStr(groupId) + '\')">Retour export</button>'
-          : '') +
-      '</div>';
-  }
 
   function matOptionsHtml(selected) {
     return allMats().map(function (m) {
@@ -587,103 +544,190 @@
     }).map(function (g) {
       var sel = g.id === selected ? ' selected' : '';
       var mat = allMats().find(function (m) { return m.id === g.mat; });
-      var lab = (g.name || g.id) + (mat ? ' · ' + matLabel(mat) : '');
+      var n = cardsInGroup(g.id).length;
+      var lab = (g.name || g.id) + (mat ? ' · ' + matLabel(mat) : '') + ' (' + n + ')';
       return '<option value="' + esc(g.id) + '"' + sel + '>' + esc(lab) + '</option>';
     }).join('');
   }
 
-  function renderImportPane() {
+  function renderImportPreviewHtml() {
     var v = S.validated;
-    var preview = '';
-    if (v) {
-      if (v.ok) {
-        preview =
-          '<div class="qk-portage-ok">' +
-            '<b>' + v.cards.length + ' carte(s)</b> prêtes · mode <code>' + esc(v.meta.mode) + '</code>' +
-            (v.meta.title ? ' · « ' + esc(v.meta.title) + ' »' : '') +
-          '</div>' +
-          '<ol class="qk-portage-preview-list">' +
-            v.cards.slice(0, 12).map(function (c) {
-              return '<li><span class="qk-portage-q">' + esc(c.q.slice(0, 80)) +
-                '</span> → <span class="qk-portage-r">' + esc(c.r.slice(0, 80)) + '</span></li>';
-            }).join('') +
-            (v.cards.length > 12 ? '<li class="anki-mut">… +' + (v.cards.length - 12) + ' autres</li>' : '') +
-          '</ol>' +
-          renderImportTargetForm(v);
-      } else {
-        preview =
-          '<div class="qk-portage-err"><b>Erreurs</b> — rien ne sera importé :</div>' +
-          '<ul class="qk-portage-err-list">' +
-            v.errors.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') +
-          '</ul>';
-      }
+    if (!v) return '';
+    if (!v.ok) {
+      return '<div class="qk-portage-err"><b>Erreurs</b> — rien ne sera importé :</div>' +
+        '<ul class="qk-portage-err-list">' +
+        v.errors.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') +
+        '</ul>';
     }
-    return '' +
-      '<p class="anki-mut qk-portage-lead">Colle le JSON de Liam (ou un fichier <code>.portage.json</code>). Validation avant toute écriture.</p>' +
-      '<textarea id="qkPortagePaste" class="fi qk-portage-ta" rows="10" placeholder=\'{ "format": "MESCOURS-PORTAGE", ... }\'>' +
-        esc(S.importRaw) + '</textarea>' +
-      '<div class="qk-portage-actions">' +
-        '<label class="bs qk-portage-file-lbl">' +
-          '<input type="file" id="qkPortageFile" accept=".json,.portage.json,application/json,text/plain" hidden onchange="window.QuickPortage.onFile(event)">' +
-          'Choisir un fichier' +
-        '</label>' +
-        '<button type="button" class="bp" onclick="window.QuickPortage.validatePaste()">Vérifier</button>' +
-        '<button type="button" class="bs" onclick="window.QuickPortage.openGuide(null)">Kit Liam</button>' +
-      '</div>' +
-      '<div id="qkPortagePreview">' + preview + '</div>';
-  }
-
-  function renderImportTargetForm(v) {
-    var mats = allMats();
-    var groups = allGroups();
-    var preferredMat = v.meta.matiereId || (mats[0] && mats[0].id) || '';
+    var forceExisting = S.mode === 'complete';
+    var preferredMat = v.meta.matiereId || (allMats()[0] && allMats()[0].id) || '';
     var preferredTitle = v.meta.title || 'Nouveau dossier';
-    var currentGroup = '';
-    try {
-      if (window.quickGetNavGroupId) currentGroup = window.quickGetNavGroupId() || '';
-    } catch (e) { /* ignore */ }
-    return '' +
-      '<div class="qk-portage-target">' +
+    var destHtml = '';
+    if (forceExisting) {
+      S.target = 'existing';
+      destHtml =
+        '<p class="qk-portage-dest-label">Destination (mode Compléter)</p>' +
+        '<label class="fg"><span>Dossier</span><select class="fi" id="qkPortExistGroup">' +
+          groupOptionsHtml(S.completeGroupId || '') + '</select></label>';
+    } else {
+      destHtml =
         '<p class="qk-portage-dest-label">Destination</p>' +
         '<label class="qk-portage-radio"><input type="radio" name="qkPortTarget" value="new"' +
           (S.target === 'new' ? ' checked' : '') +
-          ' onchange="window.QuickPortage.setTarget(\'new\')"> Créer un nouveau dossier</label>' +
+          ' onchange="window.QuickPortage.setTarget(\'new\')"> Nouveau dossier</label>' +
         '<label class="qk-portage-radio"><input type="radio" name="qkPortTarget" value="existing"' +
           (S.target === 'existing' ? ' checked' : '') +
-          (groups.length ? '' : ' disabled') +
+          (allGroups().length ? '' : ' disabled') +
           ' onchange="window.QuickPortage.setTarget(\'existing\')"> Ajouter à un dossier existant</label>' +
         '<div id="qkPortTargetNew" class="qk-portage-target-fields' +
           (S.target === 'new' ? '' : ' hidden') + '">' +
-          '<label class="fg"><span>Nom du dossier</span>' +
-            '<input type="text" class="fi" id="qkPortNewTitle" value="' + esc(preferredTitle) + '">' +
-          '</label>' +
-          '<label class="fg"><span>Matière</span>' +
-            '<select class="fi" id="qkPortNewMat">' + matOptionsHtml(preferredMat) + '</select>' +
-          '</label>' +
+          '<label class="fg"><span>Nom</span><input type="text" class="fi" id="qkPortNewTitle" value="' + esc(preferredTitle) + '"></label>' +
+          '<label class="fg"><span>Matière</span><select class="fi" id="qkPortNewMat">' + matOptionsHtml(preferredMat) + '</select></label>' +
           '<label class="qk-portage-check"><input type="checkbox" id="qkPortNewBidir"' +
-            (v.meta.bidirectional ? ' checked' : '') + '> Recto ↔ verso (bidirectionnel)</label>' +
+            (v.meta.bidirectional ? ' checked' : '') + '> Recto ↔ verso</label>' +
         '</div>' +
         '<div id="qkPortTargetExist" class="qk-portage-target-fields' +
           (S.target === 'existing' ? '' : ' hidden') + '">' +
-          (groups.length
+          (allGroups().length
             ? '<label class="fg"><span>Dossier</span><select class="fi" id="qkPortExistGroup">' +
-                groupOptionsHtml(currentGroup) + '</select></label>'
-            : '<p class="anki-mut">Aucun dossier — crée-en un d’abord.</p>') +
-        '</div>' +
+                groupOptionsHtml(S.completeGroupId) + '</select></label>'
+            : '<p class="anki-mut">Aucun dossier.</p>') +
+        '</div>';
+    }
+    return '<div class="qk-portage-ok"><b>' + v.cards.length + ' carte(s)</b> · mode <code>' +
+      esc(v.meta.mode) + '</code>' +
+      (v.meta.title ? ' · « ' + esc(v.meta.title) + ' »' : '') + '</div>' +
+      '<ol class="qk-portage-preview-list">' +
+      v.cards.slice(0, 12).map(function (c) {
+        return '<li><span class="qk-portage-q">' + esc(c.q.slice(0, 80)) +
+          '</span> → <span class="qk-portage-r">' + esc(c.r.slice(0, 80)) + '</span></li>';
+      }).join('') +
+      (v.cards.length > 12 ? '<li class="anki-mut">… +' + (v.cards.length - 12) + '</li>' : '') +
+      '</ol>' +
+      '<div class="qk-portage-target">' + destHtml +
         '<button type="button" class="bp" onclick="window.QuickPortage.confirmImport()">' +
-          'Importer ' + v.cards.length + ' carte(s)' +
-        '</button>' +
+          'Importer ' + v.cards.length + ' carte(s)</button>' +
       '</div>';
   }
 
+  function renderCreateSection() {
+    return '' +
+      '<section class="pia-section">' +
+        '<h3 class="pia-h3">1 · Kit IA (créer)</h3>' +
+        '<p class="anki-mut pia-lead">Copie le kit, donne-le à ton IA (« crée des fiches anglais sur… »), puis colle la réponse ci-dessous.</p>' +
+        '<div class="qk-portage-actions">' +
+          '<button type="button" class="bp" onclick="window.QuickPortage.copyKitCreate()">Copier le kit IA</button>' +
+          '<button type="button" class="bs" onclick="window.QuickPortage.showKitPreview(\'full\')">Aperçu kit</button>' +
+        '</div>' +
+        '<div id="piaKitPreview" class="hidden"></div>' +
+      '</section>' +
+      '<section class="pia-section">' +
+        '<h3 class="pia-h3">2 · Importer la réponse</h3>' +
+        '<textarea id="qkPortagePaste" class="fi qk-portage-ta" rows="8" placeholder=\'{ "format": "MESCOURS-PORTAGE", "mode": "full", ... }\'>' +
+          esc(S.importRaw) + '</textarea>' +
+        '<div class="qk-portage-actions">' +
+          '<label class="bs qk-portage-file-lbl">' +
+            '<input type="file" id="qkPortageFile" accept=".json,.portage.json,application/json,text/plain" hidden onchange="window.QuickPortage.onFile(event)">' +
+            'Fichier</label>' +
+          '<button type="button" class="bp" onclick="window.QuickPortage.validatePaste()">Vérifier</button>' +
+        '</div>' +
+        '<div id="qkPortagePreview">' + renderImportPreviewHtml() + '</div>' +
+      '</section>';
+  }
+
+  function renderCompleteSection() {
+    var gid = S.completeGroupId;
+    var exportBlock = '';
+    if (gid) {
+      try {
+        var obj = serializeGroup(gid);
+        exportBlock =
+          '<p><b>' + esc(obj.title) + '</b> · ' + obj.cards.length + ' carte(s)</p>' +
+          '<pre class="qk-portage-pre" id="qkPortageExportPre">' + esc(JSON.stringify(obj, null, 2)) + '</pre>' +
+          '<div class="qk-portage-actions">' +
+            '<button type="button" class="bp" onclick="window.QuickPortage.copyExport(\'' + jsStr(gid) + '\')">Copier JSON dossier</button>' +
+            '<button type="button" class="bs" onclick="window.QuickPortage.downloadExport(\'' + jsStr(gid) + '\')">Télécharger</button>' +
+            '<button type="button" class="bp" onclick="window.QuickPortage.copyKitComplete()">Copier kit IA + dossier</button>' +
+          '</div>';
+      } catch (e) {
+        exportBlock = '<p class="anki-mut">' + esc(e.message) + '</p>';
+      }
+    } else {
+      exportBlock = '<p class="anki-mut">Choisis un dossier Rapide Y- ci-dessus.</p>';
+    }
+    return '' +
+      '<section class="pia-section">' +
+        '<h3 class="pia-h3">1 · Dossier à compléter</h3>' +
+        '<label class="fg"><span>Dossier Rapide</span>' +
+          '<select class="fi" id="piaCompleteGroup" onchange="window.QuickPortage.onCompleteGroupChange(this.value)">' +
+            '<option value="">— choisir —</option>' +
+            groupOptionsHtml(gid) +
+          '</select></label>' +
+        exportBlock +
+      '</section>' +
+      '<section class="pia-section">' +
+        '<h3 class="pia-h3">2 · Kit IA (compléter = delta)</h3>' +
+        '<p class="anki-mut pia-lead">L’IA ne renvoie que les <b>nouvelles</b> cartes (<code>mode: delta</code>). Pas besoin de tout recopier.</p>' +
+        '<div class="qk-portage-actions">' +
+          '<button type="button" class="bp" onclick="window.QuickPortage.copyKitComplete()" ' +
+            (gid ? '' : 'disabled') + '>Copier kit IA + dossier</button>' +
+          '<button type="button" class="bs" onclick="window.QuickPortage.showKitPreview(\'delta\')" ' +
+            (gid ? '' : 'disabled') + '>Aperçu kit</button>' +
+        '</div>' +
+        '<div id="piaKitPreview" class="hidden"></div>' +
+      '</section>' +
+      '<section class="pia-section">' +
+        '<h3 class="pia-h3">3 · Importer les nouvelles cartes</h3>' +
+        '<textarea id="qkPortagePaste" class="fi qk-portage-ta" rows="8" placeholder=\'{ "mode": "delta", "cards": [...] }\'>' +
+          esc(S.importRaw) + '</textarea>' +
+        '<div class="qk-portage-actions">' +
+          '<label class="bs qk-portage-file-lbl">' +
+            '<input type="file" id="qkPortageFile" accept=".json,.portage.json,application/json,text/plain" hidden onchange="window.QuickPortage.onFile(event)">' +
+            'Fichier</label>' +
+          '<button type="button" class="bp" onclick="window.QuickPortage.validatePaste()">Vérifier</button>' +
+        '</div>' +
+        '<div id="qkPortagePreview">' + renderImportPreviewHtml() + '</div>' +
+      '</section>';
+  }
+
+  function paintPane() {
+    var pane = document.getElementById('panePortageIa');
+    if (!pane) return;
+    var body = S.mode === 'complete' ? renderCompleteSection() : renderCreateSection();
+    pane.innerHTML =
+      '<div class="pia-root">' +
+        '<header class="pia-head">' +
+          '<h2 class="pia-title">' +
+            (window.iconLabel ? window.iconLabel('file-text', 'Portage IA') : 'Portage IA') +
+          '</h2>' +
+          '<p class="anki-mut pia-lead">Génère des fiches Rapide Y- avec une IA : kit complet (LaTeX inclus), puis import JSON validé. Hors Partage cloud.</p>' +
+          '<div class="pia-mode-tabs" role="tablist">' +
+            '<button type="button" class="pia-mode-btn' + (S.mode === 'create' ? ' on' : '') +
+              '" onclick="window.QuickPortage.setMode(\'create\')">Créer</button>' +
+            '<button type="button" class="pia-mode-btn' + (S.mode === 'complete' ? ' on' : '') +
+              '" onclick="window.QuickPortage.setMode(\'complete\')">Compléter</button>' +
+          '</div>' +
+        '</header>' +
+        '<div class="pia-body">' + body + '</div>' +
+      '</div>';
+    if (window.hydrateIcons) window.hydrateIcons(pane);
+  }
+
   function refreshImportPreview() {
-    var body = document.getElementById('qkPortageBody');
-    if (!body) return;
     var ta = document.getElementById('qkPortagePaste');
     if (ta) S.importRaw = ta.value;
-    body.innerHTML = renderImportPane();
-    if (window.hydrateIcons) window.hydrateIcons(body);
+    var box = document.getElementById('qkPortagePreview');
+    if (box) {
+      box.innerHTML = renderImportPreviewHtml();
+      if (window.hydrateIcons) window.hydrateIcons(box);
+    } else {
+      paintPane();
+    }
   }
+
+  window.renderPortageIa = function () {
+    paintPane();
+  };
 
   window.QuickPortage = {
     FORMAT: FORMAT,
@@ -693,30 +737,58 @@
     buildKitText: buildKitText,
     applyPortage: applyPortage,
 
-    close: function () {
-      var ov = document.getElementById('ovQuickPortage');
-      if (ov) ov.classList.add('hidden');
+    setMode: function (m) {
+      S.mode = m === 'complete' ? 'complete' : 'create';
+      S.validated = null;
+      if (S.mode === 'complete') S.target = 'existing';
+      else S.target = 'new';
+      paintPane();
     },
-    openExport: function (groupId) {
-      if (!groupId || groupId === '__none__') {
-        toast('Ouvre un dossier pour exporter.', 'warn');
+    onCompleteGroupChange: function (id) {
+      S.completeGroupId = String(id || '');
+      paintPane();
+    },
+    showKitPreview: function (hint) {
+      var el = document.getElementById('piaKitPreview');
+      if (!el) return;
+      var opts = { modeHint: hint || (S.mode === 'complete' ? 'delta' : 'full') };
+      if (S.mode === 'complete' && S.completeGroupId) {
+        opts.includeExport = true;
+        try { opts.exportObj = serializeGroup(S.completeGroupId); } catch (e) { opts.exportObj = null; }
+      }
+      el.classList.remove('hidden');
+      el.innerHTML = '<pre class="qk-portage-pre qk-portage-pre--kit">' + esc(buildKitText(opts)) + '</pre>';
+    },
+    copyKitCreate: function () {
+      copyText(buildKitText({ modeHint: 'full' })).then(function () {
+        toast('Kit IA (créer) copié.', 'ok');
+      }).catch(function () { toast('Copie impossible.', 'error'); });
+    },
+    copyKitComplete: function () {
+      if (!S.completeGroupId) {
+        toast('Choisis un dossier.', 'warn');
         return;
       }
-      openOverlay('export', groupId);
-    },
-    openImport: function () {
-      openOverlay('import', null);
-    },
-    openGuide: function (groupId) {
-      openOverlay('guide', groupId || null);
+      var exportObj = null;
+      try { exportObj = serializeGroup(S.completeGroupId); } catch (e) {
+        toast(e.message || 'Export impossible', 'error');
+        return;
+      }
+      copyText(buildKitText({
+        modeHint: 'delta',
+        includeExport: true,
+        exportObj: exportObj
+      })).then(function () {
+        toast('Kit IA + dossier copiés.', 'ok');
+      }).catch(function () { toast('Copie impossible.', 'error'); });
     },
     copyExport: function (groupId) {
       try {
         var pretty = JSON.stringify(serializeGroup(groupId), null, 2);
         copyText(pretty).then(function () {
-          toast('JSON Portage copié.', 'ok');
+          toast('JSON dossier copié.', 'ok');
         }).catch(function () {
-          toast('Copie impossible — sélectionne le texte.', 'error');
+          toast('Copie impossible.', 'error');
         });
       } catch (e) {
         toast(e.message || 'Export impossible', 'error');
@@ -731,27 +803,12 @@
         toast(e.message || 'Téléchargement impossible', 'error');
       }
     },
-    copyKit: function (groupId) {
-      var kit = buildKitText({
-        includeExport: !!groupId,
-        exportObj: groupId ? (function () {
-          try { return serializeGroup(groupId); } catch (e) { return null; }
-        })() : null
-      });
-      copyText(kit).then(function () {
-        toast(groupId ? 'Kit Liam + dossier copiés.' : 'Kit Liam copié.', 'ok');
-      }).catch(function () {
-        toast('Copie impossible.', 'error');
-      });
-    },
-    copyKitAndGroup: function (groupId) {
-      this.copyKit(groupId);
-    },
     validatePaste: function () {
       var ta = document.getElementById('qkPortagePaste');
       S.importRaw = ta ? ta.value : '';
       S.validated = parseAndValidate(S.importRaw);
-      S.target = 'new';
+      if (S.mode === 'complete') S.target = 'existing';
+      else S.target = 'new';
       refreshImportPreview();
       if (S.validated.ok) toast(S.validated.cards.length + ' carte(s) OK.', 'ok');
       else toast('Portage invalide — vois les erreurs.', 'error');
@@ -763,7 +820,10 @@
       reader.onload = function () {
         S.importRaw = String(reader.result || '');
         S.validated = parseAndValidate(S.importRaw);
+        if (S.mode === 'complete') S.target = 'existing';
         refreshImportPreview();
+        var ta = document.getElementById('qkPortagePaste');
+        if (ta) ta.value = S.importRaw;
         if (S.validated.ok) toast(S.validated.cards.length + ' carte(s) OK.', 'ok');
         else toast('Fichier invalide — vois les erreurs.', 'error');
       };
@@ -788,8 +848,8 @@
         toast('Sauvegarde indisponible — réessaie.', 'error');
         return;
       }
-      var opts = { target: S.target };
-      if (S.target === 'new') {
+      var opts = { target: S.mode === 'complete' ? 'existing' : S.target };
+      if (opts.target === 'new') {
         var titleEl = document.getElementById('qkPortNewTitle');
         var matEl = document.getElementById('qkPortNewMat');
         var bidirEl = document.getElementById('qkPortNewBidir');
@@ -800,16 +860,16 @@
         if (!opts.matId) { toast('Matière requise.', 'error'); return; }
       } else {
         var gEl = document.getElementById('qkPortExistGroup');
-        opts.groupId = gEl ? gEl.value : '';
+        opts.groupId = gEl ? gEl.value : (S.completeGroupId || '');
         if (!opts.groupId) { toast('Choisis un dossier.', 'error'); return; }
       }
       S.importBusy = true;
       applyPortage(S.validated, opts).then(function (res) {
         toast(res.count + ' carte(s) importée(s).', 'ok');
-        window.QuickPortage.close();
-        if (res.groupId && typeof window.quickNavigateToGroup === 'function') {
-          try { window.quickNavigateToGroup(res.groupId); } catch (e1) { /* ignore */ }
-        }
+        S.importRaw = '';
+        S.validated = null;
+        if (res.groupId) S.completeGroupId = res.groupId;
+        paintPane();
         if (typeof window.renderFlashcards === 'function') {
           try { window.renderFlashcards(); } catch (e2) { /* ignore */ }
         }
@@ -821,7 +881,6 @@
     }
   };
 
-  /** Helpers exposés pour anki-quick (couleur dossier). */
   window.quickDefaultGroupColor = window.quickDefaultGroupColor || function (matId) {
     var colors = ['#6a9cff', '#50d890', '#f0c060', '#ff7a90', '#c084fc', '#2dd4bf'];
     var n = allGroups().filter(function (g) { return g.mat === matId; }).length;

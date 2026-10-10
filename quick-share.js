@@ -744,10 +744,9 @@
     },
 
     /**
-     * Si le lien shared manque en local (sync), rattache les dossiers aux packs
-     * déjà publiés (même sourceGroupId ou packId stable) → indicateur Partage.
-     * ⚠️ Jamais par nom seul : supprimer puis recréer « Interférence » ne doit pas
-     * réattacher un vieux pack catalogue (ghost share / dossier « invisible »).
+     * Si le lien shared manque en local (sync), rattache uniquement via sourceGroupId exact.
+     * ⚠️ Pas de matching par nom ni par packId stable : un dossier recréé (même après
+     * collision d’id court) ne doit pas hériter d’un vieux pack (ghost share).
      */
     relinkLocalGroupsFromCatalog: async function () {
       var pub = publisherInfo();
@@ -758,9 +757,7 @@
         return p && p.packId && p.createdBy && p.createdBy.uid === pub.uid;
       });
       var bySrc = {};
-      var byId = {};
       mine.forEach(function (p) {
-        byId[p.packId] = p;
         if (p.sourceGroupId) {
           var prev = bySrc[p.sourceGroupId];
           if (!prev || String(p.createdAt || '') < String(prev.createdAt || '')) {
@@ -772,7 +769,7 @@
       (window.D.quickGroups || []).forEach(function (g) {
         if (!g || !g.id) return;
         if (g.shared && g.shared.packId) return;
-        var meta = bySrc[g.id] || byId[stablePackId(pub.uid, g.id)];
+        var meta = bySrc[g.id];
         if (!meta || !meta.packId) return;
         var ver = Number(meta.latestVersion || 1);
         writeSharedLink(g, {
@@ -798,6 +795,61 @@
       return n;
     },
 
+    /** Retire les liens shared dont le pack n’existe plus dans le catalogue. */
+    pruneOrphanShareLinks: async function () {
+      var links = window.QuickShare.installedLinks();
+      if (!links.length) return 0;
+      var n = 0;
+      for (var i = 0; i < links.length; i++) {
+        var g = links[i];
+        if (!g || !g.shared || !g.shared.packId) continue;
+        var meta = null;
+        try { meta = await window.QuickShare.getMeta(g.shared.packId); } catch (e) { meta = null; }
+        if (meta) continue;
+        delete g.shared;
+        n++;
+        if (typeof window.pushDiagLog === 'function') {
+          window.pushDiagLog('info', 'Lien Partage orphelin retiré', 'QuickShare', {
+            groupId: g.id, name: g.name
+          });
+        }
+      }
+      if (n && typeof window.save === 'function') window.save();
+      return n;
+    },
+
+    /**
+     * À la suppression d’un dossier local : détache sourceGroupId du pack catalogue
+     * pour qu’un futur dossier (même id rare) ne soit pas re-marqué « partagé ».
+     * Le pack reste dans le catalogue (imports existants OK).
+     */
+    releaseGroupShareOnDelete: function (group) {
+      if (!group || !group.id) return;
+      var packId = group.shared && group.shared.packId;
+      if (!packId) return;
+      var gid = String(group.id);
+      Promise.resolve().then(async function () {
+        try {
+          var meta = await window.QuickShare.getMeta(packId);
+          if (!meta) return;
+          if (meta.sourceGroupId && meta.sourceGroupId !== gid) return;
+          if (!isSamePublisher(meta) && !(isLocalMode() && meta.createdBy && meta.createdBy.uid === 'local')) {
+            return;
+          }
+          if (canUseCloud() && window.doc && window.setDoc && window.db) {
+            await window.setDoc(window.doc(window.db, COLLECTION, packId), { sourceGroupId: '' }, { merge: true });
+          } else {
+            var store = readLocalStore();
+            var pack = store.packs && store.packs[packId];
+            if (pack && pack.meta) {
+              pack.meta.sourceGroupId = '';
+              writeLocalStore(store);
+            }
+          }
+        } catch (e) { /* best-effort */ }
+      });
+    },
+
     ensureShareLinks: async function () {
       if (window.QuickShare._relinkPromise) return window.QuickShare._relinkPromise;
       window.QuickShare._relinkPromise = Promise.resolve()
@@ -805,7 +857,12 @@
           var nDup = 0;
           try { nDup = dedupeAllQuickGroups(); } catch (e) { nDup = 0; }
           if (nDup && typeof window.save === 'function') window.save();
-          return window.QuickShare.relinkLocalGroupsFromCatalog();
+          return window.QuickShare.pruneOrphanShareLinks();
+        })
+        .then(function (nOrphan) {
+          return window.QuickShare.relinkLocalGroupsFromCatalog().then(function (nRelink) {
+            return (nOrphan || 0) + (nRelink || 0);
+          });
         })
         .catch(function () { return 0; })
         .finally(function () {

@@ -1078,6 +1078,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'cardCreateX': if (typeof window.renderCardCreateXLab === 'function') window.renderCardCreateXLab(); break;
     case 'cardCreateY': if (typeof window.renderCardCreateYLab === 'function') window.renderCardCreateYLab(); break;
     case 'latexShortcuts': if (typeof window.renderLatexShortcutsHelp === 'function') window.renderLatexShortcutsHelp(); break;
+    case 'portageIa': if (typeof window.renderPortageIa === 'function') window.renderPortageIa(); break;
     case 'quickLatex': if (typeof window.renderQuickLatexCard === 'function') window.renderQuickLatexCard(); break;
     case 'homeLab': if (typeof window.renderHomeLab === 'function') window.renderHomeLab(); break;
     case 'xpLab': if (typeof window.renderXpLab === 'function') window.renderXpLab(); break;

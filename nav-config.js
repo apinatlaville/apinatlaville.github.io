@@ -29,6 +29,7 @@ window.APP_TAB_REGISTRY = {
   cardCreateX: { pane: 'paneCardCreateX', label: 'Labo carte X', icon: 'sparkles', needsData: true, onShow: 'cardCreateX', className: 'tab-card-create-x' },
   cardCreateY: { pane: 'paneCardCreateY', label: 'Labo carte Y', icon: 'zap', needsData: true, onShow: 'cardCreateY', className: 'tab-card-create-y' },
   latexShortcuts: { pane: 'paneLatexShortcuts', label: 'Raccourcis LaTeX', icon: 'keyboard', needsData: false, onShow: 'latexShortcuts', className: 'tab-latex-help' },
+  portageIa:   { pane: 'panePortageIa',  label: 'Portage IA',    icon: 'file-text',     needsData: true,  onShow: 'portageIa',     className: 'tab-portage-ia' },
   quickLatex:  { pane: 'paneQuickLatex', label: 'Carte LaTeX',   icon: 'sigma',         needsData: true,  onShow: 'quickLatex',    nav: false },
   homeLab:     { pane: 'paneHomeLab',    label: 'Labo Accueil',  icon: 'layout-list', needsData: true, onShow: 'homeLab', className: 'tab-home-lab' },
   xpLab:       { pane: 'paneXpLab',      label: 'Labo XP',       icon: 'flame',       needsData: true, onShow: 'xpLab',   className: 'tab-xp-lab' },
@@ -54,7 +55,7 @@ window.APP_NAV_GROUPS = [
   {
     label: 'Système',
     className: 'nav-group-tools',
-    tabs: ['logs', 'test', 'homeLab', 'xpLab', 'latexTest', 'chimieLab', 'cardCreateX', 'cardCreateY', 'latexShortcuts']
+    tabs: ['logs', 'test', 'homeLab', 'xpLab', 'latexTest', 'chimieLab', 'cardCreateX', 'cardCreateY', 'latexShortcuts', 'portageIa']
   }
 ];
 
