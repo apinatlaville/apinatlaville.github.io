@@ -6,7 +6,7 @@
 
   var MATHLIVE_VER = '0.110.0';
   var CDN = 'https://cdn.jsdelivr.net/npm/mathlive@' + MATHLIVE_VER;
-  var UI_REV = 20;
+  var UI_REV = 21;
   var _uiRev = 0;
   var _mathLivePromise = null;
   var _built = false;
@@ -153,7 +153,8 @@
         { label: 'cyl.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{z}', title: 'Base cylindrique (ê_r, ê_θ, ê_z)' },
         { label: 'sph.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{\\varphi}', title: 'Base sphérique (ê_r, ê_θ, ê_φ)' },
         { label: 'u·v', latex: '#0\\cdot#1', title: 'Produit scalaire' },
-        { label: 'u×v', latex: '#0\\times#1', title: 'Produit vectoriel' },
+        { label: 'u∧v', latex: '#0\\wedge#1', title: 'Produit vectoriel (∧)' },
+        { label: 'u×v', latex: '#0\\times#1', title: 'Produit vectoriel (×)' },
         { label: '‖u‖', latex: '\\lVert#0\\rVert', title: 'Norme d\'un vecteur' },
         { label: '⟨u|v⟩', latex: '\\langle#0\\mid#1\\rangle', title: 'Produit scalaire ⟨·|·⟩' },
         { label: 'proj', latex: '\\mathrm{proj}_{#0}\\left(#1\\right)', title: 'Projection sur un vecteur' },
@@ -514,7 +515,8 @@
         { label: 'pol.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta}', title: 'Base polaire (ê_r, ê_θ)' },
         { label: 'cyl.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{z}', title: 'Base cylindrique (ê_r, ê_θ, ê_z)' },
         { label: 'sph.', latex: '\\vec{e}_{r},\\,\\vec{e}_{\\theta},\\,\\vec{e}_{\\varphi}', title: 'Base sphérique (ê_r, ê_θ, ê_φ)' },
-        { label: '×', latex: '\\times', title: 'Produit vectoriel' },
+        { label: '∧', latex: '\\wedge', title: 'Produit vectoriel (∧)' },
+        { label: '×', latex: '\\times', title: 'Produit vectoriel (×)' },
         { label: '·', latex: '\\cdot', title: 'Produit scalaire' },
         { label: '⟨x⟩', latex: '\\left\\langle#0\\right\\rangle', title: 'Moyenne (physique)' },
         { label: '⟨x⟩_t', latex: '\\left\\langle#0\\right\\rangle_{t}', title: 'Moyenne temporelle' },

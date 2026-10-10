@@ -6606,12 +6606,13 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
         if (groupId) window.quickMarkGroupLocalDirty(groupId);
         if (prevGroup && prevGroup !== groupId) window.quickMarkGroupLocalDirty(prevGroup);
       }
-      Promise.resolve(window.save()).then(function () {
+      // waitCloud:false = UI dès local OK ; cloud (assert+transaction) continue dans la file
+      Promise.resolve(window.save({ waitCloud: false })).then(function () {
         finishOk(card, true);
       }).catch(function (err) {
         const msg = String(err && err.message || err || '');
         if (/SECONDARY_READ_ONLY|NO_DATA/i.test(msg)) return;
-        showFormError('quickFormError', 'Enregistrement impossible.');
+        showFormError('quickFormError', 'Enregistrement local impossible.');
       }).finally(function () {
         window._quickSaveInFlight = false;
         setQuickSaveBusy(false);
@@ -6638,7 +6639,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     }).catch(function (err) {
       const msg = String(err && err.message || err || '');
       if (/SECONDARY_READ_ONLY|NO_DATA/i.test(msg)) return;
-      showFormError('quickFormError', 'Enregistrement impossible — la carte n’a pas été créée.');
+      // Ne jamais dire « non créée » si seule la sync cloud a échoué (carte déjà en local)
+      showFormError('quickFormError', 'Enregistrement local impossible — la carte n’a pas été créée.');
     }).finally(function () {
       window._quickSaveInFlight = false;
       setQuickSaveBusy(false);
@@ -6667,6 +6669,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     const mats = Array.isArray(window.D.matieres) ? window.D.matieres : [];
     const matV = data.mat || ((mats[0] && mats[0].id) || 'XX');
     if (!window._pendingExoIds) window._pendingExoIds = new Set();
+    // Anti double-carte : id réservé jusqu’au local OK (+ clics concurrents)
     const existing = ankExistingIds().concat(Array.from(window._pendingExoIds));
     const id = window.AnkiAlgoV2.genExoUid('Y', existing);
     window._pendingExoIds.add(id);
@@ -6694,13 +6697,14 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     };
     if (data.groupId) card.groupId = data.groupId;
     window.D.exercices.unshift(card);
-    return Promise.resolve(window.save()).then(function () {
+    // Local d’abord → UI ; cloud (toutes gardes) en file, sans faux échec « non créée »
+    return Promise.resolve(window.save({ waitCloud: false })).then(function () {
       window._pendingExoIds.delete(id);
       return card;
     }).catch(function (err) {
       window._pendingExoIds.delete(id);
       const msg = String(err && err.message || err || '');
-      if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe/i.test(msg)) {
+      if (/SECONDARY_READ_ONLY|localStorage save failed|Sauvegarde refusée|corrompues|anti-wipe|SAVE_DISABLED|NO_DATA/i.test(msg)) {
         window.D.exercices = (window.D.exercices || []).filter(c => c !== card && c.id !== id);
       }
       throw err;

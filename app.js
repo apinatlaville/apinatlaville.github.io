@@ -3214,18 +3214,63 @@ window._stripProfileForCloud = function () {
  * La file continue quand même pour les sauvegardes suivantes.
  */
 window._saveChain = Promise.resolve();
-window.save = function() {
-  const result = window._saveChain.then(function() {
-    return window._saveImpl();
+/** True pendant l’écriture cloud (présence DeviceSession doit patienter). */
+window._cloudSaveInFlight = false;
+var _indexMetaSyncTimer = null;
+
+function scheduleProfileIndexMetaSync() {
+  if (!window.ProfilesIO || typeof window.ProfilesIO.syncActiveProfileIndexMeta !== 'function') return;
+  if (_indexMetaSyncTimer) clearTimeout(_indexMetaSyncTimer);
+  _indexMetaSyncTimer = setTimeout(function () {
+    _indexMetaSyncTimer = null;
+    window.ProfilesIO.syncActiveProfileIndexMeta().catch(function (metaErr) {
+      console.warn('Index profils (tailles) non sync:', metaErr);
+    });
+  }, 2500);
+}
+
+/**
+ * Sauvegarde locale (+ cloud). File unique : jamais deux écritures cloud en parallèle.
+ * opts.waitCloud === false : résout dès que le local est OK (UI rapide).
+ *   Le cloud continue dans la file avec TOUTES les gardes (assert index, transaction,
+ *   anti-wipe). Évite le faux « carte non créée » → double carte si le cloud est lent.
+ */
+window.save = function (opts) {
+  opts = opts || {};
+  var localGate = null;
+  if (opts.waitCloud === false) {
+    localGate = {};
+    localGate.promise = new Promise(function (resolve, reject) {
+      localGate.resolve = resolve;
+      localGate.reject = reject;
+    });
+  }
+
+  const full = window._saveChain.then(function () {
+    return window._saveImpl(opts, localGate);
   });
-  window._saveChain = result.catch(function(e) {
+  window._saveChain = full.catch(function (e) {
     console.error('save queue:', e);
   });
-  return result;
+
+  if (localGate) return localGate.promise;
+  return full;
 };
 
-window._saveImpl = async function() {
-  if (!window.D) return;
+window._saveImpl = async function (opts, localGate) {
+  opts = opts || {};
+  function releaseLocal(ok, err) {
+    if (!localGate) return;
+    var g = localGate;
+    localGate = null;
+    if (ok) g.resolve({ local: true, cloud: 'pending' });
+    else g.reject(err || new Error('local save failed'));
+  }
+
+  if (!window.D) {
+    releaseLocal(false, new Error('NO_DATA'));
+    return;
+  }
 
   const M = window.APP_MSG || {};
 
@@ -3235,7 +3280,9 @@ window._saveImpl = async function() {
     if (typeof window.recordAppError === 'function') {
       window.recordAppError('Sauvegarde refusée : données corrompues (index compte)', 'app.js');
     }
-    throw new Error('Données corrompues (index compte) — sauvegarde refusée');
+    var errAccount = new Error('Données corrompues (index compte) — sauvegarde refusée');
+    releaseLocal(false, errAccount);
+    throw errAccount;
   }
 
   if (window._persistDisabled) {
@@ -3248,7 +3295,9 @@ window._saveImpl = async function() {
         M.SAVE_DISABLED_TITLE || "Sauvegarde désactivée"
       );
     }
-    throw new Error('SAVE_DISABLED');
+    var errDisabled = new Error('SAVE_DISABLED');
+    releaseLocal(false, errDisabled);
+    throw errDisabled;
   }
 
   if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
@@ -3261,7 +3310,9 @@ window._saveImpl = async function() {
         window.showToast(M.SECONDARY_READ_ONLY || 'Appareil secondaire : les modifications ne sont pas enregistrées ici.');
       }
     }
-    throw new Error('SECONDARY_READ_ONLY');
+    var errSec = new Error('SECONDARY_READ_ONLY');
+    releaseLocal(false, errSec);
+    throw errSec;
   }
 
   if (!window.D.meta) window.D.meta = {};
@@ -3302,15 +3353,22 @@ window._saveImpl = async function() {
     }
     console.error("Échec sauvegarde locale");
     window.sysAlert(M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
-    throw new Error('localStorage save failed');
+    var errLocal = new Error('localStorage save failed');
+    releaseLocal(false, errLocal);
+    throw errLocal;
   }
 
   if (window.isLocalMode) {
     console.log("🌸 [Mode Local] Sauvegarde locale dans le navigateur réussie.");
-    return;
+    releaseLocal(true);
+    return { local: true, cloud: 'local-mode' };
   }
 
+  // Local OK → débloquer l’UI (création de carte) avant les RTT cloud.
+  releaseLocal(true);
+
   if (window.cloudConnected && window.docRef && window.setDoc) {
+    window._cloudSaveInFlight = true;
     try {
       // Garde-fou : docRef doit correspondre au profil de cette session
       const refPath = window.docRef && (window.docRef._path || window.docRef.path || '');
@@ -3320,6 +3378,7 @@ window._saveImpl = async function() {
           throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
         }
       }
+      // Sécurité cloud intacte : re-vérifie l’index à chaque sync cloud
       if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
         const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
         if (!writability.ok) {
@@ -3364,16 +3423,20 @@ window._saveImpl = async function() {
         throw new Error('Refus d’écrire cloud : getDoc / transaction indisponible');
       }
 
-      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+      try {
+        var cloudBytes = JSON.stringify(window._stripProfileForCloud()).length;
+        console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie ! (~" +
+          Math.round(cloudBytes / 1024) + " Ko — 1 doc = tout le profil)");
+      } catch (sizeErr) {
+        console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+      }
       window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
       if (typeof window.captureCoursPlacementBase === 'function') {
         window.captureCoursPlacementBase(window.D && window.D.cours);
       }
-      if (window.ProfilesIO && typeof window.ProfilesIO.syncActiveProfileIndexMeta === 'function') {
-        try { await window.ProfilesIO.syncActiveProfileIndexMeta(); } catch (metaErr) {
-          console.warn('Index profils (tailles) non sync:', metaErr);
-        }
-      }
+      // Index tailles : après le blob (ne bloque pas waitCloud:false ; hors chemin critique carte)
+      scheduleProfileIndexMetaSync();
+      return { local: true, cloud: true };
     } catch (e) {
       // Remettre la révision d’avant cette tentative pour que le prochain merge
       // détecte encore un cloud en avance (patch secondaire). Les données restent.
@@ -3393,16 +3456,27 @@ window._saveImpl = async function() {
         window.recordAppError('Erreur écriture cloud: ' + errMsg, 'app.js');
       }
       console.error("Échec Cloud :", e);
-      if (!window.isLocalMode && typeof window.sysAlert === 'function') {
-        window.sysAlert(
-          "La synchronisation cloud a échoué. Tes données sont enregistrées dans ce navigateur, " +
-          "mais <b>pas sur le serveur</b> pour l'instant.<br><br>" +
-          "Détail : " + window.escHtml(errMsg) + "<br><br>" +
-          "Vérifie ta connexion et réessaie (une modification déclenchera une nouvelle sauvegarde).",
-          M.SYNC_TITLE || "Erreur de synchronisation"
-        );
+      // waitCloud:false : la carte est déjà créée en local — toast, pas popup « échec total »
+      // (sinon l’utilisateur recrée → double carte).
+      if (!window.isLocalMode) {
+        if (opts.waitCloud === false && typeof window.showToast === 'function') {
+          window.showToast(
+            'Carte enregistrée ici — sync cloud en retard. Prochaine modif réessaiera.',
+            { type: 'warn' }
+          );
+        } else if (typeof window.sysAlert === 'function') {
+          window.sysAlert(
+            "La synchronisation cloud a échoué. Tes données sont enregistrées dans ce navigateur, " +
+            "mais <b>pas sur le serveur</b> pour l'instant.<br><br>" +
+            "Détail : " + window.escHtml(errMsg) + "<br><br>" +
+            "Vérifie ta connexion et réessaie (une modification déclenchera une nouvelle sauvegarde).",
+            M.SYNC_TITLE || "Erreur de synchronisation"
+          );
+        }
       }
       throw e;
+    } finally {
+      window._cloudSaveInFlight = false;
     }
   }
 };

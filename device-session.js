@@ -473,6 +473,8 @@
     if (!state.started || window.isLocalMode || !state.userId) return;
     if (!state.joinResolved) return;
     if (_claimInFlight || _hbInFlight) return;
+    // Ne pas concurrencer une sauvegarde profil (même WebChannel / long polling)
+    if (window._cloudSaveInFlight) return;
 
     // Primary : heartbeat même hors focus pour garder le lease
     var hidden = document.visibilityState && document.visibilityState !== 'visible';
