@@ -23,8 +23,8 @@
 
   /** Bundles chargés à l'ouverture d'un onglet (pas au splash) */
   var TAB_BUNDLES = {
-    flashcards: ['anki-quick.js', 'quick-share.js', 'xp-lab.js'],
-    partage: ['anki-quick.js', 'quick-share.js'],
+    flashcards: ['anki-quick.js', 'quick-share.js', 'quick-portage.js', 'xp-lab.js'],
+    partage: ['anki-quick.js', 'quick-share.js', 'quick-portage.js'],
     agenda: ['agenda.js'],
     /* app-v2 avant card-ui : le FAB (fin de card-ui) doit trouver les modales déjà définies */
     ankiV2: ['programme.js', 'anki-app-v2.js', 'anki-card-ui.js', 'xp-lab.js'],

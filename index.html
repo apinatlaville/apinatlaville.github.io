@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20261010f';
+  window.__BOOT_CACHE_V = '20261010o';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
 <link href="fonts-local.css" rel="stylesheet">
@@ -989,17 +989,13 @@
       const app = initializeApp(firebaseConfig);
       // ignoreUndefinedProperties : évite qu’un champ undefined fasse échouer TOUTE
       // écriture (index profils / blobs) → « bascule cloud échouée » + tailles 0 o
-      // Safari (et certains proxys) cassent WebChannel → getDoc/Listen restent pendus
-      // jusqu’au timeout 30s (« Cloud indisponible ») + « transport errored ».
-      var ua = navigator.userAgent || '';
-      var isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|Android/i.test(ua);
-      var fsOpts = { ignoreUndefinedProperties: true };
-      if (isSafari) {
-        fsOpts.experimentalForceLongPolling = true;
-      } else {
-        fsOpts.experimentalAutoDetectLongPolling = true;
-      }
-      const db = initializeFirestore(app, fsOpts);
+      // autoDetect (pas Force) : WebChannel rapide par défaut ; long polling seulement
+      // si WebChannel casse. Force LongPolling Safari ralentissait chaque note Synchrotron
+      // (~393 Ko) à 5–6 s — régression du 2026-10-10.
+      const db = initializeFirestore(app, {
+        ignoreUndefinedProperties: true,
+        experimentalAutoDetectLongPolling: true
+      });
       const auth = getAuth(app);
 
       window.db = db;

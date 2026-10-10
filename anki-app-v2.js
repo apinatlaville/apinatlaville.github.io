@@ -3969,7 +3969,10 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       sessionTempsManuel: S.sessionTempsManuel,
       sessionUI:    S.sessionUI || 'full'
     };
-    return Promise.resolve(typeof window.save === 'function' ? window.save() : undefined);
+    // waitCloud:false : la carte suivante ne doit pas attendre le sync ~393 Ko
+    // (régression Safari long-polling : 5–6 s / note). Cloud continue en file.
+    if (typeof window.save !== 'function') return Promise.resolve();
+    return Promise.resolve(window.save({ waitCloud: false }));
   }
   function clearPersistedSession() {
     if (window.D) {
@@ -4218,7 +4221,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     setTimeout(finish, 340);
   }
 
-  function applyNextCardState() {
+  function applyNextCardState(opts) {
     S._evalBusy = false;
     S.showAnswer = false;
     S.sliderValue = 7;
@@ -4226,8 +4229,29 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     S.dockShowCardDetail = false;
     resetChronoCard();
     S.sessionUI = S.sessionUI === "mini" || S.sessionUI === "dock" ? S.sessionUI : "full";
-    persistSession();
+    // skipPersist : caller a déjà sauvé APRÈS l’avance (eval) — évite 2× ~393 Ko
+    if (!(opts && opts.skipPersist)) persistSession();
     renderSessionOverlay();
+  }
+
+  /** Avance file/current en mémoire (sans render ni save). true = encore une carte. */
+  function advanceSessionQueueInMemory(opts) {
+    opts = opts || {};
+    const skipCurrent = opts.skipCurrent;
+    if (skipCurrent && !isDevoirCard(skipCurrent)) S.queue.push(skipCurrent);
+    S.queue = (S.queue || []).filter(c => c && !isDevoirCard(c));
+    if (!S.queue.length) {
+      S.current = null;
+      return false;
+    }
+    S.current = S.queue.shift();
+    S.showAnswer = false;
+    S.sliderValue = 7;
+    S.sessionTempsManuel = null;
+    S.dockShowCardDetail = false;
+    resetChronoCard();
+    S.sessionUI = S.sessionUI === "mini" || S.sessionUI === "dock" ? S.sessionUI : "full";
+    return true;
   }
 
   function nextCard(animate, opts) {
@@ -4236,12 +4260,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
 
     const advance = () => {
       S._evalBusy = false;
-      if (skipCurrent && !isDevoirCard(skipCurrent)) S.queue.push(skipCurrent);
-      // Purge éventuels devoirs legacy encore en file
-      S.queue = (S.queue || []).filter(c => c && !isDevoirCard(c));
-      if (!S.queue.length) return endSession();
-      S.current = S.queue.shift();
-      applyNextCardState();
+      if (!advanceSessionQueueInMemory(opts)) return endSession();
+      applyNextCardState(opts);
     };
 
     if (animate && S.current && S.sessionUI === 'full') {
@@ -4799,13 +4819,23 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     if (isDevoir) {
       const dmId = (resolveDevoirRef(S.current) || S.current).id;
       S.queue = (S.queue || []).filter(x => !(x && (x._devoirChunkOf === dmId || x.id === dmId || (x.id && String(x.id).indexOf(dmId + '#') === 0))));
-      S.current = null;
+      // Avance mémoire puis 1 save (currentId à jour) — pas de skipPersist stale
+      const cont = advanceSessionQueueInMemory();
       Promise.resolve(persistSession()).then(function () {
         S._evalBusy = false;
-        nextCard(true);
-      }).catch(function () {
+        if (!cont) return endSession();
+        if (S.sessionUI === 'full') {
+          runDeckExitThen(function () { renderSessionOverlay(); });
+        } else {
+          renderSessionOverlay();
+        }
+      }).catch(function (err) {
+        console.error('evalCardV2 devoir save:', err);
         S._evalBusy = false;
-        nextCard(true);
+        try {
+          if (!cont) endSession();
+          else renderSessionOverlay();
+        } catch (e2) { /* ignore */ }
       });
       return;
     }
@@ -4890,17 +4920,26 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       snapshot.requeued = true;
     }
     if (window.D.settings) window.D.settings.ankiLastSession = window.AnkiAlgoV2.todayISO();
+    // Avance file EN MÉMOIRE puis 1 seule save (currentId = carte suivante).
+    // Évite skipPersist qui laissait sessionEnCoursV2 sur la carte déjà notée.
+    const cont = advanceSessionQueueInMemory();
     Promise.resolve(persistSession()).then(function () {
-      nextCard(true);
+      S._evalBusy = false;
+      if (!cont) return endSession();
+      // DOM montre encore l’ancienne carte → anim sortie puis render suivante
+      if (S.sessionUI === 'full') {
+        runDeckExitThen(function () { renderSessionOverlay(); });
+      } else {
+        renderSessionOverlay();
+      }
     }).catch(function (err) {
       console.error('evalCardV2 save:', err);
-      // Notation déjà appliquée en mémoire (local souvent OK) — avancer pour
-      // empêcher une double notation si on se contentait de relâcher _evalBusy.
+      // Note déjà mutée sur la carte en mémoire ; UI avance pour éviter double saisie.
+      S._evalBusy = false;
       try {
-        nextCard(true);
-      } catch (e2) {
-        S._evalBusy = false;
-      }
+        if (!cont) endSession();
+        else renderSessionOverlay();
+      } catch (e2) { /* ignore */ }
     });
     } catch (e) {
       S._evalBusy = false;
@@ -5961,7 +6000,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       window.D.exercices.unshift(createdCard);
     }
 
-    Promise.resolve(window.save()).then(function () {
+    // waitCloud:false : fermer le modal dès le local (même file cloud coalesce que Synchrotron)
+    Promise.resolve(window.save({ waitCloud: false })).then(function () {
       editingExoId = null;
       const ov = $('ovExo');
       if (ov) ov.classList.add('hidden');

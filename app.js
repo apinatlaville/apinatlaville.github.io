@@ -3209,14 +3209,27 @@ window._stripProfileForCloud = function () {
 };
 
 /**
- * Sauvegarde locale + cloud Firestore (file d'attente : pas d'écritures concurrentes).
- * Retourne une Promise qui REJECTE en cas d'échec inattendu (les callers await le voient).
- * La file continue quand même pour les sauvegardes suivantes.
+ * Sauvegarde locale + cloud Firestore.
+ * Deux files distinctes :
+ *  - _saveLocalChain : sérialise localStorage / bump révision (rapide)
+ *  - _saveCloudChain : sérialise assert+transaction (~393 Ko), avec coalesce
+ * opts.waitCloud === false : résout dès le local OK — la note suivante ne
+ *   attend PAS le cloud de la précédente (sinon 5–6 s / note sous long-polling).
+ * Sécurité cloud inchangée : jamais 2 écritures cloud en parallèle, assert index,
+ * transaction, anti-wipe.
  */
-window._saveChain = Promise.resolve();
+window._saveLocalChain = Promise.resolve();
+window._saveCloudChain = Promise.resolve();
+/** Alias rétrocompat : avance avec la file locale (pas le cloud). */
+window._saveChain = window._saveLocalChain;
 /** True pendant l’écriture cloud (présence DeviceSession doit patienter). */
 window._cloudSaveInFlight = false;
 var _indexMetaSyncTimer = null;
+var _cloudFlushWanted = false;
+var _cloudFlushHardWait = false;
+var _cloudFlushSoftUi = false;
+var _cloudFlushWaiters = [];
+var _cloudWorkerQueued = false;
 
 function scheduleProfileIndexMetaSync() {
   if (!window.ProfilesIO || typeof window.ProfilesIO.syncActiveProfileIndexMeta !== 'function') return;
@@ -3230,11 +3243,87 @@ function scheduleProfileIndexMetaSync() {
 }
 
 /**
- * Sauvegarde locale (+ cloud). File unique : jamais deux écritures cloud en parallèle.
- * opts.waitCloud === false : résout dès que le local est OK (UI rapide).
- *   Le cloud continue dans la file avec TOUTES les gardes (assert index, transaction,
- *   anti-wipe). Évite le faux « carte non créée » → double carte si le cloud est lent.
+ * Enfile un flush cloud coalescé. Tous les waiters d’un même cycle partagent
+ * le même résultat (pas de job fantôme qui renvoie cloud:true sans écrire).
  */
+function _runCloudFlushWorker() {
+  _cloudWorkerQueued = false;
+  return (async function () {
+    var lastErr = null;
+    try {
+      while (_cloudFlushWanted) {
+        _cloudFlushWanted = false;
+        try {
+          await window._saveCloudImpl();
+          lastErr = null;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      var waiters = _cloudFlushWaiters.splice(0);
+      var soft = _cloudFlushSoftUi;
+      var hard = _cloudFlushHardWait;
+      _cloudFlushSoftUi = false;
+      _cloudFlushHardWait = false;
+      if (lastErr) {
+        var errMsg = lastErr && lastErr.message ? lastErr.message : String(lastErr);
+        if (!window.isLocalMode) {
+          if (!hard && soft && typeof window.showToast === 'function') {
+            window.showToast(
+              'Enregistré ici — sync cloud en retard. Prochaine modif réessaiera.',
+              { type: 'warn' }
+            );
+          } else if (typeof window.sysAlert === 'function') {
+            var M = window.APP_MSG || {};
+            window.sysAlert(
+              "La synchronisation cloud a échoué. Tes données sont enregistrées dans ce navigateur, " +
+              "mais <b>pas sur le serveur</b> pour l'instant.<br><br>" +
+              "Détail : " + window.escHtml(errMsg) + "<br><br>" +
+              "Vérifie ta connexion et réessaie (une modification déclenchera une nouvelle sauvegarde).",
+              M.SYNC_TITLE || "Erreur de synchronisation"
+            );
+          }
+        }
+        waiters.forEach(function (w) { w.reject(lastErr); });
+        throw lastErr;
+      }
+      var ok = { local: true, cloud: true };
+      waiters.forEach(function (w) { w.resolve(ok); });
+      return ok;
+    } finally {
+      if (_cloudFlushWanted || _cloudFlushWaiters.length) {
+        if (!_cloudWorkerQueued) {
+          _cloudWorkerQueued = true;
+          window._saveCloudChain = window._saveCloudChain.then(_runCloudFlushWorker).catch(function (e) {
+            console.error('cloud save queue:', e);
+          });
+        }
+      }
+    }
+  })();
+}
+
+window._enqueueCloudFlush = function (opts) {
+  opts = opts || {};
+  _cloudFlushWanted = true;
+  if (opts.waitCloud === false) _cloudFlushSoftUi = true;
+  else _cloudFlushHardWait = true;
+
+  var waiterPromise = new Promise(function (resolve, reject) {
+    _cloudFlushWaiters.push({ resolve: resolve, reject: reject });
+  });
+
+  if (!_cloudWorkerQueued) {
+    _cloudWorkerQueued = true;
+    window._saveCloudChain = window._saveCloudChain.then(_runCloudFlushWorker).catch(function (e) {
+      console.error('cloud save queue:', e);
+      var left = _cloudFlushWaiters.splice(0);
+      left.forEach(function (w) { w.reject(e); });
+    });
+  }
+  return waiterPromise;
+};
+
 window.save = function (opts) {
   opts = opts || {};
   var localGate = null;
@@ -3246,18 +3335,33 @@ window.save = function (opts) {
     });
   }
 
-  const full = window._saveChain.then(function () {
-    return window._saveImpl(opts, localGate);
+  var localJob = window._saveLocalChain.then(function () {
+    return window._saveLocalImpl(opts, localGate);
   });
-  window._saveChain = full.catch(function (e) {
+  window._saveLocalChain = localJob.catch(function (e) {
     console.error('save queue:', e);
+  });
+  window._saveChain = window._saveLocalChain;
+
+  var cloudJob = localJob.then(function (localResult) {
+    if (!localResult || !localResult.needsCloud) {
+      return localResult || { local: true, cloud: 'skipped' };
+    }
+    return window._enqueueCloudFlush(opts);
   });
 
   if (localGate) return localGate.promise;
-  return full;
+  return cloudJob;
 };
 
+/** Compat : ancien nom = local puis flush cloud (await complet). */
 window._saveImpl = async function (opts, localGate) {
+  var localResult = await window._saveLocalImpl(opts, localGate);
+  if (!localResult || !localResult.needsCloud) return localResult;
+  return window._enqueueCloudFlush(opts || {});
+};
+
+window._saveLocalImpl = async function (opts, localGate) {
   opts = opts || {};
   function releaseLocal(ok, err) {
     if (!localGate) return;
@@ -3269,7 +3373,7 @@ window._saveImpl = async function (opts, localGate) {
 
   if (!window.D) {
     releaseLocal(false, new Error('NO_DATA'));
-    return;
+    return { local: false, needsCloud: false };
   }
 
   const M = window.APP_MSG || {};
@@ -3332,10 +3436,6 @@ window._saveImpl = async function (opts, localGate) {
     || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
     || 'default';
 
-  const emptyOutgoing = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
-    ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
-    : false;
-
   // Anti-wipe local : délégué à writeLocalProfileData (garde centralisée)
   // _allowEmptyProfileWrite autorise resetData
 
@@ -3361,123 +3461,116 @@ window._saveImpl = async function (opts, localGate) {
   if (window.isLocalMode) {
     console.log("🌸 [Mode Local] Sauvegarde locale dans le navigateur réussie.");
     releaseLocal(true);
-    return { local: true, cloud: 'local-mode' };
+    return { local: true, cloud: 'local-mode', needsCloud: false, sessionPid: sessionPid };
   }
 
-  // Local OK → débloquer l’UI (création de carte) avant les RTT cloud.
+  // Local OK → débloquer l’UI avant les RTT cloud (file cloud séparée).
   releaseLocal(true);
 
-  if (window.cloudConnected && window.docRef && window.setDoc) {
-    window._cloudSaveInFlight = true;
-    try {
-      // Garde-fou : docRef doit correspondre au profil de cette session
-      const refPath = window.docRef && (window.docRef._path || window.docRef.path || '');
-      if (refPath && /\/profiles\//.test(String(refPath))) {
-        const refPid = String(refPath).split('/profiles/').pop().split('/')[0];
-        if (refPid && sessionPid && refPid !== sessionPid) {
-          throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
-        }
-      }
-      // Sécurité cloud intacte : re-vérifie l’index à chaque sync cloud
-      if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
-        const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
-        if (!writability.ok) {
-          throw new Error('Refus d’écrire cloud : profil non inscriptible (' + (writability.reason || '?') + ')');
-        }
-      }
+  var needsCloud = !!(window.cloudConnected && window.docRef && window.setDoc);
+  return {
+    local: true,
+    cloud: needsCloud ? 'pending' : 'offline',
+    needsCloud: needsCloud,
+    sessionPid: sessionPid
+  };
+};
 
-      const confirmed = window._lastCloudConfirmedRevision;
-      const localBase = (confirmed != null && confirmed !== '')
-        ? (Number(confirmed) || 0)
-        : prevRevision;
+/** Écrit le D courant vers Firestore (appelé seulement depuis _saveCloudChain). */
+window._saveCloudImpl = async function () {
+  if (!(window.cloudConnected && window.docRef && window.setDoc) || !window.D) {
+    return { cloud: false };
+  }
 
-      function applyRemoteIfAhead(cur) {
-        window._applyCloudSnapshotGuards(cur, emptyOutgoing);
-        if (!cur) return;
-        const remoteRev = Number(cur.meta && cur.meta.revision) || 0;
-        if (remoteRev > localBase) {
-          window.mergeRemoteProfileIntoLocal(cur);
-          window.D.meta.revision = remoteRev + 1;
-          window.D.meta.updatedAt = Date.now();
-          console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
-          window._repersistLocalProfile(sessionPid);
-        }
-      }
+  const sessionPid = window._activeProfileId
+    || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
+    || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
+    || 'default';
 
-      if (typeof window.runTransaction === 'function' && window.db) {
-        await window.runTransaction(window.db, async function (tx) {
-          const snap = await tx.get(window.docRef);
-          const cur = snap.exists() ? snap.data() : null;
-          if (!cur && emptyOutgoing && !window._allowEmptyProfileWrite) {
-            // nouveau doc vide : OK
-          }
-          applyRemoteIfAhead(cur);
-          tx.set(window.docRef, window._stripProfileForCloud());
-        });
-      } else if (window.getDoc) {
-        const snap = await window.getDoc(window.docRef);
-        const cur = snap.exists() ? snap.data() : null;
-        applyRemoteIfAhead(cur);
-        await window.setDoc(window.docRef, window._stripProfileForCloud());
-      } else {
-        throw new Error('Refus d’écrire cloud : getDoc / transaction indisponible');
-      }
+  const emptyOutgoing = window.ProfilesIO && typeof window.ProfilesIO.isEffectivelyEmptyProfile === 'function'
+    ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
+    : false;
 
-      try {
-        var cloudBytes = JSON.stringify(window._stripProfileForCloud()).length;
-        console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie ! (~" +
-          Math.round(cloudBytes / 1024) + " Ko — 1 doc = tout le profil)");
-      } catch (sizeErr) {
-        console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+  window._cloudSaveInFlight = true;
+  try {
+    // Garde-fou : docRef doit correspondre au profil de cette session
+    const refPath = window.docRef && (window.docRef._path || window.docRef.path || '');
+    if (refPath && /\/profiles\//.test(String(refPath))) {
+      const refPid = String(refPath).split('/profiles/').pop().split('/')[0];
+      if (refPid && sessionPid && refPid !== sessionPid) {
+        throw new Error('Refus d’écrire : docRef profil « ' + refPid + ' » ≠ session « ' + sessionPid + ' »');
       }
-      window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
-      if (typeof window.captureCoursPlacementBase === 'function') {
-        window.captureCoursPlacementBase(window.D && window.D.cours);
-      }
-      // Index tailles : après le blob (ne bloque pas waitCloud:false ; hors chemin critique carte)
-      scheduleProfileIndexMetaSync();
-      return { local: true, cloud: true };
-    } catch (e) {
-      // Remettre la révision d’avant cette tentative pour que le prochain merge
-      // détecte encore un cloud en avance (patch secondaire). Les données restent.
-      window.D.meta.revision = prevRevision;
-      try {
-        const rolled = JSON.stringify(window.D);
-        if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-          window.ProfilesIO.writeLocalProfileData(sessionPid, rolled);
-        } else if (typeof window.safeLocalSet === 'function') {
-          window.safeLocalSet('backup_local_cours', rolled);
-        }
-      } catch (rollErr) {
-        console.warn('Rollback révision locale impossible:', rollErr);
-      }
-      const errMsg = e && e.message ? e.message : String(e);
-      if (typeof window.recordAppError === 'function') {
-        window.recordAppError('Erreur écriture cloud: ' + errMsg, 'app.js');
-      }
-      console.error("Échec Cloud :", e);
-      // waitCloud:false : la carte est déjà créée en local — toast, pas popup « échec total »
-      // (sinon l’utilisateur recrée → double carte).
-      if (!window.isLocalMode) {
-        if (opts.waitCloud === false && typeof window.showToast === 'function') {
-          window.showToast(
-            'Carte enregistrée ici — sync cloud en retard. Prochaine modif réessaiera.',
-            { type: 'warn' }
-          );
-        } else if (typeof window.sysAlert === 'function') {
-          window.sysAlert(
-            "La synchronisation cloud a échoué. Tes données sont enregistrées dans ce navigateur, " +
-            "mais <b>pas sur le serveur</b> pour l'instant.<br><br>" +
-            "Détail : " + window.escHtml(errMsg) + "<br><br>" +
-            "Vérifie ta connexion et réessaie (une modification déclenchera une nouvelle sauvegarde).",
-            M.SYNC_TITLE || "Erreur de synchronisation"
-          );
-        }
-      }
-      throw e;
-    } finally {
-      window._cloudSaveInFlight = false;
     }
+    // Sécurité cloud intacte : re-vérifie l’index à chaque sync cloud
+    if (window.ProfilesIO && typeof window.ProfilesIO.assertProfileCloudWritable === 'function' && window.currentUser) {
+      const writability = await window.ProfilesIO.assertProfileCloudWritable(window.currentUser, sessionPid);
+      if (!writability.ok) {
+        throw new Error('Refus d’écrire cloud : profil non inscriptible (' + (writability.reason || '?') + ')');
+      }
+    }
+
+    const confirmed = window._lastCloudConfirmedRevision;
+    const localBase = (confirmed != null && confirmed !== '')
+      ? (Number(confirmed) || 0)
+      : ((Number(window.D.meta && window.D.meta.revision) || 1) - 1);
+
+    function applyRemoteIfAhead(cur) {
+      window._applyCloudSnapshotGuards(cur, emptyOutgoing);
+      if (!cur) return;
+      const remoteRev = Number(cur.meta && cur.meta.revision) || 0;
+      if (remoteRev > localBase) {
+        window.mergeRemoteProfileIntoLocal(cur);
+        window.D.meta.revision = remoteRev + 1;
+        window.D.meta.updatedAt = Date.now();
+        console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
+        window._repersistLocalProfile(sessionPid);
+      }
+    }
+
+    if (typeof window.runTransaction === 'function' && window.db) {
+      await window.runTransaction(window.db, async function (tx) {
+        const snap = await tx.get(window.docRef);
+        const cur = snap.exists() ? snap.data() : null;
+        if (!cur && emptyOutgoing && !window._allowEmptyProfileWrite) {
+          // nouveau doc vide : OK
+        }
+        applyRemoteIfAhead(cur);
+        tx.set(window.docRef, window._stripProfileForCloud());
+      });
+    } else if (window.getDoc) {
+      const snap = await window.getDoc(window.docRef);
+      const cur = snap.exists() ? snap.data() : null;
+      applyRemoteIfAhead(cur);
+      await window.setDoc(window.docRef, window._stripProfileForCloud());
+    } else {
+      throw new Error('Refus d’écrire cloud : getDoc / transaction indisponible');
+    }
+
+    try {
+      var cloudBytes = JSON.stringify(window._stripProfileForCloud()).length;
+      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie ! (~" +
+        Math.round(cloudBytes / 1024) + " Ko — 1 doc = tout le profil)");
+    } catch (sizeErr) {
+      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+    }
+    window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
+    if (typeof window.captureCoursPlacementBase === 'function') {
+      window.captureCoursPlacementBase(window.D && window.D.cours);
+    }
+    // Index tailles : hors chemin critique carte / note
+    scheduleProfileIndexMetaSync();
+    return { cloud: true };
+  } catch (e) {
+    // Pas de rollback de révision : d’autres notes locales ont pu avancer pendant ce sync.
+    // Données déjà en localStorage ; le prochain flush réessaiera avec le D courant.
+    const errMsg = e && e.message ? e.message : String(e);
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Erreur écriture cloud: ' + errMsg, 'app.js');
+    }
+    console.error("Échec Cloud :", e);
+    throw e;
+  } finally {
+    window._cloudSaveInFlight = false;
   }
 };
 

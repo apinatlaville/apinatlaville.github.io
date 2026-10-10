@@ -1072,6 +1072,101 @@ span.cours-bc-crumb.is-current { pointer-events: none; }
 .qk-share-btn .qk-share-dots {
   margin-left: 2px;
 }
+.qk-portage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.qk-portage-card {
+  max-width: min(720px, 96vw);
+  width: 100%;
+}
+.qk-portage-body { padding: 4px 2px 12px; }
+.qk-portage-lead { font-size: 13px; line-height: 1.45; margin: 0 0 12px; }
+.qk-portage-pre {
+  margin: 0 0 12px;
+  padding: 12px;
+  max-height: min(42vh, 360px);
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: rgba(120, 120, 128, 0.1);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.qk-portage-pre--kit { max-height: min(52vh, 480px); }
+.qk-portage-ta {
+  width: 100%;
+  min-height: 160px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.qk-portage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.qk-portage-file-lbl { cursor: pointer; display: inline-flex; align-items: center; }
+.qk-portage-ok {
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  background: rgba(80, 216, 144, 0.12);
+  border: 1px solid rgba(80, 216, 144, 0.35);
+  font-size: 13px;
+}
+.qk-portage-err {
+  margin-bottom: 6px;
+  color: var(--red, #f07070);
+  font-size: 13px;
+}
+.qk-portage-err-list {
+  margin: 0 0 12px;
+  padding-left: 1.2em;
+  font-size: 12px;
+  color: var(--red, #f07070);
+}
+.qk-portage-preview-list {
+  margin: 0 0 14px;
+  padding-left: 1.2em;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.qk-portage-q { color: var(--txt); }
+.qk-portage-r { color: var(--mut); }
+.qk-portage-target {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--bd);
+}
+.qk-portage-dest-label {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mut);
+}
+.qk-portage-radio,
+.qk-portage-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.qk-portage-target-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
 .qk-group-subline {
   display: flex;
   flex-wrap: wrap;

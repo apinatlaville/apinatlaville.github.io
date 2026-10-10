@@ -81,6 +81,15 @@
     );
   }
 
+  /** Bouton Portage (export JSON / kit Liam) — distinct du Partage cloud. */
+  function portageActionButtonHtml(groupId) {
+    if (!groupId || groupId === UNGROUPED) return '';
+    const label = window.iconLabel ? window.iconLabel('file-text', 'Portage') : 'Portage';
+    return '<button type="button" class="bs qk-portage-btn" title="Exporter / kit Liam (hors-ligne)" ' +
+      'onclick="window.QuickPortage&&window.QuickPortage.openExport(\'' + jsStr(groupId) + '\')">' +
+      label + '</button>';
+  }
+
   /** Bouton libellé « Partage » (dossier ouvert) — plus lisible que les seuls pastilles. */
   function shareActionButtonHtml(groupId, opts) {
     opts = opts || {};
@@ -159,9 +168,12 @@
     window.renderFlashcards();
   };
 
-  window.quickMarkGroupLocalDirty = function (groupId) {
+  window.quickMarkGroupLocalDirty = function (groupId, opts) {
     if (!groupId || !window.QuickShare || typeof window.QuickShare.markLocalDirty !== 'function') return;
-    if (window.QuickShare.markLocalDirty(groupId) && typeof window.save === 'function') {
+    if (!window.QuickShare.markLocalDirty(groupId)) return;
+    // persist:false = le caller enchaîne déjà un save (ex. Portage batch)
+    if (opts && opts.persist === false) return;
+    if (typeof window.save === 'function') {
       try { window.save(); } catch (e) { /* best-effort */ }
     }
   };
@@ -631,6 +643,7 @@
     const btnSingle = document.getElementById('btnQuickCreateSingle');
     const btnBatch = document.getElementById('btnQuickCreateBatch');
     const btnFolder = document.getElementById('btnQuickCreateFolder');
+    const btnPortage = document.getElementById('btnQuickPortageImport');
     if (trigger && trigger.dataset.bound !== '1') {
       trigger.dataset.bound = '1';
       trigger.addEventListener('click', function (e) {
@@ -657,6 +670,17 @@
       btnFolder.addEventListener('click', function () {
         window.closeQuickCreateMenu();
         window.quickOpenCreateFolder();
+      });
+    }
+    if (btnPortage && btnPortage.dataset.bound !== '1') {
+      btnPortage.dataset.bound = '1';
+      btnPortage.addEventListener('click', function () {
+        window.closeQuickCreateMenu();
+        if (window.QuickPortage && typeof window.QuickPortage.openImport === 'function') {
+          window.QuickPortage.openImport();
+        } else if (typeof window.showToast === 'function') {
+          window.showToast('Portage pas encore chargé — rouvre l’onglet Rapide.', { type: 'warn' });
+        }
       });
     }
     if (!window._quickCreateMenuDocBound) {
@@ -810,6 +834,11 @@
                 <strong><span data-icon="folder" data-icon-size="14"></span> Créer un dossier</strong>
                 <span class="hint">Classer tes cartes Y- par matière</span>
               </button>
+              <div class="cours-create-sep" role="separator"></div>
+              <button type="button" class="cours-create-item" id="btnQuickPortageImport" role="menuitem">
+                <strong><span data-icon="download" data-icon-size="14"></span> Importer un Portage</strong>
+                <span class="hint">Coller / fichier JSON (Liam, delta ou full)</span>
+              </button>
             </div>
           </div>
         </div>
@@ -824,6 +853,7 @@
         <div class="quick-drill-bar" id="qkDrillBar">
           ${renderToolbarDrillOpts()}
           ${shareActionButtonHtml(navGroup.id)}
+          ${portageActionButtonHtml(navGroup.id)}
           <button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>
         </div>
       </div>` : ''}
@@ -851,6 +881,19 @@
       if (mat) Q.mat = mat;
     }
     window.renderFlashcards();
+  };
+
+  window.quickGetNavGroupId = function () {
+    return Q.nav.group && Q.nav.group !== UNGROUPED ? Q.nav.group : '';
+  };
+
+  window.quickNavigateToGroup = function (groupId) {
+    if (!groupId) return;
+    window.quickArianePickGroup(groupId);
+  };
+
+  window.quickDefaultGroupColor = function (matId) {
+    return defaultGroupColor(matId);
   };
 
   window.quickOpenCreateFolder = function () {
@@ -2234,12 +2277,16 @@
     const bar = document.getElementById('qkDrillBar');
     if (!bar) return;
     const shareBtn = bar.querySelector('button.qk-share-btn');
+    const portageBtn = bar.querySelector('button.qk-portage-btn');
     const reviewBtn = bar.querySelector('button.bp');
     const shareHtml = shareBtn ? shareBtn.outerHTML : '';
+    const portageHtml = portageBtn ? portageBtn.outerHTML : (
+      Q.nav.group && Q.nav.group !== UNGROUPED ? portageActionButtonHtml(Q.nav.group) : ''
+    );
     const reviewHtml = reviewBtn
       ? reviewBtn.outerHTML
       : `<button type="button" class="bp" onclick="window.quickStartAll()">${window.iconLabel('play', 'Réviser ce groupe')}</button>`;
-    bar.innerHTML = renderToolbarDrillOpts() + shareHtml + reviewHtml;
+    bar.innerHTML = renderToolbarDrillOpts() + shareHtml + portageHtml + reviewHtml;
     if (window.hydrateIcons) window.hydrateIcons(bar);
   }
 
