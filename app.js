@@ -3251,20 +3251,40 @@ function _runCloudFlushWorker() {
   return (async function () {
     var lastErr = null;
     try {
-      while (_cloudFlushWanted) {
-        _cloudFlushWanted = false;
-        try {
-          await window._saveCloudImpl();
-          lastErr = null;
-        } catch (e) {
-          lastErr = e;
+      var waiters = [];
+      var soft = false;
+      var hard = false;
+      // Boucle jusqu’à quiescence (évite TOCTOU : waiter résolu avant son flush)
+      for (;;) {
+        while (_cloudFlushWanted) {
+          _cloudFlushWanted = false;
+          try {
+            var cloudRes = await window._saveCloudImpl();
+            // { cloud: false } = skip silencieux (plus de connexion) — pas un succès d’écriture
+            if (cloudRes && cloudRes.cloud === false) {
+              lastErr = lastErr || new Error('Cloud indisponible');
+            } else {
+              lastErr = null;
+            }
+          } catch (e) {
+            lastErr = e;
+          }
         }
+        waiters = _cloudFlushWaiters.splice(0);
+        soft = _cloudFlushSoftUi;
+        hard = _cloudFlushHardWait;
+        _cloudFlushSoftUi = false;
+        _cloudFlushHardWait = false;
+        if (_cloudFlushWanted || _cloudFlushWaiters.length) {
+          for (var wi = waiters.length - 1; wi >= 0; wi--) {
+            _cloudFlushWaiters.unshift(waiters[wi]);
+          }
+          if (soft) _cloudFlushSoftUi = true;
+          if (hard) _cloudFlushHardWait = true;
+          continue;
+        }
+        break;
       }
-      var waiters = _cloudFlushWaiters.splice(0);
-      var soft = _cloudFlushSoftUi;
-      var hard = _cloudFlushHardWait;
-      _cloudFlushSoftUi = false;
-      _cloudFlushHardWait = false;
       if (lastErr) {
         var errMsg = lastErr && lastErr.message ? lastErr.message : String(lastErr);
         if (!window.isLocalMode) {
@@ -3350,7 +3370,14 @@ window.save = function (opts) {
     return window._enqueueCloudFlush(opts);
   });
 
-  if (localGate) return localGate.promise;
+  // waitCloud:false : le caller n’attend pas cloudJob → catch obligatoire
+  // sinon unhandledrejection + toast erreur en plus du warn soft.
+  if (localGate) {
+    cloudJob.catch(function (e) {
+      console.error('save cloud (bg):', e);
+    });
+    return localGate.promise;
+  }
   return cloudJob;
 };
 
