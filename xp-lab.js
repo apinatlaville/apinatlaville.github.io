@@ -1,6 +1,6 @@
 /**
  * xp-lab.js — Labo Progression : XP + niveaux (cartes révisées)
- * Courbe ×1.38 · titres classement prépa · streak · semaine.
+ * Courbe ×1.38 · défis → multiplicateurs permanents (×2, ×3…) · streak · semaine.
  */
 (function () {
   'use strict';
@@ -27,6 +27,59 @@
     { min: 48, title: 'Mines Paris',           blurb: 'ParisTech — dream board' },
     { min: 58, title: 'Polytechnique',         blurb: 'X — le graal. Casert mental.' },
     { min: 70, title: 'X★ Ultime',             blurb: 'Au-delà du classement — légende PC*' }
+  ];
+
+  /**
+   * Défis → multiplicateur permanent (le plus haut débloqué s’applique).
+   * volumeStreak : N cartes/jour pendant D jours d’affilée (historique).
+   * overdueCapStreak : ≤ maxOverdue X en retard pendant D jours (journal local).
+   */
+  var CHALLENGES = [
+    {
+      id: 'vol40_7',
+      title: 'Semaine solide',
+      desc: 'Au moins 40 cartes révisées par jour, 7 jours d’affilée.',
+      mult: 2,
+      kind: 'volumeStreak',
+      minPerDay: 40,
+      days: 7
+    },
+    {
+      id: 'cleanX_7',
+      title: 'File X propre',
+      desc: 'Moins de 10 cartes X en retard, 7 jours d’affilée.',
+      mult: 2,
+      kind: 'overdueCapStreak',
+      maxOverdue: 10,
+      days: 7
+    },
+    {
+      id: 'vol40_14',
+      title: 'Quinzaine de fer',
+      desc: '40+ cartes / jour pendant 14 jours d’affilée.',
+      mult: 3,
+      kind: 'volumeStreak',
+      minPerDay: 40,
+      days: 14
+    },
+    {
+      id: 'cleanX_14',
+      title: 'Synchrotron nickel',
+      desc: 'Moins de 10 X en retard, 14 jours d’affilée.',
+      mult: 3,
+      kind: 'overdueCapStreak',
+      maxOverdue: 10,
+      days: 14
+    },
+    {
+      id: 'vol60_7',
+      title: 'Overdrive',
+      desc: '60+ cartes / jour pendant 7 jours d’affilée.',
+      mult: 4,
+      kind: 'volumeStreak',
+      minPerDay: 60,
+      days: 7
+    }
   ];
 
   function esc(s) {
@@ -139,7 +192,7 @@
     pools.forEach(function (c) {
       if (!c || !Array.isArray(c.historique)) return;
       c.historique.forEach(function (h) {
-        if (!h) return;
+        if (!h || h.type === 'undo' || h.practice) return;
         list.push({
           card: c,
           h: h,
@@ -190,6 +243,174 @@
     };
   }
 
+  /* ——— État défis (persisté) ——— */
+
+  function xpLabState() {
+    if (!window.D) return { unlocked: {}, overdueLog: {} };
+    if (!window.D.settings) window.D.settings = {};
+    if (!window.D.settings.xpLabChallenges || typeof window.D.settings.xpLabChallenges !== 'object') {
+      window.D.settings.xpLabChallenges = { unlocked: {}, overdueLog: {} };
+    }
+    var st = window.D.settings.xpLabChallenges;
+    if (!st.unlocked || typeof st.unlocked !== 'object') st.unlocked = {};
+    if (!st.overdueLog || typeof st.overdueLog !== 'object') st.overdueLog = {};
+    return st;
+  }
+
+  function persistXpLabState() {
+    if (typeof window.save === 'function') {
+      try { window.save({ waitCloud: false }); } catch (e) { /* prefs */ }
+    }
+  }
+
+  function countOverdueMainX(ref) {
+    ref = ref || todayISO();
+    var n = 0;
+    var A = window.AnkiAlgoV2 || window.AnkiAlgo;
+    (window.D && window.D.exercices || []).forEach(function (c) {
+      if (!c || cardKind(c) !== 'main') return;
+      if (A && typeof A.isReservoir === 'function' && A.isReservoir(c)) return;
+      if (A && typeof A.isActive === 'function' && !A.isActive(c)) return;
+      if (A && typeof A.windowState === 'function') {
+        if (A.windowState(c, ref) === 'overdue') n++;
+        return;
+      }
+      var due = c.dateProchaineRevision;
+      if (due && String(due).slice(0, 10) < ref) n++;
+    });
+    return n;
+  }
+
+  function logTodayOverdue() {
+    var st = xpLabState();
+    var today = todayISO();
+    st.overdueLog[today] = countOverdueMainX(today);
+    /* garde 60 jours */
+    Object.keys(st.overdueLog).forEach(function (d) {
+      if (daysBetween(d, today) > 60) delete st.overdueLog[d];
+    });
+  }
+
+  /** Premier jour où une fenêtre de `need` jours consécutifs satisfait pred(day). */
+  function firstStreakEndDay(dayList, need, pred) {
+    if (!dayList.length || need < 1) return null;
+    var start = dayList[0];
+    var end = dayList[dayList.length - 1];
+    var run = 0;
+    var cur = start;
+    while (cur <= end) {
+      if (pred(cur)) {
+        run++;
+        if (run >= need) return cur;
+      } else {
+        run = 0;
+      }
+      cur = shiftDay(cur, 1);
+    }
+    return null;
+  }
+
+  function currentStreakEnding(today, pred) {
+    var run = 0;
+    var cur = today;
+    /* autorise de compter jusqu’à hier si aujourd’hui pas encore OK */
+    if (!pred(today)) cur = shiftDay(today, -1);
+    for (var i = 0; i < 400; i++) {
+      if (!pred(cur)) break;
+      run++;
+      cur = shiftDay(cur, -1);
+    }
+    return run;
+  }
+
+  function evaluateChallenges(byDay) {
+    var st = xpLabState();
+    var today = todayISO();
+    logTodayOverdue();
+    var newly = [];
+    var daysSorted = Object.keys(byDay).sort();
+    if (!daysSorted.length && Object.keys(st.overdueLog).length) {
+      daysSorted = Object.keys(st.overdueLog).sort();
+    }
+    var calStart = daysSorted[0] || today;
+    var calEnd = today;
+    var allDays = [];
+    var c = calStart;
+    while (c <= calEnd) {
+      allDays.push(c);
+      c = shiftDay(c, 1);
+    }
+
+    CHALLENGES.forEach(function (ch) {
+      if (st.unlocked[ch.id]) return;
+      var unlockDay = null;
+      if (ch.kind === 'volumeStreak') {
+        unlockDay = firstStreakEndDay(allDays, ch.days, function (d) {
+          return (byDay[d] || 0) >= ch.minPerDay;
+        });
+      } else if (ch.kind === 'overdueCapStreak') {
+        unlockDay = firstStreakEndDay(allDays, ch.days, function (d) {
+          if (st.overdueLog[d] == null) return false;
+          return Number(st.overdueLog[d]) <= ch.maxOverdue;
+        });
+      }
+      if (unlockDay) {
+        st.unlocked[ch.id] = unlockDay;
+        newly.push(ch);
+      }
+    });
+
+    if (newly.length) persistXpLabState();
+    return { state: st, newly: newly };
+  }
+
+  function challengeMultOnDay(unlockedMap, day) {
+    var best = 1;
+    CHALLENGES.forEach(function (ch) {
+      var since = unlockedMap[ch.id];
+      if (!since) return;
+      if (!day || since <= day) {
+        if (ch.mult > best) best = ch.mult;
+      }
+    });
+    return best;
+  }
+
+  function challengeProgress(ch, byDay, overdueLog, today) {
+    var done = !!(xpLabState().unlocked[ch.id]);
+    if (done) {
+      return { done: true, cur: ch.days, need: ch.days, pct: 100, detail: 'Débloqué' };
+    }
+    if (ch.kind === 'volumeStreak') {
+      var cur = currentStreakEnding(today, function (d) {
+        return (byDay[d] || 0) >= ch.minPerDay;
+      });
+      var todayN = byDay[today] || 0;
+      return {
+        done: false,
+        cur: cur,
+        need: ch.days,
+        pct: Math.min(100, Math.round((cur / ch.days) * 100)),
+        detail: todayN + '/' + ch.minPerDay + ' cartes aujourd’hui · série ' + cur + '/' + ch.days + ' j'
+      };
+    }
+    if (ch.kind === 'overdueCapStreak') {
+      var curO = currentStreakEnding(today, function (d) {
+        if (overdueLog[d] == null) return false;
+        return Number(overdueLog[d]) <= ch.maxOverdue;
+      });
+      var todayO = overdueLog[today] != null ? Number(overdueLog[today]) : countOverdueMainX(today);
+      return {
+        done: false,
+        cur: curO,
+        need: ch.days,
+        pct: Math.min(100, Math.round((curO / ch.days) * 100)),
+        detail: todayO + ' X en retard (max ' + ch.maxOverdue + ') · série ' + curO + '/' + ch.days + ' j'
+      };
+    }
+    return { done: false, cur: 0, need: ch.days, pct: 0, detail: '' };
+  }
+
   function compute() {
     var reviews = collectReviews();
     var byKind = { main: 0, quick: 0, devoir: 0 };
@@ -200,6 +421,10 @@
       byKind[r.kind] = (byKind[r.kind] || 0) + 1;
       if (r.day) byDay[r.day] = (byDay[r.day] || 0) + 1;
     });
+
+    var challengeEval = evaluateChallenges(byDay);
+    var unlockedMap = challengeEval.state.unlocked;
+    var overdueLog = challengeEval.state.overdueLog;
 
     var days = Object.keys(byDay).sort();
     var streakAtDay = {};
@@ -214,23 +439,28 @@
 
     var totalXp = 0;
     var streakBonusXp = 0;
+    var challengeBonusXp = 0;
     var todayXp = 0;
     var todayCount = 0;
-    var todayMult = 1;
+    var todayStreakMult = 1;
+    var todayChallengeMult = 1;
     var xpByDay = {};
 
     reviews.forEach(function (r) {
       var st = r.day ? (streakAtDay[r.day] || 1) : 1;
-      var mult = streakMultiplier(st);
-      var xp = Math.max(1, Math.round(r.baseXp * mult));
-      var bonus = xp - r.baseXp;
+      var sMult = streakMultiplier(st);
+      var cMult = challengeMultOnDay(unlockedMap, r.day || today);
+      var afterStreak = Math.max(1, Math.round(r.baseXp * sMult));
+      var xp = Math.max(1, Math.round(r.baseXp * sMult * cMult));
+      streakBonusXp += Math.max(0, afterStreak - r.baseXp);
+      challengeBonusXp += Math.max(0, xp - afterStreak);
       totalXp += xp;
-      streakBonusXp += Math.max(0, bonus);
       if (r.day) xpByDay[r.day] = (xpByDay[r.day] || 0) + xp;
       if (r.day === today) {
         todayXp += xp;
         todayCount++;
-        todayMult = mult;
+        todayStreakMult = sMult;
+        todayChallengeMult = cMult;
       }
     });
 
@@ -265,12 +495,27 @@
     }
 
     var prog = progressFromXp(totalXp);
+    var challengeMult = challengeMultOnDay(unlockedMap, today);
+    var todayMult = (todayStreakMult || 1) * (todayChallengeMult || 1);
+
+    var challengeCards = CHALLENGES.map(function (ch) {
+      var progCh = challengeProgress(ch, byDay, overdueLog, today);
+      return {
+        id: ch.id,
+        title: ch.title,
+        desc: ch.desc,
+        mult: ch.mult,
+        unlocked: !!unlockedMap[ch.id],
+        unlockedOn: unlockedMap[ch.id] || null,
+        progress: progCh
+      };
+    });
+
     var ladder = [];
     for (var L = Math.max(1, prog.level); L <= Math.min(MAX_LEVEL, prog.level + 6); L++) {
       ladder.push({ level: L, xp: xpToAdvance(L), current: L === prog.level });
     }
 
-    /* Pace : XP / jour sur 14 j actifs → jours estimés jusqu’au prochain niveau */
     var recentDays = days.slice(-14);
     var recentXp = 0;
     recentDays.forEach(function (d) { recentXp += (xpByDay[d] || 0); });
@@ -292,13 +537,20 @@
       reviews: reviews.length,
       totalXp: totalXp,
       streakBonusXp: streakBonusXp,
+      challengeBonusXp: challengeBonusXp,
       byKind: byKind,
       todayXp: todayXp,
       todayCount: todayCount,
       todayMult: todayMult,
+      todayStreakMult: todayStreakMult,
+      todayChallengeMult: todayChallengeMult,
       streak: streak,
       liveMult: liveMult,
       nextDayMult: nextDayMult,
+      challengeMult: challengeMult,
+      challenges: challengeCards,
+      newlyUnlocked: challengeEval.newly,
+      overdueToday: overdueLog[today] != null ? Number(overdueLog[today]) : countOverdueMainX(today),
       prog: prog,
       ladder: ladder,
       daysActive: days.length,
@@ -324,21 +576,42 @@
     xpToAdvance: xpToAdvance,
     progressFromXp: progressFromXp,
     streakMultiplier: streakMultiplier,
+    challengeMultOnDay: challengeMultOnDay,
+    countOverdueMainX: countOverdueMainX,
     compute: compute,
     TITLES: TITLES,
+    CHALLENGES: CHALLENGES,
     GROWTH: GROWTH,
     BASE_XP: BASE_XP,
     onReview: function (card, qScore) {
       var before = window._xpLabLastLevel;
+      var beforeCh = window._xpLabLastChallengeMult;
       var snap = compute();
       window._xpLabLastLevel = snap.prog.level;
+      window._xpLabLastChallengeMult = snap.challengeMult;
       var base = xpForEntry(card, { qScore: qScore });
-      var gained = Math.max(1, Math.round(base * (snap.todayMult || snap.liveMult || 1)));
-      if (before != null && snap.prog.level > before) {
+      var gained = Math.max(1, Math.round(base * (snap.todayMult || 1)));
+      if (snap.newlyUnlocked && snap.newlyUnlocked.length) {
+        snap.newlyUnlocked.forEach(function (ch) {
+          if (typeof window.showToast === 'function') {
+            window.showToast(
+              'Défi « ' + ch.title + ' » → boost permanent ' + fmtMult(ch.mult) + ' !',
+              { type: 'success' }
+            );
+          }
+        });
+      } else if (beforeCh != null && snap.challengeMult > beforeCh) {
+        if (typeof window.showToast === 'function') {
+          window.showToast('Boost défis ' + fmtMult(snap.challengeMult) + ' actif !', { type: 'success' });
+        }
+      } else if (before != null && snap.prog.level > before) {
         if (typeof window.showToast === 'function') {
           window.showToast(
             'Niveau ' + snap.prog.level + ' — ' + snap.prog.title.title +
-              ' (+' + gained + ' XP' + (snap.todayMult > 1 ? ', streak ' + fmtMult(snap.todayMult) : '') + ')',
+              ' (+' + gained + ' XP' +
+              (snap.challengeMult > 1 ? ', défi ' + fmtMult(snap.challengeMult) : '') +
+              (snap.todayStreakMult > 1 ? ', streak ' + fmtMult(snap.todayStreakMult) : '') +
+              ')',
             { type: 'success' }
           );
         }
@@ -378,6 +651,7 @@
     var d = compute();
     var p = d.prog;
     window._xpLabLastLevel = p.level;
+    window._xpLabLastChallengeMult = d.challengeMult;
 
     var ladderHtml = d.ladder.map(function (row) {
       return (
@@ -420,6 +694,26 @@
           '<div class="xplab-week-bar" style="height:' + h + '%"></div>' +
           '<span class="xplab-week-d">' + esc(day.label) + '</span>' +
         '</div>'
+      );
+    }).join('');
+
+    var challengesHtml = (d.challenges || []).map(function (ch) {
+      var pr = ch.progress || {};
+      return (
+        '<li class="xplab-challenge' + (ch.unlocked ? ' is-on' : '') + '">' +
+          '<div class="xplab-challenge-top">' +
+            '<strong>' + esc(ch.title) + '</strong>' +
+            '<span class="xplab-challenge-mult">' + fmtMult(ch.mult) + '</span>' +
+          '</div>' +
+          '<p class="xplab-challenge-desc">' + esc(ch.desc) + '</p>' +
+          (ch.unlocked
+            ? '<em class="xplab-challenge-done">Débloqué' +
+                (ch.unlockedOn ? ' · ' + esc(ch.unlockedOn) : '') + '</em>'
+            : '<div class="xplab-challenge-meter" title="' + esc(pr.detail || '') + '">' +
+                '<div class="xplab-challenge-meter-fill" style="width:' + Math.max(4, pr.pct || 0) + '%"></div>' +
+              '</div>' +
+              '<span class="xplab-challenge-hint">' + esc(pr.detail || '') + '</span>') +
+        '</li>'
       );
     }).join('');
 
@@ -479,12 +773,33 @@
             '</section>'
           : '') +
 
+        '<section class="xplab-boost-banner' + (d.challengeMult > 1 ? ' is-hot' : '') + '">' +
+          '<div class="xplab-boost-left">' +
+            '<div class="xplab-boost-badge">' + fmtMult(d.challengeMult) + '</div>' +
+            '<div>' +
+              '<strong>Boost défis</strong>' +
+              '<p>' + (d.challengeMult > 1
+                ? 'Multiplicateur permanent actif sur tes XP'
+                : 'Complète un défi ci-dessous pour activer ×2, ×3…') +
+                ' · ' + d.overdueToday + ' X en retard aujourd’hui</p>' +
+            '</div>' +
+          '</div>' +
+        '</section>' +
+
+        '<section class="xplab-card xplab-challenges-card">' +
+          '<div class="xplab-week-head">' +
+            '<h3>Défis → multiplicateurs</h3>' +
+            '<span class="xplab-mut">Le plus haut débloqué compte</span>' +
+          '</div>' +
+          '<ul class="xplab-challenges">' + challengesHtml + '</ul>' +
+        '</section>' +
+
         '<section class="xplab-streak-banner' + (d.streak > 0 ? ' is-hot' : '') + '">' +
           '<div class="xplab-streak-left">' +
             '<div class="xplab-streak-fire">' + icon('flame', 20) + '</div>' +
             '<div>' +
               '<strong>' + d.streak + ' jour' + (d.streak !== 1 ? 's' : '') + ' d’affilée</strong>' +
-              '<p>Bonus ' + fmtMult(d.liveMult) +
+              '<p>Bonus streak ' + fmtMult(d.liveMult) +
                 (d.liveMult < STREAK_CAP
                   ? ' · demain ' + fmtMult(d.nextDayMult)
                   : ' · plafond') +
@@ -539,6 +854,7 @@
               '<li><b>Y-</b> ~1/12 d’une X- de 5 min</li>' +
               '<li><b>W-</b> ~0,8 XP/min × qualité</li>' +
               '<li><b>Streak</b> +5&nbsp;%/j (max ' + fmtMult(STREAK_CAP) + ')</li>' +
+              '<li><b>Défis</b> ×2 / ×3 / ×4 permanents</li>' +
             '</ul>' +
             '<div class="xplab-split">' +
               '<div><span class="xplab-split-n">' + (d.byKind.main || 0) + '</span>X-</div>' +
@@ -548,7 +864,7 @@
           '</section>' +
         '</div>' +
 
-        '<p class="xplab-foot">Labo — XP recalculé sur l’historique. Pas encore sur l’Accueil officiel.</p>' +
+        '<p class="xplab-foot">Labo — XP recalculé sur l’historique. Défis « file X » suivis jour par jour à partir d’aujourd’hui.</p>' +
       '</div>';
 
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(pane);

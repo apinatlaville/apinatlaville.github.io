@@ -49,6 +49,8 @@
     sliderValue: 7,
     showSlider: false,
     sessionTempsManuel: null,             // v4: temps réel saisi manuellement (minutes)
+    /** Session manuelle : note + temps OK, mais pas de SRS / prio (entraînement). */
+    practiceNoSrs: false,
     dernierExerciceModifie: null,         // v4: snapshot pour Undo
     sessionGeneree: false,                 // v4: flag "session du soir générée"
     sessionUI: 'mini',                   // 'full' | 'dock' | 'mini' — panneau Synchrotron
@@ -515,7 +517,7 @@
     return (
       (showSearch ? searchField(
         isManualTab ? 'Cherche carte, code…' : 'Filtrer les cartes dues…',
-        `class="fi anki-search-input" value="${esc(cockpitSearch)}" oninput="window.ankiV2CockpitSearch(this.value)"`
+        `id="ankiCockpitSearch" value="${esc(cockpitSearch)}" oninput="window.ankiV2CockpitSearch(this.value)"`
       ) : '') +
       `<p class="anki-mut anki-cockpit-pick-hint">${pickHint}</p>` +
       `<div class="cgrid anki-pick-grid" id="ankiPickGrid" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">` +
@@ -900,16 +902,40 @@
     return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
   }
 
-  /** Derniers temps réels (historique) pour affichage session */
+  /** Entrées d’historique utiles (hors undo). */
+  function histEvals(c) {
+    return (c && c.historique || []).filter(h => h && h.type !== 'undo');
+  }
+
+  /** Derniers temps réels + notes (historique) pour affichage session */
   function getCardTimingStats(c) {
-    const times = (c && c.historique || [])
-      .filter(h => h && h.type !== 'undo' && typeof h.tempsReel === 'number' && h.tempsReel > 0)
+    const evals = histEvals(c);
+    const times = evals
+      .filter(h => typeof h.tempsReel === 'number' && h.tempsReel > 0)
       .map(h => h.tempsReel);
+    /* Notes : ignorer les révisions « entraînement » (practice) pour garder la vraie prio. */
+    const scores = evals
+      .filter(h => typeof h.qScore === 'number' && !h.practice)
+      .map(h => h.qScore);
     const last = times.slice(-5).reverse();
+    const lastScores = scores.slice(-5).reverse();
     const avg = times.length
       ? Math.round(times.reduce((a, b) => a + b, 0) / times.length)
       : null;
-    return { last, avg, count: times.length };
+    return {
+      last,
+      avg,
+      count: times.length,
+      lastScores,
+      prevScore: lastScores.length ? lastScores[0] : null,
+      scoreCount: scores.length
+    };
+  }
+
+  function scoreChipTone(q) {
+    if (q <= 3) return 'bad';
+    if (q >= 8) return 'good';
+    return 'mid';
   }
 
   function renderSessionTimingPanel(c) {
@@ -922,6 +948,14 @@
     const lastHtml = stats.last.length
       ? stats.last.map(t => `<span class="anki-timing-chip">${window.AnkiAlgoV2.fmtDur(t)}</span>`).join('')
       : '<span class="anki-mut">Première révision</span>';
+    const prevScoreHtml = stats.prevScore != null
+      ? `<span class="anki-timing-chip anki-timing-chip--score anki-timing-chip--${scoreChipTone(stats.prevScore)}"><b>${stats.prevScore}</b>/10</span>` +
+        (stats.lastScores.length > 1
+          ? stats.lastScores.slice(1).map(q =>
+              `<span class="anki-timing-chip anki-timing-chip--score anki-timing-chip--${scoreChipTone(q)}">${q}</span>`
+            ).join('')
+          : '')
+      : '<span class="anki-mut">Aucune note encore</span>';
     const manualVal = S.sessionTempsManuel != null ? S.sessionTempsManuel : '';
     return `
       <div class="anki-timing-panel" data-testid="session-timing-panel">
@@ -930,8 +964,12 @@
             <span class="anki-timing-stat-lbl">Derniers temps</span>
             <div class="anki-timing-chips">${lastHtml}</div>
           </div>
+          <div class="anki-timing-stat anki-timing-stat--score">
+            <span class="anki-timing-stat-lbl">Note précédente</span>
+            <div class="anki-timing-chips" data-testid="session-prev-score">${prevScoreHtml}</div>
+          </div>
           <div class="anki-timing-stat anki-timing-stat--avg">
-            <span class="anki-timing-stat-lbl">Moyenne</span>
+            <span class="anki-timing-stat-lbl">Moyenne temps</span>
             <strong class="anki-timing-avg-val">${avgLabel}</strong>
             ${stats.count ? `<span class="anki-mut anki-timing-avg-n">(${stats.count} rev.)</span>` : ''}
           </div>
@@ -1165,10 +1203,10 @@
       const hmmClass = opts.wrapClass || 'anki-hmm-boxes';
       picker = `
       <div class="${hmmClass}" role="group" aria-label="Durée h:mm">
-        <input type="text" class="anki-hmm-box anki-hmm-h" ${hId ? `id="${hId}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${h}" aria-label="Heures" autocomplete="off">
+        <input type="text" class="anki-hmm-box anki-hmm-h" ${hId ? `id="${hId}"` : ''} inputmode="numeric" pattern="[0-9]" value="${h}" aria-label="Heures" autocomplete="off">
         <span class="anki-hmm-sep" aria-hidden="true">:</span>
-        <input type="text" class="anki-hmm-box anki-hmm-m0" ${m0Id ? `id="${m0Id}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${mm.charAt(0)}" aria-label="Dizaines de minutes" autocomplete="off">
-        <input type="text" class="anki-hmm-box anki-hmm-m1" ${m1Id ? `id="${m1Id}"` : ''} maxlength="1" inputmode="numeric" pattern="[0-9]" value="${mm.charAt(1)}" aria-label="Unités de minutes" autocomplete="off">
+        <input type="text" class="anki-hmm-box anki-hmm-m0" ${m0Id ? `id="${m0Id}"` : ''} inputmode="numeric" pattern="[0-9]" value="${mm.charAt(0)}" aria-label="Dizaines de minutes" autocomplete="off">
+        <input type="text" class="anki-hmm-box anki-hmm-m1" ${m1Id ? `id="${m1Id}"` : ''} inputmode="numeric" pattern="[0-9]" value="${mm.charAt(1)}" aria-label="Unités de minutes" autocomplete="off">
       </div>`;
     } else {
       /* Boutons site + menu fixe (pas de <select> natif Apple, pas de Choices coupé) */
@@ -1401,7 +1439,7 @@
       el.value = v;
     }
 
-    function clampAndSync() {
+    function clampAndSync(soft) {
       let h = parseInt(hEl.value, 10) || 0;
       let m0 = parseInt(m0El.value, 10) || 0;
       let m1 = parseInt(m1El.value, 10) || 0;
@@ -1412,7 +1450,8 @@
         m1El.value = '9';
       }
       let total = h * 60 + m;
-      if (total < minTotal) {
+      /* Pendant la saisie : ne pas réécrire les cases si < min (sinon impossible de remplacer un chiffre). */
+      if (!soft && total < minTotal) {
         total = minTotal;
         h = Math.floor(total / 60);
         m = total % 60;
@@ -1431,21 +1470,49 @@
       }
     }
 
+    function applyDigit(box, i, digit) {
+      const maxDigit = i === 1 ? 5 : 9;
+      let v = String(digit);
+      if (maxDigit != null && parseInt(v, 10) > maxDigit) v = String(maxDigit);
+      box.value = v;
+      if (i < boxes.length - 1) boxes[i + 1].focus();
+      clampAndSync(true);
+    }
+
     boxes.forEach(function (box, i) {
       if (box.dataset.hmmBound === '1') return;
       box.dataset.hmmBound = '1';
+      /* maxlength=1 + select() bloque souvent le remplacement (Safari/iOS) : on gère au keydown. */
+      try { box.removeAttribute('maxlength'); } catch (err) { /* ignore */ }
+      box.addEventListener('keydown', function (e) {
+        if (e.key >= '0' && e.key <= '9') {
+          e.preventDefault();
+          applyDigit(box, i, e.key);
+          return;
+        }
+        if (e.key === 'Backspace') {
+          e.preventDefault();
+          if (box.value) {
+            box.value = '';
+            clampAndSync(true);
+          } else if (i > 0) {
+            boxes[i - 1].focus();
+            boxes[i - 1].value = '';
+            clampAndSync(true);
+          }
+        }
+      });
       box.addEventListener('input', function () {
         digitOnly(box, i === 1 ? 5 : 9);
         if (box.value && i < boxes.length - 1) boxes[i + 1].focus();
-        clampAndSync();
-      });
-      box.addEventListener('keydown', function (e) {
-        if (e.key === 'Backspace' && !box.value && i > 0) {
-          boxes[i - 1].focus();
-        }
+        clampAndSync(true);
       });
       box.addEventListener('focus', function () {
         try { box.select(); } catch (err) { /* ignore */ }
+      });
+      box.addEventListener('blur', function () {
+        if (!box.value) box.value = '0';
+        clampAndSync(false);
       });
       box.addEventListener('paste', function (e) {
         e.preventDefault();
@@ -1458,7 +1525,7 @@
         digitOnly(hEl, 9);
         digitOnly(m0El, 5);
         digitOnly(m1El, 9);
-        clampAndSync();
+        clampAndSync(false);
         const focusIdx = Math.min(digits.length, 2);
         boxes[focusIdx].focus();
       });
@@ -2098,6 +2165,13 @@
             <button type="button" class="anki-cockpit-btn anki-cockpit-btn--start" data-testid="btn-commencer-session" onclick="window.startAnkiV2Session()" ${cartes.length === 0 ? "disabled" : ""}>${window.iconLabel('play', 'Commencer')}</button>
           </div>
         </div>
+        ${isManualTab ? `
+          <label class="anki-practice-opt anki-mut" data-testid="cockpit-practice-no-srs" title="Entraînement : le temps est enregistré, mais ease / intervalle / date due restent inchangés.">
+            <input type="checkbox" id="ankiPracticeNoSrs" ${S.practiceNoSrs ? 'checked' : ''}
+              onchange="window.ankiV2SetPracticeNoSrs(this.checked)">
+            <span><b>Révision sans effet SRS</b> — temps OK, priorité inchangée (idéal pour refaire un chapitre sans repousser les cartes à 3&nbsp;mois)</span>
+          </label>
+        ` : ''}
         ${!isManualTab ? renderSessionOverflowPicker() : ''}
         <div class="anki-cockpit-toolbar">
           <p class="anki-mut anki-cockpit-hint">${isManualTab
@@ -2141,8 +2215,11 @@
     if (getCockpitPickNavLevel() < 3) return;
     keepPageScroll(function () {
       renderPickGridOnly();
-      const input = document.querySelector('#ankiPickSection .anki-search-input');
-      if (input) { input.focus(); input.setSelectionRange(v.length, v.length); }
+      const input = $('ankiCockpitSearch') || document.querySelector('#ankiPickSection .search-field input');
+      if (input) {
+        input.focus();
+        try { input.setSelectionRange(v.length, v.length); } catch (err) { /* ignore */ }
+      }
     });
   };
 
@@ -2698,7 +2775,7 @@
           </div>
         </div>
         <div class="anki-filters">
-          ${searchField('Titre, énoncé, code...', `value="${esc(S.libFilter.q)}" oninput="window.ankiV2LibFilter('q', this.value)"`)}
+          ${searchField('Titre, énoncé, code...', `id="ankiLibSearch" value="${esc(S.libFilter.q)}" oninput="window.ankiV2LibFilter('q', this.value)"`)}
           <select class="fi" onchange="window.ankiV2LibFilter('mat', this.value)"><option value="">Toutes matières</option>${matOpts}</select>
           <select class="fi" onchange="window.ankiV2LibFilter('stat', this.value)">
             <option value="">Tous statuts</option>
@@ -2783,13 +2860,30 @@
     `;
   }
   window.ankiV2LibFilter = function (k, v) {
+    const restoreLibSearchFocus = function () {
+      const input = $('ankiLibSearch');
+      if (!input) return;
+      const q = S.libFilter.q || '';
+      if (input.value !== q) input.value = q;
+      input.focus();
+      try { input.setSelectionRange(q.length, q.length); } catch (err) { /* ignore */ }
+    };
     const apply = function () {
       S.libFilter[k] = v;
-      keepPageScroll(renderActiveView);
+      keepPageScroll(function () {
+        renderActiveView();
+        if (k === 'q') restoreLibSearchFocus();
+      });
     };
     if (k === 'q') {
+      S.libFilter.q = v;
       clearTimeout(S.libFilterTimer);
-      S.libFilterTimer = setTimeout(apply, 280);
+      S.libFilterTimer = setTimeout(function () {
+        keepPageScroll(function () {
+          renderActiveView();
+          restoreLibSearchFocus();
+        });
+      }, 280);
       return;
     }
     if (k === 'mat' && v) S.libOpenMat.add(v);
@@ -3967,6 +4061,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       chronoElapsed: S.chronoElapsed || 0,
       sliderValue:  S.sliderValue,
       sessionTempsManuel: S.sessionTempsManuel,
+      practiceNoSrs: !!S.practiceNoSrs,
       sessionUI:    S.sessionUI || 'full'
     };
     // waitCloud:false : la carte suivante ne doit pas attendre le sync ~393 Ko
@@ -3975,6 +4070,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     return Promise.resolve(window.save({ waitCloud: false }));
   }
   function clearPersistedSession() {
+    S.practiceNoSrs = false;
     if (window.D) {
       delete window.D.sessionEnCoursV2;
       window.save();
@@ -4037,6 +4133,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     S.chronoRunning = false;
     if (sec.sliderValue != null) S.sliderValue = sec.sliderValue;
     if (sec.sessionTempsManuel != null) S.sessionTempsManuel = sec.sessionTempsManuel;
+    S.practiceNoSrs = !!sec.practiceNoSrs;
   }
 
   // v4: Générer la session du soir = construire la file + la figer en persistance
@@ -4104,6 +4201,10 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     );
   };
 
+  window.ankiV2SetPracticeNoSrs = function (on) {
+    S.practiceNoSrs = !!on;
+  };
+
   window.startAnkiV2Session = function () {
     ensure();
     restoreSessionFromStorageIfAny();
@@ -4123,6 +4224,13 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     S.mode = (S.selectionIds.size > 0 || S.manualOrder) ? "custom" : "normal";
     S.stats = { ok: 0, mid: 0, bad: 0, total: plan.cartes.length };
     S.sessionUI = 'full';
+    /* Option « sans SRS » : uniquement depuis l’onglet Manuel (case cochée au lancement). */
+    if (S.cockpitMode === 'manual') {
+      const el = document.getElementById('ankiPracticeNoSrs');
+      if (el) S.practiceNoSrs = !!el.checked;
+    } else {
+      S.practiceNoSrs = false;
+    }
     persistSession();
     nextCard();
   };
@@ -4556,6 +4664,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
           </div>
         </div>
         ${sessMetaHtml(c, useTiming, linkedTitle)}
+        ${S.practiceNoSrs ? `<p class="anki-practice-banner" data-testid="session-practice-banner">${window.iconLabel('refresh-cw', 'Entraînement — temps enregistré, SRS / priorité inchangés')}</p>` : ''}
         ${showTitre ? `<div class="anki-sess-titre">${esc(c.titre)}</div>
         <div class="anki-sess-q">${formatSessFace(faces.prompt || '')}</div>` : `<div class="anki-sess-q anki-sess-q--solo">${formatSessFace(faces.prompt || '')}</div>`}
         ${renderSourcesBox(c, false)}
@@ -4808,7 +4917,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     }
 
     const cibleInput = document.getElementById('ankiTempsCibleNext');
-    if (usesTiming && cibleInput && cibleInput.value !== '' && !isNaN(parseFloat(cibleInput.value))) {
+    /* En entraînement : ne pas toucher l’objectif temps (sinon la prio bouge). */
+    if (!S.practiceNoSrs && usesTiming && cibleInput && cibleInput.value !== '' && !isNaN(parseFloat(cibleInput.value))) {
       const cibleMin = Math.max(0.5, parseFloat(cibleInput.value));
       S.current.tempsCible = Math.round(cibleMin * 60);
     }
@@ -4858,52 +4968,68 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     };
 
     {
-      // Carte normale : update ease/intervalle/repetitions + flag blocage
+      const practice = !!S.practiceNoSrs;
       const easeAvant = S.current.ease || 2.5;
       const intAvant = S.current.intervalle || 0;
-      const out = window.AnkiAlgoV2.computeNextInterval(S.current, qScore, tps);
-      if (S.mode !== "colle") {
-        S.current.intervalle = out.intervalle;
-        S.current.ease = out.ease;
-        S.current.repetitions = out.repetitions;
-        S.current.dateProchaineRevision = out.dateProchaineRevision;
-        S.current._blocageActif    = out._blocageActif;
-        S.current._blocageRevCount = out._blocageRevCount;
-        S.current._lastReviewDate  = out._lastReviewDate;
-        S.current._v2WindowOpen = (out._v2WindowOpen != null) ? out._v2WindowOpen : null;
-        S.current._v2WindowClose = (out._v2WindowClose != null) ? out._v2WindowClose : null;
-        if (out._v2Phase) S.current._v2Phase = out._v2Phase;
+      const dueAvant = S.current.dateProchaineRevision || '—';
+      let out = null;
+      if (!practice) {
+        out = window.AnkiAlgoV2.computeNextInterval(S.current, qScore, tps);
+        if (S.mode !== "colle") {
+          S.current.intervalle = out.intervalle;
+          S.current.ease = out.ease;
+          S.current.repetitions = out.repetitions;
+          S.current.dateProchaineRevision = out.dateProchaineRevision;
+          S.current._blocageActif    = out._blocageActif;
+          S.current._blocageRevCount = out._blocageRevCount;
+          S.current._lastReviewDate  = out._lastReviewDate;
+          S.current._v2WindowOpen = (out._v2WindowOpen != null) ? out._v2WindowOpen : null;
+          S.current._v2WindowClose = (out._v2WindowClose != null) ? out._v2WindowClose : null;
+          if (out._v2Phase) S.current._v2Phase = out._v2Phase;
+        }
       }
       S.current.historique = S.current.historique || [];
-      const histEntry = { date: new Date().toISOString(), qScore, pen: out.penaliteVitesse, mode: S.mode };
+      const histEntry = {
+        date: new Date().toISOString(),
+        qScore,
+        pen: practice ? 1 : (out ? out.penaliteVitesse : 1),
+        mode: S.mode
+      };
+      if (practice) histEntry.practice = true;
       if (usesTiming && tps != null) histEntry.tempsReel = Math.round(tps);
       S.current.historique.push(histEntry);
-      if (window.XpLab && typeof window.XpLab.onReview === 'function') {
+      if (!practice && window.XpLab && typeof window.XpLab.onReview === 'function') {
         try { window.XpLab.onReview(S.current, qScore); } catch (eXp) { /* lab non bloquant */ }
       }
-      window.AnkiAlgoV2.log("eval", {
+      window.AnkiAlgoV2.log(practice ? "eval-practice" : "eval", {
         id: S.current.id,
         qScore,
-        ease: easeAvant.toFixed(2) + "→" + out.ease,
-        intervalle: intAvant + "→" + out.intervalle + "j",
-        next: out.dateProchaineRevision,
-        blocage: out._blocageActif ? `actif(${out._blocageRevCount})` : 'levé'
+        practice: practice || undefined,
+        ease: practice ? easeAvant.toFixed(2) + " (inchangé)" : easeAvant.toFixed(2) + "→" + out.ease,
+        intervalle: practice ? intAvant + "j (inchangé)" : intAvant + "→" + out.intervalle + "j",
+        next: practice ? dueAvant : out.dateProchaineRevision,
+        blocage: practice ? undefined : (out._blocageActif ? `actif(${out._blocageRevCount})` : 'levé')
       });
       if (S.mode === 'single' || S.queue.length === 0) {
-        /* Ne pas sysAlert ici : endSession affiche le bilan sticky juste après
-           (sinon « Carte évaluée » est écrasé / flash puis disparaît). */
-        const deltaEase = out.ease - easeAvant;
-        const easeArrow = deltaEase > 0 ? '↑' : deltaEase < 0 ? '↓' : '=';
-        const easeColor = deltaEase > 0 ? 'var(--grn)' : deltaEase < 0 ? 'var(--red)' : 'var(--mut)';
-        const blocageLine = out._blocageActif
-          ? `<br>${window.iconLabel('zap', `<b style="color:var(--red);">Blocage actif</b> (tentative ${out._blocageRevCount}) — la carte sera boostée jusqu'à note ≥ ${(window.AnkiAlgoV2.getCoefs().BLOCAGE_QSCORE_VALIDATE || 8)}.`)}`
-          : (snapshot.card._blocageActif ? `<br>${window.iconLabel('check', '<b style="color:var(--grn);">Blocage levé</b>')}` : '');
-        S._endCardSummaryHtml =
-          `<b>${esc(S.current.titre || S.current.id)}</b><br>` +
-          `${window.iconLabel('target', `Score : <b>${qScore}/10</b>${usesTiming ? ` (vitesse ×${out.penaliteVitesse})` : ''}`)}<br>` +
-          `${window.iconLabel('bar-chart', `Ease : ${easeAvant.toFixed(2)} → <b style="color:${easeColor};">${out.ease} ${easeArrow}</b>`)}<br>` +
-          `${window.iconLabel('calendar', `Intervalle : ${intAvant}j → <b>${out.intervalle}j</b>`)}<br>` +
-          `${window.iconLabel('calendar', `Prochaine révision : <b>${out.dateProchaineRevision}</b>`)}${blocageLine}`;
+        if (practice) {
+          S._endCardSummaryHtml =
+            `<b>${esc(S.current.titre || S.current.id)}</b><br>` +
+            `${window.iconLabel('target', `Entraînement · score <b>${qScore}/10</b> (SRS inchangé)`)}<br>` +
+            `${window.iconLabel('calendar', `Prochaine révision : <b>${dueAvant}</b>`)}`;
+        } else {
+          const deltaEase = out.ease - easeAvant;
+          const easeArrow = deltaEase > 0 ? '↑' : deltaEase < 0 ? '↓' : '=';
+          const easeColor = deltaEase > 0 ? 'var(--grn)' : deltaEase < 0 ? 'var(--red)' : 'var(--mut)';
+          const blocageLine = out._blocageActif
+            ? `<br>${window.iconLabel('zap', `<b style="color:var(--red);">Blocage actif</b> (tentative ${out._blocageRevCount}) — la carte sera boostée jusqu'à note ≥ ${(window.AnkiAlgoV2.getCoefs().BLOCAGE_QSCORE_VALIDATE || 8)}.`)}`
+            : (snapshot.card._blocageActif ? `<br>${window.iconLabel('check', '<b style="color:var(--grn);">Blocage levé</b>')}` : '');
+          S._endCardSummaryHtml =
+            `<b>${esc(S.current.titre || S.current.id)}</b><br>` +
+            `${window.iconLabel('target', `Score : <b>${qScore}/10</b>${usesTiming ? ` (vitesse ×${out.penaliteVitesse})` : ''}`)}<br>` +
+            `${window.iconLabel('bar-chart', `Ease : ${easeAvant.toFixed(2)} → <b style="color:${easeColor};">${out.ease} ${easeArrow}</b>`)}<br>` +
+            `${window.iconLabel('calendar', `Intervalle : ${intAvant}j → <b>${out.intervalle}j</b>`)}<br>` +
+            `${window.iconLabel('calendar', `Prochaine révision : <b>${out.dateProchaineRevision}</b>`)}${blocageLine}`;
+        }
       } else {
         S._endCardSummaryHtml = null;
       }
@@ -4917,7 +5043,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     // v4: conserve le snapshot pour Undo
     S.dernierExerciceModifie = snapshot;
 
-    if (qScore <= 3 && S.mode !== "colle" && S.mode !== "single" && !isDevoir) {
+    /* En entraînement (sans SRS), pas de refile auto sur échec — on parcourt le chapitre. */
+    if (!S.practiceNoSrs && qScore <= 3 && S.mode !== "colle" && S.mode !== "single" && !isDevoir) {
       S.queue.push(S.current);
       // La carte revient : incrémenter total pour éviter done > total (ex. 12/10)
       S.stats.total = (S.stats.total || 0) + 1;

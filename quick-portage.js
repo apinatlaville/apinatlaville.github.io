@@ -78,21 +78,27 @@
       '- Délimiteurs auto : \\\\left( \\\\right)  \\\\left| \\\\right|',
       '- Produit vectoriel : \\\\wedge',
       '',
-      '## Espaces & texte dans les formules (OBLIGATOIRE)',
-      'En mode math ($...$ / $$...$$), les espaces ordinaires sont IGNORÉS : "Q et W" devient "QetW".',
-      'Toute phrase / mot / unité dans une formule DOIT aller dans \\\\text{...} (espaces gardés à l’intérieur).',
+      '## Espaces & texte dans les formules (OBLIGATOIRE — cause #1 des fiches illisibles)',
+      'En mode math ($...$ / $$...$$ / ou dès qu’il y a une commande \\\\vec \\\\mathcal…), les espaces ordinaires sont IGNORÉS.',
+      '"Composition des vitesses" devient "Compositiondesvitesses". "absolue = relative" devient "absolue=relative".',
+      '',
+      'RÈGLE D’OR : le français (titres, légendes, mots) doit être HORS des dollars, OU dans \\\\text{...}.',
+      'Ne mets PAS une phrase entière en math juste pour un \\\\mathcal{R} ou un \\\\vec{v}.',
       '',
       'Comment mettre des espaces :',
       '- Texte / légende / parenthèse en français : \\\\text{Q et W algébriques, reçus par le système}',
       '- Petit espace math : \\\\,   (ex. $f\\\\,(x)$)',
       '- Espace forcé en math : backslash + espace  →  \\\\  (entre symboles)',
       '- Espace large : \\\\quad  /  \\\\qquad',
-      '- Ne JAMAIS coller des mots hors \\\\text{} : interdit « QetWalgébriques ».',
+      '- Ne JAMAIS coller des mots hors \\\\text{} : interdit « QetWalgébriques », « Compositiondesvitesses ».',
       '',
       'Exemples (dans le JSON, chaque \\\\ est doublé) :',
+      '- MAUVAIS : "Composition des vitesses, \\\\mathcal{R}\\\' en translation dans \\\\mathcal{R}" → tout collé',
+      '- BON : "Composition des vitesses, $\\\\mathcal{R}\\\'$ en translation dans $\\\\mathcal{R}$" ← français HORS des $',
+      '- BON : "$\\\\text{Composition des vitesses, }\\\\mathcal{R}\\\'\\\\text{ en translation dans }\\\\mathcal{R}$"',
       '- MAUVAIS : "$\\\\Delta U = Q + W (Q et W algébriques)$" → rendu : QetWalgébriques',
+      '- BON : "$\\\\Delta U = Q + W$ (Q et W algébriques)" ← texte HORS des $...$',
       '- BON : "$\\\\Delta U = Q + W\\\\ (\\\\text{Q et W algébriques, reçus par le système})$"',
-      '- BON : "$\\\\Delta U = Q + W$ (Q et W algébriques)" ← texte HORS des $...$ si ce n’est pas de la math',
       '- BON unités : "$v = 3\\\\,\\\\text{m}\\\\cdot\\\\text{s}^{-1}$"',
       ''
     ];
@@ -179,7 +185,7 @@
     }
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
-    parts.push('- ESPACES : en $...$, les espaces disparaissent. Mets le français dans \\text{...}, ou hors des $. Voir section Espaces.');
+    parts.push('- ESPACES (critique) : en math les espaces disparaissent. Français HORS des $...$, ou dans \\text{...}. Ex. titre : « Composition des vitesses, $\\mathcal{R}$ … » — PAS toute la phrase en math.');
     parts.push('');
     parts.push(latexCatalogText());
     parts.push('');
@@ -314,6 +320,8 @@
 
   function cardQR(c) {
     if (!c || typeof c !== 'object') return { q: '', r: '' };
+    /* Pas de rewrite LaTeX à l’import : la réparation d’espaces est uniquement à l’affichage
+       (formatCardFaceHtml) pour ne jamais altérer les cartes stockées. */
     return {
       q: String(c.q != null ? c.q : (c.question != null ? c.question : '')).trim(),
       r: String(c.r != null ? c.r : (c.reponse != null ? c.reponse : '')).trim()

@@ -126,26 +126,165 @@
     return parts.join(' ').replace(/\s+/g, ' ').trim();
   };
 
-  window.formatCardFaceHtml = function (str) {
+  var _MATH_FN_WORDS = /^(sin|cos|tan|cot|sec|csc|arcsin|arccos|arctan|sinh|cosh|tanh|log|ln|lg|lim|max|min|sup|inf|exp|det|arg|deg|dim|ker|gcd|lcm|mod|hom|tr|Re|Im|div|grad|rot|curl|span|rank|null|diag|trace|var|cov|erf|abs|norm)$/i;
+  var _TEXT_WRAP_CMDS = /^(text|textit|textbf|textrm|mathrm|mathbf|mathsf|mathtt|mbox|operatorname)$/;
+
+  /** $...$ / $$...$$ → \\(...\\) / \\[...\\] (ne touche pas \\$). */
+  window.convertDollarDelimiters = function (str) {
     var s = String(str == null ? '' : str);
+    if (s.indexOf('$') < 0) return s;
+    s = s.replace(/\$\$([\s\S]+?)\$\$/g, function (_m, inner) {
+      return '\\[' + inner + '\\]';
+    });
+    s = s.replace(/(^|[^\\])\$([^\$\n]+?)\$/g, function (_m, pre, inner) {
+      return pre + '\\(' + inner + '\\)';
+    });
+    return s;
+  };
+
+  /**
+   * En mode math les espaces disparaissent. Enveloppe le français (légendes, mots)
+   * dans \\text{...} sans toucher aux commandes / variables courtes.
+   */
+  window.wrapLatexProseInText = function (latex) {
+    var s = String(latex == null ? '' : latex);
+    if (!s || !/[A-Za-z\u00C0-\u024F]/.test(s)) return s;
+
+    function letterCore(w) {
+      return String(w || '').replace(/[^A-Za-z\u00C0-\u024FœŒæÆ]/gi, '');
+    }
+    function shouldWrap(prose) {
+      if (!/[A-Za-z\u00C0-\u024F]/.test(prose)) return false;
+      var words = prose.split(/\s+/).filter(Boolean);
+      var i;
+      for (i = 0; i < words.length; i++) {
+        var core = letterCore(words[i]);
+        if (!core || _MATH_FN_WORDS.test(core)) continue;
+        if (core.length >= 4) return true;
+        if (core.length >= 2 && /[a-z\u00E0-\u024F]/.test(core)) return true;
+        if (/[àâäéèêëïîôùûüçœæ]/i.test(core)) return true;
+      }
+      return false;
+    }
+    function copyBraceGroup(from) {
+      if (s.charAt(from) !== '{') return from;
+      var depth = 0;
+      var j = from;
+      while (j < s.length) {
+        var ch = s.charAt(j);
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          j++;
+          if (depth === 0) return j;
+          continue;
+        } else if (ch === '\\') {
+          j += 2;
+          continue;
+        }
+        j++;
+      }
+      return j;
+    }
+
+    var out = '';
+    var prose = '';
+    var i = 0;
+
+    function flush() {
+      if (!prose) return;
+      if (shouldWrap(prose)) out += '\\text{' + prose + '}';
+      else out += prose;
+      prose = '';
+    }
+
+    while (i < s.length) {
+      if (s.charAt(i) === '\\') {
+        var cmdM = s.slice(i).match(/^\\([a-zA-Z]+)/);
+        if (cmdM) {
+          flush();
+          var cname = cmdM[1];
+          out += cmdM[0];
+          i += cmdM[0].length;
+          if (s.charAt(i) === '*') { out += '*'; i++; }
+          while (i < s.length && (s.charAt(i) === ' ' || s.charAt(i) === '\t')) {
+            out += s.charAt(i);
+            i++;
+          }
+          /* Args déjà textuels, ou noms d’environnements : ne pas réécrire le contenu. */
+          if (s.charAt(i) === '{' && (_TEXT_WRAP_CMDS.test(cname) || cname === 'begin' || cname === 'end' || cname === 'ce' || cname === 'color' || cname === 'colorbox' || cname === 'hspace' || cname === 'vspace' || cname === 'rule')) {
+            var endTxt = copyBraceGroup(i);
+            out += s.slice(i, endTxt);
+            i = endTxt;
+            /* \begin{...}[...] éventuel : on laisse le reste au parseur normal */
+          }
+          continue;
+        }
+        flush();
+        out += s.charAt(i);
+        if (i + 1 < s.length) { out += s.charAt(i + 1); i += 2; }
+        else i++;
+        continue;
+      }
+
+      var ch = s.charAt(i);
+      if (/[A-Za-z\u00C0-\u024FœŒæÆ]/.test(ch) || ch === ' ' || ch === '\t' || ch === ',' || ch === ';' || ch === ':' || ch === '!' || ch === '?' || ch === '«' || ch === '»' || ch === '-' || ch === '–') {
+        prose += ch;
+        i++;
+        continue;
+      }
+      if ((ch === "'" || ch === '\u2019') && (prose.length || (i + 1 < s.length && /[A-Za-z\u00C0-\u024F]/.test(s.charAt(i + 1))))) {
+        prose += ch;
+        i++;
+        continue;
+      }
+      flush();
+      out += ch;
+      i++;
+    }
+    flush();
+    return out;
+  };
+
+  /** Normalise $…$ et répare les espaces français dans le LaTeX (import + affichage). */
+  window.repairLatexProseSpaces = function (str) {
+    var s = window.convertDollarDelimiters(String(str == null ? '' : str));
+    if (!s) return s;
+    if (s.indexOf('\\(') >= 0 || s.indexOf('\\[') >= 0) {
+      return s
+        .replace(/\\\[([\s\S]*?)\\\]/g, function (_m, inner) {
+          return '\\[' + window.wrapLatexProseInText(inner) + '\\]';
+        })
+        .replace(/\\\(([\s\S]*?)\\\)/g, function (_m, inner) {
+          return '\\(' + window.wrapLatexProseInText(inner) + '\\)';
+        });
+    }
+    if (/\\[a-zA-Z{]/.test(s)) return window.wrapLatexProseInText(s);
+    return s;
+  };
+
+  window.formatCardFaceHtml = function (str) {
+    var s = window.repairLatexProseSpaces(String(str == null ? '' : str));
     if (!s) return '';
     var esc = window.escHtml;
     var toMarkup = typeof window.latexToMarkup === 'function' ? window.latexToMarkup : function (t) {
       return '<span class="latex-lab-fallback-math">' + esc(t) + '</span>';
     };
-    if (s.indexOf('\\(') < 0) {
+    if (s.indexOf('\\(') < 0 && s.indexOf('\\[') < 0) {
       if (/\\[a-zA-Z{]/.test(s)) {
         return '<span class="latex-lab-preview-math">' + toMarkup(s) + '</span>';
       }
       return esc(s);
     }
     var html = '';
-    var re = /\\\(([\s\S]*?)\\\)/g;
+    var re = /\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g;
     var last = 0;
     var m;
     while ((m = re.exec(s)) !== null) {
       if (m.index > last) html += esc(s.slice(last, m.index));
-      html += '<span class="latex-lab-preview-math">' + toMarkup(m[1]) + '</span>';
+      var inner = m[1] != null ? m[1] : m[2];
+      var display = m[1] != null;
+      html += '<span class="latex-lab-preview-math' + (display ? ' latex-lab-preview-math--display' : '') + '">' + toMarkup(inner) + '</span>';
       last = m.index + m[0].length;
     }
     if (last < s.length) html += esc(s.slice(last));
