@@ -1485,31 +1485,20 @@
     );
   }
 
-  /** Segments texte / math pour faces carte (plusieurs \\( … \\) / \\[ … \\] OK). */
+  /** Segments texte / math pour faces carte (plusieurs \\( … \\) OK). */
   function parseLatexInlineSegments(str) {
     var s = String(str == null ? '' : str);
-    if (typeof window.repairLatexProseSpaces === 'function') {
-      s = window.repairLatexProseSpaces(s);
-    } else if (typeof window.convertDollarDelimiters === 'function') {
-      s = window.convertDollarDelimiters(s);
-    }
     var segments = [];
-    var re = /\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g;
+    var re = /\\\(([\s\S]*?)\\\)/g;
     var last = 0;
     var m;
     while ((m = re.exec(s)) !== null) {
       if (m.index > last) segments.push({ type: 'text', value: s.slice(last, m.index) });
-      segments.push({ type: 'math', value: m[1] != null ? m[1] : m[2], display: m[1] != null });
+      segments.push({ type: 'math', value: m[1] });
       last = m.index + m[0].length;
     }
     if (last < s.length) segments.push({ type: 'text', value: s.slice(last) });
-    if (!segments.length && s) {
-      if (/\\[a-zA-Z{]/.test(s) && typeof window.wrapLatexProseInText === 'function') {
-        segments.push({ type: 'math', value: window.wrapLatexProseInText(s) });
-      } else {
-        segments.push({ type: 'text', value: s });
-      }
-    }
+    if (!segments.length && s) segments.push({ type: 'text', value: s });
     return segments;
   }
 
@@ -1534,22 +1523,15 @@
     function textHtml(t) {
       return escHtml(t).replace(/\r\n|\r|\n/g, '<br>');
     }
-    var segs = parseLatexInlineSegments(s);
-    var onlyText = segs.length === 1 && segs[0].type === 'text';
-    if (onlyText) {
-      var raw = segs[0].value;
-      if (/\\[a-zA-Z{]/.test(raw)) {
-        var math = typeof window.wrapLatexProseInText === 'function'
-          ? window.wrapLatexProseInText(raw)
-          : raw;
-        return '<span class="latex-lab-preview-math">' + latexToMarkup(math) + '</span>';
+    if (s.indexOf('\\(') < 0) {
+      if (/\\[a-zA-Z{]/.test(s)) {
+        return '<span class="latex-lab-preview-math">' + latexToMarkup(s) + '</span>';
       }
-      return textHtml(raw);
+      return textHtml(s);
     }
-    return segs.map(function (seg) {
+    return parseLatexInlineSegments(s).map(function (seg) {
       if (seg.type === 'math') {
-        return '<span class="latex-lab-preview-math' + (seg.display ? ' latex-lab-preview-math--display' : '') + '">' +
-          latexToMarkup(seg.value) + '</span>';
+        return '<span class="latex-lab-preview-math">' + latexToMarkup(seg.value) + '</span>';
       }
       return textHtml(seg.value);
     }).join('');
