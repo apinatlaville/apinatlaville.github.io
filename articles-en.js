@@ -287,11 +287,20 @@
     });
   }
 
-  /* ---------- RSS / Atom via rss2json (CORS *) — allorigins HS ---------- */
+  /* ---------- RSS / Atom : rss2json (Conversation) + allorigins (VOA / fallback) ---------- */
   function normalizeFeedDate(pub) {
     if (!pub) return '';
     var d = new Date(pub);
     return isNaN(d.getTime()) ? String(pub) : d.toISOString();
+  }
+
+  function pageSlice(all) {
+    var slice = all.slice(0, S.page * PAGE_SIZE);
+    return {
+      items: slice,
+      hasMore: all.length > slice.length,
+      allCount: all.length
+    };
   }
 
   function mapRss2JsonItems(data, sourceId, sourceLabel) {
@@ -323,6 +332,19 @@
     } catch (e) {
       return out;
     }
+    function localName(el) {
+      return (el.localName || el.tagName || '').replace(/^.*:/, '').toLowerCase();
+    }
+    function childText(node, name) {
+      var kids = node.childNodes;
+      for (var i = 0; i < kids.length; i++) {
+        var c = kids[i];
+        if (c.nodeType === 1 && localName(c) === name) {
+          return (c.textContent || '').trim();
+        }
+      }
+      return '';
+    }
     function pushFrom(node, isAtom) {
       var title = '';
       var link = '';
@@ -330,33 +352,27 @@
       var desc = '';
       var cat = '';
       if (isAtom) {
-        var tEl = node.getElementsByTagName('title')[0];
-        title = tEl ? (tEl.textContent || '').trim() : '';
-        var links = node.getElementsByTagName('link');
-        for (var i = 0; i < links.length; i++) {
-          var rel = links[i].getAttribute('rel') || 'alternate';
-          var href = links[i].getAttribute('href') || '';
+        title = childText(node, 'title');
+        var kids = node.childNodes;
+        for (var i = 0; i < kids.length; i++) {
+          var c = kids[i];
+          if (c.nodeType !== 1 || localName(c) !== 'link') continue;
+          var rel = c.getAttribute('rel') || 'alternate';
+          var href = c.getAttribute('href') || '';
           if (href && (rel === 'alternate' || !link)) link = href;
         }
-        var pubEl = node.getElementsByTagName('published')[0] || node.getElementsByTagName('updated')[0];
-        pub = pubEl ? (pubEl.textContent || '').trim() : '';
-        var cEl = node.getElementsByTagName('content')[0] || node.getElementsByTagName('summary')[0];
-        desc = cEl ? (cEl.textContent || '').trim() : '';
+        pub = childText(node, 'published') || childText(node, 'updated');
+        desc = childText(node, 'content') || childText(node, 'summary');
       } else {
-        function txt(sel) {
-          var el = node.querySelector(sel);
-          return el ? (el.textContent || '').trim() : '';
-        }
-        title = txt('title');
-        link = txt('link') || txt('guid');
-        pub = txt('pubDate');
+        title = childText(node, 'title');
+        link = childText(node, 'link') || childText(node, 'guid');
+        pub = childText(node, 'pubDate');
         var contentEnc = node.getElementsByTagNameNS
           ? node.getElementsByTagNameNS('http://purl.org/rss/1.0/modules/content/', 'encoded')
           : null;
         if (contentEnc && contentEnc[0]) desc = contentEnc[0].textContent || '';
-        if (!desc) desc = txt('description');
-        var catEl = node.querySelector('category');
-        if (catEl) cat = (catEl.textContent || '').trim();
+        if (!desc) desc = childText(node, 'description');
+        cat = childText(node, 'category');
       }
       if (!link) return;
       out.push({
@@ -372,75 +388,92 @@
         thumb: ''
       });
     }
-    var entries = doc.getElementsByTagName('entry');
+    var entries = doc.getElementsByTagNameNS
+      ? doc.getElementsByTagNameNS('http://www.w3.org/2005/Atom', 'entry')
+      : [];
+    if (!entries.length) entries = doc.getElementsByTagName('entry');
     if (entries && entries.length) {
       for (var e = 0; e < entries.length; e++) pushFrom(entries[e], true);
     } else {
-      var items = doc.querySelectorAll('item');
-      items.forEach(function (item) { pushFrom(item, false); });
+      var items = doc.getElementsByTagName('item');
+      for (var j = 0; j < items.length; j++) pushFrom(items[j], false);
     }
     return out.filter(function (a) {
       return matchQuery(a.title, a.standfirst) && inDateRange(a.date);
     });
   }
 
+  /** Sans &count= : gratuit, sinon rss2json renvoie HTTP 422. */
   function fetchRss2Json(feedUrl) {
-    var url = 'https://api.rss2json.com/v1/api.json?rss_url=' +
-      encodeURIComponent(feedUrl) + '&count=20';
+    var url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feedUrl);
     function once() {
       return fetch(url).then(function (res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      }).then(function (data) {
-        if (!data || data.status !== 'ok') {
-          var msg = (data && data.message) ? String(data.message) : 'Feed indisponible';
-          throw new Error(msg);
-        }
-        return data;
+        return res.json().then(function (data) {
+          if (!res.ok || !data || data.status !== 'ok') {
+            var msg = (data && data.message) ? String(data.message) : ('HTTP ' + res.status);
+            throw new Error(msg);
+          }
+          return data;
+        });
       });
     }
     return once().catch(function (err) {
       var m = String(err && err.message || err);
-      if (/processed|please wait|Internal error/i.test(m)) {
-        return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(once);
+      if (/processed|please wait/i.test(m)) {
+        return new Promise(function (resolve) { setTimeout(resolve, 900); }).then(once);
       }
       throw err;
     });
   }
 
-  /** Fallback texte (si un jour un proxy XML revient). */
-  function fetchFeedText(feedUrl) {
-    return fetch(feedUrl, { mode: 'cors' }).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+  function fetchAllOrigins(feedUrl) {
+    var url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(feedUrl);
+    return fetch(url).then(function (res) {
+      if (!res.ok) throw new Error('Proxy HTTP ' + res.status);
       return res.text();
+    }).then(function (text) {
+      var t = String(text || '').trim();
+      if (!t || t.length < 40) throw new Error('Feed vide');
+      if (/^error code:/i.test(t)) throw new Error(t);
+      if (t.charAt(0) === '<' && (t.indexOf('<rss') >= 0 || t.indexOf('<feed') >= 0 || t.indexOf('<?xml') >= 0)) {
+        return t;
+      }
+      /* parfois allorigins renvoie du HTML d’erreur */
+      if (t.indexOf('<html') >= 0) throw new Error('Proxy HTML');
+      return t;
     });
   }
 
   function fetchRssPaged(feedUrl, sourceId, sourceLabel) {
-    return fetchRss2Json(feedUrl).then(function (data) {
-      var all = mapRss2JsonItems(data, sourceId, sourceLabel);
-      var slice = all.slice(0, S.page * PAGE_SIZE);
-      return {
-        items: slice,
-        hasMore: all.length > slice.length,
-        allCount: all.length
-      };
-    }).catch(function (err1) {
-      /* Dernier recours : fetch direct (souvent bloqué CORS) */
-      return fetchFeedText(feedUrl).then(function (xml) {
-        var all = parseXmlFeed(xml, sourceId, sourceLabel);
-        var slice = all.slice(0, S.page * PAGE_SIZE);
-        return {
-          items: slice,
-          hasMore: all.length > slice.length,
-          allCount: all.length
-        };
-      }).catch(function () {
-        var msg = err1 && err1.message ? err1.message : 'Load failed';
-        if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
-          msg = 'réseau / CORS — réessaie dans un instant';
-        }
-        throw new Error(msg);
+    function fromRss2() {
+      return fetchRss2Json(feedUrl).then(function (data) {
+        return pageSlice(mapRss2JsonItems(data, sourceId, sourceLabel));
+      });
+    }
+    function fromProxy() {
+      return fetchAllOrigins(feedUrl).then(function (xml) {
+        return pageSlice(parseXmlFeed(xml, sourceId, sourceLabel));
+      });
+    }
+    function failMsg(err) {
+      var msg = err && err.message ? String(err.message) : 'Load failed';
+      if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+        return 'réseau / CORS — réessaie';
+      }
+      return msg;
+    }
+
+    /* VOA : rss2json casse souvent → proxy d’abord. Conversation : rss2json d’abord. */
+    if (sourceId === 'voa') {
+      return fromProxy().catch(function (e1) {
+        return fromRss2().catch(function (e2) {
+          throw new Error(failMsg(e1) + ' / ' + failMsg(e2));
+        });
+      });
+    }
+    return fromRss2().catch(function (e1) {
+      return fromProxy().catch(function (e2) {
+        throw new Error(failMsg(e1));
       });
     });
   }
