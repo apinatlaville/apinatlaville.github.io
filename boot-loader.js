@@ -26,6 +26,7 @@
     flashcards: ['anki-quick.js', 'quick-share.js', 'xp-lab.js'],
     partage: ['anki-quick.js', 'quick-share.js'],
     agenda: ['agenda.js'],
+    articlesEn: ['articles-en.js'],
     /* app-v2 avant card-ui : le FAB (fin de card-ui) doit trouver les modales déjà définies */
     ankiV2: ['programme.js', 'anki-app-v2.js', 'anki-card-ui.js', 'xp-lab.js'],
     ankiVizV2: ['anki-viz-v2.js'],

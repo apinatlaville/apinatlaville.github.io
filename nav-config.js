@@ -10,6 +10,7 @@ window.APP_TAB_REGISTRY = {
   notes:       { pane: 'paneNotes',       label: 'Notes',         icon: 'trending-up',    needsData: true,  onShow: 'notes' },
   flashcards:  { pane: 'paneFlashcards',  label: 'Rapide',        icon: 'zap',            needsData: true,  onShow: 'flashcards' },
   partage:     { pane: 'panePartage',     label: 'Partage',       icon: 'share-2',        needsData: true,  onShow: 'partage' },
+  articlesEn:  { pane: 'paneArticlesEn',  label: 'Articles EN',   icon: 'book-open',       needsData: false, onShow: 'articlesEn', className: 'tab-articles-en' },
   agenda:      { pane: 'paneAgenda',      label: 'Agenda',        icon: 'clipboard-list', needsData: true,  onShow: 'agenda' },
   anki:        { label: 'Synchrotron v1', nav: false, archived: true, archivedRedirect: 'ankiV2' },
   ankiV2:      { pane: 'paneAnkiV2',      label: 'Synchrotron',   icon: 'dna',            needsData: true,  onShow: 'ankiV2',      className: 'tab-anki' },
@@ -40,7 +41,7 @@ window.APP_TAB_REGISTRY = {
 window.APP_NAV_GROUPS = [
   {
     label: 'Navigation',
-    tabs: ['home', 'cours', 'notes', 'flashcards', 'partage', 'agenda']
+    tabs: ['home', 'cours', 'notes', 'flashcards', 'partage', 'articlesEn', 'agenda']
   },
   {
     id: 'Sync',

@@ -1058,6 +1058,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'flashcards': window.renderFlashcards(); break;
     case 'partage': if (typeof window.renderPartage === 'function') window.renderPartage(); break;
     case 'agenda': if (typeof window.renderAgenda === 'function') window.renderAgenda(); break;
+    case 'articlesEn': if (typeof window.renderArticlesEn === 'function') window.renderArticlesEn(); break;
     case 'ankiV2': if (typeof window.renderAnkiV2 === 'function') window.renderAnkiV2(); break;
     case 'ankiVizV2': if (typeof window.renderAnkiVizV2 === 'function') window.renderAnkiVizV2(); break;
     case 'programme': if (typeof window.renderProgramme === 'function') window.renderProgramme(); break;
