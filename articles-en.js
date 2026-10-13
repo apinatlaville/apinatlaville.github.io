@@ -1,6 +1,6 @@
 /**
  * articles-en.js — Onglet Articles EN (sources libres)
- * Découvrir : Guardian API + The Conversation US (RSS)
+ * Découvrir : Guardian API + The Conversation + VOA (RSS)
  * Saved : copies locales (lu / non lu), hors sync cloud
  */
 (function () {
@@ -32,15 +32,28 @@
     us: 'us-news'
   };
 
+  /* The Conversation : .rss renvoie 406 — utiliser .atom */
   var CONVERSATION_FEED = {
-    '': 'https://theconversation.com/us/articles.rss',
-    science: 'https://theconversation.com/us/science-technology/articles.rss',
-    technology: 'https://theconversation.com/us/technology/articles.rss',
-    politics: 'https://theconversation.com/us/politics/articles.rss',
-    environment: 'https://theconversation.com/us/environment-energy/articles.rss',
-    world: 'https://theconversation.com/us/articles.rss',
-    uk: 'https://theconversation.com/uk/articles.rss',
-    us: 'https://theconversation.com/us/articles.rss'
+    '': 'https://theconversation.com/us/articles.atom',
+    science: 'https://theconversation.com/us/health/articles.atom',
+    technology: 'https://theconversation.com/us/technology/articles.atom',
+    politics: 'https://theconversation.com/us/politics/articles.atom',
+    environment: 'https://theconversation.com/us/articles.atom',
+    world: 'https://theconversation.com/us/articles.atom',
+    uk: 'https://theconversation.com/uk/articles.atom',
+    us: 'https://theconversation.com/us/articles.atom'
+  };
+
+  /* Flux VOA English (https://www.voanews.com/rssfeeds) — domaine public US */
+  var VOA_FEED = {
+    '': 'https://www.voanews.com/api/zumgqol-vomx-tpeg--qi', /* International Edition */
+    science: 'https://www.voanews.com/api/ztbopl-vomx-tpekvmm', /* Science & Health */
+    technology: 'https://www.voanews.com/api/zyritl-vomx-tpettmq',
+    politics: 'https://www.voanews.com/api/zvq-qvl-vomx-tpeuurot', /* Issues in the News */
+    environment: 'https://www.voanews.com/api/ztbopl-vomx-tpekvmm',
+    world: 'https://www.voanews.com/api/zumgqol-vomx-tpeg--qi',
+    uk: 'https://www.voanews.com/api/zjbovl-vomx-tpebvmr', /* Europe */
+    us: 'https://www.voanews.com/api/zqboml-vomx-tpeivmy'
   };
 
   var S = {
@@ -56,8 +69,11 @@
     loading: false,
     error: '',
     openId: null,
-    sources: { guardian: true, conversation: true }
+    showSettings: false,
+    sources: { guardian: true, conversation: true, voa: true }
   };
+
+  var _loadGen = 0;
 
   function $(id) { return document.getElementById(id); }
 
@@ -139,7 +155,7 @@
     var allowed = {
       P: 1, BR: 1, EM: 1, I: 1, STRONG: 1, B: 1, A: 1, UL: 1, OL: 1, LI: 1,
       BLOCKQUOTE: 1, H1: 1, H2: 1, H3: 1, H4: 1, FIGURE: 1, FIGCAPTION: 1,
-      SPAN: 1, DIV: 1, IMG: 1, HR: 1, SUP: 1, SUB: 1
+      SPAN: 1, DIV: 1, IMG: 1, HR: 1, SUP: 1, SUB: 1, MARK: 1
     };
     function walk(node) {
       var kids = Array.prototype.slice.call(node.childNodes);
@@ -165,12 +181,17 @@
             if (n === 'src' && !/^https?:\/\//i.test(attr.value)) child.removeAttribute(attr.name);
             return;
           }
+          if (tag === 'MARK' && n === 'class') {
+            child.setAttribute('class', 'ae-hl');
+            return;
+          }
           child.removeAttribute(attr.name);
         });
         if (tag === 'A') {
           child.setAttribute('rel', 'noopener noreferrer');
           child.setAttribute('target', '_blank');
         }
+        if (tag === 'MARK') child.setAttribute('class', 'ae-hl');
         walk(child);
       });
     }
@@ -187,8 +208,14 @@
   function formatDate(iso) {
     if (!iso) return '';
     var d = new Date(iso);
-    if (isNaN(d.getTime())) return String(iso).slice(0, 10);
-    return d.toLocaleDateString('fr-FR', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (isNaN(d.getTime())) return String(iso).slice(0, 16);
+    return d.toLocaleString('fr-FR', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 
   function inDateRange(iso) {
@@ -260,16 +287,35 @@
     });
   }
 
-  /* ---------- The Conversation (RSS via proxy CORS) ---------- */
-  function fetchViaProxy(targetUrl) {
-    var proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl);
-    return fetch(proxied).then(function (res) {
-      if (!res.ok) throw new Error('Proxy HTTP ' + res.status);
-      return res.text();
+  /* ---------- RSS / Atom via rss2json (CORS *) — allorigins HS ---------- */
+  function normalizeFeedDate(pub) {
+    if (!pub) return '';
+    var d = new Date(pub);
+    return isNaN(d.getTime()) ? String(pub) : d.toISOString();
+  }
+
+  function mapRss2JsonItems(data, sourceId, sourceLabel) {
+    return (data.items || []).map(function (it) {
+      var link = it.link || it.guid || '';
+      var html = it.content || it.description || '';
+      return {
+        id: articleId(sourceId, link),
+        source: sourceId,
+        sourceLabel: sourceLabel,
+        url: link,
+        title: it.title || '',
+        date: normalizeFeedDate(it.pubDate || it.pubdate || ''),
+        theme: (it.categories && it.categories[0]) || S.theme || '',
+        standfirst: stripTags(it.description || html).slice(0, 220),
+        bodyHtml: sanitizeHtml(html),
+        thumb: (it.thumbnail || (it.enclosure && it.enclosure.link) || '')
+      };
+    }).filter(function (a) {
+      return a.url && matchQuery(a.title, a.standfirst) && inDateRange(a.date);
     });
   }
 
-  function parseRssItems(xmlText) {
+  function parseXmlFeed(xmlText, sourceId, sourceLabel) {
     var out = [];
     var doc;
     try {
@@ -277,129 +323,213 @@
     } catch (e) {
       return out;
     }
-    var items = doc.querySelectorAll('item');
-    items.forEach(function (item) {
-      function txt(sel) {
-        var el = item.querySelector(sel);
-        return el ? (el.textContent || '').trim() : '';
-      }
-      var title = txt('title');
-      var link = txt('link');
-      var pub = txt('pubDate') || txt('dc\\:date') || '';
+    function pushFrom(node, isAtom) {
+      var title = '';
+      var link = '';
+      var pub = '';
       var desc = '';
-      var contentEnc = item.getElementsByTagNameNS
-        ? item.getElementsByTagNameNS('http://purl.org/rss/1.0/modules/content/', 'encoded')
-        : null;
-      if (contentEnc && contentEnc[0]) desc = contentEnc[0].textContent || '';
-      if (!desc) desc = txt('description');
       var cat = '';
-      var catEl = item.querySelector('category');
-      if (catEl) cat = (catEl.textContent || '').trim();
-      var iso = '';
-      if (pub) {
-        var d = new Date(pub);
-        if (!isNaN(d.getTime())) iso = d.toISOString();
+      if (isAtom) {
+        var tEl = node.getElementsByTagName('title')[0];
+        title = tEl ? (tEl.textContent || '').trim() : '';
+        var links = node.getElementsByTagName('link');
+        for (var i = 0; i < links.length; i++) {
+          var rel = links[i].getAttribute('rel') || 'alternate';
+          var href = links[i].getAttribute('href') || '';
+          if (href && (rel === 'alternate' || !link)) link = href;
+        }
+        var pubEl = node.getElementsByTagName('published')[0] || node.getElementsByTagName('updated')[0];
+        pub = pubEl ? (pubEl.textContent || '').trim() : '';
+        var cEl = node.getElementsByTagName('content')[0] || node.getElementsByTagName('summary')[0];
+        desc = cEl ? (cEl.textContent || '').trim() : '';
+      } else {
+        function txt(sel) {
+          var el = node.querySelector(sel);
+          return el ? (el.textContent || '').trim() : '';
+        }
+        title = txt('title');
+        link = txt('link') || txt('guid');
+        pub = txt('pubDate');
+        var contentEnc = node.getElementsByTagNameNS
+          ? node.getElementsByTagNameNS('http://purl.org/rss/1.0/modules/content/', 'encoded')
+          : null;
+        if (contentEnc && contentEnc[0]) desc = contentEnc[0].textContent || '';
+        if (!desc) desc = txt('description');
+        var catEl = node.querySelector('category');
+        if (catEl) cat = (catEl.textContent || '').trim();
       }
-      var id = articleId('conversation', link);
-      var body = sanitizeHtml(desc);
+      if (!link) return;
       out.push({
-        id: id,
-        source: 'conversation',
-        sourceLabel: 'The Conversation',
+        id: articleId(sourceId, link),
+        source: sourceId,
+        sourceLabel: sourceLabel,
         url: link,
         title: title,
-        date: iso || pub,
-        theme: cat || S.theme || 'US',
+        date: normalizeFeedDate(pub),
+        theme: cat || S.theme || '',
         standfirst: stripTags(desc).slice(0, 220),
-        bodyHtml: body,
+        bodyHtml: sanitizeHtml(desc),
         thumb: ''
       });
+    }
+    var entries = doc.getElementsByTagName('entry');
+    if (entries && entries.length) {
+      for (var e = 0; e < entries.length; e++) pushFrom(entries[e], true);
+    } else {
+      var items = doc.querySelectorAll('item');
+      items.forEach(function (item) { pushFrom(item, false); });
+    }
+    return out.filter(function (a) {
+      return matchQuery(a.title, a.standfirst) && inDateRange(a.date);
     });
-    return out;
   }
 
-  function fetchConversation() {
-    var feed = CONVERSATION_FEED[S.theme] || CONVERSATION_FEED[''];
-    return fetchViaProxy(feed).then(function (xml) {
-      var all = parseRssItems(xml).filter(function (a) {
-        return matchQuery(a.title, a.standfirst) && inDateRange(a.date);
+  function fetchRss2Json(feedUrl) {
+    var url = 'https://api.rss2json.com/v1/api.json?rss_url=' +
+      encodeURIComponent(feedUrl) + '&count=20';
+    function once() {
+      return fetch(url).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (data) {
+        if (!data || data.status !== 'ok') {
+          var msg = (data && data.message) ? String(data.message) : 'Feed indisponible';
+          throw new Error(msg);
+        }
+        return data;
       });
-      /* Pagination locale : page 1 = 0..PAGE_SIZE, etc. */
-      var start = (S.page - 1) * PAGE_SIZE;
-      var slice = all.slice(0, start + PAGE_SIZE);
+    }
+    return once().catch(function (err) {
+      var m = String(err && err.message || err);
+      if (/processed|please wait|Internal error/i.test(m)) {
+        return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(once);
+      }
+      throw err;
+    });
+  }
+
+  /** Fallback texte (si un jour un proxy XML revient). */
+  function fetchFeedText(feedUrl) {
+    return fetch(feedUrl, { mode: 'cors' }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    });
+  }
+
+  function fetchRssPaged(feedUrl, sourceId, sourceLabel) {
+    return fetchRss2Json(feedUrl).then(function (data) {
+      var all = mapRss2JsonItems(data, sourceId, sourceLabel);
+      var slice = all.slice(0, S.page * PAGE_SIZE);
       return {
         items: slice,
         hasMore: all.length > slice.length,
         allCount: all.length
       };
+    }).catch(function (err1) {
+      /* Dernier recours : fetch direct (souvent bloqué CORS) */
+      return fetchFeedText(feedUrl).then(function (xml) {
+        var all = parseXmlFeed(xml, sourceId, sourceLabel);
+        var slice = all.slice(0, S.page * PAGE_SIZE);
+        return {
+          items: slice,
+          hasMore: all.length > slice.length,
+          allCount: all.length
+        };
+      }).catch(function () {
+        var msg = err1 && err1.message ? err1.message : 'Load failed';
+        if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+          msg = 'réseau / CORS — réessaie dans un instant';
+        }
+        throw new Error(msg);
+      });
     });
   }
 
-  function mergeByDate(a, b) {
+  function fetchConversation() {
+    var feed = CONVERSATION_FEED[S.theme] || CONVERSATION_FEED[''];
+    return fetchRssPaged(feed, 'conversation', 'The Conversation');
+  }
+
+  function fetchVoa() {
+    var feed = VOA_FEED[S.theme] || VOA_FEED[''];
+    return fetchRssPaged(feed, 'voa', 'VOA');
+  }
+
+  function mergeByDate() {
     var map = Object.create(null);
-    a.concat(b).forEach(function (it) {
-      if (!it || !it.id) return;
-      if (!map[it.id]) map[it.id] = it;
-    });
+    for (var i = 0; i < arguments.length; i++) {
+      (arguments[i] || []).forEach(function (it) {
+        if (!it || !it.id) return;
+        if (!map[it.id]) map[it.id] = it;
+      });
+    }
     return Object.keys(map).map(function (k) { return map[k]; }).sort(function (x, y) {
       return new Date(y.date || 0) - new Date(x.date || 0);
     });
   }
 
+  function emptyPart() {
+    return Promise.resolve({ items: [], hasMore: false });
+  }
+
   function loadDiscover(append) {
-    if (S.loading) return;
+    /* « Voir plus » : ignorer si un fetch tourne déjà. Rechargement : invalide l’ancien. */
+    if (append && S.loading) return;
     if (!append) {
       S.page = 1;
       S.items = [];
       S.error = '';
     }
+    var gen = ++_loadGen;
     S.loading = true;
     paint();
 
-    var jobs = [];
-    if (S.sources.guardian) {
-      jobs.push(fetchGuardian(S.page).catch(function (err) {
-        return { items: [], hasMore: false, error: String(err && err.message || err) };
-      }));
-    } else {
-      jobs.push(Promise.resolve({ items: [], hasMore: false }));
-    }
-    if (S.sources.conversation && S.page === 1 && !append) {
-      jobs.push(fetchConversation().catch(function (err) {
-        return { items: [], hasMore: false, error: String(err && err.message || err) };
-      }));
-    } else if (S.sources.conversation && append) {
-      /* Conversation : recharge flux et coupe jusqu’à page*PAGE_SIZE */
-      jobs.push(fetchConversation().catch(function () {
-        return { items: [], hasMore: false };
-      }));
-    } else {
-      jobs.push(Promise.resolve({ items: [], hasMore: false }));
-    }
+    var jobs = [
+      S.sources.guardian
+        ? fetchGuardian(S.page).catch(function (err) {
+          return { items: [], hasMore: false, error: String(err && err.message || err) };
+        })
+        : emptyPart(),
+      S.sources.conversation
+        ? fetchConversation().catch(function (err) {
+          return { items: [], hasMore: false, error: String(err && err.message || err) };
+        })
+        : emptyPart(),
+      S.sources.voa
+        ? fetchVoa().catch(function (err) {
+          return { items: [], hasMore: false, error: String(err && err.message || err) };
+        })
+        : emptyPart()
+    ];
 
     Promise.all(jobs).then(function (parts) {
+      if (gen !== _loadGen) return;
       var g = parts[0] || {};
       var c = parts[1] || {};
+      var v = parts[2] || {};
       var errs = [];
-      if (g.needKey && S.sources.guardian) errs.push('Clé Guardian manquante (optionnel si Conversation seul).');
+      if (g.needKey && S.sources.guardian) {
+        errs.push('Clé Guardian manquante (optionnel si Conversation / VOA seuls).');
+      }
       if (g.error) errs.push('Guardian : ' + g.error);
       if (c.error) errs.push('Conversation : ' + c.error);
+      if (v.error) errs.push('VOA : ' + v.error);
 
       var merged = append
-        ? mergeByDate(S.items.concat(g.items || []), c.items || [])
-        : mergeByDate(g.items || [], c.items || []);
-      /* Dédup */
+        ? mergeByDate(S.items, g.items || [], c.items || [], v.items || [])
+        : mergeByDate(g.items || [], c.items || [], v.items || []);
       var seen = Object.create(null);
       S.items = merged.filter(function (it) {
         if (seen[it.id]) return false;
         seen[it.id] = true;
         return true;
       });
-      S.hasMore = !!(g.hasMore || c.hasMore);
+      S.hasMore = !!(g.hasMore || c.hasMore || v.hasMore);
       S.error = errs.join(' ');
       S.loading = false;
       paint();
     }).catch(function (err) {
+      if (gen !== _loadGen) return;
       S.loading = false;
       S.error = String(err && err.message || err);
       paint();
@@ -454,9 +584,79 @@
     paint();
   }
 
+  function persistReaderBody() {
+    var body = $('aeReaderBody');
+    if (!body || !S.openId) return;
+    var st = loadStore();
+    var found = false;
+    st.saved.forEach(function (a) {
+      if (a && a.id === S.openId) {
+        a.bodyHtml = body.innerHTML;
+        found = true;
+      }
+    });
+    if (found) saveStore(st);
+  }
+
+  function highlightSelection() {
+    var body = $('aeReaderBody');
+    if (!body) return;
+    var sel = window.getSelection && window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+      toast('Sélectionne du texte dans l’article');
+      return;
+    }
+    if (!body.contains(sel.anchorNode) || !body.contains(sel.focusNode)) {
+      toast('Sélectionne du texte dans l’article');
+      return;
+    }
+    try {
+      var range = sel.getRangeAt(0);
+      var mark = document.createElement('mark');
+      mark.className = 'ae-hl';
+      mark.appendChild(range.extractContents());
+      range.insertNode(mark);
+      body.normalize();
+      sel.removeAllRanges();
+      persistReaderBody();
+      toast('Surligné');
+    } catch (err) {
+      toast('Sélection trop complexe — réessaie sur un passage plus court');
+    }
+  }
+
+  function clearHighlights() {
+    var body = $('aeReaderBody');
+    if (!body) return;
+    var marks = body.querySelectorAll('mark.ae-hl');
+    if (!marks.length) {
+      toast('Aucun surlignage');
+      return;
+    }
+    marks.forEach(function (m) {
+      var parent = m.parentNode;
+      if (!parent) return;
+      while (m.firstChild) parent.insertBefore(m.firstChild, m);
+      parent.removeChild(m);
+    });
+    body.normalize();
+    persistReaderBody();
+    toast('Surlignages effacés');
+  }
+
+  function unwrapHighlight(mark) {
+    if (!mark || !mark.parentNode) return;
+    var parent = mark.parentNode;
+    while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+    parent.removeChild(mark);
+    parent.normalize();
+    persistReaderBody();
+  }
+
   function openArticle(id, fromSaved) {
     S.openId = id;
     S._openFromSaved = !!fromSaved;
+    S.showSettings = false;
     paint();
     var el = $('aeReader');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -555,16 +755,61 @@
               : '') +
           '</div>' +
         '</div>' +
+        (fromSaved
+          ? '<div class="ae-hl-bar">' +
+              '<button type="button" class="bp" id="aeHlAdd">Surligner</button>' +
+              '<button type="button" class="bs" id="aeHlClear">Effacer surlignages</button>' +
+              '<span class="anki-mut ae-hl-hint">Sélectionne un passage, puis Surligner · clic sur un surlignage pour l’enlever</span>' +
+            '</div>'
+          : '') +
         '<p class="ae-reader-meta anki-mut">' +
           esc(art.sourceLabel || '') +
           (art.date ? ' · ' + esc(formatDate(art.date)) : '') +
           (art.theme ? ' · ' + esc(art.theme) : '') +
         '</p>' +
         '<h2 class="ae-reader-title">' + esc(art.title) + '</h2>' +
-        '<div class="ae-reader-body">' + (art.bodyHtml || '<p class="anki-mut">Pas de corps disponible — ouvre l’original.</p>') + '</div>' +
+        '<div class="ae-reader-body' + (fromSaved ? ' ae-reader-body--hl' : '') + '" id="aeReaderBody">' +
+          (art.bodyHtml || '<p class="anki-mut">Pas de corps disponible — ouvre l’original.</p>') +
+        '</div>' +
         '<p class="ae-attrib anki-mut">Source : ' + esc(art.sourceLabel || art.source) +
           (art.url ? ' — <a href="' + esc(art.url) + '" target="_blank" rel="noopener noreferrer">article original</a>' : '') +
         '</p>' +
+      '</div>'
+    );
+  }
+
+  function settingsPanelHtml() {
+    var key = getApiKey();
+    var hasKey = !!key;
+    return (
+      '<div class="ae-settings' + (S.showSettings ? ' is-open' : '') + '" id="aeSettings">' +
+        '<div class="ae-settings-head">' +
+          '<button type="button" class="bs ae-settings-toggle" id="aeToggleSettings" aria-expanded="' +
+            (S.showSettings ? 'true' : 'false') + '">' +
+            iconLabel('settings', 'Paramètres') +
+            (hasKey ? '<span class="ae-key-dot" title="Clé Guardian OK"></span>' : '') +
+          '</button>' +
+          '<div class="ae-src-chips" id="aeSrcChips">' +
+            '<label class="ae-chip' + (S.sources.guardian ? ' on' : '') + '"><input type="checkbox" id="aeSrcG"' +
+              (S.sources.guardian ? ' checked' : '') + ' hidden> Guardian</label>' +
+            '<label class="ae-chip' + (S.sources.conversation ? ' on' : '') + '"><input type="checkbox" id="aeSrcC"' +
+              (S.sources.conversation ? ' checked' : '') + ' hidden> Conversation</label>' +
+            '<label class="ae-chip' + (S.sources.voa ? ' on' : '') + '"><input type="checkbox" id="aeSrcV"' +
+              (S.sources.voa ? ' checked' : '') + ' hidden> VOA</label>' +
+          '</div>' +
+        '</div>' +
+        (S.showSettings
+          ? '<div class="ae-settings-body">' +
+              '<label class="ae-key-label">Clé API Guardian (gratuite)</label>' +
+              '<div class="ae-key-row">' +
+                '<input type="password" class="fi" id="aeGuardianKey" placeholder="open-platform.theguardian.com" value="' +
+                  esc(key) + '" autocomplete="off">' +
+                '<button type="button" class="bp" id="aeSaveKey">Enregistrer</button>' +
+                '<a class="bs" href="https://open-platform.theguardian.com/access/" target="_blank" rel="noopener noreferrer">Obtenir</a>' +
+              '</div>' +
+              '<p class="anki-mut ae-settings-note">Conversation et VOA n’ont pas besoin de clé. La clé reste sur cet appareil.</p>' +
+            '</div>'
+          : '') +
       '</div>'
     );
   }
@@ -600,7 +845,7 @@
       pane.innerHTML =
         '<div class="ae-shell">' +
           '<div class="pbar"><div><h3>Articles EN</h3>' +
-            '<p class="anki-mut" style="margin:0;font-size:12px;">Sources libres · Guardian + The Conversation</p></div></div>' +
+            '<p class="anki-mut" style="margin:0;font-size:12px;">Sources libres · Guardian + Conversation + VOA</p></div></div>' +
           readerHtml(open) +
         '</div>';
       wire();
@@ -608,14 +853,13 @@
       return;
     }
 
-    var key = getApiKey();
     var listHtml = '';
     if (S.sub === 'discover') {
       if (S.loading && !S.items.length) {
         listHtml = '<p class="anki-mut ae-status">Chargement…</p>';
       } else if (!S.items.length) {
         listHtml = '<p class="anki-empty">Aucun article — ajuste les filtres' +
-          (!key && S.sources.guardian ? ' ou ajoute une clé Guardian' : '') + '.</p>';
+          (!getApiKey() && S.sources.guardian ? ' ou ouvre Paramètres pour la clé Guardian' : '') + '.</p>';
       } else {
         listHtml = '<div class="ae-list">' + S.items.map(function (a) { return cardHtml(a, {}); }).join('') + '</div>';
         if (S.hasMore) {
@@ -638,30 +882,17 @@
 
     pane.innerHTML =
       '<div class="ae-shell">' +
-        '<div class="pbar">' +
-          '<div>' +
+        '<div class="ae-top">' +
+          '<div class="ae-top-title">' +
             '<h3>' + iconLabel('book-open', 'Articles EN') + '</h3>' +
-            '<p class="anki-mut" style="margin:0;font-size:12px;">Lecture libre · pas de sync cloud pour Saved</p>' +
+            '<p class="anki-mut ae-top-sub">Sources libres · Saved local (hors sync)</p>' +
+          '</div>' +
+          '<div class="ae-subtabs" role="tablist">' +
+            '<button type="button" class="ae-subtab' + (S.sub === 'discover' ? ' on' : '') + '" data-ae-sub="discover">Découvrir</button>' +
+            '<button type="button" class="ae-subtab' + (S.sub === 'saved' ? ' on' : '') + '" data-ae-sub="saved">Saved</button>' +
           '</div>' +
         '</div>' +
-        '<div class="ae-subtabs" role="tablist">' +
-          '<button type="button" class="ae-subtab' + (S.sub === 'discover' ? ' on' : '') + '" data-ae-sub="discover">Découvrir</button>' +
-          '<button type="button" class="ae-subtab' + (S.sub === 'saved' ? ' on' : '') + '" data-ae-sub="saved">Saved</button>' +
-        '</div>' +
-        (S.sub === 'discover'
-          ? '<div class="ae-keybar">' +
-              '<label class="ae-key-label">Clé API Guardian (gratuite)</label>' +
-              '<div class="ae-key-row">' +
-                '<input type="password" class="fi" id="aeGuardianKey" placeholder="open-platform.theguardian.com" value="' + esc(key) + '" autocomplete="off">' +
-                '<button type="button" class="bs" id="aeSaveKey">Enregistrer</button>' +
-                '<a class="bs" href="https://open-platform.theguardian.com/access/" target="_blank" rel="noopener noreferrer">Obtenir</a>' +
-              '</div>' +
-              '<div class="ae-src-toggles">' +
-                '<label class="ae-check"><input type="checkbox" id="aeSrcG"' + (S.sources.guardian ? ' checked' : '') + '> Guardian</label>' +
-                '<label class="ae-check"><input type="checkbox" id="aeSrcC"' + (S.sources.conversation ? ' checked' : '') + '> Conversation</label>' +
-              '</div>' +
-            '</div>'
-          : '') +
+        (S.sub === 'discover' ? settingsPanelHtml() : '') +
         filtersHtml() +
         (S.error ? '<p class="ae-error">' + esc(S.error) + '</p>' : '') +
         listHtml +
@@ -684,8 +915,10 @@
     if (sf) S.savedFilter = sf.value || 'all';
     var g = $('aeSrcG');
     var c = $('aeSrcC');
+    var v = $('aeSrcV');
     if (g) S.sources.guardian = !!g.checked;
     if (c) S.sources.conversation = !!c.checked;
+    if (v) S.sources.voa = !!v.checked;
   }
 
   function findInItems(id) {
@@ -704,31 +937,64 @@
         if (!t || !t.closest) return;
         var sub = t.closest('[data-ae-sub]');
         if (sub) {
-          S.sub = sub.getAttribute('data-ae-sub') === 'saved' ? 'saved' : 'discover';
+          var next = sub.getAttribute('data-ae-sub') === 'saved' ? 'saved' : 'discover';
+          S.sub = next;
           S.openId = null;
-          if (S.sub === 'discover') loadDiscover(false);
+          /* Toujours re-peindre (évite le blocage si un fetch Découvrir était encore en cours). */
+          if (next === 'discover' && !S.items.length) loadDiscover(false);
           else paint();
           return;
         }
-        if (t.id === 'aeSaveKey' || (t.closest && t.closest('#aeSaveKey'))) {
+        if (t.id === 'aeToggleSettings' || t.closest('#aeToggleSettings')) {
+          readFiltersFromDom();
+          S.showSettings = !S.showSettings;
+          paint();
+          return;
+        }
+        var chip = t.closest('.ae-chip');
+        if (chip && chip.querySelector('input[type="checkbox"]')) {
+          e.preventDefault();
+          var cb = chip.querySelector('input[type="checkbox"]');
+          cb.checked = !cb.checked;
+          chip.classList.toggle('on', cb.checked);
+          readFiltersFromDom();
+          if (S.sub === 'discover') loadDiscover(false);
+          return;
+        }
+        if (t.id === 'aeSaveKey' || t.closest('#aeSaveKey')) {
           var inp = $('aeGuardianKey');
           setApiKey(inp ? inp.value : '');
           toast('Clé Guardian enregistrée');
+          S.showSettings = false;
+          paint();
           return;
         }
-        if (t.id === 'aeApply' || (t.closest && t.closest('#aeApply'))) {
+        if (t.id === 'aeApply' || t.closest('#aeApply')) {
           readFiltersFromDom();
           if (S.sub === 'discover') loadDiscover(false);
           else paint();
           return;
         }
-        if (t.id === 'aeMore' || (t.closest && t.closest('#aeMore'))) {
+        if (t.id === 'aeMore' || t.closest('#aeMore')) {
           S.page += 1;
           loadDiscover(true);
           return;
         }
-        if (t.id === 'aeCloseReader' || (t.closest && t.closest('#aeCloseReader'))) {
+        if (t.id === 'aeCloseReader' || t.closest('#aeCloseReader')) {
           closeReader();
+          return;
+        }
+        if (t.id === 'aeHlAdd' || t.closest('#aeHlAdd')) {
+          highlightSelection();
+          return;
+        }
+        if (t.id === 'aeHlClear' || t.closest('#aeHlClear')) {
+          clearHighlights();
+          return;
+        }
+        var hlMark = t.closest('mark.ae-hl');
+        if (hlMark && t.closest('#aeReaderBody')) {
+          unwrapHighlight(hlMark);
           return;
         }
         var openBtn = t.closest('[data-ae-open]');
