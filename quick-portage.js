@@ -78,9 +78,18 @@
       '- Délimiteurs auto : \\\\left( \\\\right)  \\\\left| \\\\right|',
       '- Produit vectoriel : \\\\wedge',
       '',
-      '## Espaces & texte dans les formules (OBLIGATOIRE)',
-      'En mode math ($...$ / $$...$$), les espaces ordinaires sont IGNORÉS : "Q et W" devient "QetW".',
-      'Toute phrase / mot / unité dans une formule DOIT aller dans \\\\text{...} (espaces gardés à l’intérieur).',
+      '## Espaces LaTeX (OBLIGATOIRE)',
+      'En mode math ($...$ / $$...$$), les espaces ordinaires du clavier sont IGNORÉS.',
+      'Tu DOIS mettre des espaces LaTeX explicites — ne compte jamais sur la barre d’espace.',
+      '',
+      'Commandes d’espace (dans le JSON, chaque \\\\ est doublé) :',
+      '- Petit : \\\\,     →  "\\\\,"     (le plus courant entre symboles / avant unité)',
+      '- Normal : \\\\     →  "\\\\ "     (backslash + espace, entre mots ou après une formule)',
+      '- Large : \\\\quad / \\\\qquad',
+      '- Negatif (serrer) : \\\\!',
+      '',
+      'Phrases / légendes en français DANS la formule : \\\\text{...} (les espaces DU CLAVIER marchent à l’intérieur de \\\\text).',
+      'Sans accents dans \\\\text{...} ni hors \\\\text en math (voir Accents).',
       'Garde une face homogène en LaTeX : ne découpe PAS en « vrai texte HTML » + bouts de formule.',
       '',
       '## Accents (OBLIGATOIRE — police math ≠ police texte)',
@@ -90,16 +99,11 @@
       '- Ex. : galileen, referentiel, acceleration, theoreme (pas « galiléen »).',
       '- Accents OK seulement si la face est du vrai texte SANS aucune formule LaTeX.',
       '',
-      'Comment mettre des espaces :',
-      '- Légende en français dans la formule : \\\\text{Q et W algebriques, recus par le systeme}',
-      '- Petit espace math : \\\\,   (ex. $f\\\\,(x)$)',
-      '- Espace forcé en math : backslash + espace  →  \\\\  (entre symboles)',
-      '- Espace large : \\\\quad  /  \\\\qquad',
-      '- Ne JAMAIS coller des mots hors \\\\text{} : interdit « QetWalgebriques ».',
-      '',
       'Exemples (dans le JSON, chaque \\\\ est doublé) :',
-      '- MAUVAIS : "$\\\\Delta U = Q + W (Q et W algebriques)$" → rendu : QetWalgebriques',
-      '- BON : "$\\\\Delta U = Q + W\\\\ (\\\\text{Q et W algebriques, recus par le systeme})$"',
+      '- MAUVAIS : "$\\\\Delta U = Q + W (Q et W algebriques)$" → espaces clavier ignorés → collé',
+      '- BON espaces LaTeX : "$\\\\Delta U\\\\,=\\\\,Q\\\\,+\\\\,W$"',
+      '- BON légende : "$\\\\Delta U = Q + W\\\\ (\\\\text{Q et W algebriques, recus par le systeme})$"',
+      '- BON titre mixte : "$\\\\text{Composition des vitesses, }\\\\mathcal{R}\\\'\\\\text{ en translation dans }\\\\mathcal{R}$"',
       '- MAUVAIS : "$\\\\text{référentiel galiléen}$" → accents = mauvaise police',
       '- BON : "$\\\\text{referentiel galileen}$" (sans accents)',
       '- BON unités : "$v = 3\\\\,\\\\text{m}\\\\cdot\\\\text{s}^{-1}$"',
@@ -188,7 +192,7 @@
     }
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
-    parts.push('- ESPACES : en $...$, les espaces disparaissent. Mets le français dans \\text{...} (sans découper en texte HTML + LaTeX). Voir section Espaces.');
+    parts.push('- ESPACES : en $...$, la barre d’espace est IGNORÉE. Utilise les espaces LaTeX : \\,  ou  \\  (backslash+espace) ou \\quad ; légendes dans \\text{...}. Voir section Espaces LaTeX.');
     parts.push('- ACCENTS : jamais d’accents dans les formules / \\text{...} (police différente). ASCII : galileen, referentiel…');
     parts.push('');
     parts.push(latexCatalogText());
