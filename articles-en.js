@@ -44,16 +44,23 @@
     us: 'https://theconversation.com/us/articles.atom'
   };
 
-  /* Flux VOA English (https://www.voanews.com/rssfeeds) — domaine public US */
+  /*
+   * Flux VOA English — domaine public US.
+   * rss2json ne gère que certains IDs VOA (les autres → « Internal error »).
+   * OK : USA (zqboml), Africa (z-botl), Ukraine (zt_rqyl).
+   */
+  var VOA_USA = 'https://www.voanews.com/api/zqboml-vomx-tpeivmy';
+  var VOA_AFRICA = 'https://www.voanews.com/api/z-botl-vomx-tpertmq';
+  var VOA_UKRAINE = 'https://www.voanews.com/api/zt_rqyl-vomx-tpekboq_';
   var VOA_FEED = {
-    '': 'https://www.voanews.com/api/zumgqol-vomx-tpeg--qi', /* International Edition */
-    science: 'https://www.voanews.com/api/ztbopl-vomx-tpekvmm', /* Science & Health */
-    technology: 'https://www.voanews.com/api/zyritl-vomx-tpettmq',
-    politics: 'https://www.voanews.com/api/zvq-qvl-vomx-tpeuurot', /* Issues in the News */
-    environment: 'https://www.voanews.com/api/ztbopl-vomx-tpekvmm',
-    world: 'https://www.voanews.com/api/zumgqol-vomx-tpeg--qi',
-    uk: 'https://www.voanews.com/api/zjbovl-vomx-tpebvmr', /* Europe */
-    us: 'https://www.voanews.com/api/zqboml-vomx-tpeivmy'
+    '': VOA_USA,
+    science: VOA_USA,
+    technology: VOA_USA,
+    politics: VOA_USA,
+    environment: VOA_AFRICA,
+    world: VOA_AFRICA,
+    uk: VOA_UKRAINE,
+    us: VOA_USA
   };
 
   var S = {
@@ -426,56 +433,57 @@
     });
   }
 
+  function normalizeProxyXml(text) {
+    var t = String(text || '').trim();
+    if (!t || t.length < 40) throw new Error('Feed vide');
+    if (/^error code:/i.test(t)) throw new Error(t);
+    if (t.indexOf('<html') >= 0 && t.indexOf('<rss') < 0 && t.indexOf('<feed') < 0) {
+      throw new Error('Proxy HTML');
+    }
+    if (t.indexOf('<rss') >= 0 || t.indexOf('<feed') >= 0 || t.indexOf('<?xml') >= 0) return t;
+    throw new Error('Réponse proxy invalide');
+  }
+
   function fetchAllOrigins(feedUrl) {
-    var url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(feedUrl);
-    return fetch(url).then(function (res) {
+    var enc = encodeURIComponent(feedUrl);
+    /* /get (JSON) est plus fiable que /raw côté CORS */
+    return fetch('https://api.allorigins.win/get?url=' + enc).then(function (res) {
       if (!res.ok) throw new Error('Proxy HTTP ' + res.status);
-      return res.text();
-    }).then(function (text) {
-      var t = String(text || '').trim();
-      if (!t || t.length < 40) throw new Error('Feed vide');
-      if (/^error code:/i.test(t)) throw new Error(t);
-      if (t.charAt(0) === '<' && (t.indexOf('<rss') >= 0 || t.indexOf('<feed') >= 0 || t.indexOf('<?xml') >= 0)) {
-        return t;
-      }
-      /* parfois allorigins renvoie du HTML d’erreur */
-      if (t.indexOf('<html') >= 0) throw new Error('Proxy HTML');
-      return t;
+      return res.json();
+    }).then(function (data) {
+      return normalizeProxyXml(data && data.contents);
+    }).catch(function () {
+      return fetch('https://api.allorigins.win/raw?url=' + enc).then(function (res) {
+        if (!res.ok) throw new Error('Proxy HTTP ' + res.status);
+        return res.text();
+      }).then(normalizeProxyXml);
+    });
+  }
+
+  function failFetchMsg(err) {
+    var msg = err && err.message ? String(err.message) : 'Load failed';
+    if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+      return 'réseau / CORS — réessaie';
+    }
+    if (/Internal error/i.test(msg)) return 'proxy RSS indisponible';
+    return msg;
+  }
+
+  /** Items bruts d’un flux RSS (rss2json puis proxy). */
+  function fetchRssItems(feedUrl, sourceId, sourceLabel) {
+    return fetchRss2Json(feedUrl).then(function (data) {
+      return mapRss2JsonItems(data, sourceId, sourceLabel);
+    }).catch(function (e1) {
+      return fetchAllOrigins(feedUrl).then(function (xml) {
+        return parseXmlFeed(xml, sourceId, sourceLabel);
+      }).catch(function (e2) {
+        throw new Error(failFetchMsg(e1) + (e2 ? ' / ' + failFetchMsg(e2) : ''));
+      });
     });
   }
 
   function fetchRssPaged(feedUrl, sourceId, sourceLabel) {
-    function fromRss2() {
-      return fetchRss2Json(feedUrl).then(function (data) {
-        return pageSlice(mapRss2JsonItems(data, sourceId, sourceLabel));
-      });
-    }
-    function fromProxy() {
-      return fetchAllOrigins(feedUrl).then(function (xml) {
-        return pageSlice(parseXmlFeed(xml, sourceId, sourceLabel));
-      });
-    }
-    function failMsg(err) {
-      var msg = err && err.message ? String(err.message) : 'Load failed';
-      if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
-        return 'réseau / CORS — réessaie';
-      }
-      return msg;
-    }
-
-    /* VOA : rss2json casse souvent → proxy d’abord. Conversation : rss2json d’abord. */
-    if (sourceId === 'voa') {
-      return fromProxy().catch(function (e1) {
-        return fromRss2().catch(function (e2) {
-          throw new Error(failMsg(e1) + ' / ' + failMsg(e2));
-        });
-      });
-    }
-    return fromRss2().catch(function (e1) {
-      return fromProxy().catch(function (e2) {
-        throw new Error(failMsg(e1));
-      });
-    });
+    return fetchRssItems(feedUrl, sourceId, sourceLabel).then(pageSlice);
   }
 
   function fetchConversation() {
@@ -484,8 +492,18 @@
   }
 
   function fetchVoa() {
-    var feed = VOA_FEED[S.theme] || VOA_FEED[''];
-    return fetchRssPaged(feed, 'voa', 'VOA');
+    var theme = S.theme || '';
+    /* Sans thème : fusionner 3 flux VOA stables (USA + Afrique + Ukraine). */
+    if (!theme) {
+      return Promise.all([
+        fetchRssItems(VOA_USA, 'voa', 'VOA'),
+        fetchRssItems(VOA_AFRICA, 'voa', 'VOA'),
+        fetchRssItems(VOA_UKRAINE, 'voa', 'VOA')
+      ]).then(function (lists) {
+        return pageSlice(mergeByDate(lists[0], lists[1], lists[2]));
+      });
+    }
+    return fetchRssPaged(VOA_FEED[theme] || VOA_USA, 'voa', 'VOA');
   }
 
   function mergeByDate() {
