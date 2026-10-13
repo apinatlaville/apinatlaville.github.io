@@ -99,10 +99,18 @@
       '- Ex. : galileen, referentiel, acceleration, theoreme (pas « galiléen »).',
       '- Accents OK seulement si la face est du vrai texte SANS aucune formule LaTeX.',
       '',
+      '## Sauts de ligne (recommandé)',
+      'Dans "q" et "r", tu peux sauter des lignes pour aérer (formule / légende / étapes).',
+      'En JSON : utilise \\\\n dans la chaîne (pas un vrai retour chariot hors chaîne).',
+      '- Un saut : "ligne 1\\\\nligne 2"',
+      '- Ligne vide entre deux blocs : "formule\\\\n\\\\nlegende"',
+      '- Autorisé et encouragé pour la lisibilité (plusieurs lignes OK).',
+      '',
       'Exemples (dans le JSON, chaque \\\\ est doublé) :',
       '- MAUVAIS : "$\\\\Delta U = Q + W (Q et W algebriques)$" → espaces clavier ignorés → collé',
       '- BON espaces LaTeX : "$\\\\Delta U\\\\,=\\\\,Q\\\\,+\\\\,W$"',
       '- BON légende : "$\\\\Delta U = Q + W\\\\ (\\\\text{Q et W algebriques, recus par le systeme})$"',
+      '- BON avec saut de ligne : "$\\\\vec{v}(M/\\\\mathcal{R})=\\\\vec{v}(M/\\\\mathcal{R}\\\' )+\\\\vec{v}(O\\\'/\\\\mathcal{R})$\\\\nabsolue = relative + entrainement"',
       '- BON titre mixte : "$\\\\text{Composition des vitesses, }\\\\mathcal{R}\\\'\\\\text{ en translation dans }\\\\mathcal{R}$"',
       '- MAUVAIS : "$\\\\text{référentiel galiléen}$" → accents = mauvaise police',
       '- BON : "$\\\\text{referentiel galileen}$" (sans accents)',
@@ -191,6 +199,7 @@
       parts.push('- Chaque carte : "q" et "r" non vides (chaînes JSON).');
     }
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
+    parts.push('- SAUTS DE LIGNE : tu PEUX (et dois souvent) aérer q/r avec \\n dans la chaîne JSON — ex. formule puis légende sur la ligne suivante. Plusieurs \\n = lignes vides OK.');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
     parts.push('- ESPACES : en $...$, la barre d’espace est IGNORÉE. Utilise les espaces LaTeX : \\,  ou  \\  (backslash+espace) ou \\quad ; légendes dans \\text{...}. Voir section Espaces LaTeX.');
     parts.push('- ACCENTS : jamais d’accents dans les formules / \\text{...} (police différente). ASCII : galileen, referentiel…');
