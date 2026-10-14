@@ -79,7 +79,7 @@
       '- Produit vectoriel : \\\\wedge',
       '',
       '## Face entière en LaTeX (OBLIGATOIRE dès qu’il y a une formule)',
-      'Dès qu’une face contient un symbole math, TOUTE la face doit être un seul bloc \\\\(...\\\\).',
+      'Dès qu’une face contient un symbole math, TOUT le contenu utile est en \\\\(...\\\\) (un ou plusieurs blocs).',
       'Le français se met dans \\\\text{...} (lisible) ; les symboles restent hors \\\\text.',
       'INTERDIT : mélanger « vrai texte » + \\\\(N_A\\\\) au milieu — casse la mise en page (gros trou).',
       'Faces 100 % prose sans aucune formule (ex. vocabulaire) : texte normal OK, accents OK.',
@@ -91,9 +91,10 @@
       '',
       'Commandes d’espace (dans le JSON, chaque \\\\ est doublé) :',
       '- Petit : \\\\,     →  "\\\\,"     (le plus courant entre symboles / avant unité)',
-      '- Normal : \\\\     →  "\\\\ "     (backslash + espace, entre symboles ou après une formule)',
+      '- Normal : \\\\     →  "\\\\ "     (backslash + espace, entre symboles)',
       '- Large : \\\\quad / \\\\qquad',
       '- Negatif (serrer) : \\\\!',
+      '- ATTENTION : "\\\\," = petit espace. Ce n’est PAS un saut de ligne.',
       '',
       '## Accents (OBLIGATOIRE — police math ≠ police texte)',
       'Les lettres accentuées (é è à ç ô …) en math / \\\\text{...} tombent dans une autre police (moche).',
@@ -102,15 +103,18 @@
       '- Ex. : galileen, referentiel, acceleration, theoreme, exterieur, systeme, parametres.',
       '- Accents OK seulement sur une face 100 % prose SANS \\\\(...\\\\).',
       '',
-      '## Sauts de ligne (recommandé)',
-      'Pour aérer deux blocs math : ferme \\\\), puis \\\\n, puis rouvre \\\\( — ou une seule face avec \\\\\\\\ (\\\\n\\\\n) si besoin.',
-      'En JSON : utilise \\\\n dans la chaîne.',
+      '## Sauts de ligne (OBLIGATOIRE — lire attentivement)',
+      'Dans \\\\(...\\\\) inline, \\\\\\\\ (deux backslash) NE saute PAS de ligne : il s’affiche littéralement \\\\\\\\ .',
+      'Pour aérer : ferme \\\\), puis \\\\n dans le JSON, puis rouvre \\\\( pour le paragraphe suivant.',
+      'INTERDIT : "....}\\\\\\\\ \\\\text{...." à l’intérieur d’un seul \\\\(...\\\\).',
       '- Coupe entre blocs / phrases, PAS au milieu d’une phrase.',
       '',
       'Exemples (dans le JSON, chaque \\\\ est doublé) :',
       '- MAUVAIS : "$N_A$" → $ non rendu',
-      '- MAUVAIS (mixte texte+math) : "Un systeme ferme contient environ \\\\(N_A\\\\) particules." → trou / layout casse',
-      '- BON (face entière) : "\\\\(\\\\text{Un systeme ferme contient environ }N_A\\\\text{ particules.}\\\\)"',
+      '- MAUVAIS (mixte texte+math) : "Un systeme ferme contient environ \\\\(N_A\\\\) particules." → trou',
+      '- MAUVAIS (\\\\\\\\ visible) : "\\\\(\\\\text{... particules.}\\\\\\\\ \\\\text{Position...}\\\\)"',
+      '- BON (1 ligne) : "\\\\(\\\\text{Un systeme ferme contient environ }N_A\\\\text{ particules.}\\\\)"',
+      '- BON (plusieurs lignes) : "\\\\(\\\\text{Un systeme ferme contient environ }N_A\\\\text{ particules.}\\\\)\\\\n\\\\(\\\\text{Position et vitesse de chacune font trop de parametres.}\\\\)\\\\n\\\\(\\\\text{L\\\'equilibre est fixe par les parametres d\\\'etat macroscopiques.}\\\\)"',
       '- MAUVAIS : "\\\\(\\\\Delta U = Q + W (Q et W algebriques)\\\\)" → espaces clavier ignorés → collé',
       '- MAUVAIS (légende collée + accents) : "\\\\(d\\\\vec{F}=-PdS\\\\vec{n}versl\\\'extérieur\\\\)"',
       '- BON : "\\\\(d\\\\vec{F}\\\\,=\\\\,-\\\\,P\\\\,dS\\\\,\\\\vec{n}\\\\ (\\\\text{n vers l\\\'exterieur})\\\\)"',
@@ -205,9 +209,9 @@
       parts.push('- Chaque carte : "q" et "r" non vides (chaînes JSON).');
     }
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
-    parts.push('- SAUTS DE LIGNE : aère q/r avec \\n entre blocs/phrases (formule puis légende) — pas au milieu d’une phrase.');
+    parts.push('- SAUTS DE LIGNE : uniquement \\n entre blocs \\(...\\) — JAMAIS \\\\ dans \\(...\\) (s’affiche littéralement).');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
-    parts.push('- LATEX : dès qu’il y a une formule, TOUTE la face en un seul \\(...\\) ; français dans \\text{...} (ASCII). Jamais $...$. Interdit : texte + \\(N_A\\) mélangés.');
+    parts.push('- LATEX : dès qu’il y a une formule, contenu en \\(...\\) (1+ blocs) ; français dans \\text{...} (ASCII). Jamais $...$. Interdit : texte + \\(N_A\\) mélangés.');
     parts.push('- ESPACES : hors \\text, barre d’espace IGNORÉE → utilise \\,  ou  \\  ; dans \\text{...} les espaces clavier OK.');
     parts.push('- ACCENTS : jamais dans \\(...\\) / \\text{...}. ASCII : galileen, systeme, exterieur… Accents OK seulement si face 100 % prose sans math.');
     parts.push('');
