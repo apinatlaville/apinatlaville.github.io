@@ -4154,8 +4154,9 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
 }
 .qk-card--math .qk-q .latex-lab-preview-math,
 .qk-card--math .qk-r .latex-lab-preview-math {
- display: block;
- width: 100%;
+ display: inline-block;
+ vertical-align: middle;
+ width: auto;
  max-width: 100%;
  overflow: hidden;
 }
@@ -4523,9 +4524,10 @@ body.anki-session-lock #ovAnkiSession.anki-deck-ov {
   display: block;
 }
 .qk-drill-prompt .latex-lab-preview-math {
-  display: block;
+  display: inline-block;
+  vertical-align: middle;
   max-width: 100%;
-  margin: 0 auto;
+  margin: 0;
   overflow: hidden;
   box-sizing: border-box;
 }

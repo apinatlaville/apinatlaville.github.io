@@ -72,56 +72,55 @@
     var lines = [
       '## LaTeX — règles Mes Cours',
       '- Inline dans q/r : \\\\(...\\\\)  UNIQUEMENT (pas $...$ — non rendu).',
-      '- Display : rare ; préfère aussi \\\\(...\\\\).',
       '- Dans le JSON, chaque \\ LaTeX doit être doublé : \\\\frac{a}{b} → s’écrit "\\\\frac{a}{b}" dans la chaîne JSON.',
       '- Pas de HTML. Pas de Markdown hors du JSON. Guillemets dans le texte : \\"',
       '- Chimie : \\\\ce{H2O} (mhchem). Matrices : \\\\begin{pmatrix}...\\\\end{pmatrix}',
       '- Délimiteurs auto : \\\\left( \\\\right)  \\\\left| \\\\right|',
       '- Produit vectoriel : \\\\wedge',
       '',
+      '## Face entière en LaTeX (OBLIGATOIRE dès qu’il y a une formule)',
+      'Dès qu’une face contient un symbole math, TOUTE la face doit être un seul bloc \\\\(...\\\\).',
+      'Le français se met dans \\\\text{...} (lisible) ; les symboles restent hors \\\\text.',
+      'INTERDIT : mélanger « vrai texte » + \\\\(N_A\\\\) au milieu — casse la mise en page (gros trou).',
+      'Faces 100 % prose sans aucune formule (ex. vocabulaire) : texte normal OK, accents OK.',
+      '',
       '## Espaces LaTeX (OBLIGATOIRE)',
-      'En mode math (\\\\(...\\\\)), les espaces ordinaires du clavier sont IGNORÉS.',
-      'Tu DOIS mettre des espaces LaTeX explicites — ne compte jamais sur la barre d’espace.',
+      'En mode math (\\\\(...\\\\)), les espaces ordinaires du clavier sont IGNORÉS hors \\\\text.',
+      'Tu DOIS mettre des espaces LaTeX explicites entre symboles — ne compte jamais sur la barre d’espace.',
+      'Dans \\\\text{...}, les espaces du clavier marchent.',
       '',
       'Commandes d’espace (dans le JSON, chaque \\\\ est doublé) :',
       '- Petit : \\\\,     →  "\\\\,"     (le plus courant entre symboles / avant unité)',
-      '- Normal : \\\\     →  "\\\\ "     (backslash + espace, entre mots ou après une formule)',
+      '- Normal : \\\\     →  "\\\\ "     (backslash + espace, entre symboles ou après une formule)',
       '- Large : \\\\quad / \\\\qquad',
       '- Negatif (serrer) : \\\\!',
-      '',
-      'Phrases / légendes en français DANS la formule : \\\\text{...} (les espaces DU CLAVIER marchent à l’intérieur de \\\\text).',
-      'Sans accents dans \\\\text{...} ni hors \\\\text en math (voir Accents).',
-      'Texte français hors formule : OK avec accents. Formules courtes isolées : \\\\(N_A\\\\) au milieu d’une phrase.',
       '',
       '## Accents (OBLIGATOIRE — police math ≠ police texte)',
       'Les lettres accentuées (é è à ç ô …) en math / \\\\text{...} tombent dans une autre police (moche).',
       '- Dans toute formule (\\\\(...\\\\) et \\\\text{...}) : PAS d’accents. ASCII seulement.',
       '- Remplacements : é/è/ê/ë→e, à/â→a, ù/û/ü→u, î/ï→i, ô→o, ç→c, œ→oe, æ→ae.',
-      '- Ex. : galileen, referentiel, acceleration, theoreme (pas « galiléen »).',
-      '- Accents OK dans le vrai texte hors \\\\(...\\\\).',
+      '- Ex. : galileen, referentiel, acceleration, theoreme, exterieur, systeme, parametres.',
+      '- Accents OK seulement sur une face 100 % prose SANS \\\\(...\\\\).',
       '',
       '## Sauts de ligne (recommandé)',
-      'Dans "q" et "r", tu peux sauter des lignes pour aérer (formule / légende / étapes).',
-      'En JSON : utilise \\\\n dans la chaîne (pas un vrai retour chariot hors chaîne).',
-      '- Un saut : "ligne 1\\\\nligne 2"',
-      '- Ligne vide entre deux blocs : "formule\\\\n\\\\nlegende"',
-      '- Coupe entre blocs / phrases, PAS au milieu d’une phrase (mauvais : "vitesse de\\\\nchacune").',
+      'Pour aérer deux blocs math : ferme \\\\), puis \\\\n, puis rouvre \\\\( — ou une seule face avec \\\\\\\\ (\\\\n\\\\n) si besoin.',
+      'En JSON : utilise \\\\n dans la chaîne.',
+      '- Coupe entre blocs / phrases, PAS au milieu d’une phrase.',
       '',
       'Exemples (dans le JSON, chaque \\\\ est doublé) :',
-      '- MAUVAIS : "$N_A$" ou "$\\\\Delta U$" → $ non rendu, dollars visibles',
+      '- MAUVAIS : "$N_A$" → $ non rendu',
+      '- MAUVAIS (mixte texte+math) : "Un systeme ferme contient environ \\\\(N_A\\\\) particules." → trou / layout casse',
+      '- BON (face entière) : "\\\\(\\\\text{Un systeme ferme contient environ }N_A\\\\text{ particules.}\\\\)"',
       '- MAUVAIS : "\\\\(\\\\Delta U = Q + W (Q et W algebriques)\\\\)" → espaces clavier ignorés → collé',
       '- MAUVAIS (légende collée + accents) : "\\\\(d\\\\vec{F}=-PdS\\\\vec{n}versl\\\'extérieur\\\\)"',
-      '  → texte hors \\\\text = espaces ignorés + italique math + accents interdits',
-      '- BON (formule + \\\\n + légende texte ASCII) : "\\\\(d\\\\vec{F}\\\\,=\\\\,-\\\\,P\\\\,dS\\\\,\\\\vec{n}\\\\)\\\\nn vers l\\\'exterieur"',
-      '- BON (tout en math) : "\\\\(d\\\\vec{F}\\\\,=\\\\,-\\\\,P\\\\,dS\\\\,\\\\vec{n}\\\\ (\\\\text{n vers l\\\'exterieur})\\\\)"',
+      '- BON : "\\\\(d\\\\vec{F}\\\\,=\\\\,-\\\\,P\\\\,dS\\\\,\\\\vec{n}\\\\ (\\\\text{n vers l\\\'exterieur})\\\\)"',
       '- BON espaces LaTeX : "\\\\(\\\\Delta U\\\\,=\\\\,Q\\\\,+\\\\,W\\\\)"',
       '- BON légende : "\\\\(\\\\Delta U = Q + W\\\\ (\\\\text{Q et W algebriques, recus par le systeme})\\\\)"',
-      '- BON mixte texte+formule : "Un systeme ferme contient environ \\\\(N_A\\\\) particules."',
-      '- BON avec saut de ligne : "\\\\(\\\\vec{v}(M/\\\\mathcal{R})=\\\\vec{v}(M/\\\\mathcal{R}\\\' )+\\\\vec{v}(O\\\'/\\\\mathcal{R})\\\\)\\\\nabsolue = relative + entrainement"',
-      '- BON titre mixte : "\\\\(\\\\text{Composition des vitesses, }\\\\mathcal{R}\\\'\\\\text{ en translation dans }\\\\mathcal{R}\\\\)"',
-      '- MAUVAIS : "\\\\(\\\\text{référentiel galiléen}\\\\)" → accents = mauvaise police',
-      '- BON : "\\\\(\\\\text{referentiel galileen}\\\\)" (sans accents)',
+      '- BON titre : "\\\\(\\\\text{Composition des vitesses, }\\\\mathcal{R}\\\'\\\\text{ en translation dans }\\\\mathcal{R}\\\\)"',
+      '- MAUVAIS : "\\\\(\\\\text{référentiel galiléen}\\\\)" → accents',
+      '- BON : "\\\\(\\\\text{referentiel galileen}\\\\)"',
       '- BON unités : "\\\\(v = 3\\\\,\\\\text{m}\\\\cdot\\\\text{s}^{-1}\\\\)"',
+      '- BON prose pure (pas de math) : "bien que / quoique"',
       ''
     ];
     var catalog = null;
@@ -208,9 +207,9 @@
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
     parts.push('- SAUTS DE LIGNE : aère q/r avec \\n entre blocs/phrases (formule puis légende) — pas au milieu d’une phrase.');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
-    parts.push('- LATEX : formules UNIQUEMENT dans \\(...\\) — jamais $...$ (non rendu).');
-    parts.push('- ESPACES : en math, la barre d’espace est IGNORÉE. Utilise \\,  ou  \\  (backslash+espace) ou \\quad ; légendes dans \\text{...}. Voir section Espaces LaTeX.');
-    parts.push('- ACCENTS : jamais d’accents dans les formules / \\text{...} (police différente). ASCII : galileen, referentiel…');
+    parts.push('- LATEX : dès qu’il y a une formule, TOUTE la face en un seul \\(...\\) ; français dans \\text{...} (ASCII). Jamais $...$. Interdit : texte + \\(N_A\\) mélangés.');
+    parts.push('- ESPACES : hors \\text, barre d’espace IGNORÉE → utilise \\,  ou  \\  ; dans \\text{...} les espaces clavier OK.');
+    parts.push('- ACCENTS : jamais dans \\(...\\) / \\text{...}. ASCII : galileen, systeme, exterieur… Accents OK seulement si face 100 % prose sans math.');
     parts.push('');
     parts.push(latexCatalogText());
     parts.push('');
@@ -228,7 +227,7 @@
           { q: 'although', r: 'bien que / quoique' },
           {
             q: 'Premier principe, systeme ferme',
-            r: '\\(\\Delta U = Q + W\\ (\\text{Q et W algebriques, recus par le systeme})\\)'
+            r: '\\(\\Delta U\\,=\\,Q\\,+\\,W\\ (\\text{Q et W algebriques, recus par le systeme})\\)'
           }
         ]
       }, null, 2));
@@ -256,7 +255,7 @@
         summary: 'Corrigé la formule ΔU ; supprimé un doublon ; ajouté 1 carte.',
         changes: {
           add: [{ q: 'Nouvelle notion', r: 'Définition courte' }],
-          update: [{ id: 'Y-ABC12', q: 'Premier principe', r: '\\(\\Delta U = Q + W\\) (Q et W algebriques)' }],
+          update: [{ id: 'Y-ABC12', q: 'Premier principe', r: '\\(\\Delta U\\,=\\,Q\\,+\\,W\\ (\\text{Q et W algebriques})\\)' }],
           remove: ['Y-OLD99']
         }
       }, null, 2));
