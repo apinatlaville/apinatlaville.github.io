@@ -71,7 +71,8 @@
   function latexCatalogText() {
     var lines = [
       '## LaTeX — règles Mes Cours',
-      '- Inline dans q/r : $...$  |  Display : $$...$$',
+      '- Inline dans q/r : \\\\(...\\\\)  UNIQUEMENT (pas $...$ — non rendu).',
+      '- Display : rare ; préfère aussi \\\\(...\\\\).',
       '- Dans le JSON, chaque \\ LaTeX doit être doublé : \\\\frac{a}{b} → s’écrit "\\\\frac{a}{b}" dans la chaîne JSON.',
       '- Pas de HTML. Pas de Markdown hors du JSON. Guillemets dans le texte : \\"',
       '- Chimie : \\\\ce{H2O} (mhchem). Matrices : \\\\begin{pmatrix}...\\\\end{pmatrix}',
@@ -79,7 +80,7 @@
       '- Produit vectoriel : \\\\wedge',
       '',
       '## Espaces LaTeX (OBLIGATOIRE)',
-      'En mode math ($...$ / $$...$$), les espaces ordinaires du clavier sont IGNORÉS.',
+      'En mode math (\\\\(...\\\\)), les espaces ordinaires du clavier sont IGNORÉS.',
       'Tu DOIS mettre des espaces LaTeX explicites — ne compte jamais sur la barre d’espace.',
       '',
       'Commandes d’espace (dans le JSON, chaque \\\\ est doublé) :',
@@ -90,31 +91,33 @@
       '',
       'Phrases / légendes en français DANS la formule : \\\\text{...} (les espaces DU CLAVIER marchent à l’intérieur de \\\\text).',
       'Sans accents dans \\\\text{...} ni hors \\\\text en math (voir Accents).',
-      'Garde une face homogène en LaTeX : ne découpe PAS en « vrai texte HTML » + bouts de formule.',
+      'Texte français hors formule : OK avec accents. Formules courtes isolées : \\\\(N_A\\\\) au milieu d’une phrase.',
       '',
       '## Accents (OBLIGATOIRE — police math ≠ police texte)',
       'Les lettres accentuées (é è à ç ô …) en math / \\\\text{...} tombent dans une autre police (moche).',
-      '- Dans toute formule ($...$ et \\\\text{...}) : PAS d’accents. ASCII seulement.',
+      '- Dans toute formule (\\\\(...\\\\) et \\\\text{...}) : PAS d’accents. ASCII seulement.',
       '- Remplacements : é/è/ê/ë→e, à/â→a, ù/û/ü→u, î/ï→i, ô→o, ç→c, œ→oe, æ→ae.',
       '- Ex. : galileen, referentiel, acceleration, theoreme (pas « galiléen »).',
-      '- Accents OK seulement si la face est du vrai texte SANS aucune formule LaTeX.',
+      '- Accents OK dans le vrai texte hors \\\\(...\\\\).',
       '',
       '## Sauts de ligne (recommandé)',
       'Dans "q" et "r", tu peux sauter des lignes pour aérer (formule / légende / étapes).',
       'En JSON : utilise \\\\n dans la chaîne (pas un vrai retour chariot hors chaîne).',
       '- Un saut : "ligne 1\\\\nligne 2"',
       '- Ligne vide entre deux blocs : "formule\\\\n\\\\nlegende"',
-      '- Autorisé et encouragé pour la lisibilité (plusieurs lignes OK).',
+      '- Coupe entre blocs / phrases, PAS au milieu d’une phrase (mauvais : "vitesse de\\\\nchacune").',
       '',
       'Exemples (dans le JSON, chaque \\\\ est doublé) :',
-      '- MAUVAIS : "$\\\\Delta U = Q + W (Q et W algebriques)$" → espaces clavier ignorés → collé',
-      '- BON espaces LaTeX : "$\\\\Delta U\\\\,=\\\\,Q\\\\,+\\\\,W$"',
-      '- BON légende : "$\\\\Delta U = Q + W\\\\ (\\\\text{Q et W algebriques, recus par le systeme})$"',
-      '- BON avec saut de ligne : "$\\\\vec{v}(M/\\\\mathcal{R})=\\\\vec{v}(M/\\\\mathcal{R}\\\' )+\\\\vec{v}(O\\\'/\\\\mathcal{R})$\\\\nabsolue = relative + entrainement"',
-      '- BON titre mixte : "$\\\\text{Composition des vitesses, }\\\\mathcal{R}\\\'\\\\text{ en translation dans }\\\\mathcal{R}$"',
-      '- MAUVAIS : "$\\\\text{référentiel galiléen}$" → accents = mauvaise police',
-      '- BON : "$\\\\text{referentiel galileen}$" (sans accents)',
-      '- BON unités : "$v = 3\\\\,\\\\text{m}\\\\cdot\\\\text{s}^{-1}$"',
+      '- MAUVAIS : "$N_A$" ou "$\\\\Delta U$" → $ non rendu, dollars visibles',
+      '- MAUVAIS : "\\\\(\\\\Delta U = Q + W (Q et W algebriques)\\\\)" → espaces clavier ignorés → collé',
+      '- BON espaces LaTeX : "\\\\(\\\\Delta U\\\\,=\\\\,Q\\\\,+\\\\,W\\\\)"',
+      '- BON légende : "\\\\(\\\\Delta U = Q + W\\\\ (\\\\text{Q et W algebriques, recus par le systeme})\\\\)"',
+      '- BON mixte texte+formule : "Un systeme ferme contient environ \\\\(N_A\\\\) particules."',
+      '- BON avec saut de ligne : "\\\\(\\\\vec{v}(M/\\\\mathcal{R})=\\\\vec{v}(M/\\\\mathcal{R}\\\' )+\\\\vec{v}(O\\\'/\\\\mathcal{R})\\\\)\\\\nabsolue = relative + entrainement"',
+      '- BON titre mixte : "\\\\(\\\\text{Composition des vitesses, }\\\\mathcal{R}\\\'\\\\text{ en translation dans }\\\\mathcal{R}\\\\)"',
+      '- MAUVAIS : "\\\\(\\\\text{référentiel galiléen}\\\\)" → accents = mauvaise police',
+      '- BON : "\\\\(\\\\text{referentiel galileen}\\\\)" (sans accents)',
+      '- BON unités : "\\\\(v = 3\\\\,\\\\text{m}\\\\cdot\\\\text{s}^{-1}\\\\)"',
       ''
     ];
     var catalog = null;
@@ -174,7 +177,7 @@
         title: 'Nom du dossier',
         matiere: 'Nom ou id matière (ex. Anglais)',
         bidirectional: false,
-        cards: [{ q: 'recto / question', r: 'verso / réponse (LaTeX OK dans $...$)' }]
+        cards: [{ q: 'recto / question', r: 'verso / réponse (LaTeX OK dans \\(...\\))' }]
       }, null, 2));
     }
     parts.push('');
@@ -199,9 +202,10 @@
       parts.push('- Chaque carte : "q" et "r" non vides (chaînes JSON).');
     }
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
-    parts.push('- SAUTS DE LIGNE : tu PEUX (et dois souvent) aérer q/r avec \\n dans la chaîne JSON — ex. formule puis légende sur la ligne suivante. Plusieurs \\n = lignes vides OK.');
+    parts.push('- SAUTS DE LIGNE : aère q/r avec \\n entre blocs/phrases (formule puis légende) — pas au milieu d’une phrase.');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
-    parts.push('- ESPACES : en $...$, la barre d’espace est IGNORÉE. Utilise les espaces LaTeX : \\,  ou  \\  (backslash+espace) ou \\quad ; légendes dans \\text{...}. Voir section Espaces LaTeX.');
+    parts.push('- LATEX : formules UNIQUEMENT dans \\(...\\) — jamais $...$ (non rendu).');
+    parts.push('- ESPACES : en math, la barre d’espace est IGNORÉE. Utilise \\,  ou  \\  (backslash+espace) ou \\quad ; légendes dans \\text{...}. Voir section Espaces LaTeX.');
     parts.push('- ACCENTS : jamais d’accents dans les formules / \\text{...} (police différente). ASCII : galileen, referentiel…');
     parts.push('');
     parts.push(latexCatalogText());
@@ -220,7 +224,7 @@
           { q: 'although', r: 'bien que / quoique' },
           {
             q: 'Premier principe, systeme ferme',
-            r: '$\\Delta U = Q + W\\ (\\text{Q et W algebriques, recus par le systeme})$'
+            r: '\\(\\Delta U = Q + W\\ (\\text{Q et W algebriques, recus par le systeme})\\)'
           }
         ]
       }, null, 2));
@@ -248,7 +252,7 @@
         summary: 'Corrigé la formule ΔU ; supprimé un doublon ; ajouté 1 carte.',
         changes: {
           add: [{ q: 'Nouvelle notion', r: 'Définition courte' }],
-          update: [{ id: 'Y-ABC12', q: 'Premier principe', r: '$\\Delta U = Q + W$ (Q et W algébriques)' }],
+          update: [{ id: 'Y-ABC12', q: 'Premier principe', r: '\\(\\Delta U = Q + W\\) (Q et W algebriques)' }],
           remove: ['Y-OLD99']
         }
       }, null, 2));
