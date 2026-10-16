@@ -103,21 +103,22 @@
       '- Ex. : galileen, referentiel, acceleration, theoreme, exterieur, systeme, parametres.',
       '- Accents OK seulement sur une face 100 % prose SANS \\\\(...\\\\).',
       '',
-      '## Sauts de ligne (OBLIGATOIRE — lire attentivement)',
-      'Dans \\\\(...\\\\) inline, \\\\\\\\ NE saute PAS de ligne : il s’affiche littéralement (\\\\ rouge visible).',
-      'Pour aérer DEUX PHRASES : ferme \\\\), puis le caractère JSON \\\\n, puis rouvre \\\\(.',
-      'Exemple BON multi-lignes (chaîne JSON) :',
-      '"\\\\(\\\\langle\\\\vec{v}_i\\\\rangle\\\\,=\\\\,\\\\vec{0}\\\\)\\\\n\\\\(v^*\\\\,\\\\neq\\\\,0\\\\ (\\\\text{agitation thermique})\\\\)"',
-      'INTERDIT (\\\\ visible) : "\\\\(\\\\langle\\\\vec{v}_i\\\\rangle\\\\,=\\\\,\\\\vec{0}\\\\\\\\ v^*\\\\,\\\\neq\\\\,0\\\\)"',
-      'Note catalogue : \\\\\\\\ dans pmatrix/cases = nouvelle LIGNE DE MATRICE uniquement — JAMAIS pour séparer des phrases.',
-      '- Coupe entre blocs / phrases, PAS au milieu d’une phrase.',
+      '## Sauts de ligne (OBLIGATOIRE — piège JSON)',
+      'Un vrai saut de ligne = échappement JSON \\\\n avec UN SEUL antislash devant n.',
+      'La règle « doubler les \\\\ » vaut pour LaTeX (\\\\frac → "\\\\\\\\frac") et pour \\" — PAS pour \\\\n.',
+      '- BON dans le JSON source :  ...\\\\)\\\\n\\\\(...   → après parse = vrai retour à la ligne',
+      '- MAUVAIS :              ...\\\\)\\\\\\\\n\\\\(...  → après parse = caractères \\\\ et n visibles à l’écran',
+      '- MAUVAIS aussi : \\\\\\\\ (saut LaTeX) entre deux phrases dans \\\\(...\\\\) → \\\\\\\\ rouge visible',
+      'Pour aérer : ferme \\\\), vrai \\\\n JSON, rouvre \\\\( — vois l’exemple full ci-dessous (carte multi-lignes).',
+      'Note catalogue : \\\\\\\\ dans pmatrix/cases = ligne de MATRICE uniquement, jamais pour des phrases.',
       '',
-      'Exemples (dans le JSON, chaque \\\\ est doublé) :',
+      'Exemples (dans le JSON, \\\\ LaTeX doublé ; \\\\n = UN antislash + n) :',
       '- MAUVAIS : "$N_A$" → $ non rendu',
       '- MAUVAIS (mixte texte+math) : "Un systeme ferme contient environ \\\\(N_A\\\\) particules." → trou',
       '- MAUVAIS (\\\\\\\\ visible) : "\\\\(\\\\text{... particules.}\\\\\\\\ \\\\text{Position...}\\\\)"',
+      '- MAUVAIS (\\\\\\\\n visible) : "...\\\\)\\\\\\\\n\\\\(..." → affiche le texte \\\\n',
       '- BON (1 ligne) : "\\\\(\\\\text{Un systeme ferme contient environ }N_A\\\\text{ particules.}\\\\)"',
-      '- BON (plusieurs lignes) : "\\\\(\\\\text{Un systeme ferme contient environ }N_A\\\\text{ particules.}\\\\)\\\\n\\\\(\\\\text{Position et vitesse de chacune font trop de parametres.}\\\\)\\\\n\\\\(\\\\text{L\\\'equilibre est fixe par les parametres d\\\'etat macroscopiques.}\\\\)"',
+      '- BON multi-lignes : voir « Exemple full » (champ r avec vrais \\\\n JSON, pas \\\\\\\\n).',
       '- MAUVAIS : "\\\\(\\\\Delta U = Q + W (Q et W algebriques)\\\\)" → espaces clavier ignorés → collé',
       '- MAUVAIS (légende collée + accents) : "\\\\(d\\\\vec{F}=-PdS\\\\vec{n}versl\\\'extérieur\\\\)"',
       '- BON : "\\\\(d\\\\vec{F}\\\\,=\\\\,-\\\\,P\\\\,dS\\\\,\\\\vec{n}\\\\ (\\\\text{n vers l\\\'exterieur})\\\\)"',
@@ -212,7 +213,7 @@
       parts.push('- Chaque carte : "q" et "r" non vides (chaînes JSON).');
     }
     parts.push('- Guillemets / retours ligne / formules : JSON valide (\\" et \\n). Les ":" dans le texte sont OK.');
-    parts.push('- SAUTS DE LIGNE : uniquement \\n entre blocs \\(...\\) — JAMAIS \\\\ dans \\(...\\) (s’affiche littéralement).');
+    parts.push('- SAUTS DE LIGNE : \\n JSON = UN antislash (vrai saut). INTERDIT \\\\n (affiche \\n) et INTERDIT \\\\ LaTeX pour séparer des phrases.');
     parts.push('- Pas de HTML. Pas de SRS (ease, dates…).');
     parts.push('- LATEX : dès qu’il y a une formule, contenu en \\(...\\) (1+ blocs) ; français dans \\text{...} (ASCII). Jamais $...$. Interdit : texte + \\(N_A\\) mélangés.');
     parts.push('- ESPACES : hors \\text, barre d’espace IGNORÉE → utilise \\,  ou  \\  ; dans \\text{...} les espaces clavier OK.');
@@ -222,6 +223,7 @@
     parts.push('');
     if (modeHint !== 'patch') {
       parts.push('## Exemple full (créer)');
+      parts.push('Regarde le 3e "r" : les \\n entre \\) et \\( sont de VRAIS sauts JSON (un antislash), pas le texte \\\\n.');
       parts.push(JSON.stringify({
         format: FORMAT,
         version: VERSION,
@@ -235,6 +237,10 @@
           {
             q: 'Premier principe, systeme ferme',
             r: '\\(\\Delta U\\,=\\,Q\\,+\\,W\\ (\\text{Q et W algebriques, recus par le systeme})\\)'
+          },
+          {
+            q: 'Pourquoi des parametres macroscopiques',
+            r: '\\(\\text{Un systeme ferme contient environ }N_A\\text{ particules.}\\)\n\\(\\text{Position et vitesse de chacune font trop de parametres.}\\)\n\\(\\text{L\'equilibre est fixe par les parametres d\'etat macroscopiques.}\\)'
           }
         ]
       }, null, 2));
@@ -345,11 +351,19 @@
     throw new Error('JSON invalide : impossible d’extraire un objet Portage');
   }
 
+  /**
+   * L’IA écrit souvent le texte « \n » (2 caractères) au lieu d’un vrai saut JSON.
+   * On convertit en retour réel, sans toucher aux commandes LaTeX (\neq, \nu, \nabla…).
+   */
+  function normalizePortageFace(s) {
+    return String(s == null ? '' : s).replace(/\\n(?![a-zA-Z])/g, '\n');
+  }
+
   function cardQR(c) {
     if (!c || typeof c !== 'object') return { q: '', r: '' };
     return {
-      q: String(c.q != null ? c.q : (c.question != null ? c.question : '')).trim(),
-      r: String(c.r != null ? c.r : (c.reponse != null ? c.reponse : '')).trim()
+      q: normalizePortageFace(c.q != null ? c.q : (c.question != null ? c.question : '')).trim(),
+      r: normalizePortageFace(c.r != null ? c.r : (c.reponse != null ? c.reponse : '')).trim()
     };
   }
 
