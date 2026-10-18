@@ -259,7 +259,15 @@
     if (typeof window.pushDiagLog === 'function') {
       window.pushDiagLog('error', entry.msg, entry.source + (entry.lineno ? ':' + entry.lineno : ''), null);
     }
-    if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
+    if (typeof window.renderErrorLogs === 'function' && typeof window.installDiagAlgoHook === 'function') {
+      window.installDiagAlgoHook();
+    }
+    if (window._activeTab === 'logs') {
+      clearTimeout(window._diagRenderT);
+      window._diagRenderT = setTimeout(function () {
+        if (typeof window.renderErrorLogs === 'function') window.renderErrorLogs();
+      }, 250);
+    }
     if (opts.toast) {
       window.showToast(opts.toastMsg != null ? opts.toastMsg : entry.msg, {
         duration: opts.sticky ? 0 : opts.duration,
@@ -482,12 +490,26 @@
    */
   (function startBootWatchdog() {
     var tick = 0;
+    var fbWatched = null;
+    var fbSettled = false;
+    function firebaseStillInitializing() {
+      var p = window.firebaseReady;
+      if (!p) return window.safeLocalGet('active_mode') !== 'local';
+      if (p !== fbWatched) {
+        fbWatched = p;
+        fbSettled = false;
+        var mark = function () { if (fbWatched === p) fbSettled = true; };
+        Promise.resolve(p).then(mark, mark);
+      }
+      return !fbSettled;
+    }
     var timer = setInterval(function () {
       tick++;
       if (window.appReady) {
         clearInterval(timer);
         return;
       }
+      var fbInitializing = firebaseStillInitializing();
       var authPending = document.body.classList.contains('auth-pending');
       var initElapsed = window._bootInitStartedAt
         ? Date.now() - window._bootInitStartedAt
@@ -512,6 +534,10 @@
             initInProgress: !!window._appInitInProgress,
             appLaunched: !!window.appLaunched
           });
+          return;
+        }
+        if (bootElapsed < 22000 && fbInitializing) {
+          window.bootLog('warn', 'watchdog.keepWaiting', { reason: 'firebase en cours', bootElapsedMs: bootElapsed });
           return;
         }
         window.bootLog('warn', 'watchdog.forceLogin', { reason: 'auth-pending > 12s' });
