@@ -278,6 +278,22 @@
     return cours + ex + dv + ch + qg > 0 || !!data.sessionEnCoursV2;
   }
 
+  /**
+   * Lot 1 : « contenu » = cours / cartes / session. Un JSON avec seulement
+   * des chapitres ou dossiers ne doit pas pouvoir écraser un profil qui a des cours.
+   */
+  function courseCardCount(data) {
+    if (!data || typeof data !== 'object' || data._account === true) return 0;
+    var cours = Array.isArray(data.cours) ? data.cours.length : 0;
+    var ex = Array.isArray(data.exercices) ? data.exercices.length : 0;
+    var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
+    return cours + ex + dv;
+  }
+
+  function hasCourseCardContent(data) {
+    return courseCardCount(data) > 0 || !!(data && data.sessionEnCoursV2);
+  }
+
   // ─── Traces de suppression (meta.deleted) + horodatage par élément (_mt) ───
   // Clé de trace : préfixe de famille + id. exercices et devoirs partagent « k: »
   // (une carte peut passer d’un tableau à l’autre sans être supprimée).
@@ -814,20 +830,19 @@
       console.error('[ProfilesIO] Refus d’écrire un index compte comme données de profil');
       return false;
     }
-    // Anti-wipe : coquille emptyData ne remplace pas un blob local non vide
-    // allowEmpty (miroir secondary / reset) : seulement si le payload est plus
-    // récent (updatedAt) ou d’une génération supérieure (delete+recreate).
-    // Un payload sans contenu (quelles que soient ses matières/classeurs) ne remplace
-    // jamais un profil qui a du contenu, sauf suppressions tracées dans meta.deleted.
+    // Anti-wipe Lot 1 : un profil sans cours ni carte n’écrase jamais un profil
+    // qui en contient, quelles que soient ses matières, classeurs, chapitres ou
+    // dossiers. Exceptions : traces meta.deleted, reset explicite (allowEmpty +
+    // updatedAt plus récent) ou génération supérieure.
     var allowEmpty = !!(opts.allowEmpty || window._allowEmptyProfileWrite);
     var incomingShell = isEffectivelyEmptyProfile(obj);
-    var incomingNoContent = !hasUserContent(obj);
+    var incomingNoContent = !hasCourseCardContent(obj);
     if (incomingShell || incomingNoContent) {
       try {
         var existing = readLocalProfileData(profileId);
         var wipes = false;
         if (existing && !removalsAreTombstoned(existing, obj)) {
-          if (incomingNoContent && hasUserContent(existing)) wipes = true;
+          if (incomingNoContent && hasCourseCardContent(existing)) wipes = true;
           else if (incomingShell && !isEffectivelyEmptyProfile(existing)) wipes = true;
         }
         if (wipes) {
@@ -3563,6 +3578,8 @@
     needsAccountIndexRepair: needsAccountIndexRepair,
     isEffectivelyEmptyProfile: isEffectivelyEmptyProfile,
     hasUserContent: hasUserContent,
+    hasCourseCardContent: hasCourseCardContent,
+    courseCardCount: courseCardCount,
     localHasExclusiveEntities: localHasExclusiveEntities,
     localHasUnsyncedContent: localHasUnsyncedContent,
     graftExclusiveEntities: graftExclusiveEntities,

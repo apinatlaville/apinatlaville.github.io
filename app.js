@@ -1754,7 +1754,7 @@ window.renderErrorLogs = function() {
 window.DATA_EVENT_CODES = {
   SAVE_REFUSED_SHELL: 'Écriture locale refusée : un profil sans contenu aurait remplacé un profil qui en a (profiles-io.js writeLocalProfileData).',
   LOCAL_WRITE_FAILED: 'localStorage a refusé l’écriture (quota plein ?) (profiles-io.js writeLocalProfileData).',
-  SAVE_STAMP_FAILED: 'Horodatage _mt / traces de suppression impossible pour cette sauvegarde ; données écrites quand même (app.js _saveLocalImpl).',
+  SAVE_STAMP_FAILED: 'Horodatage _mt / traces de suppression impossible : sauvegarde annulée, rien n’est écrit (app.js _saveLocalImpl).',
   ROLE_FAILCLOSED: 'Présence Principal/Secondaire illisible : appareil passé en Secondaire par sécurité (device-session.js resolveJoin).',
   SECONDARY_MIRROR_FAILED: 'Secondaire : copie locale des données reçues impossible (device-session.js watchUserData).',
   MERGE_APPLIED_DELETIONS: 'Fusion cloud : éléments retirés car supprimés sur un autre appareil (app.js mergeRemoteProfileIntoLocal).',
@@ -3900,14 +3900,27 @@ window._saveLocalImpl = async function (opts, localGate) {
     window.D.meta.primaryDeviceId = window.DeviceSession.getDeviceId();
   }
 
-  // Traces de suppression + _mt : diff avec l’état de la dernière sauvegarde réussie
+  // Traces de suppression + _mt : diff avec l’état de la dernière sauvegarde réussie.
+  // Si le tampon échoue, on n’écrit rien (sinon une suppression partirait sans trace).
   let nextPersistIndex = null;
   if (window.ProfilesIO && typeof window.ProfilesIO.stampPersistChanges === 'function') {
     try {
       nextPersistIndex = window.ProfilesIO.stampPersistChanges(window.D, window._persistIndex || null, window.D.meta.updatedAt);
     } catch (stampErr) {
+      window.D.meta.revision = prevRevision;
       console.warn('Horodatage sauvegarde impossible:', stampErr);
       window.recordDataEvent('SAVE_STAMP_FAILED', { message: stampErr && stampErr.message ? stampErr.message : String(stampErr) });
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('Erreur sauvegarde: traces de suppression impossibles', 'app.js');
+      }
+      window.sysAlert(
+        (M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.") +
+          "<br><br>Code : <b>SAVE_STAMP_FAILED</b> (onglet Logs → Copier pour le rapport complet).",
+        "Erreur de sauvegarde"
+      );
+      var errStamp = new Error('SAVE_STAMP_FAILED');
+      releaseLocal(false, errStamp);
+      throw errStamp;
     }
   }
 

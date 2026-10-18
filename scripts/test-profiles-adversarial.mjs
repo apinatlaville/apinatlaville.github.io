@@ -253,6 +253,13 @@ async function pocWriteLocalAntiWipe() {
   assert(PIO.writeLocalProfileData('default', rich(2, 1)) === true, 'PoC5: écriture riche');
   assert(PIO.writeLocalProfileData('default', shell()) === false, 'PoC5: shell refusée');
   assert(PIO.readLocalProfileData('default').cours.length === 2, 'PoC5: 2 cours toujours là');
+  const chapitresOnly = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [], exercices: [], devoirs: [],
+    chapitres: [{ id: 'PH-CH1', title: 'Méca' }]
+  };
+  assert(PIO.writeLocalProfileData('default', chapitresOnly) === false, 'PoC5: chapitres seuls n’écrasent pas des cours');
+  assert(PIO.readLocalProfileData('default').cours.length === 2, 'PoC5: cours conservés face au programme');
   assert(PIO.writeLocalProfileData('default', shell(), { allowEmpty: true }) === false, 'PoC5: allowEmpty shell vieille refusée');
   const newer = { ...shell(), meta: { updatedAt: Date.now() + 5000, profileGeneration: 1 } };
   assert(PIO.writeLocalProfileData('default', newer, { allowEmpty: true }) === true, 'PoC5: allowEmpty shell récente OK');

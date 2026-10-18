@@ -98,12 +98,20 @@ function makeDevice(opts) {
 function save(env, pid, at) {
   pid = pid || 'default';
   if (!env.D.meta) env.D.meta = {};
-  env.D.meta.revision = (Number(env.D.meta.revision) || 0) + 1;
+  const prevRevision = Number(env.D.meta.revision) || 0;
+  env.D.meta.revision = prevRevision + 1;
   env.D.meta.updatedAt = at || Date.now();
-  const next = env.PIO.stampPersistChanges(env.D, env._persistIndex || null, env.D.meta.updatedAt);
+  let next;
+  try {
+    next = env.PIO.stampPersistChanges(env.D, env._persistIndex || null, env.D.meta.updatedAt);
+  } catch (e) {
+    env.D.meta.revision = prevRevision;
+    return false;
+  }
   const payload = JSON.stringify(env.D);
   const ok = env.PIO.writeLocalProfileData(pid, env.D, { payload });
   if (ok) env._persistIndex = next;
+  else env.D.meta.revision = prevRevision;
   return ok;
 }
 
@@ -622,6 +630,24 @@ function testTombstonePrune() {
   assert(!env.D.meta.deleted['c:OLD'] && !!env.D.meta.deleted['c:NEW'], 'purge des traces expirées seulement');
 }
 
+function testStampFailureAbortsSave() {
+  console.log('\n· tampon de traces en échec : rien n’est écrit');
+  const env = makeDevice({ isLocalMode: true });
+  env.D = clone(baseProfile());
+  env.resetPersistIndex();
+  assert(save(env) === true, 'première sauvegarde ok');
+  const before = env.store.getItem('backup_local_cours__default');
+  const revBefore = env.D.meta.revision;
+  const orig = env.PIO.stampPersistChanges;
+  env.PIO.stampPersistChanges = function () { throw new Error('stamp boom'); };
+  env.D.cours.push({ uid: 'PH-NEW', title: 'Nouveau' });
+  const ok = save(env);
+  env.PIO.stampPersistChanges = orig;
+  assert(ok === false, 'stamp échec : sauvegarde refusée');
+  assert(env.store.getItem('backup_local_cours__default') === before, 'blob local inchangé');
+  assert(env.D.meta.revision === revBefore, 'révision locale reculée');
+}
+
 // ─── 13. Câblage app.js ───
 function testWiring() {
   console.log('\n· câblage app.js');
@@ -631,6 +657,15 @@ function testWiring() {
   assert(iStamp > 0 && iStr > iStamp, 'save : horodatage avant sérialisation');
   assert(/writeLocalProfileData\(sessionPid, window\.D, \{ payload: payload \}\)/.test(saveImpl), 'save : sérialisation unique passée à writeLocal');
   assert(/window\._persistIndex = nextPersistIndex/.test(saveImpl), 'save : index mis à jour après écriture réussie');
+  {
+    const iCatch = saveImpl.indexOf('catch (stampErr)');
+    const iThrow = saveImpl.indexOf("throw errStamp", iCatch);
+    const iWrite = saveImpl.indexOf('writeLocalProfileData', iCatch);
+    assert(iCatch > 0 && iThrow > iCatch && (iWrite < 0 || iWrite > iThrow),
+      'save : tampon en échec annule avant writeLocal');
+    assert(/SAVE_STAMP_FAILED/.test(saveImpl) && /sauvegarde annulée/.test(appSrc),
+      'save : SAVE_STAMP_FAILED = rien n’est écrit');
+  }
   {
     const iTab = appSrc.indexOf('await window.TabLock.start(');
     const iMirror = appSrc.indexOf('if (window._bootMirror) {', iTab);
@@ -698,6 +733,7 @@ async function main() {
   testMovedCardNotDuplicated();
   testRestoreKeepsRevision();
   testTombstonePrune();
+  testStampFailureAbortsSave();
   testWiring();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
   if (failures.length) console.error('Échecs:\n' + failures.map((f) => ' - ' + f).join('\n'));
