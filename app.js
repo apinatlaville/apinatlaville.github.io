@@ -2584,7 +2584,7 @@ async function initApp(user) {
             // Ne pas marquer la rév. cloud comme confirmée : le blob fusionné
             // n’est pas encore écrit (sinon flushCloudOnHide / Secondaire sautent).
             window._bootLocalAhead = cloud.localAhead;
-          } else {
+          } else if (!cloud.localOnly && !cloud.recoveredFromLocal) {
             window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
           }
           if (typeof window.captureCoursPlacementBase === 'function') {
@@ -2593,7 +2593,7 @@ async function initApp(user) {
           // Miroir local pour conservation offline / bascule appareil
           // (sauf pendant cloudPending : cloud.data est déjà le local conservé)
           // Écrit seulement après TabLock.start : un 2e onglet ne doit pas écraser le local du 1er.
-          if (!cloud.cloudPending && !window._bootLocalAhead && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
+          if (!cloud.cloudPending && !window._bootLocalAhead && !cloud.localOnly && !cloud.recoveredFromLocal && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
             try {
               window._bootMirror = {
                 profileId: window._activeProfileId,

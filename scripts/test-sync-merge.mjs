@@ -466,9 +466,15 @@ async function testBootUnsyncedLocal() {
   assert(env.D.cours.some((c) => c.uid === 'PH-OFF'), 'ajout hors ligne conservé');
   assert(env.D.cours.find((c) => c.uid === 'PH-BBB').title === 'Édité sur B', 'édition plus récente de B conservée');
   assert(Number(env.D.meta.revision) >= 60, 'révision fusionnée ne recule pas sous le cloud (60, pas 50)');
-  const { env: env2 } = bootFixture(clone(cloud), clone(local), 50);
+  const cloudTomb = clone(cloud);
+  if (!cloudTomb.meta) cloudTomb.meta = {};
+  cloudTomb.meta.deleted = { 'c:PH-OFF': Date.now() - 500 };
+  const { env: env2 } = bootFixture(cloudTomb, clone(local), 50);
   const r2 = await env2.PIO.resolveProfileCloudDoc(env2.currentUser);
-  assert(!r2.localAhead, 'local déjà confirmé (50) : miroir cloud normal');
+  assert(!r2.localAhead, 'id local tracé comme supprimé : miroir cloud, pas de fusion');
+  const { env: env2b } = bootFixture(clone(cloud), clone(local), 50);
+  const r2b = await env2b.PIO.resolveProfileCloudDoc(env2b.currentUser);
+  assert(!!r2b.localAhead, 'id local vivant absent du cloud : fusion même si mc_cloud_rev est posé');
   const { env: env3 } = bootFixture(clone(cloud), clone(local));
   const r3 = await env3.PIO.resolveProfileCloudDoc(env3.currentUser);
   assert(!!r3.localAhead, 'sans mc_cloud_rev : cours local absent du cloud → fusion (données déjà en production)');
@@ -506,6 +512,12 @@ function testGraftExclusiveEntities() {
   env.PIO.graftExclusiveEntities(target, source);
   assert(target.cours.some((c) => c.uid === 'PH-OFF'), 'cours local exclusif recopié');
   assert(target.cours.find((c) => c.uid === 'PH-AAA').title === 'Cours 1', 'cours déjà sur le cloud non écrasé');
+  const target2 = clone(baseProfile());
+  target2.meta.deleted = { 'c:DEAD': Date.now() - 100 };
+  const source2 = clone(baseProfile());
+  source2.cours.push({ uid: 'DEAD', title: 'Supprimé ailleurs' });
+  const added = env.PIO.graftExclusiveEntities(target2, source2);
+  assert(added === 0 && !target2.cours.some((c) => c.uid === 'DEAD'), 'greffe : id tracé comme supprimé non ressuscité');
 }
 
 function testMovedCardNotDuplicated() {
@@ -566,7 +578,8 @@ function testWiring() {
     assert(/!readOnlyTab && mirror\.profileId === window\._activeProfileId/.test(appSrc), 'initApp : pas de miroir dans un onglet en lecture seule');
     assert(/Math\.max\(keepRev, remoteRev \+ 1\)/.test(appSrc), 'save cloud : la révision locale ne recule pas sous remote+1');
   }
-  assert(/!window\._bootLocalAhead && window\.ProfilesIO/.test(appSrc), 'initApp : pas de miroir cloud→local si local en avance');
+  assert(/!window\._bootLocalAhead[\s\S]{0,120}window\.ProfilesIO/.test(appSrc), 'initApp : pas de miroir cloud→local si local en avance');
+  assert(/!cloud\.recoveredFromLocal/.test(appSrc), 'initApp : republish local non confirmé tant que le cloud n’a pas ack');
   {
     const iFn = appSrc.indexOf('async function resolveCloudUserDoc');
     const iRet = appSrc.indexOf('return {', iFn);

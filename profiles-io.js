@@ -332,6 +332,10 @@
    * Le local a des cours/cartes absents du cloud (sauvegarde jamais synchronisée).
    * Ne dépend pas de mc_cloud_rev — vide chez les utilisateurs déjà en production.
    */
+  function exclusiveDeletedMap(local, remote) {
+    return mergeTombstones(local && local.meta && local.meta.deleted, remote && remote.meta && remote.meta.deleted);
+  }
+
   function localHasExclusiveEntities(local, remote) {
     if (!local || typeof local !== 'object') return false;
     if (!remote || typeof remote !== 'object') return true;
@@ -339,23 +343,26 @@
     forEachEntity(remote, function (key) {
       if (key) remoteKeys[key] = true;
     });
+    var deleted = exclusiveDeletedMap(local, remote);
     var found = false;
     forEachEntity(local, function (key) {
-      if (key && !remoteKeys[key]) found = true;
+      if (key && !remoteKeys[key] && !deleted[key]) found = true;
     });
     return found;
   }
 
   /**
-   * Copie dans target les cours/cartes de source dont l’id n’existe pas encore.
-   * Sert au patch Secondaire : ne pas jeter un ajout local jamais parti sur le cloud.
+   * Copie dans target les cours/cartes de source dont l’id n’existe pas encore
+   * et n’a pas de trace de suppression. Retourne le nombre d’éléments ajoutés.
    */
   function graftExclusiveEntities(target, source) {
-    if (!target || typeof target !== 'object' || !source || typeof source !== 'object') return target;
+    if (!target || typeof target !== 'object' || !source || typeof source !== 'object') return 0;
     var targetKeys = Object.create(null);
     forEachEntity(target, function (key) {
       if (key) targetKeys[key] = true;
     });
+    var deleted = exclusiveDeletedMap(source, target);
+    var added = 0;
     ENTITY_FAMILIES.forEach(function (fam) {
       var srcArr = source[fam.arr];
       if (!Array.isArray(srcArr) || !srcArr.length) return;
@@ -367,12 +374,13 @@
         var id = item[fam.key];
         if (id == null || id === '') continue;
         var key = fam.prefix + String(id);
-        if (targetKeys[key]) continue;
+        if (targetKeys[key] || deleted[key]) continue;
         dstArr.push(item);
         targetKeys[key] = true;
+        added++;
       }
     });
-    return target;
+    return added;
   }
 
   /** Empreintes de l’état persisté : { clé: JSON sans _mt }. */
@@ -1296,16 +1304,13 @@
         var sameGen = !lGenA || !cGenA || lGenA === cGenA;
         var confirmedRev = getCloudConfirmedRev(profileId);
         var unsynced = confirmedRev != null && lRev > confirmedRev && lRev !== cRev;
-        // Premier chargement après mise à jour : pas encore de mc_cloud_rev.
-        // Si le local a des ids absents du cloud, fusionner — ne jamais miroiter.
-        // Une fois la rév. locale confirmée, un id absent du cloud plus récent
-        // est une suppression distante (traces) : miroir normal.
-        var exclusiveUnsynced = (confirmedRev == null || unsynced)
-          && localHasExclusiveEntities(localForCompare, cloudPayload);
+        // Ids locaux absents du cloud et non tracés comme supprimés = jamais
+        // synchronisés (même si mc_cloud_rev a été posé trop tôt).
+        var exclusiveLive = localHasExclusiveEntities(localForCompare, cloudPayload);
         if (sameGen && (
           (lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload))
           || unsynced
-          || exclusiveUnsynced
+          || exclusiveLive
         )) {
           localAhead = localForCompare;
         }

@@ -776,22 +776,29 @@
 
   function applySecondaryPatchResult(data, pid) {
     var prev = window.D;
-    if (prev && data && window.ProfilesIO && typeof window.ProfilesIO.graftExclusiveEntities === 'function'
-        && typeof window.ProfilesIO.localHasExclusiveEntities === 'function'
-        && window.ProfilesIO.localHasExclusiveEntities(prev, data)) {
-      window.ProfilesIO.graftExclusiveEntities(data, prev);
+    var PIO = window.ProfilesIO;
+    var grafted = 0;
+    if (prev && data && PIO && typeof PIO.graftExclusiveEntities === 'function') {
+      grafted = PIO.graftExclusiveEntities(data, prev) || 0;
+    }
+    if (data && data.meta && data.meta.deleted && PIO && typeof PIO.applyTombstones === 'function') {
+      PIO.applyTombstones(data, data.meta.deleted);
     }
     window.D = data;
     if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
-    window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
-    if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
-      window.ProfilesIO.setCloudConfirmedRev(pid, window._lastCloudConfirmedRevision);
+    // Des ids greffés ne sont pas sur le cloud : ne pas marquer cette rév. confirmée
+    // (sinon le prochain démarrage miroite et les jette).
+    if (!grafted) {
+      window._lastCloudConfirmedRevision = Number(data && data.meta && data.meta.revision) || 0;
+      if (PIO && typeof PIO.setCloudConfirmedRev === 'function') {
+        PIO.setCloudConfirmedRev(pid, window._lastCloudConfirmedRevision);
+      }
     }
     if (typeof window.captureCoursPlacementBase === 'function') {
-      window.captureCoursPlacementBase(data.cours);
+      window.captureCoursPlacementBase(data && data.cours);
     }
-    if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-      window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+    if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+      PIO.writeLocalProfileData(pid, data, { allowEmpty: true });
     } else if (typeof window.safeLocalSet === 'function') {
       window.safeLocalSet('backup_local_cours', JSON.stringify(data));
     } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}

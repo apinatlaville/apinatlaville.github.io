@@ -17,7 +17,7 @@
   var PING_WAIT_MS = 350;
   var HEARTBEAT_MS = 2000;
   var OWNER_STALE_MS = 7000;
-  var YIELD_WAIT_MS = 3500;
+  var YIELD_WAIT_MS = 8000;
 
   var tabId = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   var state = {
