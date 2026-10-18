@@ -465,11 +465,43 @@ async function pocJoinIgnoresCacheSnapshot() {
   DS.stop();
 }
 
+async function pocLateJoinAfterTimeout() {
+  console.log('\n[DS8] présence lue après le délai de 8 s → reste Secondaire (pas de PRIMARY tardif)');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const realOnSnapshot = fsMock.onSnapshot.bind(fsMock);
+  fsMock.onSnapshot = (ref, okCb, errCb) => {
+    if (String(ref._path || '').includes('/presence/')) return () => {};
+    return realOnSnapshot(ref, okCb, errCb);
+  };
+  const realGetDoc = fsMock.getDoc.bind(fsMock);
+  fsMock.getDoc = (ref) => {
+    if (String(ref._path || '').includes('/presence/')) {
+      return new Promise((resolve) => setTimeout(() => resolve(realGetDoc(ref)), 3990));
+    }
+    return realGetDoc(ref);
+  };
+  const env = baseEnv(store, fsMock);
+  env.onSnapshot = fsMock.onSnapshot;
+  env.getDoc = fsMock.getDoc;
+  const { DS } = loadModules(env);
+  await DS.start('uid1');
+  assert(DS.getStatus().isSecondary === true, 'DS8: délai dépassé → Secondaire');
+  await new Promise((r) => setTimeout(r, 900));
+  const st = DS.getStatus();
+  assert(st.isSecondary === true && st.needsRoleChoice === true, 'DS8: toujours Secondaire après la lecture tardive');
+  const hub = fsMock.docs.get('utilisateurs/uid1/presence/hub');
+  assert(!hub || hub.primaryDeviceId !== DS.getDeviceId(), 'DS8: aucune revendication PRIMARY écrite après coup');
+  DS.stop();
+}
+
 async function main() {
   console.log('=== Preuves adversatives DeviceSession ===');
   await pocJoinGate();
   await pocJoinFailClosed();
   await pocJoinIgnoresCacheSnapshot();
+  await pocLateJoinAfterTimeout();
   await pocSecondaryNoRecreate();
   await pocSecondaryMirrorAllowEmpty();
   await pocCreateRace();

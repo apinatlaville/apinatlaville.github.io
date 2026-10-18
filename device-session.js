@@ -215,6 +215,8 @@
     // Ne pas avaler les erreurs : sinon resolveJoin croit le hub vide et
     // s’auto-proclame PRIMARY (LWW) alors que la présence est illisible.
     return withFsTimeout(window.getDoc(ref).then(function (snap) {
+      // Copie en cache (hors ligne) : peut être périmée → jamais base d’un choix de rôle.
+      if (snap && snap.metadata && snap.metadata.fromCache) throw new Error('presence read from cache');
       if (snap && snap.exists && snap.exists()) return snap.data() || emptyHub();
       return emptyHub();
     }), 4000, 'presence read');
@@ -377,7 +379,11 @@
       });
     }
 
+    // Après le délai de 8 s, la chaîne interne peut encore se terminer : elle ne doit
+    // alors plus rien décider (sinon PRIMARY tardif après le fail-closed).
+    var failedClosed = false;
     return withFsTimeout(loadHubForJoin().then(function () {
+      if (failedClosed) return;
       var remote = remotePrimaryAlive(state.hub);
       var others = otherLiving(state.hub);
       var pref = state.preferredRole;
@@ -442,10 +448,12 @@
           return state.hub;
         });
       }).then(function () {
+        if (failedClosed) return;
         state.joinResolved = true;
         emit();
       });
     }), 8000, 'DeviceSession.resolveJoin').catch(function (err) {
+      failedClosed = true;
       console.warn('DeviceSession resolveJoin:', err);
       if (typeof window.recordDataEvent === 'function') {
         window.recordDataEvent('ROLE_FAILCLOSED', { reason: err && err.message ? err.message : String(err) });
