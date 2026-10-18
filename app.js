@@ -1108,6 +1108,14 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   const paneId = def ? def.pane : (typeof window.getTabPaneId === 'function' ? window.getTabPaneId(tab) : null);
   if (!paneId) return;
 
+  // Caméra libérée en quittant l’écran (batterie, voyant caméra, permission)
+  if (window.html5QrCode && typeof window.stopCam === 'function') window.stopCam();
+  if (window.debugQrCode && typeof window.stopDebugScanner === 'function') {
+    const dbgReader = window.$('debug-reader');
+    const targetPane = window.$(paneId);
+    if (!(dbgReader && targetPane && targetPane.contains(dbgReader))) window.stopDebugScanner();
+  }
+
   document.querySelectorAll('.tab').forEach(b => {
     b.classList.toggle('on', b.dataset.tab === tab);
   });
@@ -1746,6 +1754,7 @@ window.renderErrorLogs = function() {
 window.DATA_EVENT_CODES = {
   SAVE_REFUSED_SHELL: 'Écriture locale refusée : un profil sans contenu aurait remplacé un profil qui en a (profiles-io.js writeLocalProfileData).',
   LOCAL_WRITE_FAILED: 'localStorage a refusé l’écriture (quota plein ?) (profiles-io.js writeLocalProfileData).',
+  SAVE_STAMP_FAILED: 'Horodatage _mt / traces de suppression impossible pour cette sauvegarde ; données écrites quand même (app.js _saveLocalImpl).',
   ROLE_FAILCLOSED: 'Présence Principal/Secondaire illisible : appareil passé en Secondaire par sécurité (device-session.js resolveJoin).',
   SECONDARY_MIRROR_FAILED: 'Secondaire : copie locale des données reçues impossible (device-session.js watchUserData).',
   MERGE_APPLIED_DELETIONS: 'Fusion cloud : éléments retirés car supprimés sur un autre appareil (app.js mergeRemoteProfileIntoLocal).',
@@ -1756,7 +1765,7 @@ window.DATA_EVENT_CODES = {
   TAB_TAKEOVER: 'Cet onglet a pris la main sur le profil (tab-lock).',
   IMPORT_BACKUP_CREATED: 'Copie automatique du profil créée avant un import destructif (profiles-io.js createAutoBackup).',
   IMPORT_ROLLBACK: 'Import annulé et données restaurées après un échec (quick-share.js / profiles-io.js).',
-  EVAL_LOCKED: 'Notation ignorée : une autre notation de la même carte était en cours (anki-app-v2.js).'
+  EVAL_LOCKED: 'Notation ignorée : une autre notation (Rapide ou Synchrotron) était en cours (anki-app-v2.js _evalBusy).'
 };
 
 window.dataEventLog = window.dataEventLog || [];
@@ -3739,6 +3748,7 @@ window._saveLocalImpl = async function (opts, localGate) {
       nextPersistIndex = window.ProfilesIO.stampPersistChanges(window.D, window._persistIndex || null, window.D.meta.updatedAt);
     } catch (stampErr) {
       console.warn('Horodatage sauvegarde impossible:', stampErr);
+      window.recordDataEvent('SAVE_STAMP_FAILED', { message: stampErr && stampErr.message ? stampErr.message : String(stampErr) });
     }
   }
 
@@ -3766,7 +3776,14 @@ window._saveLocalImpl = async function (opts, localGate) {
       window.recordAppError('Erreur sauvegarde: localStorage indisponible ou refus anti-wipe', 'app.js');
     }
     console.error("Échec sauvegarde locale");
-    window.sysAlert(M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
+    const lastEvt = window.dataEventLog && window.dataEventLog[window.dataEventLog.length - 1];
+    const failCode = lastEvt && (lastEvt.code === 'SAVE_REFUSED_SHELL' || lastEvt.code === 'LOCAL_WRITE_FAILED')
+      ? lastEvt.code : 'LOCAL_WRITE_FAILED';
+    window.sysAlert(
+      (M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.") +
+        "<br><br>Code : <b>" + failCode + "</b> (onglet Logs → Copier pour le rapport complet).",
+      "Erreur de sauvegarde"
+    );
     var errLocal = new Error('localStorage save failed');
     releaseLocal(false, errLocal);
     throw errLocal;
