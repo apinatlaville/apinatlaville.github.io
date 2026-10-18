@@ -779,11 +779,16 @@
       : '<p class="anki-mut programme-detail-empty">Aucun document Base Doc rattaché.</p>';
 
     var yGroups = groupsForChapitre(ch.id);
+    var yCounts = new Map();
+    if (yGroups.length) {
+      (window.D.exercices || []).forEach(function (c) {
+        if (!c) return;
+        yCounts.set(c.groupId, (yCounts.get(c.groupId) || 0) + 1);
+      });
+    }
     var yHtml = yGroups.length
       ? '<div class="programme-y-grid">' + yGroups.map(function (g) {
-        var n = (window.D.exercices || []).filter(function (c) {
-          return c && c.groupId === g.id;
-        }).length;
+        var n = yCounts.get(g.id) || 0;
         return (
           '<button type="button" class="programme-y-tile" style="--mat-color:' + esc(g.color || '#6a7088') + '" ' +
             'onclick="event.stopPropagation();window.programmeOpenYGroup(\'' + jsStr(g.id) + '\')">' +

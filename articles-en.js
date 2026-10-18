@@ -116,7 +116,22 @@
     }
   }
 
+  var _storeCache = null;
+
+  /** Lecture seule (ne pas muter) : parse localStorage une fois jusqu’au prochain saveStore. */
+  function readStore() {
+    if (!_storeCache) _storeCache = loadStore();
+    return _storeCache;
+  }
+
+  if (typeof window.addEventListener === 'function') {
+    window.addEventListener('storage', function (e) {
+      if (!e || e.key === null || e.key === STORE_KEY) _storeCache = null;
+    });
+  }
+
   function saveStore(store) {
+    _storeCache = null;
     try {
       var json = JSON.stringify(store);
       if (json.length > MAX_BYTES) {
@@ -132,7 +147,7 @@
   }
 
   function getApiKey() {
-    return loadStore().apiKeyGuardian.trim();
+    return readStore().apiKeyGuardian.trim();
   }
 
   function setApiKey(key) {
@@ -146,11 +161,11 @@
   }
 
   function isSaved(id) {
-    return loadStore().saved.some(function (a) { return a && a.id === id; });
+    return readStore().saved.some(function (a) { return a && a.id === id; });
   }
 
   function findSaved(id) {
-    return loadStore().saved.find(function (a) { return a && a.id === id; }) || null;
+    return readStore().saved.find(function (a) { return a && a.id === id; }) || null;
   }
 
   /** Sanitize HTML article : balises texte seulement. */
@@ -247,8 +262,35 @@
     return hay.indexOf(q) >= 0;
   }
 
+  var FETCH_TIMEOUT_MS = 12000;
+  var _genCtl = null;
+
+  function fetchT(url, genSignal) {
+    if (typeof AbortController !== 'function') return fetch(url);
+    var ctl = new AbortController();
+    var timedOut = false;
+    var onGenAbort = function () { ctl.abort(); };
+    if (genSignal) {
+      if (genSignal.aborted) ctl.abort();
+      else genSignal.addEventListener('abort', onGenAbort);
+    }
+    var timer = setTimeout(function () { timedOut = true; ctl.abort(); }, FETCH_TIMEOUT_MS);
+    var cleanup = function () {
+      clearTimeout(timer);
+      if (genSignal) genSignal.removeEventListener('abort', onGenAbort);
+    };
+    return fetch(url, { signal: ctl.signal }).then(function (res) {
+      cleanup();
+      return res;
+    }, function (err) {
+      cleanup();
+      if (timedOut) throw new Error('Load failed (timeout)');
+      throw err;
+    });
+  }
+
   /* ---------- Guardian ---------- */
-  function fetchGuardian(page) {
+  function fetchGuardian(page, genSignal) {
     var key = getApiKey();
     if (!key) return Promise.resolve({ items: [], hasMore: false, needKey: true });
     var params = new URLSearchParams({
@@ -263,7 +305,7 @@
     if (S.dateFrom) params.set('from-date', S.dateFrom);
     if (S.dateTo) params.set('to-date', S.dateTo);
     var url = 'https://content.guardianapis.com/search?' + params.toString();
-    return fetch(url).then(function (res) {
+    return fetchT(url, genSignal).then(function (res) {
       if (!res.ok) throw new Error('Guardian HTTP ' + res.status);
       return res.json();
     }).then(function (data) {
@@ -411,10 +453,10 @@
   }
 
   /** Sans &count= : gratuit, sinon rss2json renvoie HTTP 422. */
-  function fetchRss2Json(feedUrl) {
+  function fetchRss2Json(feedUrl, genSignal) {
     var url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(feedUrl);
     function once() {
-      return fetch(url).then(function (res) {
+      return fetchT(url, genSignal).then(function (res) {
         return res.json().then(function (data) {
           if (!res.ok || !data || data.status !== 'ok') {
             var msg = (data && data.message) ? String(data.message) : ('HTTP ' + res.status);
@@ -444,16 +486,16 @@
     throw new Error('Réponse proxy invalide');
   }
 
-  function fetchAllOrigins(feedUrl) {
+  function fetchAllOrigins(feedUrl, genSignal) {
     var enc = encodeURIComponent(feedUrl);
     /* /get (JSON) est plus fiable que /raw côté CORS */
-    return fetch('https://api.allorigins.win/get?url=' + enc).then(function (res) {
+    return fetchT('https://api.allorigins.win/get?url=' + enc, genSignal).then(function (res) {
       if (!res.ok) throw new Error('Proxy HTTP ' + res.status);
       return res.json();
     }).then(function (data) {
       return normalizeProxyXml(data && data.contents);
     }).catch(function () {
-      return fetch('https://api.allorigins.win/raw?url=' + enc).then(function (res) {
+      return fetchT('https://api.allorigins.win/raw?url=' + enc, genSignal).then(function (res) {
         if (!res.ok) throw new Error('Proxy HTTP ' + res.status);
         return res.text();
       }).then(normalizeProxyXml);
@@ -470,11 +512,11 @@
   }
 
   /** Items bruts d’un flux RSS (rss2json puis proxy). */
-  function fetchRssItems(feedUrl, sourceId, sourceLabel) {
-    return fetchRss2Json(feedUrl).then(function (data) {
+  function fetchRssItems(feedUrl, sourceId, sourceLabel, genSignal) {
+    return fetchRss2Json(feedUrl, genSignal).then(function (data) {
       return mapRss2JsonItems(data, sourceId, sourceLabel);
     }).catch(function (e1) {
-      return fetchAllOrigins(feedUrl).then(function (xml) {
+      return fetchAllOrigins(feedUrl, genSignal).then(function (xml) {
         return parseXmlFeed(xml, sourceId, sourceLabel);
       }).catch(function (e2) {
         throw new Error(failFetchMsg(e1) + (e2 ? ' / ' + failFetchMsg(e2) : ''));
@@ -482,28 +524,28 @@
     });
   }
 
-  function fetchRssPaged(feedUrl, sourceId, sourceLabel) {
-    return fetchRssItems(feedUrl, sourceId, sourceLabel).then(pageSlice);
+  function fetchRssPaged(feedUrl, sourceId, sourceLabel, genSignal) {
+    return fetchRssItems(feedUrl, sourceId, sourceLabel, genSignal).then(pageSlice);
   }
 
-  function fetchConversation() {
+  function fetchConversation(genSignal) {
     var feed = CONVERSATION_FEED[S.theme] || CONVERSATION_FEED[''];
-    return fetchRssPaged(feed, 'conversation', 'The Conversation');
+    return fetchRssPaged(feed, 'conversation', 'The Conversation', genSignal);
   }
 
-  function fetchVoa() {
+  function fetchVoa(genSignal) {
     var theme = S.theme || '';
     /* Sans thème : fusionner 3 flux VOA stables (USA + Afrique + Ukraine). */
     if (!theme) {
       return Promise.all([
-        fetchRssItems(VOA_USA, 'voa', 'VOA'),
-        fetchRssItems(VOA_AFRICA, 'voa', 'VOA'),
-        fetchRssItems(VOA_UKRAINE, 'voa', 'VOA')
+        fetchRssItems(VOA_USA, 'voa', 'VOA', genSignal),
+        fetchRssItems(VOA_AFRICA, 'voa', 'VOA', genSignal),
+        fetchRssItems(VOA_UKRAINE, 'voa', 'VOA', genSignal)
       ]).then(function (lists) {
         return pageSlice(mergeByDate(lists[0], lists[1], lists[2]));
       });
     }
-    return fetchRssPaged(VOA_FEED[theme] || VOA_USA, 'voa', 'VOA');
+    return fetchRssPaged(VOA_FEED[theme] || VOA_USA, 'voa', 'VOA', genSignal);
   }
 
   function mergeByDate() {
@@ -532,22 +574,25 @@
       S.error = '';
     }
     var gen = ++_loadGen;
+    if (_genCtl) { try { _genCtl.abort(); } catch (e) { /* ignore */ } }
+    _genCtl = typeof AbortController === 'function' ? new AbortController() : null;
+    var genSignal = _genCtl ? _genCtl.signal : null;
     S.loading = true;
     paint();
 
     var jobs = [
       S.sources.guardian
-        ? fetchGuardian(S.page).catch(function (err) {
+        ? fetchGuardian(S.page, genSignal).catch(function (err) {
           return { items: [], hasMore: false, error: String(err && err.message || err) };
         })
         : emptyPart(),
       S.sources.conversation
-        ? fetchConversation().catch(function (err) {
+        ? fetchConversation(genSignal).catch(function (err) {
           return { items: [], hasMore: false, error: String(err && err.message || err) };
         })
         : emptyPart(),
       S.sources.voa
-        ? fetchVoa().catch(function (err) {
+        ? fetchVoa(genSignal).catch(function (err) {
           return { items: [], hasMore: false, error: String(err && err.message || err) };
         })
         : emptyPart()
@@ -725,7 +770,7 @@
   }
 
   function savedListFiltered() {
-    var list = loadStore().saved.slice();
+    var list = readStore().saved.slice();
     return list.filter(function (a) {
       if (!a) return false;
       if (S.savedFilter === 'unread' && a.read) return false;

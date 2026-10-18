@@ -968,24 +968,34 @@ window.renderCours = function() {
         }
       }
     } else if (qText && typeof Fuse !== 'undefined') {
-      const searchData = baseList.map(c => {
-        const mo = window.D.matieres.find(x => x.id===c.mat) || {name:''};
-        return { ...c, matName: mo.name };
-      });
+      // Index Fuse réutilisé tant que cours/matières n’ont pas changé (révision + tailles)
+      const fuseKey = (window.D.meta && window.D.meta.revision || 0) + ':' + baseList.length + ':' + (window.D.matieres || []).length;
+      let fuse = window._coursFuseCache && window._coursFuseCache.key === fuseKey && window._coursFuseCache.ref === baseList
+        ? window._coursFuseCache.fuse : null;
+      if (!fuse) {
+        const matName = Object.create(null);
+        (window.D.matieres || []).forEach(m => { if (m && m.id != null && !(m.id in matName)) matName[m.id] = m.name; });
+        const searchData = baseList.map(c => {
+          return { ...c, matName: matName[c.mat] || '' };
+        });
 
-      const fuse = new Fuse(searchData, {
-        keys: [
-          { name: 'title', weight: 3 },     
-          { name: 'matName', weight: 1 },   
-          { name: 'desc', weight: 1 }       
-        ],
-        threshold: 0.4, 
-        ignoreLocation: true,
-        isCaseSensitive: false
-      });
+        fuse = new Fuse(searchData, {
+          keys: [
+            { name: 'title', weight: 3 },
+            { name: 'matName', weight: 1 },
+            { name: 'desc', weight: 1 }
+          ],
+          threshold: 0.4,
+          ignoreLocation: true,
+          isCaseSensitive: false
+        });
+        window._coursFuseCache = { key: fuseKey, ref: baseList, fuse: fuse };
+      }
 
       const results = fuse.search(qText);
-      baseList = results.map(r => r.item); 
+      const liveByUid = Object.create(null);
+      baseList.forEach(c => { if (c && c.uid != null && !(c.uid in liveByUid)) liveByUid[c.uid] = c; });
+      baseList = results.map(r => (r.item && liveByUid[r.item.uid]) || r.item);
     }
 
     const list = baseList.filter(c => {
