@@ -1115,10 +1115,52 @@
       if (!g) throw new Error('Dossier local introuvable.');
       if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
 
+      /* Copie avant modification : retour arrière si l’import ou sa sauvegarde échoue */
+      var groupCardClones = Object.create(null);
+      var hadCards = false;
+      cardsForGroup(groupId).forEach(function (c) {
+        if (c && c.id) { groupCardClones[c.id] = JSON.parse(JSON.stringify(c)); hadCards = true; }
+      });
+      var exBefore = window.D.exercices.slice();
+      var gBefore = JSON.parse(JSON.stringify(g));
+      var newIdSet = new Set();
+      if (hadCards && window.ProfilesIO && typeof window.ProfilesIO.createAutoBackup === 'function') {
+        window.ProfilesIO.createAutoBackup('Avant mise à jour Partage — ' + (g.name || groupId));
+      }
+      function restoreObj(target, snap) {
+        Object.keys(target).forEach(function (k) { delete target[k]; });
+        Object.assign(target, JSON.parse(JSON.stringify(snap)));
+      }
+      function rollback(reason) {
+        var cur = window.D.exercices || [];
+        var curIds = new Set(cur.map(function (c) { return c && c.id; }));
+        var next = cur.filter(function (c) { return !(c && newIdSet.has(c.id)); });
+        next.forEach(function (c) {
+          if (c && groupCardClones[c.id]) restoreObj(c, groupCardClones[c.id]);
+        });
+        exBefore.forEach(function (c) {
+          if (c && c.id && groupCardClones[c.id] && !curIds.has(c.id)) {
+            restoreObj(c, groupCardClones[c.id]);
+            next.push(c);
+          }
+        });
+        var keep = new Set(next);
+        var beforeSet = new Set(exBefore);
+        var ordered = exBefore.filter(function (c) { return keep.has(c); });
+        next.forEach(function (c) { if (!beforeSet.has(c)) ordered.push(c); });
+        window.D.exercices = ordered;
+        restoreObj(g, gBefore);
+        if (typeof window.recordDataEvent === 'function') {
+          window.recordDataEvent('IMPORT_ROLLBACK', { groupId: groupId, reason: String(reason || '') });
+        }
+      }
+
+      var preview;
+      try {
       /* Guérit d’abord les doublons locaux (évite d’empiler encore) */
       dedupeGroupCards(groupId);
 
-      var preview = window.QuickShare.previewUpdate(groupId, versionDoc);
+      preview = window.QuickShare.previewUpdate(groupId, versionDoc);
 
       // Updates (+ adoption contentId via empreinte)
       preview.updated.forEach(function (u) {
@@ -1162,6 +1204,7 @@
           : (window.AnkiAlgo && window.AnkiAlgo.genExoUid);
         var id = gen ? gen('Y', used) : ('Y-' + Date.now().toString(36).slice(-3).toUpperCase());
         used.push(id);
+        newIdSet.add(id);
         var ease = 2.3;
         try {
           if (window.AnkiAlgoV2 && window.AnkiAlgoV2.getQuickDefaultProfile) {
@@ -1249,8 +1292,21 @@
       if (versionDoc.name && !keepOwnedPrimary) g.name = versionDoc.name;
 
       dedupeGroupCards(groupId);
+      } catch (applyErr) {
+        rollback(applyErr && applyErr.message);
+        throw applyErr;
+      }
 
-      if (typeof window.save === 'function') window.save();
+      if (typeof window.save === 'function') {
+        Promise.resolve(window.save({ waitCloud: false })).catch(function (saveErr) {
+          var msg = saveErr && saveErr.message ? saveErr.message : String(saveErr);
+          rollback('save: ' + msg);
+          if (typeof window.showToast === 'function') {
+            window.showToast('Import Partage annulé : la sauvegarde a échoué (' + msg + '). Rien n’a été modifié.', { type: 'warn' });
+          }
+          if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+        });
+      }
       return preview;
     },
 

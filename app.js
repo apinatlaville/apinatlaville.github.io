@@ -2054,7 +2054,15 @@ bindClick('btnDocTypeAdd', withD(() => {
   window.applySettings();
 }));
 
-bindInput('setUserName', withD((e) => { window.D.settings.userName = e.target.value.trim() || "Étudiant"; window.save(); window.applySettings(); }));
+// Frappe : enregistrement immédiat + salutation seule ; réglages complets à la validation
+// (applySettings à chaque touche reconstruisait l’UI et retirait l’espace en cours de frappe).
+bindInput('setUserName', withD((e) => {
+  window.D.settings.userName = e.target.value.trim() || "Étudiant";
+  window.save();
+  if (window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
+}));
+const userNameEl = window.$('setUserName');
+if (userNameEl) userNameEl.addEventListener('change', withD(() => { window.applySettings(); }));
 
 if (typeof window.bindSettingsThemePicker === 'function') window.bindSettingsThemePicker();
 
@@ -2201,11 +2209,20 @@ bindClick('btnKholleDraw', () => window.drawKholle());
 
 // 🚨 ÉCOUTEURS RESTAURÉS
 bindClick('btnHomeSearch', () => window.checkHomeCode(true));
-bindInput('mainSearchText', () => window.renderCours());
+// Recherche Base Doc : rendu groupé pendant la frappe (affichage seulement).
+let _coursSearchTimer = null;
+function scheduleCoursSearchRender(delay) {
+  if (_coursSearchTimer) clearTimeout(_coursSearchTimer);
+  _coursSearchTimer = setTimeout(function () {
+    _coursSearchTimer = null;
+    if (window.D && window.D.cours) window.renderCours();
+  }, delay);
+}
+bindInput('mainSearchText', () => scheduleCoursSearchRender(160));
 bindInput('mainSearchCode', (e) => {
   window.doAutoFmtScan(e.target);
   const raw = e.target.value.replace(/[^A-Z0-9-]/gi, '');
-  if (raw.length < 6 && window.D && window.D.cours) window.renderCours();
+  if (raw.length < 6 && window.D && window.D.cours) scheduleCoursSearchRender(120);
 });
 
 bindClick('btnCancelCours', () => window.closeModalCours());
@@ -2645,6 +2662,13 @@ async function initApp(user) {
     window._activeProfileId = window.ProfilesIO.getSessionProfileId();
   }
   window.resetPersistIndex();
+  if (window.TabLock && typeof window.TabLock.start === 'function') {
+    try {
+      await window.TabLock.start(window._activeProfileId || 'default');
+    } catch (tabErr) {
+      console.warn('TabLock:', tabErr);
+    }
+  }
   if (window._bootLocalAhead) {
     window._mergeLocalAheadAtBoot(window._bootLocalAhead);
     window._bootLocalAhead = null;
@@ -3393,11 +3417,19 @@ window._applyCloudSnapshotGuards = function (cur, emptyOutgoing) {
 
 window._repersistLocalProfile = function (sessionPid) {
   const mergedPayload = JSON.stringify(window.D);
+  let ok = true;
   if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-    window.ProfilesIO.writeLocalProfileData(sessionPid, mergedPayload);
+    ok = !!window.ProfilesIO.writeLocalProfileData(sessionPid, window.D, { payload: mergedPayload });
   } else if (typeof window.safeLocalSet === 'function') {
-    window.safeLocalSet('backup_local_cours', mergedPayload);
+    ok = !!window.safeLocalSet('backup_local_cours', mergedPayload);
   }
+  if (!ok) {
+    console.warn('Copie locale après fusion cloud impossible (le cloud reste à jour).');
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Copie locale après fusion cloud impossible (profil ' + sessionPid + ')', 'app.js');
+    }
+  }
+  return ok;
 };
 
 window._stripProfileForCloud = function () {
@@ -3582,6 +3614,36 @@ window.save = function (opts) {
   return cloudJob;
 };
 
+/**
+ * Envoi cloud forcé quand la page passe en arrière-plan / se ferme / revient en
+ * ligne, si la dernière révision locale n’est pas confirmée sur le cloud.
+ * Les sauvegardes locales sont déjà immédiates ; ceci réduit le retard cloud.
+ */
+window.flushCloudOnHide = function (reason) {
+  if (window.isLocalMode || !window.cloudConnected || !window.docRef || !window.D) return false;
+  if (window.TabLock && window.TabLock.getState && window.TabLock.getState() === 'locked') return false;
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) return false;
+  const rev = Number(window.D.meta && window.D.meta.revision) || 0;
+  const confirmed = Number(window._lastCloudConfirmedRevision);
+  if (window._lastCloudConfirmedRevision != null && confirmed >= rev) return false;
+  if (window._lastLocalSaveAt == null) return false;
+  window.recordDataEvent('CLOUD_FLUSH_ON_HIDE', { reason: reason || '', rev: rev, confirmed: confirmed });
+  window._enqueueCloudFlush({ waitCloud: false }).catch(function (e) {
+    console.warn('Envoi cloud (' + (reason || 'hide') + ') échoué :', e && e.message ? e.message : e);
+  });
+  return true;
+};
+
+if (!window._cloudFlushLifecycleBound) {
+  window._cloudFlushLifecycleBound = true;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') window.flushCloudOnHide('visibility-hidden');
+  });
+  window.addEventListener('pagehide', function () { window.flushCloudOnHide('pagehide'); });
+  window.addEventListener('online', function () { window.flushCloudOnHide('online'); });
+}
+
 /** Compat : ancien nom = local puis flush cloud (await complet). */
 window._saveImpl = async function (opts, localGate) {
   var localResult = await window._saveLocalImpl(opts, localGate);
@@ -3645,6 +3707,20 @@ window._saveLocalImpl = async function (opts, localGate) {
     var errSec = new Error('SECONDARY_READ_ONLY');
     releaseLocal(false, errSec);
     throw errSec;
+  }
+
+  if (window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly()) {
+    console.warn('Save refusée : profil ouvert dans un autre onglet (lecture seule ici).');
+    const nowTab = Date.now();
+    if (!window._tabLockToastAt || nowTab - window._tabLockToastAt > 8000) {
+      window._tabLockToastAt = nowTab;
+      if (typeof window.showToast === 'function') {
+        window.showToast('Profil ouvert dans un autre onglet : rien n’est enregistré ici.', { type: 'warn' });
+      }
+    }
+    var errTab = new Error('TAB_READ_ONLY');
+    releaseLocal(false, errTab);
+    throw errTab;
   }
 
   if (!window.D.meta) window.D.meta = {};

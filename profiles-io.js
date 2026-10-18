@@ -20,6 +20,7 @@
   var SNAP_INDEX_PREFIX = 'mc_profile_snaps__';
   var SNAP_DATA_PREFIX = 'backup_snap__';
   var MAX_SNAPSHOTS = 8;
+  var AUTO_BACKUP_PREFIX = 'mc_auto_backup__';
   var _lastIndexWriteError = null;
 
   /** Sections importables (cases à cocher) */
@@ -470,6 +471,7 @@
       });
     } catch (e) { /* ignore */ }
     lsRemove(snapIndexKey(profileId));
+    lsRemove(AUTO_BACKUP_PREFIX + profileId);
     clearSeedOwner(profileId);
   }
 
@@ -855,6 +857,53 @@
       }
       if (typeof window.applySettings === 'function') window.applySettings();
     }
+    return true;
+  }
+
+  /**
+   * Copie automatique (un seul emplacement par profil, réécrit à chaque import
+   * destructif) — indépendante des sauvegardes manuelles.
+   */
+  function createAutoBackup(label) {
+    var profileId = getSessionProfileId();
+    if (!profileId || !window.D || !isProfilePayload(window.D)) return false;
+    var payload;
+    try {
+      payload = JSON.stringify({ label: String(label || 'Avant import').slice(0, 80), createdAt: nowIso(), data: window.D });
+    } catch (e) { return false; }
+    var ok = lsSet(AUTO_BACKUP_PREFIX + profileId, payload);
+    reportDataEvent(ok ? 'IMPORT_BACKUP_CREATED' : 'LOCAL_WRITE_FAILED', {
+      profileId: profileId, label: label || '', bytes: payload.length, autoBackup: true
+    });
+    if (!ok && typeof window.showToast === 'function') {
+      window.showToast('Copie de sécurité avant import impossible (stockage plein).', { type: 'warn' });
+    }
+    return ok;
+  }
+
+  function getAutoBackupInfo(profileId) {
+    profileId = profileId || getSessionProfileId();
+    var raw = lsGet(AUTO_BACKUP_PREFIX + profileId);
+    if (!raw) return null;
+    try {
+      var o = JSON.parse(raw);
+      if (!o || !o.data || !isProfilePayload(o.data)) return null;
+      return { label: o.label || 'Avant import', createdAt: o.createdAt || '', bytes: byteSizeOfString(raw) };
+    } catch (e) { return null; }
+  }
+
+  async function restoreAutoBackup() {
+    var profileId = getSessionProfileId();
+    var raw = lsGet(AUTO_BACKUP_PREFIX + profileId);
+    if (!raw) throw new Error('Aucune copie automatique pour ce profil.');
+    var o;
+    try { o = JSON.parse(raw); } catch (e) { throw new Error('Copie automatique corrompue.'); }
+    if (!o || !o.data || !isProfilePayload(o.data)) throw new Error('Copie automatique invalide.');
+    window.D = o.data;
+    if (typeof window.save === 'function') await window.save({ waitCloud: false });
+    lsRemove(AUTO_BACKUP_PREFIX + profileId);
+    reportDataEvent('IMPORT_ROLLBACK', { profileId: profileId, source: 'auto-backup' });
+    if (typeof window.applySettings === 'function') window.applySettings();
     return true;
   }
 
@@ -2550,6 +2599,49 @@
     chip.setAttribute('title', 'Profil actif : ' + name);
   }
 
+  function autoBackupRowHtml(profileId) {
+    var autoInfo = getAutoBackupInfo(profileId);
+    if (!autoInfo) return '';
+    return '<div class="pio-snap-row" data-auto-backup="1">' +
+        '<div class="pio-snap-info">' +
+          '<div class="pio-snap-label">Copie automatique — ' + esc(autoInfo.label) + '</div>' +
+          '<div class="pio-snap-meta">' + esc(formatSnapDate(autoInfo.createdAt)) +
+            ' · <b>' + esc(formatBytes(autoInfo.bytes)) + '</b></div>' +
+        '</div>' +
+        '<div class="pio-snap-actions">' +
+          '<button type="button" class="bs" id="pioUndoImport">Annuler le dernier import</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  /** Affiche / met à jour la ligne « copie automatique » sans re-rendre le bloc (garde le rapport d’import). */
+  function refreshAutoBackupRow() {
+    var list = document.querySelector('#pioSettingsRoot .pio-snap-list');
+    if (!list) return;
+    var old = list.querySelector('[data-auto-backup]');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var html = autoBackupRowHtml(getSessionProfileId());
+    if (html) list.insertAdjacentHTML('afterbegin', html);
+    wireUndoImport();
+  }
+
+  function wireUndoImport() {
+    var undoBtn = document.getElementById('pioUndoImport');
+    if (!undoBtn) return;
+    undoBtn.onclick = function () {
+      var goUndo = function () {
+        restoreAutoBackup().then(function () {
+          if (typeof window.showToast === 'function') window.showToast('Dernier import annulé : profil restauré.');
+          renderSettingsBlock();
+          if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        }).catch(function (e) { alert(e.message || e); });
+      };
+      if (typeof window.sysConfirm === 'function') {
+        window.sysConfirm('Annuler le dernier import ? Le profil actif revient à son état juste avant l’import (les modifications faites depuis sont perdues).', goUndo);
+      } else if (confirm('Annuler le dernier import ?')) goUndo();
+    };
+  }
+
   function renderSettingsBlock() {
     var root = document.getElementById('pioSettingsRoot');
     if (!root) return;
@@ -2576,6 +2668,7 @@
         '</div>';
     }).join('');
 
+    var autoRow = autoBackupRowHtml(active);
     var snaps = listSnapshots(active);
     var snapRows = snaps.length
       ? snaps.map(function (s) {
@@ -2662,7 +2755,7 @@
           '<input type="text" id="pioSnapLabel" class="pio-input" placeholder="Libellé (ex. Avant import notes)" maxlength="60">' +
           '<button type="button" class="bp" id="pioSnapCreate">Créer une sauvegarde</button>' +
         '</div>' +
-        '<div class="pio-snap-list">' + snapRows + '</div>' +
+        '<div class="pio-snap-list">' + autoRow + snapRows + '</div>' +
       '</div>' +
 
       archivedBlock +
@@ -2891,6 +2984,7 @@
           } else if (confirm('Restaurer ?')) go();
         };
       });
+      wireUndoImport();
       rootEl.querySelectorAll('[data-pio-del-snap]').forEach(function (btn) {
         btn.onclick = function () {
           var snapId = btn.getAttribute('data-pio-del-snap');
@@ -2979,6 +3073,7 @@
               });
               return;
             }
+            createAutoBackup('Avant import ' + (mode === 'replace' ? '(remplacer)' : '(fusion)') + ' — ' + file.name);
             var report = applyImport(normalized, { sections: secs, mode: mode });
             showImportReport(report);
             if (report.ok) {
@@ -2990,6 +3085,7 @@
                 if (typeof window.renderDashboard === 'function') window.renderDashboard();
                 if (typeof window.renderNotes === 'function') window.renderNotes();
                 if (typeof window.applySettings === 'function') window.applySettings();
+                refreshAutoBackupRow();
               }).catch(function (e) {
                 report.warnings = (report.warnings || []).concat(['Sauvegarde post-import : ' + (e.message || e)]);
                 report.ok = false;
@@ -3070,6 +3166,10 @@
     adoptActiveProfileFromCloud: adoptActiveProfileFromCloud,
     createSnapshot: createSnapshot,
     restoreSnapshot: restoreSnapshot,
+    createAutoBackup: createAutoBackup,
+    getAutoBackupInfo: getAutoBackupInfo,
+    restoreAutoBackup: restoreAutoBackup,
+    refreshAutoBackupRow: refreshAutoBackupRow,
     deleteSnapshot: deleteSnapshot,
     listSnapshots: listSnapshots,
     getProfileStorageInfo: getProfileStorageInfo,
