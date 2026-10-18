@@ -2587,8 +2587,15 @@ async function initApp(user) {
           }
           // Miroir local pour conservation offline / bascule appareil
           // (sauf pendant cloudPending : cloud.data est déjà le local conservé)
+          // Écrit seulement après TabLock.start : un 2e onglet ne doit pas écraser le local du 1er.
           if (!cloud.cloudPending && !window._bootLocalAhead && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
-            try { window.ProfilesIO.writeLocalProfileData(window._activeProfileId, window.D); } catch (mirrorErr) {
+            try {
+              window._bootMirror = {
+                profileId: window._activeProfileId,
+                payload: JSON.stringify(window.D),
+                rev: window._lastCloudConfirmedRevision
+              };
+            } catch (mirrorErr) {
               console.warn('Miroir local profil impossible:', mirrorErr);
             }
           }
@@ -2676,6 +2683,21 @@ async function initApp(user) {
       await window.TabLock.start(window._activeProfileId || 'default');
     } catch (tabErr) {
       console.warn('TabLock:', tabErr);
+    }
+  }
+  if (window._bootMirror) {
+    const mirror = window._bootMirror;
+    window._bootMirror = null;
+    const readOnlyTab = window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly();
+    if (!readOnlyTab && mirror.profileId === window._activeProfileId) {
+      try {
+        if (window.ProfilesIO.writeLocalProfileData(mirror.profileId, mirror.payload)
+            && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
+          window.ProfilesIO.setCloudConfirmedRev(mirror.profileId, mirror.rev);
+        }
+      } catch (mirrorErr) {
+        console.warn('Miroir local profil impossible:', mirrorErr);
+      }
     }
   }
   if (window._bootLocalAhead) {
@@ -3225,6 +3247,40 @@ function _preferNewerEntities(localArr, remoteArr, key) {
   }
 }
 
+/**
+ * Cours : comme _preferNewerEntities, mais le rangement (cl/inter) suit la règle
+ * 3-voies de mergeRemoteCoursPatches — un déplacement local est gardé si la version
+ * distante plus récente n’a pas elle-même déplacé le doc — et le statut d’impression
+ * ne recule jamais.
+ */
+function _preferNewerCours(localArr, remoteArr) {
+  if (!Array.isArray(localArr) || !Array.isArray(remoteArr) || !remoteArr.length) return;
+  const base = window._coursPlacementBase || Object.create(null);
+  const statOrder = { pending: 0, printed: 1, active: 2 };
+  const byUid = Object.create(null);
+  remoteArr.forEach(function (x) {
+    if (x && x.uid != null) byUid[x.uid] = x;
+  });
+  function place(c) { return (c.cl || '') + '|' + String(c.inter || ''); }
+  for (let i = 0; i < localArr.length; i++) {
+    const l = localArr[i];
+    if (!l || l.uid == null) continue;
+    const r = byUid[l.uid];
+    if (!r || !(_mtOf(r) > _mtOf(l))) continue;
+    const out = Object.assign({}, r);
+    const b = base[l.uid];
+    if (b && place(l) !== place(r)) {
+      const bPlace = (b.cl || '') + '|' + String(b.inter || '');
+      if (place(l) !== bPlace && place(r) === bPlace) {
+        out.cl = l.cl;
+        out.inter = l.inter;
+      }
+    }
+    if ((statOrder[l.stat] || 0) > (statOrder[out.stat] || 0)) out.stat = l.stat;
+    localArr[i] = out;
+  }
+}
+
 function _mergeCardArrays(localArr, remoteArr) {
   if (!Array.isArray(localArr)) return Array.isArray(remoteArr) ? remoteArr.slice() : [];
   const byId = Object.create(null);
@@ -3345,7 +3401,7 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
   if (typeof window.mergeRemoteCoursPatches === 'function') {
     window.mergeRemoteCoursPatches(window.D.cours, remote.cours);
   }
-  _preferNewerEntities(window.D.cours, remote.cours, 'uid');
+  _preferNewerCours(window.D.cours, remote.cours);
   _unionByKey(window.D.cours, remote.cours, 'uid');
   _mergeCardArrays(window.D.exercices, remote.exercices);
   _mergeCardArrays(window.D.devoirs, remote.devoirs);
@@ -3630,7 +3686,14 @@ window.save = function (opts) {
  */
 window.flushCloudOnHide = function (reason) {
   if (window.isLocalMode || !window.cloudConnected || !window.docRef || !window.D) return false;
-  if (window.TabLock && window.TabLock.getState && window.TabLock.getState() === 'locked') return false;
+  if (window.TabLock && window.TabLock.getState) {
+    const tabState = window.TabLock.getState();
+    if (tabState === 'locked') return false;
+    if (tabState === 'lost') {
+      if (reason !== 'tab-lost' || window._tabLostFlushDone) return false;
+      window._tabLostFlushDone = true;
+    }
+  }
   if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
       && !window.DeviceSession.canFullSave()) return false;
   const rev = Number(window.D.meta && window.D.meta.revision) || 0;
@@ -3860,6 +3923,7 @@ window._saveCloudImpl = async function () {
       }
     }
 
+    let sentRevision = null;
     if (typeof window.runTransaction === 'function' && window.db) {
       await window.runTransaction(window.db, async function (tx) {
         const snap = await tx.get(window.docRef);
@@ -3868,12 +3932,14 @@ window._saveCloudImpl = async function () {
           // nouveau doc vide : OK
         }
         applyRemoteIfAhead(cur);
+        sentRevision = Number(window.D.meta && window.D.meta.revision) || 0;
         tx.set(window.docRef, window._stripProfileForCloud());
       });
     } else if (window.getDoc) {
       const snap = await window.getDoc(window.docRef);
       const cur = snap.exists() ? snap.data() : null;
       applyRemoteIfAhead(cur);
+      sentRevision = Number(window.D.meta && window.D.meta.revision) || 0;
       await window.setDoc(window.docRef, window._stripProfileForCloud());
     } else {
       throw new Error('Refus d’écrire cloud : getDoc / transaction indisponible');
@@ -3881,7 +3947,12 @@ window._saveCloudImpl = async function () {
 
     console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie ! (révision " +
       (Number(window.D.meta && window.D.meta.revision) || 0) + " — 1 doc = tout le profil)");
-    window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
+    window._lastCloudConfirmedRevision = sentRevision != null
+      ? sentRevision
+      : (Number(window.D.meta && window.D.meta.revision) || 0);
+    if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function' && window._activeProfileId) {
+      window.ProfilesIO.setCloudConfirmedRev(window._activeProfileId, window._lastCloudConfirmedRevision);
+    }
     if (typeof window.captureCoursPlacementBase === 'function') {
       window.captureCoursPlacementBase(window.D && window.D.cours);
     }

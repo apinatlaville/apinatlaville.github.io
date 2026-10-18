@@ -21,6 +21,7 @@
   var SNAP_DATA_PREFIX = 'backup_snap__';
   var MAX_SNAPSHOTS = 8;
   var AUTO_BACKUP_PREFIX = 'mc_auto_backup__';
+  var CLOUD_REV_PREFIX = 'mc_cloud_rev__';
   var _lastIndexWriteError = null;
 
   /** Sections importables (cases à cocher) */
@@ -285,14 +286,31 @@
   var SETTINGS_INDEX_KEY = 's:settings';
   var TOMBSTONE_TTL_MS = 400 * 24 * 3600 * 1000;
 
-  function entityFingerprint(item) {
+  /**
+   * Une révision SRS n’est pas une modification de contenu : elle ne pose pas _mt
+   * (la progression est fusionnée à part, par récence de révision — app.js _pickCard).
+   * Même liste que _CARD_PROGRESS_FIELDS dans app.js.
+   */
+  var CARD_PROGRESS_SKIP = {
+    _mt: 1, historique: 1, intervalle: 1, ease: 1, repetitions: 1, dateProchaineRevision: 1,
+    _lastReviewDate: 1, _blocageActif: 1, _blocageRevCount: 1, _v2WindowOpen: 1,
+    _v2WindowClose: 1, _v2Phase: 1, _morceauxFaits: 1
+  };
+  var SETTINGS_SKIP = { _mt: 1, ankiLastSession: 1 };
+  var MT_SKIP = { _mt: 1 };
+
+  function entityFingerprint(item, skip) {
     if (!item || typeof item !== 'object') return '';
-    if (!Object.prototype.hasOwnProperty.call(item, '_mt')) return JSON.stringify(item);
+    skip = skip || MT_SKIP;
     var o = {};
     for (var k in item) {
-      if (k !== '_mt' && Object.prototype.hasOwnProperty.call(item, k)) o[k] = item[k];
+      if (!skip[k] && Object.prototype.hasOwnProperty.call(item, k)) o[k] = item[k];
     }
     return JSON.stringify(o);
+  }
+
+  function familySkip(fam) {
+    return fam && (fam.arr === 'exercices' || fam.arr === 'devoirs') ? CARD_PROGRESS_SKIP : MT_SKIP;
   }
 
   function forEachEntity(data, fn) {
@@ -313,11 +331,11 @@
   /** Empreintes de l’état persisté : { clé: JSON sans _mt }. */
   function buildPersistIndex(data) {
     var idx = Object.create(null);
-    forEachEntity(data, function (key, item) {
-      if (!(key in idx)) idx[key] = entityFingerprint(item);
+    forEachEntity(data, function (key, item, fam) {
+      if (!(key in idx)) idx[key] = entityFingerprint(item, familySkip(fam));
     });
     if (data && data.settings && typeof data.settings === 'object') {
-      idx[SETTINGS_INDEX_KEY] = entityFingerprint(data.settings);
+      idx[SETTINGS_INDEX_KEY] = entityFingerprint(data.settings, SETTINGS_SKIP);
     }
     return idx;
   }
@@ -344,9 +362,9 @@
     if (!data.meta || typeof data.meta !== 'object') data.meta = {};
     var deleted = pruneTombstones(data.meta.deleted, now);
     var next = Object.create(null);
-    forEachEntity(data, function (key, item) {
+    forEachEntity(data, function (key, item, fam) {
       if (key in next) return;
-      var fp = entityFingerprint(item);
+      var fp = entityFingerprint(item, familySkip(fam));
       next[key] = fp;
       if (!prevIndex) return;
       var tomb = deleted[key];
@@ -358,7 +376,7 @@
       if (!(key in prevIndex) || prevIndex[key] !== fp) item._mt = now;
     });
     if (data.settings && typeof data.settings === 'object') {
-      var sfp = entityFingerprint(data.settings);
+      var sfp = entityFingerprint(data.settings, SETTINGS_SKIP);
       next[SETTINGS_INDEX_KEY] = sfp;
       if (prevIndex && prevIndex[SETTINGS_INDEX_KEY] !== sfp) data.settings._mt = now;
     }
@@ -371,6 +389,24 @@
     if (Object.keys(deleted).length) data.meta.deleted = deleted;
     else delete data.meta.deleted;
     return next;
+  }
+
+  /** Ajoute à target les matières / classeurs / chapitres / dossiers présents seulement dans src. */
+  function unionStructureFrom(target, src) {
+    if (!target || !src) return;
+    [['matieres', 'id'], ['classeurs', 'id'], ['chapitres', 'id'], ['quickGroups', 'id']].forEach(function (p) {
+      var from = src[p[0]];
+      if (!Array.isArray(from) || !from.length) return;
+      if (!Array.isArray(target[p[0]])) target[p[0]] = [];
+      var have = Object.create(null);
+      target[p[0]].forEach(function (x) { if (x && x[p[1]] != null) have[x[p[1]]] = true; });
+      from.forEach(function (x) {
+        if (x && x[p[1]] != null && !have[x[p[1]]]) {
+          have[x[p[1]]] = true;
+          target[p[0]].push(x);
+        }
+      });
+    });
   }
 
   /** Union des traces (date la plus récente par clé). */
@@ -472,7 +508,24 @@
     } catch (e) { /* ignore */ }
     lsRemove(snapIndexKey(profileId));
     lsRemove(AUTO_BACKUP_PREFIX + profileId);
+    lsRemove(CLOUD_REV_PREFIX + profileId);
     clearSeedOwner(profileId);
+  }
+
+  /** Dernière révision confirmée par Firestore pour ce profil (sur cet appareil). */
+  function getCloudConfirmedRev(profileId) {
+    if (!profileId) return null;
+    var raw = lsGet(CLOUD_REV_PREFIX + profileId);
+    if (raw == null || raw === '') return null;
+    var n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function setCloudConfirmedRev(profileId, rev) {
+    if (!profileId) return;
+    var n = Number(rev);
+    if (!Number.isFinite(n)) return;
+    lsSet(CLOUD_REV_PREFIX + profileId, String(n));
   }
 
   /**
@@ -845,6 +898,7 @@
       throw new Error('Sauvegarde corrompue.');
     }
     if (!isProfilePayload(data)) throw new Error('Sauvegarde invalide.');
+    if (profileId === getSessionProfileId()) prepareRestoredData(data);
     if (!writeLocalProfileData(profileId, data)) {
       throw new Error('Impossible d’écrire la restauration (quota navigateur).');
     }
@@ -858,6 +912,23 @@
       if (typeof window.applySettings === 'function') window.applySettings();
     }
     return true;
+  }
+
+  /**
+   * Données restaurées (instantané / copie auto) : la révision ne recule jamais
+   * (sinon le cloud ne serait plus mis à jour) et la génération du profil courant
+   * est conservée. Les traces de suppression courantes sont gardées ; celles des
+   * éléments présents dans la copie sont levées à la sauvegarde (élément restauré).
+   */
+  function prepareRestoredData(data) {
+    var cur = (window.D && window.D.meta) || {};
+    if (!data.meta || typeof data.meta !== 'object') data.meta = {};
+    data.meta.revision = Math.max(Number(cur.revision) || 0, Number(data.meta.revision) || 0);
+    if (cur.profileGeneration != null) data.meta.profileGeneration = cur.profileGeneration;
+    var del = mergeTombstones(cur.deleted, data.meta.deleted);
+    if (Object.keys(del).length) data.meta.deleted = del;
+    else delete data.meta.deleted;
+    return data;
   }
 
   /**
@@ -899,7 +970,7 @@
     var o;
     try { o = JSON.parse(raw); } catch (e) { throw new Error('Copie automatique corrompue.'); }
     if (!o || !o.data || !isProfilePayload(o.data)) throw new Error('Copie automatique invalide.');
-    window.D = o.data;
+    window.D = prepareRestoredData(o.data);
     if (typeof window.save === 'function') await window.save({ waitCloud: false });
     lsRemove(AUTO_BACKUP_PREFIX + profileId);
     reportDataEvent('IMPORT_ROLLBACK', { profileId: profileId, source: 'auto-backup' });
@@ -1133,8 +1204,21 @@
           console.warn('[ProfilesIO] Local génération obsolète — purge', profileId, localGen, '≠', indexGen);
           purgeLocalBlobAndSnaps(profileId);
           localForCompare = null;
-        } else if (localForCompare && localRicher && (cloudEmpty || localNewerOrEqual)) {
+        } else if (localForCompare && localRicher && !cloudEmpty && hasUserContent(cloudPayload) && localNewerOrEqual) {
+          // Cloud non vide : fusion élément par élément après chargement (verrous
+          // Principal / onglet respectés) au lieu d’écraser le cloud ici.
+          return {
+            docRef: pref,
+            accountRef: accountRef,
+            data: cloudPayload,
+            profileId: profileId,
+            legacyRoot: false,
+            migrated: false,
+            localAhead: localForCompare
+          };
+        } else if (localForCompare && localRicher && (cloudEmpty || !hasUserContent(cloudPayload))) {
           // Republier le local riche (sauve le travail après poison empty / create collision)
+          unionStructureFrom(localForCompare, cloudPayload);
           if (window.setDoc) {
             try { await window.setDoc(pref, localForCompare); } catch (eRep) {
               console.warn('[ProfilesIO] Republish local riche échoué:', eRep);
@@ -1161,7 +1245,9 @@
         var lGenA = Number(localForCompare.meta && localForCompare.meta.profileGeneration) || 0;
         var cGenA = Number(cloudPayload && cloudPayload.meta && cloudPayload.meta.profileGeneration) || 0;
         var sameGen = !lGenA || !cGenA || lGenA === cGenA;
-        if (sameGen && lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload)) {
+        var confirmedRev = getCloudConfirmedRev(profileId);
+        var unsynced = confirmedRev != null && lRev > confirmedRev && lRev !== cRev;
+        if (sameGen && ((lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload)) || unsynced)) {
           localAhead = localForCompare;
         }
       }
@@ -1944,6 +2030,9 @@
 
     // Préserver meta / session si non demandés
     if (mode === 'replace') {
+      if (window.D.meta && typeof window.D.meta === 'object') {
+        target.meta = Object.assign({}, target.meta || {}, deepClone(window.D.meta));
+      }
       if (want.indexOf('settings') === -1 && window.D.settings) {
         target.settings = deepClone(window.D.settings);
       }
@@ -3073,7 +3162,26 @@
               });
               return;
             }
-            createAutoBackup('Avant import ' + (mode === 'replace' ? '(remplacer)' : '(fusion)') + ' — ' + file.name);
+            var runImport = function () {
+              try {
+                doImport();
+              } catch (eRun) {
+                showImportReport({ ok: false, errors: [eRun.message || String(eRun)], warnings: [], skipped: [], imported: {} });
+              }
+            };
+            if (!createAutoBackup('Avant import ' + (mode === 'replace' ? '(remplacer)' : '(fusion)') + ' — ' + file.name)) {
+              var noBackupMsg = 'La copie de sécurité n’a pas pu être faite (stockage du navigateur plein) : '
+                + '« Annuler le dernier import » ne sera pas disponible.<br><br>Importer quand même ?';
+              if (typeof window.sysConfirm === 'function') window.sysConfirm(noBackupMsg, runImport, 'Import sans copie de sécurité');
+              else if (window.confirm('Copie de sécurité impossible (stockage plein). Importer quand même ?')) runImport();
+              return;
+            }
+            runImport();
+          } catch (e) {
+            showImportReport({ ok: false, errors: [e.message || String(e)], warnings: [], skipped: [], imported: {} });
+          }
+
+          function doImport() {
             var report = applyImport(normalized, { sections: secs, mode: mode });
             showImportReport(report);
             if (report.ok) {
@@ -3092,8 +3200,6 @@
                 showImportReport(report);
               });
             }
-          } catch (e) {
-            showImportReport({ ok: false, errors: [e.message || String(e)], warnings: [], skipped: [], imported: {} });
           }
         };
         reader.onerror = function () {
@@ -3166,6 +3272,9 @@
     adoptActiveProfileFromCloud: adoptActiveProfileFromCloud,
     createSnapshot: createSnapshot,
     restoreSnapshot: restoreSnapshot,
+    _prepareRestoredData: prepareRestoredData,
+    getCloudConfirmedRev: getCloudConfirmedRev,
+    setCloudConfirmedRev: setCloudConfirmedRev,
     createAutoBackup: createAutoBackup,
     getAutoBackupInfo: getAutoBackupInfo,
     restoreAutoBackup: restoreAutoBackup,

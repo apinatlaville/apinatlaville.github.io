@@ -213,6 +213,62 @@ function testCardProgressNeverLost() {
   assert(m.historique.length === 1 && m.repetitions === 1 && m.intervalle === 3, 'progression SRS conservée');
 }
 
+// ─── 4b. Révision Anki postérieure à une correction de texte : le texte n’est pas perdu ───
+function testReviewDoesNotBeatTextEdit() {
+  console.log('\n· carte : une révision ne vaut pas modification du texte');
+  const { A, B } = twoDevices();
+  const t0 = Date.now();
+  B.D.exercices[0].question = 'Q corrigée sur B';
+  save(B, 'default', t0);
+  const ca = A.D.exercices[0];
+  ca.historique.push({ date: new Date(t0 + 5000).toISOString(), qScore: 6 });
+  ca.repetitions = 1;
+  ca.intervalle = 2;
+  save(A, 'default', t0 + 5000);
+  assert(!(Number(ca._mt) > 0), 'révision seule : pas de _mt posé sur la carte');
+  A.mergeRemoteProfileIntoLocal(clone(B.D));
+  const m = A.D.exercices.find((c) => c.id === 'X-AAA');
+  assert(m.question === 'Q corrigée sur B', 'texte corrigé sur B conservé malgré la révision plus récente sur A');
+  assert(m.historique.length === 1 && m.repetitions === 1, 'révision de A conservée');
+  A.D.settings.ankiLastSession = '2026-10-18';
+  const before = A.D.settings._mt;
+  save(A, 'default', t0 + 6000);
+  assert(A.D.settings._mt === before, 'réglages : ankiLastSession seul ne pose pas _mt');
+}
+
+function placementBase(cours) {
+  const base = {};
+  cours.forEach((c) => { base[c.uid] = { cl: c.cl || '', inter: String(c.inter || ''), stat: c.stat || '' }; });
+  return base;
+}
+
+// ─── 4c. Cours : un déplacement local n’est pas annulé par une édition distante plus récente ───
+function testCoursPlacementKept() {
+  console.log('\n· cours : rangement local gardé si la version distante ne l’a pas changé');
+  const { A, B } = twoDevices();
+  A._coursPlacementBase = placementBase(A.D.cours);
+  const t0 = Date.now();
+  const la = A.D.cours.find((c) => c.uid === 'PH-AAA');
+  la.inter = '05';
+  la.stat = 'printed';
+  save(A, 'default', t0);
+  B.D.cours.find((c) => c.uid === 'PH-AAA').title = 'Titre B';
+  save(B, 'default', t0 + 2000);
+  A.mergeRemoteProfileIntoLocal(clone(B.D));
+  const m = A.D.cours.find((c) => c.uid === 'PH-AAA');
+  assert(m.title === 'Titre B', 'titre : version distante plus récente');
+  assert(m.inter === '05' && m.cl === 'A', 'rangement : déplacement local conservé');
+  assert(m.stat === 'printed', 'statut d’impression : ne recule pas');
+  const { A: A2, B: B2 } = twoDevices();
+  A2._coursPlacementBase = placementBase(A2.D.cours);
+  A2.D.cours[0].inter = '05';
+  save(A2, 'default', t0);
+  B2.D.cours[0].inter = '09';
+  save(B2, 'default', t0 + 2000);
+  A2.mergeRemoteProfileIntoLocal(clone(B2.D));
+  assert(A2.D.cours[0].inter === '09', 'déplacé des deux côtés : la plus récente gagne');
+}
+
 // ─── 5. Réglages : la plus récente gagne ───
 function testSettingsNewest() {
   console.log('\n· réglages : la plus récente gagne');
@@ -351,6 +407,82 @@ async function testBootLocalAhead() {
   assert(!r2.localAhead, 'local plus ancien : cloud seul');
 }
 
+// ─── 11b. Démarrage : jamais d’écrasement direct d’un cloud non vide ───
+function bootFixture(cloud, local, confirmedRev) {
+  const fsMock = makeFirestore();
+  const store = makeStore();
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', generation: 1 }], deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', generation: 1 }]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify(local));
+  if (confirmedRev != null) store.setItem('mc_cloud_rev__default', String(confirmedRev));
+  return { env: makeDevice({ fsMock, store }), fsMock };
+}
+
+async function testBootNeverOverwritesCloud() {
+  console.log('\n· démarrage : local plus riche fusionné, cloud jamais écrasé directement');
+  const cloud = clone(baseProfile());
+  cloud.cours = [cloud.cours[0]];
+  cloud.exercices.push({ id: 'X-CLOUD', titre: 'Ajoutée ailleurs', question: 'q', reponse: 'r', historique: [] });
+  cloud.meta = { revision: 10, updatedAt: Date.now() - 60000, profileGeneration: 1 };
+  const local = clone(baseProfile());
+  local.cours.push({ uid: 'PH-CCC', title: 'Local 3' });
+  local.meta = { revision: 10, updatedAt: Date.now() - 1000, profileGeneration: 1 };
+  const { env, fsMock } = bootFixture(cloud, local);
+  const r = await env.PIO.resolveProfileCloudDoc(env.currentUser);
+  const after = fsMock.docs.get('utilisateurs/uid1/profiles/default');
+  assert(after.exercices.some((c) => c.id === 'X-CLOUD'), 'carte présente seulement sur le cloud non écrasée au démarrage');
+  assert(!!r.localAhead, 'local plus riche transmis pour fusion');
+  env.D = r.data;
+  env.resetPersistIndex();
+  env._mergeLocalAheadAtBoot(r.localAhead);
+  assert(env.D.exercices.some((c) => c.id === 'X-CLOUD'), 'fusion : carte du cloud gardée');
+  assert(env.D.cours.length === 3, 'fusion : cours locaux gardés');
+}
+
+async function testBootUnsyncedLocal() {
+  console.log('\n· démarrage : sauvegardes locales jamais confirmées par le cloud fusionnées');
+  const cloud = clone(baseProfile());
+  cloud.meta = { revision: 60, updatedAt: Date.now() - 1000, profileGeneration: 1 };
+  cloud.cours[1].title = 'Édité sur B';
+  cloud.cours[1]._mt = Date.now() - 1000;
+  const local = clone(baseProfile());
+  local.cours.push({ uid: 'PH-OFF', title: 'Ajouté hors ligne', _mt: Date.now() - 5000 });
+  local.meta = { revision: 50, updatedAt: Date.now() - 5000, profileGeneration: 1 };
+  const { env } = bootFixture(cloud, local, 45);
+  const r = await env.PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(!!r.localAhead, 'révision locale 50 > confirmée 45 : fusion malgré cloud à 60');
+  env.D = r.data;
+  env.resetPersistIndex();
+  env._mergeLocalAheadAtBoot(r.localAhead);
+  assert(env.D.cours.some((c) => c.uid === 'PH-OFF'), 'ajout hors ligne conservé');
+  assert(env.D.cours.find((c) => c.uid === 'PH-BBB').title === 'Édité sur B', 'édition plus récente de B conservée');
+  const { env: env2 } = bootFixture(clone(cloud), clone(local), 50);
+  const r2 = await env2.PIO.resolveProfileCloudDoc(env2.currentUser);
+  assert(!r2.localAhead, 'local déjà confirmé (50) : miroir cloud normal');
+}
+
+function testRestoreKeepsRevision() {
+  console.log('\n· restauration : la révision ne recule jamais');
+  const env = makeDevice({ isLocalMode: true });
+  env.D = clone(baseProfile());
+  env.D.meta.revision = 40;
+  env.D.meta.deleted = { 'c:GONE': Date.now() - 1000 };
+  const old = clone(baseProfile());
+  old.meta = { revision: 12, profileGeneration: 1 };
+  const out = env.PIO._prepareRestoredData(old);
+  assert(out.meta.revision === 40, 'révision gardée à 40 (pas 12)');
+  assert(!!out.meta.deleted['c:GONE'], 'traces de suppression courantes conservées');
+}
+
 // ─── 12. Traces très anciennes purgées ───
 function testTombstonePrune() {
   console.log('\n· traces > 400 jours purgées');
@@ -374,7 +506,11 @@ function testWiring() {
   {
     const iReset = appSrc.indexOf('window.resetPersistIndex();\n  if (window.TabLock');
     const iMerge = appSrc.indexOf('if (window._bootLocalAhead) {', iReset);
-    assert(iReset > 0 && iMerge > iReset && iMerge - iReset < 600, 'initApp : index initialisé puis fusion local en avance');
+    assert(iReset > 0 && iMerge > iReset && iMerge - iReset < 2000, 'initApp : index initialisé puis fusion local en avance');
+    const iTab = appSrc.indexOf('await window.TabLock.start(', iReset);
+    const iMirror = appSrc.indexOf('if (window._bootMirror) {', iReset);
+    assert(iTab > iReset && iMirror > iTab && iMirror < iMerge, 'initApp : miroir cloud→local écrit seulement après le verrou d’onglet');
+    assert(/!readOnlyTab && mirror\.profileId === window\._activeProfileId/.test(appSrc), 'initApp : pas de miroir dans un onglet en lecture seule');
   }
   assert(/!window\._bootLocalAhead && window\.ProfilesIO/.test(appSrc), 'initApp : pas de miroir cloud→local si local en avance');
   const ds = fs.readFileSync(path.join(root, 'device-session.js'), 'utf8');
@@ -387,6 +523,8 @@ async function main() {
   testEditAfterDeleteWins();
   testNewestEditWins();
   testCardProgressNeverLost();
+  testReviewDoesNotBeatTextEdit();
+  testCoursPlacementKept();
   testSettingsNewest();
   testDeleteLastContent();
   testReAddRemovesTombstone();
@@ -394,6 +532,9 @@ async function main() {
   testLegacyCompat();
   testProfileIsolation();
   await testBootLocalAhead();
+  await testBootNeverOverwritesCloud();
+  await testBootUnsyncedLocal();
+  testRestoreKeepsRevision();
   testTombstonePrune();
   testWiring();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
