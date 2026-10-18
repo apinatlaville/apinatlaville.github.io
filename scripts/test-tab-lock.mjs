@@ -94,8 +94,11 @@ async function testSecondTabLocked() {
   assert(B.overlayCount() === 1, 'B affiche « Déjà ouvert dans un autre onglet »');
   assert(B._events.some((e) => e.code === 'TAB_LOCKED'), 'B : événement TAB_LOCKED');
 
-  B.TabLock.takeOver();
+  const tTake = Date.now();
+  await B.TabLock.takeOver();
   assert(B._reloaded === true, 'Prendre la main recharge l’onglet (données fraîches)');
+  assert(A.TabLock.getState() === 'lost', 'A a lâché la main AVANT le rechargement de B');
+  assert(Date.now() - tTake < 1500, 'B recharge dès que A confirme (yielded), sans attendre le délai max');
   const B2 = makeTab(shared, { session: B.session });
   const stB2 = await B2.TabLock.start('principal');
   assert(stB2 === 'owner', 'après rechargement : B propriétaire');
@@ -128,6 +131,27 @@ async function testCloseReleases() {
   assert(shared.local.getItem('mc_tab_owner__principal') == null, 'clé propriétaire retirée à la fermeture');
 }
 
+async function testFrozenTabMissedClaim() {
+  console.log('\n· onglet gelé qui a manqué le « claim » : la clé propriétaire fait foi');
+  const shared = { local: makeStore(), BC: makeBus() };
+  const A = makeTab(shared);
+  await A.TabLock.start('principal');
+  shared.local.setItem('mc_tab_owner__principal', JSON.stringify({ tabId: 'Tautre', at: Date.now() }));
+  assert(A.TabLock.isReadOnly() === true, 'A détecte un autre propriétaire avant d’enregistrer');
+  assert(A.TabLock.getState() === 'lost', 'A passe en « perdu »');
+  assert(JSON.parse(shared.local.getItem('mc_tab_owner__principal')).tabId === 'Tautre', 'A n’écrase pas la clé du nouveau propriétaire');
+}
+
+async function testBfcacheReload() {
+  console.log('\n· retour par l’historique (bfcache) : rechargement');
+  const shared = { local: makeStore(), BC: makeBus() };
+  const A = makeTab(shared);
+  await A.TabLock.start('principal');
+  A.dispatch('pagehide');
+  A.dispatch('pageshow', { persisted: true });
+  assert(A._reloaded === true, 'page restaurée depuis le bfcache rechargée');
+}
+
 async function testNoBroadcastFallback() {
   console.log('\n· sans BroadcastChannel : repli sur la clé propriétaire');
   const shared = { local: makeStore(), BC: makeBus() };
@@ -156,6 +180,8 @@ async function main() {
   await testProfilesIndependent();
   await testCloseReleases();
   await testNoBroadcastFallback();
+  await testFrozenTabMissedClaim();
+  await testBfcacheReload();
   testWiring();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
   if (failures.length) console.error('Échecs:\n' + failures.map((f) => ' - ' + f).join('\n'));

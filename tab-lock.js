@@ -17,13 +17,15 @@
   var PING_WAIT_MS = 350;
   var HEARTBEAT_MS = 2000;
   var OWNER_STALE_MS = 7000;
+  var YIELD_WAIT_MS = 1500;
 
   var tabId = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   var state = {
     profileId: null,
     status: 'idle', // idle | owner | locked | lost
     heartbeat: null,
-    pongWaiters: []
+    pongWaiters: [],
+    yieldWaiters: []
   };
   var bc = null;
   try {
@@ -70,7 +72,39 @@
 
   function writeOwner() {
     if (state.status !== 'owner' || !state.profileId) return;
+    if (!checkStillOwner()) return;
     lsSet(ownerKey(state.profileId), JSON.stringify({ tabId: tabId, at: Date.now() }));
+  }
+
+  /** Onglet gelé / restauré qui a manqué le « claim » : la clé propriétaire fait foi. */
+  function checkStillOwner() {
+    if (state.status !== 'owner' || !state.profileId) return state.status === 'owner';
+    var o = readOwner(state.profileId);
+    if (o && o.tabId !== tabId && (Date.now() - Number(o.at || 0)) < OWNER_STALE_MS) {
+      loseOwnership('owner-key-taken');
+      return false;
+    }
+    return true;
+  }
+
+  function loseOwnership(reason) {
+    state.status = 'lost';
+    stopHeartbeat();
+    var o = readOwner(state.profileId);
+    if (o && o.tabId === tabId) lsRemove(ownerKey(state.profileId));
+    event('TAB_LOCKED', { reason: reason });
+    if (typeof window.flushCloudOnHide === 'function') {
+      try { window.flushCloudOnHide('tab-lost'); } catch (e) { /* ignore */ }
+    }
+    showOverlay('lost');
+  }
+
+  function afterLocalSaves() {
+    var chain = window._saveLocalChain;
+    var settle = chain && typeof chain.then === 'function'
+      ? chain.then(function () {}, function () {})
+      : Promise.resolve();
+    return Promise.race([settle, new Promise(function (r) { setTimeout(r, YIELD_WAIT_MS); })]);
   }
 
   function event(code, detail) {
@@ -81,7 +115,7 @@
 
   function becomeOwner() {
     state.status = 'owner';
-    writeOwner();
+    lsSet(ownerKey(state.profileId), JSON.stringify({ tabId: tabId, at: Date.now() }));
     if (state.heartbeat) clearInterval(state.heartbeat);
     state.heartbeat = setInterval(writeOwner, HEARTBEAT_MS);
     post({ type: 'claim', pid: state.profileId });
@@ -105,14 +139,17 @@
       waiters.forEach(function (fn) { fn(true); });
       return;
     }
+    if (msg.type === 'yielded') {
+      var yw = state.yieldWaiters.slice();
+      state.yieldWaiters.length = 0;
+      yw.forEach(function (fn) { fn(); });
+      return;
+    }
     if (msg.type === 'claim' && state.status === 'owner') {
-      state.status = 'lost';
-      stopHeartbeat();
-      event('TAB_LOCKED', { reason: 'claimed-by-other-tab' });
-      if (typeof window.flushCloudOnHide === 'function') {
-        try { window.flushCloudOnHide('tab-lost'); } catch (e) { /* ignore */ }
-      }
-      showOverlay('lost');
+      loseOwnership('claimed-by-other-tab');
+      afterLocalSaves().then(function () {
+        post({ type: 'yielded', pid: state.profileId });
+      });
     }
   }
 
@@ -129,6 +166,13 @@
     var o = readOwner(state.profileId);
     if (o && o.tabId === tabId) lsRemove(ownerKey(state.profileId));
     post({ type: 'release', pid: state.profileId });
+  });
+
+  /* Retour via l’historique (bfcache) : la clé a été rendue au pagehide et les données
+     en mémoire peuvent être périmées → rechargement complet. */
+  window.addEventListener('pageshow', function (ev) {
+    if (!ev || !ev.persisted || !state.profileId || state.status === 'idle') return;
+    try { location.reload(); } catch (e) { /* ignore */ }
   });
 
   function askOwner() {
@@ -168,13 +212,31 @@
     });
   }
 
+  /**
+   * Annonce la prise avant de recharger : l’ancien onglet passe en lecture seule,
+   * termine ses écritures locales puis répond « yielded ». Le rechargement lit
+   * donc ses dernières données.
+   */
   function takeOver() {
-    if (!state.profileId) return;
+    if (!state.profileId) return Promise.resolve();
     ssSet(TAKEOVER_KEY, state.profileId);
-    try { location.reload(); } catch (e) { /* ignore */ }
+    return new Promise(function (resolve) {
+      var done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        resolve();
+      }
+      state.yieldWaiters.push(finish);
+      post({ type: 'claim', pid: state.profileId });
+      setTimeout(finish, YIELD_WAIT_MS + 300);
+    }).then(function () {
+      try { location.reload(); } catch (e) { /* ignore */ }
+    });
   }
 
   function isReadOnly() {
+    if (state.status === 'owner') checkStillOwner();
     return state.status === 'locked' || state.status === 'lost';
   }
 
