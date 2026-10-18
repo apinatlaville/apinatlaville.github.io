@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
+import { checkBootCacheVersion } from './_cache-version.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -48,7 +49,7 @@ assert(/groupId:'QG-VOC'|groupId: 'QG-VOC'|groupId: "QG-VOC"/.test(demoSrc), 'd�
 assert(/mat:\s*'ANGL'|mat:\s*"ANGL"/.test(demoSrc), 'démo quickGroups avec matière');
 assert(/quickGroups:/.test(demoSrc), 'démo définit quickGroups');
 assert(/quick-bc-page|qk-groups-sections|qk-color-dot|cours-bc-tile--manage/.test(cssSrc), 'styles Rapide (dossiers + fil d\'Ariane)');
-assert(/__BOOT_CACHE_V\s*=\s*'20260831d'/.test(indexSrc), 'cache 20260831d');
+assert(checkBootCacheVersion(root).ok, 'cache __BOOT_CACHE_V défini (8 chiffres + lettres) et lu par boot-loader');
 
 const sandbox = {
   window: {

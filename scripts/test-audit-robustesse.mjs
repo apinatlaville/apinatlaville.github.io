@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
+import { checkBootCacheVersion } from './_cache-version.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -61,7 +62,7 @@ assert(qlMatch && /latex-test\.js/.test(qlMatch[1]) && /anki-quick-latex\.js/.te
 console.log('\n=== formatCardFaceHtml comportement ===\n');
 {
   const sandbox = {
-    window: {},
+    window: { addEventListener: function () {}, removeEventListener: function () {} },
     console,
     String, Array, Object, Math, Error, RegExp, Date, JSON, Number, Boolean,
     setTimeout: function () { return 0; },
@@ -108,7 +109,7 @@ const oqBody = oqEnd > 0 ? oq.slice(0, oqEnd) : oq.slice(0, 800);
 assert(!/openCardTypePicker\(window\._cardCreateOpts/.test(oqBody),
   'openQuickCardCreate ne reboucle plus sur le type picker');
 assert(/consultation \(pas de création/.test(indexSrc), 'hint Base Doc secondaire clarifié');
-assert(/__BOOT_CACHE_V\s*=\s*'20260831d'/.test(indexSrc), 'cache 20260831d');
+assert(checkBootCacheVersion(root).ok, 'cache __BOOT_CACHE_V défini (8 chiffres + lettres) et lu par boot-loader');
 assert(/throw err/.test(latexSrc) && /MathLive indisponible/.test(latexSrc),
   'échec MathLive propage ready (anti-wipe Appliquer)');
 

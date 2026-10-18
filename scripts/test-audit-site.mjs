@@ -5,6 +5,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { checkBootCacheVersion } from './_cache-version.mjs';
+import { sliceBlock } from './_src-slice.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -37,8 +39,15 @@ assert(/refuseSecondaryFullMutation[\s\S]*addMat/.test(dataSrc), 'addMat : garde
 assert(/refuseSecondaryFullMutation[\s\S]*evalCardV2/.test(ankiSrc), 'evalCardV2 : refuse secondaire');
 assert(/S\._evalBusy/.test(ankiSrc), 'evalCardV2 : lock anti double-clic');
 assert(/refuseSecondaryFullMutation[\s\S]*ankiV2SaveExo/.test(ankiSrc), 'ankiV2SaveExo : garde secondaire');
-assert(/ankiV2SaveExo[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(ankiSrc), 'ankiV2SaveExo : await save');
-assert(/canFullSave[\s\S]*shiftProgramIfMissedDaily/.test(ankiSrc), 'shiftProgram : skip secondaire');
+const saveExoBody = sliceBlock(ankiSrc, 'window.ankiV2SaveExo = function');
+assert(/Promise\.resolve\(window\.save\([^)]*\)\)\.then\(function \(\) \{[\s\S]*?classList\.add\('hidden'\)[\s\S]*?\}\)\.catch\(function \(err\) \{[\s\S]*?showFormError\(/.test(saveExoBody),
+  'ankiV2SaveExo : await save (modal fermé seulement après save, erreur affichée sinon)');
+{
+  // L'appel auto a été retiré de renderAnkiV2 (103fe72) ; s'il revient, il doit rester gardé par canFullSave.
+  const calls = [...ankiSrc.matchAll(/shiftProgramIfMissedDaily\(/g)];
+  const unguarded = calls.filter(m => !/canFullSave/.test(ankiSrc.slice(Math.max(0, m.index - 600), m.index)));
+  assert(unguarded.length === 0, 'shiftProgram : skip secondaire (' + calls.length + ' appel(s), ' + unguarded.length + ' non gardé(s))');
+}
 assert(/renderCours[\s\S]*watchUserData|watchUserData[\s\S]*renderCours/.test(dsSrc),
   'secondaire : refresh UI après snapshot');
 
@@ -57,7 +66,7 @@ assert(/deviceUserIdEarly = \(!window\.isLocalMode && user && user\.sub\)/.test(
 console.log('\n=== UX / logique ===\n');
 assert(/total: quickOnly\.length/.test(ankiSrc), 'ankiV2SetQuickQueue : total correct');
 assert(/n’est pas abandonnée|n'est pas abandonnée/.test(ankiSrc), 'session conflict : copy corrigée');
-assert(/__BOOT_CACHE_V\s*=\s*'20260831d'/.test(indexSrc), 'cache 20260831d');
+assert(checkBootCacheVersion(root).ok, 'cache __BOOT_CACHE_V défini (8 chiffres + lettres) et lu par boot-loader');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

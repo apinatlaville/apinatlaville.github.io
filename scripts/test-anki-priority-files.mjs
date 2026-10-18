@@ -89,7 +89,12 @@ console.log('=== Files urgence X- / Y- ===\n');
 
 {
   console.log('[2] scores séparés');
-  const x = V2.priorityScore(cardX({ dateProchaineRevision: V2.addDays(today, -2) }), today);
+  // Mature dès 5 réussites (b821c56) : une mature sans _v2WindowClose n'est jamais overdue.
+  // 4 réussites + ease 2.5 = consolidation, en retard de 2 j → overdue.
+  const xOverdue = cardX({ repetitions: 4, dateProchaineRevision: V2.addDays(today, -2) });
+  assert(V2.getPhase(xOverdue) === 'consolidation', 'fixture prioX : phase consolidation');
+  assert(V2.windowState(xOverdue, today) === 'overdue', 'fixture prioX : windowState overdue');
+  const x = V2.priorityScore(xOverdue, today);
   const y = V2.priorityScoreQuick(cardY(), today);
   assert(x.file === 'main', 'prioX file=main');
   assert(y.file === 'quick', 'prioY file=quick');

@@ -371,7 +371,11 @@ function testWiring() {
   assert(iStamp > 0 && iStr > iStamp, 'save : horodatage avant sérialisation');
   assert(/writeLocalProfileData\(sessionPid, window\.D, \{ payload: payload \}\)/.test(saveImpl), 'save : sérialisation unique passée à writeLocal');
   assert(/window\._persistIndex = nextPersistIndex/.test(saveImpl), 'save : index mis à jour après écriture réussie');
-  assert(/window\.resetPersistIndex\(\);\s*\n\s*if \(window\._bootLocalAhead\)/.test(appSrc), 'initApp : index initialisé puis fusion local en avance');
+  {
+    const iReset = appSrc.indexOf('window.resetPersistIndex();\n  if (window.TabLock');
+    const iMerge = appSrc.indexOf('if (window._bootLocalAhead) {', iReset);
+    assert(iReset > 0 && iMerge > iReset && iMerge - iReset < 600, 'initApp : index initialisé puis fusion local en avance');
+  }
   assert(/!window\._bootLocalAhead && window\.ProfilesIO/.test(appSrc), 'initApp : pas de miroir cloud→local si local en avance');
   const ds = fs.readFileSync(path.join(root, 'device-session.js'), 'utf8');
   assert((ds.match(/resetPersistIndex/g) || []).length >= 2, 'Secondaire : index réinitialisé sur données reçues');
