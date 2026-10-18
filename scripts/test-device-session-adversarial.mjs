@@ -776,6 +776,71 @@ async function pocSecondaryPatchKeepsNewerSharedAndDoesNotConfirmKeepRev() {
   DS.stop();
 }
 
+async function pocSecondaryPatchDoesNotConfirmKeepRevWithoutOverlay() {
+  console.log('\n[DS17] patch Secondaire : rév. locale en avance jamais confirmée même sans _mt plus récent');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  const cloud = rich(3, 1);
+  cloud.meta.revision = 40;
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(cloud));
+  env.D.meta.revision = 60;
+  store.setItem('backup_local_cours__default', JSON.stringify(env.D));
+  const { DS, PIO } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  await DS.saveSecondaryPatch(function (data) { data.openTabs = ['x']; });
+  assert(Number(env.D.meta.revision) >= 60, 'DS17: révision locale ne recule pas');
+  assert(PIO.getCloudConfirmedRev('default') !== 60, 'DS17: rév. 60 jamais confirmée');
+  DS.stop();
+}
+
+async function pocWatchKeepsLocalRevAheadEmptyShell() {
+  console.log('\n[DS18] watchUserData : rév. locale > cloud, coquille sans traces → pas de miroir');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  const local = {
+    settings: { userName: 'Moi' },
+    matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [],
+    meta: { revision: 8, updatedAt: t - 1000, profileGeneration: 1 }
+  };
+  store.setItem('backup_local_cours__default', JSON.stringify(local));
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(local));
+  env.mergeRemoteProfileIntoLocal = function () { env._merged = true; };
+  const { DS } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  const poison = { ...shell(), meta: { updatedAt: t - 5000, revision: 2, profileGeneration: 1 } };
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', poison);
+  DS.watchUserData(env.docRef);
+  await new Promise((r) => setTimeout(r, 40));
+  assert(env._merged === true, 'DS18: fusion (rév. locale en avance) au lieu d’un miroir');
+  assert(env.D.settings && env.D.settings.userName === 'Moi', 'DS18: réglages locaux conservés');
+  DS.stop();
+}
+
 async function pocStaleHeartbeatDoesNotReclaim() {
   console.log('\n[DS9] heartbeat d’un Principal gelé n’écrase pas le claim d’un autre appareil');
   const fsMock = makeFirestore();
@@ -821,6 +886,8 @@ async function main() {
   await pocWatchKeepsLocalAheadDeletion();
   await pocWatchKeepsNewerSharedEdit();
   await pocSecondaryPatchKeepsNewerSharedAndDoesNotConfirmKeepRev();
+  await pocSecondaryPatchDoesNotConfirmKeepRevWithoutOverlay();
+  await pocWatchKeepsLocalRevAheadEmptyShell();
   await pocCreateRace();
   await pocClaimPrimaryFailClosed();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);

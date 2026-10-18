@@ -397,10 +397,13 @@ async function testBootLocalAhead() {
   assert(env.D.cours.find((c) => c.uid === 'PH-AAA').title === 'Édité hors ligne', 'édition locale non synchronisée conservée');
   assert(!env.D.cours.some((c) => c.uid === 'PH-BBB'), 'cours supprimé ailleurs non ressuscité');
   assert(env._bootLocalAheadMerged === true, 'sauvegarde de rattrapage demandée');
-  // Local plus ancien que le cloud : pas de fusion
+  // Local plus ancien que le cloud (rév. et _mt) : pas de fusion
   const store2 = makeStore();
   store2._map = store._map;
   local.meta.revision = 9;
+  local.meta.updatedAt = Date.now() - 120000;
+  local.cours[0].title = 'Cours 1';
+  delete local.cours[0]._mt;
   store.setItem('backup_local_cours__default', JSON.stringify(local));
   const env2 = makeDevice({ fsMock, store });
   const r2 = await env2.PIO.resolveProfileCloudDoc(env2.currentUser);
@@ -478,6 +481,44 @@ async function testBootUnsyncedLocal() {
   const { env: env3 } = bootFixture(clone(cloud), clone(local));
   const r3 = await env3.PIO.resolveProfileCloudDoc(env3.currentUser);
   assert(!!r3.localAhead, 'sans mc_cloud_rev : cours local absent du cloud → fusion (données déjà en production)');
+  const localCh = clone(cloud);
+  localCh.chapitres = (localCh.chapitres || []).concat({ id: 'PH-CH-OFF', title: 'Chapitre hors ligne' });
+  localCh.meta = { revision: 60, updatedAt: Date.now() - 2000, profileGeneration: 1 };
+  const { env: envCh } = bootFixture(clone(cloud), localCh, 60);
+  const rCh = await envCh.PIO.resolveProfileCloudDoc(envCh.currentUser);
+  assert(!!rCh.localAhead, 'chapitre local absent du cloud : fusion au démarrage');
+  const localTomb = clone(cloud);
+  localTomb.cours = localTomb.cours.filter((c) => c.uid !== 'PH-AAA');
+  localTomb.meta = { revision: 60, updatedAt: Date.now() - 2000, profileGeneration: 1, deleted: { 'c:PH-AAA': Date.now() - 1000 } };
+  const { env: envT } = bootFixture(clone(cloud), localTomb, 60);
+  const rT = await envT.PIO.resolveProfileCloudDoc(envT.currentUser);
+  assert(!!rT.localAhead, 'trace locale en avance : fusion au démarrage même si rév. confirmée = 60');
+}
+
+async function testFirstBindDoesNotGraftLocalModeDemo() {
+  console.log('\n· première liaison Google : ids exclusifs du mode local non greffés sur un cloud déjà rempli');
+  const fsMock = makeFirestore();
+  const store = makeStore();
+  const cloud = clone(baseProfile());
+  cloud.meta = { revision: 20, updatedAt: Date.now() - 1000, profileGeneration: 1 };
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', generation: 1 }], deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  const local = clone(baseProfile());
+  local.cours.push({ uid: 'DEMO-OFF', title: 'Démo mode local' });
+  local.meta = { revision: 1, updatedAt: Date.now() - 5000, profileGeneration: 1 };
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', generation: 1 }]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify(local));
+  const env = makeDevice({ fsMock, store });
+  const r = await env.PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(!r.localAhead, '1ʳᵉ liaison : pas de fusion des ids exclusifs de la démo');
+  assert(!(r.data.cours || []).some((c) => c.uid === 'DEMO-OFF'), 'cloud conservé sans le cours démo');
 }
 
 function testBootKeepsRemoteCourseMove() {
@@ -650,6 +691,7 @@ async function main() {
   await testBootLocalAhead();
   await testBootNeverOverwritesCloud();
   await testBootUnsyncedLocal();
+  await testFirstBindDoesNotGraftLocalModeDemo();
   testBootKeepsRemoteCourseMove();
   testGraftExclusiveEntities();
   testOverlayAndUnsyncedHelpers();

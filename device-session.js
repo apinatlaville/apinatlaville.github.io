@@ -793,8 +793,11 @@
     var PIO = window.ProfilesIO;
     var grafted = 0;
     var overlayed = 0;
+    var leftover = 0;
     var keepRev = Number(prev && prev.meta && prev.meta.revision) || 0;
     var writtenRev = Number(data && data.meta && data.meta.revision) || 0;
+    if (prev && data && PIO && typeof PIO.localHasUnsyncedContent === 'function'
+        && PIO.localHasUnsyncedContent(prev, data)) leftover = 1;
     if (prev && data && PIO && typeof PIO.graftExclusiveEntities === 'function') {
       grafted = PIO.graftExclusiveEntities(data, prev) || 0;
     }
@@ -818,7 +821,7 @@
     if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
     // Confirmer uniquement la rév. vraiment écrite. Pas keepRev (jamais ack),
     // et pas si des ids / traces / _mt locaux restent hors cloud.
-    if (!grafted && !tombsApplied && !overlayed) {
+    if (!grafted && !tombsApplied && !overlayed && !leftover && keepRev <= writtenRev) {
       window._lastCloudConfirmedRevision = writtenRev;
       if (PIO && typeof PIO.setCloudConfirmedRev === 'function') {
         PIO.setCloudConfirmedRev(pid, writtenRev);
@@ -981,7 +984,21 @@
         return;
       }
 
-      if (!emptyRemote && localRev > remoteRev) return;
+      if (localRev > remoteRev) {
+        var trueEmptyReset = emptyRemote && PIO && typeof PIO.removalsAreTombstoned === 'function'
+          && window.D && PIO.removalsAreTombstoned(window.D, data)
+          && data.meta && data.meta.deleted && Object.keys(data.meta.deleted).length > 0;
+        if (!trueEmptyReset) {
+          if (typeof window.mergeRemoteProfileIntoLocal === 'function') {
+            window.mergeRemoteProfileIntoLocal(data);
+          }
+          if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+            PIO.writeLocalProfileData(pid, window.D, { allowEmpty: true });
+          }
+          refreshSecondaryUi();
+          return;
+        }
+      }
 
       var mirrored = false;
       if (PIO && typeof PIO.writeLocalProfileData === 'function') {

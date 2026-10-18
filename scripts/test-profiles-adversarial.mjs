@@ -415,11 +415,52 @@ async function pocSecondaryDoesNotRepublishEmptyCloud() {
   assert(!cloud.cours || cloud.cours.length === 0, 'PoC10: coquille cloud intacte (Secondaire n’a pas republish)');
 }
 
+async function pocSeedOwnerDoesNotOverwriteOtherPrimary() {
+  console.log('\n[PoC11] Seed owner + Principal vivant : pas de setDoc du blob manquant');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const t = Date.now();
+  const local = rich(2, 1);
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1, activeProfile: 'labo',
+    profiles: [
+      { id: 'default', name: 'P', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 80, cloudBlobPending: true, generation: 1 }
+    ],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  store.setItem('mc_device_id', 'dev-me');
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profile_seed_owner__labo', '1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'labo',
+    profiles: [
+      { id: 'default', name: 'P', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 80, cloudBlobPending: true, generation: 1 }
+    ]
+  }));
+  store.setItem('active_profile', 'labo');
+  store.setItem('backup_local_cours__labo', JSON.stringify(local));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadPIO(env);
+  const r = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(r.cloudPending === true, 'PoC11: cloudPending (pas de republish seed)');
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'PoC11: aucun blob labo écrit');
+}
+
 async function main() {
   console.log('=== Preuves adversatives ProfilesIO (perte de données) ===');
   await pocCreateClobber();
   await pocEmptyCloudVsRichLocal();
   await pocSecondaryDoesNotRepublishEmptyCloud();
+  await pocSeedOwnerDoesNotOverwriteOtherPrimary();
   await pocIntentionalDeletes();
   await pocZombieAfterRecreate();
   await pocWriteLocalAntiWipe();

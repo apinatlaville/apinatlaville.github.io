@@ -692,6 +692,14 @@ async function testShellLocalDoesNotPublishWhilePending() {
   env.emptyData = emptyShell;
   const PIO = loadProfilesIO(env);
   assert(PIO.isEffectivelyEmptyProfile(emptyShell) === true, 'template shell is effectively empty');
+  assert(PIO.isEffectivelyEmptyProfile({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [],
+    chapitres: [{ id: 'PH-CH1', title: 'Méca' }]
+  }) === false, 'chapitres seuls = profil non vide');
+  assert(PIO.hasUserContent({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [],
+    chapitres: [{ id: 'PH-CH1', title: 'Méca' }]
+  }) === true, 'hasUserContent : chapitres comptent');
   const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
   assert(resolved.cloudPending === true, 'still cloudPending with shell local');
   assert(resolved.docRef == null, 'no writable docRef with shell local');

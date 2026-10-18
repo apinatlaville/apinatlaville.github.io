@@ -243,6 +243,8 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     if (cours + ex + dv > 0) return false;
     if (data.sessionEnCoursV2) return false;
+    if (Array.isArray(data.chapitres) && data.chapitres.length > 0) return false;
+    if (Array.isArray(data.quickGroups) && data.quickGroups.length > 0) return false;
     var tmpl = window.emptyData;
     if (tmpl && structureSignature(data) !== structureSignature(tmpl)) return false;
     return true;
@@ -256,19 +258,24 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     var score = cours * 100 + ex * 10 + dv * 10;
     if (data.sessionEnCoursV2) score += 5;
+    var ch = Array.isArray(data.chapitres) ? data.chapitres.length : 0;
+    var qg = Array.isArray(data.quickGroups) ? data.quickGroups.length : 0;
+    score += ch * 5 + qg * 5;
     var mats = (data.matieres || []).filter(function (m) { return m && !m._system; }).length;
     var cls = (data.classeurs || []).filter(function (c) { return c && !c._system; }).length;
     score += mats + cls;
     return score;
   }
 
-  /** Contenu utilisateur réel (cours, cartes, devoirs, session) — indépendant des matières/classeurs. */
+  /** Contenu utilisateur réel (cours, cartes, devoirs, programme, dossiers, session). */
   function hasUserContent(data) {
     if (!data || typeof data !== 'object' || data._account === true) return false;
     var cours = Array.isArray(data.cours) ? data.cours.length : 0;
     var ex = Array.isArray(data.exercices) ? data.exercices.length : 0;
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
-    return cours + ex + dv > 0 || !!data.sessionEnCoursV2;
+    var ch = Array.isArray(data.chapitres) ? data.chapitres.length : 0;
+    var qg = Array.isArray(data.quickGroups) ? data.quickGroups.length : 0;
+    return cours + ex + dv + ch + qg > 0 || !!data.sessionEnCoursV2;
   }
 
   // ─── Traces de suppression (meta.deleted) + horodatage par élément (_mt) ───
@@ -1178,6 +1185,20 @@
     }
   }
 
+  function requirePrimaryForProfileCloud(action) {
+    if (window.isLocalMode) return;
+    if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function') {
+      var st = null;
+      try { st = window.DeviceSession.getStatus && window.DeviceSession.getStatus(); } catch (eSt) { st = null; }
+      if (st && st.enabled && !window.DeviceSession.canFullSave()) {
+        throw new Error(
+          'Appareil secondaire : ' + (action || 'cette action') +
+          ' désactivé (lecture seule). Passe en Principal.'
+        );
+      }
+    }
+  }
+
   /**
    * Résout le document de données du profil actif.
    * Migre l’ancien blob racine → profiles/default si besoin.
@@ -1190,7 +1211,8 @@
 
     var uid = user.sub;
     // Empêche la fusion/upload des profils d’un autre compte Google sur cet appareil
-    bindRegistryToUid(uid);
+    var bindInfo = bindRegistryToUid(uid);
+    var firstBind = !!(bindInfo && bindInfo.firstBind);
     var accountRef = accountDocRef(uid);
     var accountSnap = await window.getDoc(accountRef);
     var accountData = accountSnap.exists() ? accountSnap.data() : null;
@@ -1446,7 +1468,8 @@
       // Sauvegardes locales jamais arrivées sur le cloud (révision et date plus récentes) :
       // initApp fusionnera le local avec le cloud au lieu de l’écraser par le miroir.
       var localAhead = null;
-      if (localForCompare && hasUserContent(localForCompare)) {
+      var unsyncedContent = localForCompare && localHasUnsyncedContent(localForCompare, cloudPayload);
+      if (localForCompare && (hasUserContent(localForCompare) || unsyncedContent)) {
         var lRev = Number(localForCompare.meta && localForCompare.meta.revision) || 0;
         var cRev = Number(cloudPayload && cloudPayload.meta && cloudPayload.meta.revision) || 0;
         var lGenA = Number(localForCompare.meta && localForCompare.meta.profileGeneration) || 0;
@@ -1454,13 +1477,18 @@
         var sameGen = !lGenA || !cGenA || lGenA === cGenA;
         var confirmedRev = getCloudConfirmedRev(profileId);
         var unsynced = confirmedRev != null && lRev > confirmedRev && lRev !== cRev;
-        // Ids locaux absents du cloud et non tracés comme supprimés = jamais
-        // synchronisés (même si mc_cloud_rev a été posé trop tôt).
         var exclusiveLive = localHasExclusiveEntities(localForCompare, cloudPayload);
+        var aheadTombs = localHasAheadTombs(localForCompare, cloudPayload);
+        var newerShared = localHasNewerSharedEntities(localForCompare, cloudPayload);
+        // 1ʳᵉ liaison Google vers un compte déjà rempli : ne pas greffer les ids
+        // exclusifs du mode local (démo) ; traces / _mt / rév. en avance restent.
+        var allowExclusive = !(firstBind && hasUserContent(cloudPayload));
         if (sameGen && (
           (lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload))
           || unsynced
-          || exclusiveLive
+          || aheadTombs
+          || newerShared
+          || (exclusiveLive && allowExclusive)
         )) {
           localAhead = localForCompare;
         }
@@ -1514,15 +1542,28 @@
     if (inIndex && !deletedMap[profileId] && (seedPending || announcedBytes > 0)) {
       // Créateur : republie le seed (même coquille template)
       if (localD && isSeedOwner(profileId)) {
-        await publishLocalSeedAndClearPending();
+        var canPublishSeed = mayWriteProfileCloudNow() && !(await otherLivePrimaryOwnsHub(uid));
+        if (canPublishSeed) {
+          await publishLocalSeedAndClearPending();
+          return {
+            docRef: pref,
+            accountRef: accountRef,
+            data: localD,
+            profileId: profileId,
+            legacyRoot: false,
+            migrated: false,
+            cloudPending: false
+          };
+        }
         return {
-          docRef: pref,
+          docRef: null,
           accountRef: accountRef,
           data: localD,
           profileId: profileId,
           legacyRoot: false,
           migrated: false,
-          cloudPending: false
+          cloudPending: true,
+          localOnly: true
         };
       }
       // Non-owner : JAMAIS republier un local potentiellement périmé tant que le blob cloud
@@ -1939,6 +1980,10 @@
     if (window.isLocalMode || !user || !user.sub || !window.setDoc || !window.doc || !window.db) return true;
     if (window.cloudConnected === false) {
       _lastIndexWriteError = 'cloud-disconnected';
+      return false;
+    }
+    if (!mayWriteProfileCloudNow() || (await otherLivePrimaryOwnsHub(user.sub))) {
+      _lastIndexWriteError = 'not-primary';
       return false;
     }
     opts = opts || {};
@@ -2543,6 +2588,7 @@
   }
 
   async function createProfile(name, opts) {
+    requirePrimaryForProfileCloud('création de profil');
     opts = opts || {};
     var meta = ensureLocalRegistry();
     var existing = {};
@@ -2690,6 +2736,7 @@
   }
 
   async function renameProfile(id, name) {
+    requirePrimaryForProfileCloud('renommage de profil');
     var meta = ensureLocalRegistry();
     var p = meta.profiles.find(function (x) { return x.id === id; });
     if (!p) throw new Error('Profil introuvable');
@@ -2713,6 +2760,7 @@
   }
 
   async function deleteProfile(id) {
+    requirePrimaryForProfileCloud('suppression de profil');
     var meta = ensureLocalRegistry();
     if (meta.profiles.length <= 1) throw new Error('Impossible de supprimer le dernier profil.');
     if (id === getSessionProfileId() || id === meta.activeProfile) {
@@ -2756,6 +2804,7 @@
   }
 
   async function archiveProfile(id) {
+    requirePrimaryForProfileCloud('archivage de profil');
     var meta = ensureLocalRegistry();
     var p = meta.profiles.find(function (x) { return x.id === id; });
     if (!p) throw new Error('Profil introuvable');
@@ -2866,7 +2915,8 @@
     setActiveProfileId(id);
     if (wasLocal) lsSet('active_mode', 'local');
     meta = ensureLocalRegistry();
-    var okIdx = await persistAccountIndexCloud(user, meta);
+    // Secondaire : bascule locale seulement — ne pas publier activeProfile sur l’index.
+    var okIdx = canFull ? await persistAccountIndexCloud(user, meta) : true;
     if (needsCloud && window.cloudConnected && !okIdx) {
       try {
         var roll = ensureLocalRegistry();
