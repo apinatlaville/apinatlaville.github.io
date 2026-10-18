@@ -34,7 +34,9 @@
     joinResolved: false,
     needsRoleChoice: false,
     controlStolen: false,
-    myClaimedAt: null
+    myClaimedAt: null,
+    failClosedJoin: false,
+    hubFromServer: false
   };
 
   var _writeChain = Promise.resolve();
@@ -162,6 +164,7 @@
   }
 
   function applyClaim(hub) {
+    if (state.failClosedJoin) return unclaimIfSelf(hub);
     var id = getDeviceId();
     var t = now();
     hub = touchSelf(hub, CONFIG.ROLES.PRIMARY);
@@ -207,6 +210,7 @@
   }
 
   function writeHub(hub) {
+    if (state.failClosedJoin) hub = unclaimIfSelf(cloneHub(hub));
     var ref = presenceRef();
     if (!ref || !window.setDoc) return Promise.resolve(hub);
     return withFsTimeout(window.setDoc(ref, hub), 4000, 'presence write').then(function () {
@@ -228,7 +232,10 @@
     return withFsTimeout(window.getDoc(ref).then(function (snap) {
       // Copie en cache (hors ligne) : peut être périmée → jamais base d’un choix de rôle.
       if (snap && snap.metadata && snap.metadata.fromCache) throw new Error('presence read from cache');
-      if (snap && snap.exists && snap.exists()) return snap.data() || emptyHub();
+      if (snap && snap.exists && snap.exists()) {
+        state.hubFromServer = true;
+        return snap.data() || emptyHub();
+      }
       return emptyHub();
     }), 4000, 'presence read');
   }
@@ -393,8 +400,9 @@
     // Après le délai de 8 s, la chaîne interne peut encore se terminer : elle ne doit
     // alors plus rien décider (sinon PRIMARY tardif après le fail-closed).
     var failedClosed = false;
+    state.failClosedJoin = false;
     return withFsTimeout(loadHubForJoin().then(function () {
-      if (failedClosed) return;
+      if (failedClosed || state.failClosedJoin) return;
       var remote = remotePrimaryAlive(state.hub);
       var others = otherLiving(state.hub);
       var pref = state.preferredRole;
@@ -459,12 +467,13 @@
           return state.hub;
         });
       }).then(function () {
-        if (failedClosed) return;
+        if (failedClosed || state.failClosedJoin) return;
         state.joinResolved = true;
         emit();
       });
     }), 8000, 'DeviceSession.resolveJoin').catch(function (err) {
       failedClosed = true;
+      state.failClosedJoin = true;
       console.warn('DeviceSession resolveJoin:', err);
       if (typeof window.recordDataEvent === 'function') {
         window.recordDataEvent('ROLE_FAILCLOSED', { reason: err && err.message ? err.message : String(err) });
@@ -474,12 +483,17 @@
       state.effectiveRole = CONFIG.ROLES.SECONDARY;
       state.needsRoleChoice = true;
       emit();
-      enqueuePresence(function () {
+      function sweepSelfClaim() {
         return readHubOnce().then(function (fresh) {
           state.hub = fresh || emptyHub();
           if (state.hub.primaryDeviceId !== getDeviceId()) return state.hub;
           return mutateFreshHub(fresh, unclaimIfSelf, false);
         }).catch(function () { /* présence illisible : déjà Secondaire en local */ });
+      }
+      enqueuePresence(function () {
+        return sweepSelfClaim().then(function () {
+          return new Promise(function (r) { setTimeout(r, 400); }).then(sweepSelfClaim);
+        });
       });
     });
   }
@@ -488,8 +502,10 @@
     // Copie cache (onglet gelé / hors ligne) : peut être « doc absent » ou un ancien hub.
     // Ne jamais l’appliquer après le join — un heartbeat écrirait alors un hub vide.
     if (snap && snap.metadata && snap.metadata.fromCache) return;
-    if (snap && snap.exists && snap.exists()) state.hub = snap.data() || emptyHub();
-    else state.hub = emptyHub();
+    if (snap && snap.exists && snap.exists()) {
+      state.hubFromServer = true;
+      state.hub = snap.data() || emptyHub();
+    } else state.hub = emptyHub();
     if (!state.joinResolved) return;
 
     var id = getDeviceId();
@@ -574,9 +590,11 @@
   }
 
   function markOfflineBestEffort() {
-    if (!state.started || window.isLocalMode || !state.userId) return;
+    if (!state.started || !state.joinResolved || window.isLocalMode || !state.userId) return;
+    if (!state.hubFromServer) return;
     try {
       var hub = cloneHub(state.hub);
+      if (!hub.devices || !Object.keys(hub.devices).length) return;
       var id = getDeviceId();
       hub = touchSelf(hub, 'offline');
       if (hub.devices[id]) hub.devices[id].lastSeen = now() - CONFIG.TTL_MS - 1000;
@@ -611,6 +629,8 @@
     state.needsRoleChoice = false;
     state.controlStolen = false;
     state.myClaimedAt = null;
+    state.failClosedJoin = false;
+    state.hubFromServer = false;
     state.hub = emptyHub();
     _claimInFlight = false;
 
@@ -654,12 +674,15 @@
     state.joinResolved = false;
     state.needsRoleChoice = false;
     state.controlStolen = false;
+    state.failClosedJoin = false;
+    state.hubFromServer = false;
     _claimInFlight = false;
     _hbInFlight = false;
   }
 
   function claimPrimary() {
     _claimInFlight = true;
+    state.failClosedJoin = false;
     writePreferredRole(CONFIG.ROLES.PRIMARY);
     state.needsRoleChoice = false;
     state.controlStolen = false;
@@ -857,45 +880,72 @@
       state.unsubData = null;
     }
     if (!docRef || !window.onSnapshot || window.isLocalMode) return;
+    function refreshSecondaryUi() {
+      if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
+      if (typeof window.renderCours === 'function') window.renderCours();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+      if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
+    }
     state.unsubData = window.onSnapshot(docRef, function (snap) {
       if (!snap.exists()) return;
       if (state.effectiveRole !== CONFIG.ROLES.SECONDARY) return;
+      if (snap.metadata && snap.metadata.fromCache) return;
       var data = snap.data();
       if (!data || data._account === true || data._deleted) return;
       var curMeta = window.D && window.D.meta;
+      var remoteRev = Number(data.meta && data.meta.revision) || 0;
+      var localRev = Number(curMeta && curMeta.revision) || 0;
       if (curMeta && data.meta && curMeta.revision != null
-          && Number(curMeta.revision) === Number(data.meta.revision)
+          && localRev === remoteRev
           && Number(curMeta.updatedAt) === Number(data.meta.updatedAt)) {
         return;
-      }
-      window.D = data;
-      if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
-      // Même baseline que le patch secondaire — sinon un claim Primary
-      // ultérieur merge avec une révision périmée et peut écraser des edits.
-      window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
-      if (typeof window.captureCoursPlacementBase === 'function') {
-        window.captureCoursPlacementBase(data.cours);
       }
       var pid = window._activeProfileId
         || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
         || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
         || 'default';
-      if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
-        window.ProfilesIO.setCloudConfirmedRev(pid, window._lastCloudConfirmedRevision);
+      var PIO = window.ProfilesIO;
+      var emptyRemote = PIO && typeof PIO.isEffectivelyEmptyProfile === 'function'
+        && PIO.isEffectivelyEmptyProfile(data);
+      var exclusive = PIO && typeof PIO.localHasExclusiveEntities === 'function'
+        && window.D && PIO.localHasExclusiveEntities(window.D, data);
+
+      // Sauvegardes locales jamais parties : fusionner, ne pas écraser.
+      if (exclusive && !emptyRemote) {
+        if (typeof window.mergeRemoteProfileIntoLocal === 'function') {
+          window.mergeRemoteProfileIntoLocal(data);
+        }
+        if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+          PIO.writeLocalProfileData(pid, window.D, { allowEmpty: true });
+        }
+        refreshSecondaryUi();
+        return;
       }
+
+      if (!emptyRemote && localRev > remoteRev) return;
+
       var mirrored = false;
-      if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-        mirrored = !!window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+      if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+        mirrored = !!PIO.writeLocalProfileData(pid, data, { allowEmpty: true });
       } else if (typeof window.safeLocalSet === 'function') {
         mirrored = !!window.safeLocalSet('backup_local_cours', JSON.stringify(data));
       } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); mirrored = true; } catch (e) {}
-      if (!mirrored && typeof window.recordDataEvent === 'function') {
-        window.recordDataEvent('SECONDARY_MIRROR_FAILED', { profileId: pid });
+      if (!mirrored) {
+        if (typeof window.recordDataEvent === 'function') {
+          window.recordDataEvent('SECONDARY_MIRROR_FAILED', { profileId: pid });
+        }
+        return;
       }
-      if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
-      if (typeof window.renderCours === 'function') window.renderCours();
-      if (typeof window.renderDashboard === 'function') window.renderDashboard();
-      if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
+      window.D = data;
+      if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
+      window._lastCloudConfirmedRevision = remoteRev;
+      if (typeof window.captureCoursPlacementBase === 'function') {
+        window.captureCoursPlacementBase(data.cours);
+      }
+      if (PIO && typeof PIO.setCloudConfirmedRev === 'function') {
+        PIO.setCloudConfirmedRev(pid, remoteRev);
+      }
+      refreshSecondaryUi();
     }, function (err) { console.warn('DeviceSession data listen:', err); });
   }
 

@@ -328,6 +328,24 @@
     });
   }
 
+  /**
+   * Le local a des cours/cartes absents du cloud (sauvegarde jamais synchronisée).
+   * Ne dépend pas de mc_cloud_rev — vide chez les utilisateurs déjà en production.
+   */
+  function localHasExclusiveEntities(local, remote) {
+    if (!local || typeof local !== 'object') return false;
+    if (!remote || typeof remote !== 'object') return true;
+    var remoteKeys = Object.create(null);
+    forEachEntity(remote, function (key) {
+      if (key) remoteKeys[key] = true;
+    });
+    var found = false;
+    forEachEntity(local, function (key) {
+      if (key && !remoteKeys[key]) found = true;
+    });
+    return found;
+  }
+
   /** Empreintes de l’état persisté : { clé: JSON sans _mt }. */
   function buildPersistIndex(data) {
     var idx = Object.create(null);
@@ -524,7 +542,9 @@
   function setCloudConfirmedRev(profileId, rev) {
     if (!profileId) return;
     var n = Number(rev);
-    if (!Number.isFinite(n)) return;
+    if (!Number.isFinite(n) || n < 0) return;
+    var prev = getCloudConfirmedRev(profileId);
+    if (prev != null && n < prev) return;
     lsSet(CLOUD_REV_PREFIX + profileId, String(n));
   }
 
@@ -1247,7 +1267,17 @@
         var sameGen = !lGenA || !cGenA || lGenA === cGenA;
         var confirmedRev = getCloudConfirmedRev(profileId);
         var unsynced = confirmedRev != null && lRev > confirmedRev && lRev !== cRev;
-        if (sameGen && ((lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload)) || unsynced)) {
+        // Premier chargement après mise à jour : pas encore de mc_cloud_rev.
+        // Si le local a des ids absents du cloud, fusionner — ne jamais miroiter.
+        // Une fois la rév. locale confirmée, un id absent du cloud plus récent
+        // est une suppression distante (traces) : miroir normal.
+        var exclusiveUnsynced = (confirmedRev == null || unsynced)
+          && localHasExclusiveEntities(localForCompare, cloudPayload);
+        if (sameGen && (
+          (lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload))
+          || unsynced
+          || exclusiveUnsynced
+        )) {
           localAhead = localForCompare;
         }
       }
@@ -2260,6 +2290,8 @@
     function restore(reason) {
       window.D = snapshot;
       window._persistIndex = persistIndex;
+      var pid = getSessionProfileId() || getActiveProfileId() || 'default';
+      try { writeLocalProfileData(pid, snapshot); } catch (eW) { /* mémoire déjà restaurée */ }
       report.ok = false;
       report.warnings = (report.warnings || []).concat(['Import annulé : ' + (reason || 'sauvegarde impossible')]);
       if (typeof window.recordDataEvent === 'function') {
@@ -2268,7 +2300,7 @@
       return report;
     }
     if (typeof window.save !== 'function') return Promise.resolve(report);
-    return Promise.resolve(window.save()).then(function () {
+    return Promise.resolve(window.save({ waitCloud: false })).then(function () {
       return report;
     }, function (e) {
       return restore(e && e.message ? e.message : e);
@@ -3287,6 +3319,7 @@
     needsAccountIndexRepair: needsAccountIndexRepair,
     isEffectivelyEmptyProfile: isEffectivelyEmptyProfile,
     hasUserContent: hasUserContent,
+    localHasExclusiveEntities: localHasExclusiveEntities,
     profileContentScore: profileContentScore,
     ENTITY_FAMILIES: ENTITY_FAMILIES,
     buildPersistIndex: buildPersistIndex,

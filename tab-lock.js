@@ -17,7 +17,7 @@
   var PING_WAIT_MS = 350;
   var HEARTBEAT_MS = 2000;
   var OWNER_STALE_MS = 7000;
-  var YIELD_WAIT_MS = 1500;
+  var YIELD_WAIT_MS = 3500;
 
   var tabId = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   var state = {
@@ -99,12 +99,14 @@
     showOverlay('lost');
   }
 
-  function afterLocalSaves() {
-    var chain = window._saveLocalChain;
-    var settle = chain && typeof chain.then === 'function'
-      ? chain.then(function () {}, function () {})
-      : Promise.resolve();
-    return Promise.race([settle, new Promise(function (r) { setTimeout(r, YIELD_WAIT_MS); })]);
+  function afterSaves() {
+    function settle(chain) {
+      return chain && typeof chain.then === 'function'
+        ? chain.then(function () {}, function () {})
+        : Promise.resolve();
+    }
+    var both = Promise.all([settle(window._saveLocalChain), settle(window._saveCloudChain)]);
+    return Promise.race([both, new Promise(function (r) { setTimeout(r, YIELD_WAIT_MS); })]);
   }
 
   function event(code, detail) {
@@ -147,7 +149,7 @@
     }
     if (msg.type === 'claim' && state.status === 'owner') {
       loseOwnership('claimed-by-other-tab');
-      afterLocalSaves().then(function () {
+      afterSaves().then(function () {
         post({ type: 'yielded', pid: state.profileId });
       });
     }

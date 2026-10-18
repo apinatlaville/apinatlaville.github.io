@@ -46,6 +46,10 @@ assert(/watchUserData[\s\S]*_lastCloudConfirmedRevision/.test(dsSrc),
   'watchUserData met à jour _lastCloudConfirmedRevision');
 assert(/watchUserData[\s\S]*captureCoursPlacementBase/.test(dsSrc),
   'watchUserData capture baseline cl/inter');
+assert(/fromCache/.test(dsSrc) && /localHasExclusiveEntities/.test(dsSrc),
+  'watchUserData ignore le cache et fusionne les ids locaux exclusifs');
+assert(/hubFromServer/.test(dsSrc) && /joinResolved/.test(dsSrc),
+  'pagehide n’écrit un hub que s’il a été lu sur le serveur');
 
 console.log('\n=== Cockpit sans W- / includeNew ===\n');
 assert(/function cardBaseId/.test(ankiSrc), 'helper cardBaseId');

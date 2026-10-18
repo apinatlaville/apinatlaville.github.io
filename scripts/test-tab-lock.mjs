@@ -180,6 +180,8 @@ function testWiring() {
   const iRev = saveImpl.indexOf('window.D.meta.revision = prevRevision + 1');
   assert(iGate > 0 && iRev > iGate, 'refus avant toute modification de révision');
   assert(/await window\.TabLock\.start\(/.test(appSrc), 'initApp démarre le verrou');
+  assert(/_saveCloudChain/.test(fs.readFileSync(path.join(root, 'tab-lock.js'), 'utf8')), 'Prendre la main attend aussi la chaîne cloud');
+  assert(/skipped: 'tab-readonly'/.test(appSrc) || /skipped: \"tab-readonly\"/.test(appSrc), 'écriture cloud ignorée si onglet lecture seule');
   const boot = fs.readFileSync(path.join(root, 'boot-loader.js'), 'utf8');
   assert(/'tab-lock\.js'/.test(boot), 'boot-loader charge tab-lock.js');
 }

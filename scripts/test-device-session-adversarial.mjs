@@ -496,6 +496,76 @@ async function pocLateJoinAfterTimeout() {
   DS.stop();
 }
 
+async function pocWatchIgnoresCacheAndKeepsExclusive() {
+  console.log('\n[DS10] watchUserData : ignore fromCache ; conserve un cours local absent du cloud');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  const local = rich(3, 1);
+  local.cours.push({ uid: 'PH-OFF', title: 'Hors ligne' });
+  local.meta = { revision: 60, updatedAt: t, profileGeneration: 1 };
+  store.setItem('backup_local_cours__default', JSON.stringify(local));
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const cloud = rich(3, 1);
+  cloud.meta = { revision: 60, updatedAt: t - 1000, profileGeneration: 1 };
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+
+  const env = baseEnv(store, fsMock);
+  env._activeProfileId = 'default';
+  env.D = JSON.parse(JSON.stringify(local));
+  env.mergeRemoteProfileIntoLocal = function () { env._merged = true; };
+  const origOn = env.onSnapshot;
+  let cacheFired = false;
+  env.onSnapshot = (ref, okCb, errCb) => {
+    const path = String(ref && ref._path || '');
+    if (path.includes('/profiles/')) {
+      queueMicrotask(() => {
+        cacheFired = true;
+        okCb({
+          metadata: { fromCache: true },
+          exists: () => true,
+          data: () => ({ ...shell(), meta: { revision: 1, updatedAt: 1, profileGeneration: 1 } })
+        });
+      });
+      return () => {};
+    }
+    return origOn(ref, okCb, errCb);
+  };
+  const { DS, PIO } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  DS.watchUserData(env.docRef || fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default'));
+  await new Promise((r) => setTimeout(r, 40));
+  assert(cacheFired, 'DS10: snapshot cache émis');
+  assert((env.D.cours || []).some((c) => c.uid === 'PH-OFF'), 'DS10: fromCache n’écrase pas le cours hors ligne');
+  assert((PIO.readLocalProfileData('default').cours || []).some((c) => c.uid === 'PH-OFF'), 'DS10: localStorage intact après fromCache');
+
+  env.onSnapshot = origOn;
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  const env2 = baseEnv(store, fsMock);
+  env2._activeProfileId = 'default';
+  env2.D = JSON.parse(JSON.stringify(local));
+  env2.mergeRemoteProfileIntoLocal = function () { env2._merged = true; };
+  const { DS: DS2, PIO: PIO2 } = loadModules(env2);
+  await DS2.start('uid1');
+  await DS2.switchToSecondary();
+  env2.docRef = fsMock.doc(env2.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  DS2.watchUserData(env2.docRef);
+  await new Promise((r) => setTimeout(r, 40));
+  assert(env2._merged === true, 'DS10: snapshot serveur fusionné (pas d’assignation brute)');
+  assert((env2.D.cours || []).some((c) => c.uid === 'PH-OFF'), 'DS10: cours hors ligne encore en mémoire');
+  assert((PIO2.readLocalProfileData('default').cours || []).some((c) => c.uid === 'PH-OFF'), 'DS10: cours hors ligne encore en localStorage');
+  DS.stop();
+  DS2.stop();
+}
+
 async function pocStaleHeartbeatDoesNotReclaim() {
   console.log('\n[DS9] heartbeat d’un Principal gelé n’écrase pas le claim d’un autre appareil');
   const fsMock = makeFirestore();
@@ -534,6 +604,7 @@ async function main() {
   await pocStaleHeartbeatDoesNotReclaim();
   await pocSecondaryNoRecreate();
   await pocSecondaryMirrorAllowEmpty();
+  await pocWatchIgnoresCacheAndKeepsExclusive();
   await pocCreateRace();
   await pocClaimPrimaryFailClosed();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);

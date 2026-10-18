@@ -469,6 +469,9 @@ async function testBootUnsyncedLocal() {
   const { env: env2 } = bootFixture(clone(cloud), clone(local), 50);
   const r2 = await env2.PIO.resolveProfileCloudDoc(env2.currentUser);
   assert(!r2.localAhead, 'local déjà confirmé (50) : miroir cloud normal');
+  const { env: env3 } = bootFixture(clone(cloud), clone(local));
+  const r3 = await env3.PIO.resolveProfileCloudDoc(env3.currentUser);
+  assert(!!r3.localAhead, 'sans mc_cloud_rev : cours local absent du cloud → fusion (données déjà en production)');
 }
 
 function testBootKeepsRemoteCourseMove() {
@@ -491,6 +494,20 @@ function testBootKeepsRemoteCourseMove() {
   env._mergeLocalAheadAtBoot(local);
   assert(env.D.cours.find((c) => c.uid === 'PH-BBB').inter === '07', 'déplacement cloud plus récent conservé');
   assert(env.D.cours.some((c) => c.uid === 'PH-OFF'), 'ajout hors ligne conservé');
+}
+
+function testMovedCardNotDuplicated() {
+  console.log('\n· fusion : une carte déplacée exercices → devoirs n’est pas dupliquée');
+  const env = makeDevice({ isLocalMode: true });
+  env.D = clone(baseProfile());
+  const remote = clone(baseProfile());
+  const card = remote.exercices.pop();
+  card._mt = Date.now();
+  remote.devoirs.push(card);
+  env.mergeRemoteProfileIntoLocal(remote);
+  const inEx = (env.D.exercices || []).some((c) => c && c.id === 'X-AAA');
+  const inDv = (env.D.devoirs || []).some((c) => c && c.id === 'X-AAA');
+  assert(inDv && !inEx, 'un seul exemplaire, côté le plus récent (devoirs)');
 }
 
 function testRestoreKeepsRevision() {
@@ -527,13 +544,15 @@ function testWiring() {
   assert(/writeLocalProfileData\(sessionPid, window\.D, \{ payload: payload \}\)/.test(saveImpl), 'save : sérialisation unique passée à writeLocal');
   assert(/window\._persistIndex = nextPersistIndex/.test(saveImpl), 'save : index mis à jour après écriture réussie');
   {
-    const iReset = appSrc.indexOf('window.resetPersistIndex();\n  if (window.TabLock');
-    const iMerge = appSrc.indexOf('if (window._bootLocalAhead) {', iReset);
-    assert(iReset > 0 && iMerge > iReset && iMerge - iReset < 2000, 'initApp : index initialisé puis fusion local en avance');
-    const iTab = appSrc.indexOf('await window.TabLock.start(', iReset);
-    const iMirror = appSrc.indexOf('if (window._bootMirror) {', iReset);
-    assert(iTab > iReset && iMirror > iTab && iMirror < iMerge, 'initApp : miroir cloud→local écrit seulement après le verrou d’onglet');
+    const iTab = appSrc.indexOf('await window.TabLock.start(');
+    const iMirror = appSrc.indexOf('if (window._bootMirror) {', iTab);
+    const iMerge = appSrc.indexOf('if (window._bootLocalAhead) {', iMirror);
+    const iMigr = appSrc.indexOf('window.AnkiAlgo.migrateData', iMerge);
+    const iReset = appSrc.indexOf('window.resetPersistIndex(); // après migrations : ne pas horodater le chargement', iMigr);
+    assert(iTab > 0 && iMirror > iTab && iMerge > iMirror, 'initApp : miroir cloud→local écrit seulement après le verrou d’onglet');
+    assert(iMigr > iMerge && iReset > iMigr, 'initApp : index après migrations (pas d’horodatage _mt au chargement)');
     assert(/!readOnlyTab && mirror\.profileId === window\._activeProfileId/.test(appSrc), 'initApp : pas de miroir dans un onglet en lecture seule');
+    assert(/Math\.max\(keepRev, remoteRev \+ 1\)/.test(appSrc), 'save cloud : la révision locale ne recule pas sous remote+1');
   }
   assert(/!window\._bootLocalAhead && window\.ProfilesIO/.test(appSrc), 'initApp : pas de miroir cloud→local si local en avance');
   const ds = fs.readFileSync(path.join(root, 'device-session.js'), 'utf8');
@@ -558,6 +577,7 @@ async function main() {
   await testBootNeverOverwritesCloud();
   await testBootUnsyncedLocal();
   testBootKeepsRemoteCourseMove();
+  testMovedCardNotDuplicated();
   testRestoreKeepsRevision();
   testTombstonePrune();
   testWiring();

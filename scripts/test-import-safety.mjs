@@ -172,12 +172,16 @@ async function testAutoBackupUndo() {
 }
 
 async function testJsonImportSaveFailureRollsBack() {
-  console.log('\n· import JSON : sauvegarde refusée → window.D restauré');
+  console.log('\n· import JSON : sauvegarde refusée → window.D et localStorage restaurés');
   const store = makeStore();
   const env = loadPIO(store, baseD());
   const PIO = env.ProfilesIO;
-  env.save = () => Promise.reject(new Error('TAB_READ_ONLY'));
   const before = JSON.stringify(env.D);
+  store.setItem('backup_local_cours__default', before);
+  env.save = () => {
+    store.setItem('backup_local_cours__default', JSON.stringify(env.D));
+    return Promise.reject(new Error('TAB_READ_ONLY'));
+  };
   const report = await PIO.applyImportAndSave({
     ok: true,
     data: {
@@ -188,6 +192,7 @@ async function testJsonImportSaveFailureRollsBack() {
   }, { sections: ['synchrotron'], mode: 'merge' });
   assert(report.ok === false, 'rapport en échec');
   assert(JSON.stringify(env.D) === before, 'profil identique à l’avant-import');
+  assert(store.getItem('backup_local_cours__default') === before, 'localStorage revenu à l’avant-import (pas les traces de l’import)');
   assert(env._events.some((e) => e.code === 'IMPORT_ROLLBACK'), 'événement IMPORT_ROLLBACK (json-import)');
 }
 
