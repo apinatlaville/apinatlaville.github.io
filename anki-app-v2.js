@@ -7167,13 +7167,23 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     return !!S._evalBusy;
   };
 
+  function holdEvalBusyUntilSaved(result) {
+    function release() { S._evalBusy = false; }
+    var p = (result && result.ok && typeof window.save === 'function')
+      ? Promise.resolve(window.save({ waitCloud: false }))
+      : Promise.resolve();
+    Promise.resolve(p).then(release, release);
+    return result;
+  }
+
   window.ankiV2ApplyStandaloneEval = function (cardOrId, qScore, opts) {
     if (S._evalBusy) return { ok: false, error: 'EVAL_BUSY' };
     S._evalBusy = true;
     try {
-      return applyStandaloneEvalNow(cardOrId, qScore, opts);
-    } finally {
+      return holdEvalBusyUntilSaved(applyStandaloneEvalNow(cardOrId, qScore, opts));
+    } catch (e) {
       S._evalBusy = false;
+      throw e;
     }
   };
 
@@ -7271,9 +7281,6 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     }
 
     if (window.D.settings) window.D.settings.ankiLastSession = window.AnkiAlgoV2.todayISO();
-    if (typeof window.save === 'function') {
-      try { window.save(); } catch (e3) { /* local */ }
-    }
     return { ok: true, out: out, card: card, removedFromSession: removedFromSession };
   }
 
@@ -7285,9 +7292,10 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     if (S._evalBusy) return { ok: false, error: 'EVAL_BUSY' };
     S._evalBusy = true;
     try {
-      return revertStandaloneEvalNow(cardId, opts);
-    } finally {
+      return holdEvalBusyUntilSaved(revertStandaloneEvalNow(cardId, opts));
+    } catch (e) {
       S._evalBusy = false;
+      throw e;
     }
   };
 
@@ -7322,9 +7330,6 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       S.dernierExerciceModifie = null;
     }
     window.AnkiAlgoV2.log('revert-rapide', { id: cardId, silent: !!opts.silent });
-    if (typeof window.save === 'function') {
-      try { window.save(); } catch (e3) { /* local */ }
-    }
     return { ok: true, card: restored };
   }
 

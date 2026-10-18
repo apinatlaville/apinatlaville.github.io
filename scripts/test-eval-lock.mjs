@@ -35,7 +35,8 @@ assert(/window\.ankiV2ApplyStandaloneEval = function[^{]*\{\s*if \(S\._evalBusy\
   'ApplyStandaloneEval refuse si une notation Synchrotron est en cours');
 assert(/window\.ankiV2RevertStandaloneEval = function[^{]*\{\s*if \(S\._evalBusy\) return \{ ok: false, error: 'EVAL_BUSY' \};/.test(v2),
   'RevertStandaloneEval refuse si une notation est en cours');
-assert(/revertStandaloneEvalNow\(id, \{ silent: true \}\)/.test(v2), 'replacePrevious passe par la version interne (pas d’auto-blocage)');
+assert(/function holdEvalBusyUntilSaved\(result\)/.test(v2), 'verrou tenu jusqu’à la sauvegarde locale');
+  assert(/revertStandaloneEvalNow\(id, \{ silent: true \}\)/.test(v2), 'replacePrevious passe par la version interne (pas d’auto-blocage)');
 assert(/window\.evalCardV2 = function \(qScore\) \{\s*if \(!S\.current\) return;\s*if \(S\._evalBusy\) return;/.test(v2),
   'evalCardV2 (Synchrotron) garde le même verrou');
 const applyDrill = sliceBetween(quick, 'function applyDrillSrs(c, verdict)', 'function revertDrillSrs(');
@@ -52,6 +53,7 @@ const calls = [];
 const sandbox = {
   window: {},
   S: { _evalBusy: false },
+  Promise,
   applyStandaloneEvalNow(id, q) {
     calls.push(['apply', id, q, sandbox.S._evalBusy]);
     if (q === 'boom') throw new Error('boom');
@@ -65,17 +67,31 @@ const sandbox = {
 vm.createContext(sandbox);
 vm.runInContext(wrappers, sandbox);
 const W = sandbox.window;
+const tick = () => new Promise((r) => setTimeout(r, 0));
 
 assert(W.ankiV2EvalBusy() === false, 'libre au départ');
 let r = W.ankiV2ApplyStandaloneEval('Y-1', 7, {});
 assert(r.ok && calls.length === 1 && calls[0][3] === true, 'note Rapide : verrou tenu pendant l’écriture');
-assert(sandbox.S._evalBusy === false, 'verrou relâché après la note');
+assert(sandbox.S._evalBusy === true, 'verrou encore tenu tant que la sauvegarde n’est pas confirmée');
+await tick();
+assert(sandbox.S._evalBusy === false, 'verrou relâché après la sauvegarde');
+
+let releaseSave;
+sandbox.window.save = () => new Promise((res) => { releaseSave = res; });
+r = W.ankiV2ApplyStandaloneEval('Y-2', 8, {});
+assert(r.ok && sandbox.S._evalBusy === true, 'verrou tenu tant que save() n’a pas répondu');
+const blocked = W.ankiV2ApplyStandaloneEval('Y-3', 9, {});
+assert(!blocked.ok && blocked.error === 'EVAL_BUSY', 'deuxième note Rapide refusée pendant la sauvegarde de la première');
+releaseSave({ local: true });
+await tick();
+assert(sandbox.S._evalBusy === false, 'verrou relâché une fois save() résolu');
+delete sandbox.window.save;
 
 sandbox.S._evalBusy = true;
 r = W.ankiV2ApplyStandaloneEval('Y-1', 7, {});
-assert(!r.ok && r.error === 'EVAL_BUSY' && calls.length === 1, 'note Rapide refusée pendant une note Synchrotron');
+assert(!r.ok && r.error === 'EVAL_BUSY' && calls.filter((c) => c[0] === 'apply').length === 2, 'note Rapide refusée pendant une note Synchrotron');
 r = W.ankiV2RevertStandaloneEval('Y-1', {});
-assert(!r.ok && r.error === 'EVAL_BUSY' && calls.length === 1, 'annulation Rapide refusée pendant une note Synchrotron');
+assert(!r.ok && r.error === 'EVAL_BUSY' && calls.filter((c) => c[0] === 'revert').length === 0, 'annulation Rapide refusée pendant une note Synchrotron');
 assert(sandbox.S._evalBusy === true, 'le verrou Synchrotron n’est pas relâché par un refus');
 sandbox.S._evalBusy = false;
 
@@ -84,6 +100,8 @@ assert(sandbox.S._evalBusy === false, 'verrou relâché même après une erreur'
 
 r = W.ankiV2RevertStandaloneEval('Y-1', {});
 assert(r.ok && calls[calls.length - 1][0] === 'revert' && calls[calls.length - 1][2] === true, 'annulation Rapide : verrou tenu pendant la restauration');
+assert(sandbox.S._evalBusy === true, 'verrou tenu jusqu’à la sauvegarde de l’annulation');
+await tick();
 assert(sandbox.S._evalBusy === false, 'verrou relâché après l’annulation');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);

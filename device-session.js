@@ -467,6 +467,9 @@
   }
 
   function onHubSnapshot(snap) {
+    // Copie cache (onglet gelé / hors ligne) : peut être « doc absent » ou un ancien hub.
+    // Ne jamais l’appliquer après le join — un heartbeat écrirait alors un hub vide.
+    if (snap && snap.metadata && snap.metadata.fromCache) return;
     if (snap && snap.exists && snap.exists()) state.hub = snap.data() || emptyHub();
     else state.hub = emptyHub();
     if (!state.joinResolved) return;
@@ -496,13 +499,10 @@
     if (hidden && state.effectiveRole !== CONFIG.ROLES.PRIMARY) return;
 
     _hbInFlight = true;
-    enqueuePresence(function () {
-      // Cause des timeouts : readHubOnce + safeWritePresence (= 2e getDoc) + setDoc.
-      // Listener live → hub déjà frais, 1 setDoc. Sinon 1 getDoc + 1 setDoc.
-      var load = state.unsubHub
-        ? Promise.resolve(state.hub || emptyHub())
-        : readHubOnce();
-      return load.then(function (fresh) {
+    return enqueuePresence(function () {
+      // Toujours relire le serveur : un listener gelé / un snapshot fromCache
+      // laisserait écrire un hub périmé et revendiquer un faux Principal.
+      return readHubOnce().then(function (fresh) {
         state.hub = fresh || emptyHub();
         var id = getDeviceId();
         var hubPrimaryId = state.hub.primaryDeviceId;
@@ -517,7 +517,9 @@
           if (hubPrimaryId === id) {
             return write(function (hub) { return refreshPrimaryLease(hub); }, false);
           }
-          if (remote && remote !== id) {
+          // Un autre appareil est inscrit Principal (même si son lease a l’air vieux) :
+          // se rétrograder. Ne jamais réécrire le claim.
+          if (hubPrimaryId && hubPrimaryId !== id) {
             state.effectiveRole = CONFIG.ROLES.SECONDARY;
             state.controlStolen = true;
             return write(function (hub) { return applySecondaryPresence(hub); }, true);
@@ -886,7 +888,8 @@
     saveSecondaryPatch: saveSecondaryPatch,
     watchUserData: watchUserData,
     isPrimary: function () { return getStatus().isPrimary; },
-    isSecondary: function () { return getStatus().isSecondary; }
+    isSecondary: function () { return getStatus().isSecondary; },
+    _heartbeat: heartbeat
   };
 
   /** Bloque création / édition / suppression hors patch secondaire autorisé. */

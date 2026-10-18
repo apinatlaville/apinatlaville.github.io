@@ -496,12 +496,42 @@ async function pocLateJoinAfterTimeout() {
   DS.stop();
 }
 
+async function pocStaleHeartbeatDoesNotReclaim() {
+  console.log('\n[DS9] heartbeat d’un Principal gelé n’écrase pas le claim d’un autre appareil');
+  const fsMock = makeFirestore();
+  const storeA = makeStore();
+  const storeB = makeStore();
+  seedAccount(storeA, fsMock);
+  seedAccount(storeB, fsMock);
+  storeA.setItem('mc_device_id', 'dev-A');
+  storeB.setItem('mc_device_id', 'dev-B');
+  const envA = baseEnv(storeA, fsMock);
+  const envB = baseEnv(storeB, fsMock);
+  const { DS: DSA } = loadModules(envA);
+  await DSA.start('uid1');
+  assert(DSA.getStatus().isPrimary === true, 'DS9: A Principal au départ');
+  const { DS: DSB } = loadModules(envB);
+  await DSB.start('uid1');
+  assert(DSB.getStatus().isSecondary === true, 'DS9: B Secondaire');
+  await DSB.claimPrimary();
+  assert(DSB.getStatus().isPrimary === true, 'DS9: B a pris le contrôle');
+  const hubAfter = fsMock.docs.get('utilisateurs/uid1/presence/hub');
+  assert(hubAfter.primaryDeviceId === 'dev-B', 'DS9: hub cloud = B');
+  await DSA._heartbeat();
+  const hubAfterHb = fsMock.docs.get('utilisateurs/uid1/presence/hub');
+  assert(hubAfterHb.primaryDeviceId === 'dev-B', 'DS9: heartbeat A n’a pas réécrit le Principal');
+  assert(DSA.getStatus().isSecondary === true, 'DS9: A rétrogradé après relecture serveur');
+  DSA.stop();
+  DSB.stop();
+}
+
 async function main() {
   console.log('=== Preuves adversatives DeviceSession ===');
   await pocJoinGate();
   await pocJoinFailClosed();
   await pocJoinIgnoresCacheSnapshot();
   await pocLateJoinAfterTimeout();
+  await pocStaleHeartbeatDoesNotReclaim();
   await pocSecondaryNoRecreate();
   await pocSecondaryMirrorAllowEmpty();
   await pocCreateRace();

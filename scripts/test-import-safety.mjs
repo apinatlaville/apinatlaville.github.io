@@ -171,6 +171,47 @@ async function testAutoBackupUndo() {
   assert(/lsRemove\(AUTO_BACKUP_PREFIX \+ profileId\)/.test(pioSrc), 'suppression du profil : copie auto purgée');
 }
 
+async function testJsonImportSaveFailureRollsBack() {
+  console.log('\n· import JSON : sauvegarde refusée → window.D restauré');
+  const store = makeStore();
+  const env = loadPIO(store, baseD());
+  const PIO = env.ProfilesIO;
+  env.save = () => Promise.reject(new Error('TAB_READ_ONLY'));
+  const before = JSON.stringify(env.D);
+  const report = await PIO.applyImportAndSave({
+    ok: true,
+    data: {
+      exercices: [{ id: 'Y-AAA', question: 'cat', reponse: 'NOUVEAU', historique: [], repetitions: 0 }],
+      devoirs: [],
+      quickGroups: env.D.quickGroups
+    }
+  }, { sections: ['synchrotron'], mode: 'merge' });
+  assert(report.ok === false, 'rapport en échec');
+  assert(JSON.stringify(env.D) === before, 'profil identique à l’avant-import');
+  assert(env._events.some((e) => e.code === 'IMPORT_ROLLBACK'), 'événement IMPORT_ROLLBACK (json-import)');
+}
+
+async function testJsonMergeKeepsSrs() {
+  console.log('\n· import JSON fusion : texte mis à jour, historique Anki conservé');
+  const store = makeStore();
+  const env = loadPIO(store, baseD());
+  const PIO = env.ProfilesIO;
+  const report = await PIO.applyImportAndSave({
+    ok: true,
+    data: {
+      exercices: [
+        { id: 'Y-AAA', question: 'cat', reponse: 'chat (corrigé)', historique: [], repetitions: 0 }
+      ],
+      devoirs: [],
+      quickGroups: env.D.quickGroups
+    }
+  }, { sections: ['synchrotron'], mode: 'merge' });
+  assert(report.ok === true, 'import enregistré');
+  const card = env.D.exercices.find((c) => c.id === 'Y-AAA');
+  assert(card.reponse === 'chat (corrigé)', 'texte du fichier appliqué');
+  assert(card.historique.length === 1 && card.repetitions === 2, 'progression SRS locale conservée');
+}
+
 async function testAutoBackupIsolation() {
   console.log('\n· copie automatique isolée par profil');
   const store = makeStore();
@@ -190,6 +231,8 @@ async function main() {
   await testRollbackOnException();
   await testSuccessKeepsImport();
   await testAutoBackupUndo();
+  await testJsonImportSaveFailureRollsBack();
+  await testJsonMergeKeepsSrs();
   await testAutoBackupIsolation();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
   if (failures.length) console.error('Échecs:\n' + failures.map((f) => ' - ' + f).join('\n'));

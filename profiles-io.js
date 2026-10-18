@@ -2072,7 +2072,11 @@
         }
         var id = String(item[idKey]);
         if (map[id]) {
-          Object.assign(map[id], deepClone(item));
+          var incoming = deepClone(item);
+          if (targetKey === 'exercices' || targetKey === 'devoirs') {
+            incoming = mergeImportedCardProgress(map[id], incoming);
+          }
+          Object.assign(map[id], incoming);
         } else {
           var clone = deepClone(item);
           target[targetKey].push(clone);
@@ -2205,6 +2209,7 @@
     }
 
     // Migrations / cohérence
+    var previousD = window.D;
     window.D = target;
     try {
       if (window.AnkiAlgo && typeof window.AnkiAlgo.migrateData === 'function') {
@@ -2219,8 +2224,55 @@
       report.warnings.push('reconcileOrphanCours : ' + (e.message || e));
     }
 
-    if (report.errors.length) report.ok = false;
+    if (report.errors.length) {
+      report.ok = false;
+      window.D = previousD;
+    }
     return report;
+  }
+
+  /**
+   * Fusion d’une carte importée : le contenu du fichier gagne, la progression SRS
+   * la plus avancée (historique le plus long) est gardée.
+   */
+  function mergeImportedCardProgress(existing, incoming) {
+    if (!existing || !incoming) return incoming;
+    var existN = Array.isArray(existing.historique) ? existing.historique.length : 0;
+    var inN = Array.isArray(incoming.historique) ? incoming.historique.length : 0;
+    var keep = existN >= inN ? existing : incoming;
+    Object.keys(CARD_PROGRESS_SKIP).forEach(function (k) {
+      if (k === '_mt') return;
+      if (Object.prototype.hasOwnProperty.call(keep, k)) incoming[k] = keep[k];
+      else delete incoming[k];
+    });
+    return incoming;
+  }
+
+  /**
+   * Applique l’import puis sauvegarde. Si la sauvegarde échoue, window.D et
+   * l’index de persistance sont restaurés (comme l’import Partage).
+   */
+  function applyImportAndSave(normalized, opts) {
+    var snapshot = deepClone(window.D);
+    var persistIndex = window._persistIndex || null;
+    var report = applyImport(normalized, opts);
+    if (!report.ok) return Promise.resolve(report);
+    function restore(reason) {
+      window.D = snapshot;
+      window._persistIndex = persistIndex;
+      report.ok = false;
+      report.warnings = (report.warnings || []).concat(['Import annulé : ' + (reason || 'sauvegarde impossible')]);
+      if (typeof window.recordDataEvent === 'function') {
+        try { window.recordDataEvent('IMPORT_ROLLBACK', { reason: String(reason || ''), source: 'json-import' }); } catch (e) { /* ignore */ }
+      }
+      return report;
+    }
+    if (typeof window.save !== 'function') return Promise.resolve(report);
+    return Promise.resolve(window.save()).then(function () {
+      return report;
+    }, function (e) {
+      return restore(e && e.message ? e.message : e);
+    });
   }
 
   function profileAllowsDemoReset(profileId) {
@@ -3182,10 +3234,9 @@
           }
 
           function doImport() {
-            var report = applyImport(normalized, { sections: secs, mode: mode });
-            showImportReport(report);
-            if (report.ok) {
-              Promise.resolve(typeof window.save === 'function' ? window.save() : null).then(function () {
+            applyImportAndSave(normalized, { sections: secs, mode: mode }).then(function (report) {
+              showImportReport(report);
+              if (report.ok) {
                 if (typeof window.showToast === 'function') window.showToast('Données importées et sauvegardées.');
                 if (typeof window.renderMatieres === 'function') window.renderMatieres();
                 if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
@@ -3194,12 +3245,8 @@
                 if (typeof window.renderNotes === 'function') window.renderNotes();
                 if (typeof window.applySettings === 'function') window.applySettings();
                 refreshAutoBackupRow();
-              }).catch(function (e) {
-                report.warnings = (report.warnings || []).concat(['Sauvegarde post-import : ' + (e.message || e)]);
-                report.ok = false;
-                showImportReport(report);
-              });
-            }
+              }
+            });
           }
         };
         reader.onerror = function () {
@@ -3260,6 +3307,8 @@
     parseImportText: parseImportText,
     normalizeImport: normalizeImport,
     applyImport: applyImport,
+    applyImportAndSave: applyImportAndSave,
+    _mergeImportedCardProgress: mergeImportedCardProgress,
     createProfile: createProfile,
     profileAllowsDemoReset: profileAllowsDemoReset,
     setProfileAllowDemoReset: setProfileAllowDemoReset,
