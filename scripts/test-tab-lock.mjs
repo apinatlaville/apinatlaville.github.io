@@ -142,6 +142,16 @@ async function testFrozenTabMissedClaim() {
   assert(JSON.parse(shared.local.getItem('mc_tab_owner__principal')).tabId === 'Tautre', 'A n’écrase pas la clé du nouveau propriétaire');
 }
 
+async function testStaleForeignOwnerKey() {
+  console.log('\n· clé propriétaire d’un autre onglet, même ancienne : lecture seule');
+  const shared = { local: makeStore(), BC: makeBus() };
+  const A = makeTab(shared);
+  await A.TabLock.start('principal');
+  shared.local.setItem('mc_tab_owner__principal', JSON.stringify({ tabId: 'Tautre', at: Date.now() - 60000 }));
+  assert(A.TabLock.isReadOnly() === true, 'A ne reprend pas la main sur une clé étrangère périmée');
+  assert(JSON.parse(shared.local.getItem('mc_tab_owner__principal')).tabId === 'Tautre', 'clé étrangère intacte');
+}
+
 async function testBfcacheReload() {
   console.log('\n· retour par l’historique (bfcache) : rechargement');
   const shared = { local: makeStore(), BC: makeBus() };
@@ -181,6 +191,7 @@ async function main() {
   await testCloseReleases();
   await testNoBroadcastFallback();
   await testFrozenTabMissedClaim();
+  await testStaleForeignOwnerKey();
   await testBfcacheReload();
   testWiring();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);

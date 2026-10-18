@@ -465,9 +465,32 @@ async function testBootUnsyncedLocal() {
   env._mergeLocalAheadAtBoot(r.localAhead);
   assert(env.D.cours.some((c) => c.uid === 'PH-OFF'), 'ajout hors ligne conservé');
   assert(env.D.cours.find((c) => c.uid === 'PH-BBB').title === 'Édité sur B', 'édition plus récente de B conservée');
+  assert(Number(env.D.meta.revision) >= 60, 'révision fusionnée ne recule pas sous le cloud (60, pas 50)');
   const { env: env2 } = bootFixture(clone(cloud), clone(local), 50);
   const r2 = await env2.PIO.resolveProfileCloudDoc(env2.currentUser);
   assert(!r2.localAhead, 'local déjà confirmé (50) : miroir cloud normal');
+}
+
+function testBootKeepsRemoteCourseMove() {
+  console.log('\n· démarrage : un déplacement plus récent sur le cloud n’est pas annulé');
+  const t0 = Date.now();
+  const cloud = clone(baseProfile());
+  cloud.cours[1].inter = '07';
+  cloud.cours[1]._mt = t0;
+  cloud.meta = { revision: 60, updatedAt: t0, profileGeneration: 1 };
+  const local = clone(baseProfile());
+  local.cours.push({ uid: 'PH-OFF', title: 'Hors ligne', _mt: t0 - 5000 });
+  local.meta = { revision: 50, updatedAt: t0 - 5000, profileGeneration: 1 };
+  const { env } = bootFixture(cloud, local, 45);
+  env.D = clone(cloud);
+  env.captureCoursPlacementBase = env.captureCoursPlacementBase || function (cours) {
+    env._coursPlacementBase = placementBase(cours);
+  };
+  env._coursPlacementBase = placementBase(cloud.cours);
+  env.resetPersistIndex();
+  env._mergeLocalAheadAtBoot(local);
+  assert(env.D.cours.find((c) => c.uid === 'PH-BBB').inter === '07', 'déplacement cloud plus récent conservé');
+  assert(env.D.cours.some((c) => c.uid === 'PH-OFF'), 'ajout hors ligne conservé');
 }
 
 function testRestoreKeepsRevision() {
@@ -534,6 +557,7 @@ async function main() {
   await testBootLocalAhead();
   await testBootNeverOverwritesCloud();
   await testBootUnsyncedLocal();
+  testBootKeepsRemoteCourseMove();
   testRestoreKeepsRevision();
   testTombstonePrune();
   testWiring();

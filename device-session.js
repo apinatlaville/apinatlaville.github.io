@@ -183,6 +183,17 @@
     return touchSelf(hub, CONFIG.ROLES.SECONDARY);
   }
 
+  /** Si un claim PRIMARY de CET appareil a été écrit après le fail-closed, l’annuler. */
+  function unclaimIfSelf(hub) {
+    hub = touchSelf(hub, CONFIG.ROLES.SECONDARY);
+    if (hub.primaryDeviceId === getDeviceId()) {
+      hub.primaryDeviceId = null;
+      hub.primaryUpdatedAt = 0;
+      hub.primaryClaimedAt = 0;
+    }
+    return hub;
+  }
+
   function withFsTimeout(promise, ms, label) {
     var msSafe = Math.max(500, ms || 4000);
     return Promise.race([
@@ -463,6 +474,13 @@
       state.effectiveRole = CONFIG.ROLES.SECONDARY;
       state.needsRoleChoice = true;
       emit();
+      enqueuePresence(function () {
+        return readHubOnce().then(function (fresh) {
+          state.hub = fresh || emptyHub();
+          if (state.hub.primaryDeviceId !== getDeviceId()) return state.hub;
+          return mutateFreshHub(fresh, unclaimIfSelf, false);
+        }).catch(function () { /* présence illisible : déjà Secondaire en local */ });
+      });
     });
   }
 
@@ -737,6 +755,9 @@
     window.D = data;
     if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
     window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
+    if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
+      window.ProfilesIO.setCloudConfirmedRev(pid, window._lastCloudConfirmedRevision);
+    }
     if (typeof window.captureCoursPlacementBase === 'function') {
       window.captureCoursPlacementBase(data.cours);
     }
@@ -859,6 +880,9 @@
         || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
         || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
         || 'default';
+      if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
+        window.ProfilesIO.setCloudConfirmedRev(pid, window._lastCloudConfirmedRevision);
+      }
       var mirrored = false;
       if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
         mirrored = !!window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });

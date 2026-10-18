@@ -80,7 +80,7 @@
   function checkStillOwner() {
     if (state.status !== 'owner' || !state.profileId) return state.status === 'owner';
     var o = readOwner(state.profileId);
-    if (o && o.tabId !== tabId && (Date.now() - Number(o.at || 0)) < OWNER_STALE_MS) {
+    if (o && o.tabId !== tabId) {
       loseOwnership('owner-key-taken');
       return false;
     }

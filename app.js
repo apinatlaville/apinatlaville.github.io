@@ -3447,21 +3447,39 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
 window._mergeLocalAheadAtBoot = function (local) {
   if (!local || typeof local !== 'object' || !window.D) return;
   const cloudD = window.D;
+  const savedBase = window._coursPlacementBase;
   try {
+    // Pas de baseline de rangement : un déplacement plus récent sur le cloud
+    // ne doit pas être vu comme « local a bougé, cloud est resté ».
+    window._coursPlacementBase = Object.create(null);
     window.D = local;
     window._persistIndex = null;
     window.mergeRemoteProfileIntoLocal(cloudD);
+    if (!window.D.meta || typeof window.D.meta !== 'object') window.D.meta = {};
+    const lRev = Number(local.meta && local.meta.revision) || 0;
+    const cRev = Number(cloudD.meta && cloudD.meta.revision) || 0;
+    window.D.meta.revision = Math.max(lRev, cRev);
+    window.D.meta.updatedAt = Math.max(
+      Number(local.meta && local.meta.updatedAt) || 0,
+      Number(cloudD.meta && cloudD.meta.updatedAt) || 0,
+      Date.now()
+    );
     window._bootLocalAheadMerged = true;
     if (typeof window.recordDataEvent === 'function') {
       window.recordDataEvent('BOOT_LOCAL_AHEAD_MERGED', {
-        localRev: Number(local.meta && local.meta.revision) || 0,
-        cloudRev: Number(cloudD.meta && cloudD.meta.revision) || 0
+        localRev: lRev,
+        cloudRev: cRev
       });
     }
   } catch (e) {
     console.error('Fusion local en avance impossible — données cloud conservées:', e);
     window.D = cloudD;
     window.resetPersistIndex();
+  } finally {
+    window._coursPlacementBase = savedBase;
+    if (typeof window.captureCoursPlacementBase === 'function') {
+      window.captureCoursPlacementBase(window.D && window.D.cours);
+    }
   }
 };
 
@@ -3950,8 +3968,8 @@ window._saveCloudImpl = async function () {
     window._lastCloudConfirmedRevision = sentRevision != null
       ? sentRevision
       : (Number(window.D.meta && window.D.meta.revision) || 0);
-    if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function' && window._activeProfileId) {
-      window.ProfilesIO.setCloudConfirmedRev(window._activeProfileId, window._lastCloudConfirmedRevision);
+    if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
+      window.ProfilesIO.setCloudConfirmedRev(sessionPid, window._lastCloudConfirmedRevision);
     }
     if (typeof window.captureCoursPlacementBase === 'function') {
       window.captureCoursPlacementBase(window.D && window.D.cours);
