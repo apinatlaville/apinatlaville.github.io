@@ -346,6 +346,35 @@
     return found;
   }
 
+  /**
+   * Copie dans target les cours/cartes de source dont l’id n’existe pas encore.
+   * Sert au patch Secondaire : ne pas jeter un ajout local jamais parti sur le cloud.
+   */
+  function graftExclusiveEntities(target, source) {
+    if (!target || typeof target !== 'object' || !source || typeof source !== 'object') return target;
+    var targetKeys = Object.create(null);
+    forEachEntity(target, function (key) {
+      if (key) targetKeys[key] = true;
+    });
+    ENTITY_FAMILIES.forEach(function (fam) {
+      var srcArr = source[fam.arr];
+      if (!Array.isArray(srcArr) || !srcArr.length) return;
+      if (!Array.isArray(target[fam.arr])) target[fam.arr] = [];
+      var dstArr = target[fam.arr];
+      for (var i = 0; i < srcArr.length; i++) {
+        var item = srcArr[i];
+        if (!item || typeof item !== 'object') continue;
+        var id = item[fam.key];
+        if (id == null || id === '') continue;
+        var key = fam.prefix + String(id);
+        if (targetKeys[key]) continue;
+        dstArr.push(item);
+        targetKeys[key] = true;
+      }
+    });
+    return target;
+  }
+
   /** Empreintes de l’état persisté : { clé: JSON sans _mt }. */
   function buildPersistIndex(data) {
     var idx = Object.create(null);
@@ -3320,6 +3349,7 @@
     isEffectivelyEmptyProfile: isEffectivelyEmptyProfile,
     hasUserContent: hasUserContent,
     localHasExclusiveEntities: localHasExclusiveEntities,
+    graftExclusiveEntities: graftExclusiveEntities,
     profileContentScore: profileContentScore,
     ENTITY_FAMILIES: ENTITY_FAMILIES,
     buildPersistIndex: buildPersistIndex,

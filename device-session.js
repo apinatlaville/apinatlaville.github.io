@@ -775,6 +775,12 @@
   }
 
   function applySecondaryPatchResult(data, pid) {
+    var prev = window.D;
+    if (prev && data && window.ProfilesIO && typeof window.ProfilesIO.graftExclusiveEntities === 'function'
+        && typeof window.ProfilesIO.localHasExclusiveEntities === 'function'
+        && window.ProfilesIO.localHasExclusiveEntities(prev, data)) {
+      window.ProfilesIO.graftExclusiveEntities(data, prev);
+    }
     window.D = data;
     if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
     window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;

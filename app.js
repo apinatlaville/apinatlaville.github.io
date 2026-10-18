@@ -2357,7 +2357,9 @@ async function resolveCloudUserDoc(user) {
         accountRef: resolved.accountRef,
         legacyRoot: !!resolved.legacyRoot,
         localOnly: !!resolved.localOnly,
-        cloudPending: !!resolved.cloudPending
+        cloudPending: !!resolved.cloudPending,
+        localAhead: resolved.localAhead || null,
+        recoveredFromLocal: !!resolved.recoveredFromLocal
       };
     } catch (e) {
       // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
@@ -4023,12 +4025,16 @@ window._saveCloudImpl = async function () {
     const confirmedNow = sentRevision != null
       ? sentRevision
       : (Number(window.D.meta && window.D.meta.revision) || 0);
-    window._lastCloudConfirmedRevision = Math.max(
-      Number(window._lastCloudConfirmedRevision) || 0,
-      confirmedNow
-    );
-    if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
-      window.ProfilesIO.setCloudConfirmedRev(sessionPid, window._lastCloudConfirmedRevision);
+    const tabReadOnly = window.TabLock && typeof window.TabLock.isReadOnly === 'function'
+      && window.TabLock.isReadOnly() && !window._tabLostFlushActive;
+    if (!tabReadOnly) {
+      window._lastCloudConfirmedRevision = Math.max(
+        Number(window._lastCloudConfirmedRevision) || 0,
+        confirmedNow
+      );
+      if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
+        window.ProfilesIO.setCloudConfirmedRev(sessionPid, window._lastCloudConfirmedRevision);
+      }
     }
     if (typeof window.captureCoursPlacementBase === 'function') {
       window.captureCoursPlacementBase(window.D && window.D.cours);

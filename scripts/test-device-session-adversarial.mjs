@@ -496,6 +496,38 @@ async function pocLateJoinAfterTimeout() {
   DS.stop();
 }
 
+async function pocSecondaryPatchKeepsExclusive() {
+  console.log('\n[DS11] patch Secondaire : un cours local absent du cloud n’est pas jeté');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  const cloud = rich(3, 1);
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(cloud));
+  env.D.cours.push({ uid: 'PH-OFF', title: 'Hors ligne' });
+  store.setItem('backup_local_cours__default', JSON.stringify(env.D));
+  const { DS, PIO } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  await DS.saveSecondaryPatch(function (data) { data.openTabs = ['printed']; });
+  assert((env.D.cours || []).some((c) => c.uid === 'PH-OFF'), 'DS11: cours hors ligne encore en mémoire');
+  assert((PIO.readLocalProfileData('default').cours || []).some((c) => c.uid === 'PH-OFF'), 'DS11: cours hors ligne encore en localStorage');
+  const afterCloud = fsMock.docs.get('utilisateurs/uid1/profiles/default');
+  assert(!(afterCloud.cours || []).some((c) => c.uid === 'PH-OFF'), 'DS11: le patch n’envoie pas le cours sur le cloud (rôle Secondaire)');
+  assert(afterCloud.openTabs && afterCloud.openTabs[0] === 'printed', 'DS11: le patch Principal (openTabs) est bien écrit');
+  DS.stop();
+}
+
 async function pocWatchIgnoresCacheAndKeepsExclusive() {
   console.log('\n[DS10] watchUserData : ignore fromCache ; conserve un cours local absent du cloud');
   const store = makeStore();
@@ -604,6 +636,7 @@ async function main() {
   await pocStaleHeartbeatDoesNotReclaim();
   await pocSecondaryNoRecreate();
   await pocSecondaryMirrorAllowEmpty();
+  await pocSecondaryPatchKeepsExclusive();
   await pocWatchIgnoresCacheAndKeepsExclusive();
   await pocCreateRace();
   await pocClaimPrimaryFailClosed();

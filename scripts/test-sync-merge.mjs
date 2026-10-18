@@ -496,6 +496,18 @@ function testBootKeepsRemoteCourseMove() {
   assert(env.D.cours.some((c) => c.uid === 'PH-OFF'), 'ajout hors ligne conservé');
 }
 
+function testGraftExclusiveEntities() {
+  console.log('\n· greffe : ids locaux absents du cloud recopiés, ids déjà présents ignorés');
+  const env = makeDevice({ isLocalMode: true });
+  const target = clone(baseProfile());
+  const source = clone(baseProfile());
+  source.cours.push({ uid: 'PH-OFF', title: 'Hors ligne' });
+  source.cours[0].title = 'Titre local périmé';
+  env.PIO.graftExclusiveEntities(target, source);
+  assert(target.cours.some((c) => c.uid === 'PH-OFF'), 'cours local exclusif recopié');
+  assert(target.cours.find((c) => c.uid === 'PH-AAA').title === 'Cours 1', 'cours déjà sur le cloud non écrasé');
+}
+
 function testMovedCardNotDuplicated() {
   console.log('\n· fusion : une carte déplacée exercices → devoirs n’est pas dupliquée');
   const env = makeDevice({ isLocalMode: true });
@@ -555,8 +567,18 @@ function testWiring() {
     assert(/Math\.max\(keepRev, remoteRev \+ 1\)/.test(appSrc), 'save cloud : la révision locale ne recule pas sous remote+1');
   }
   assert(/!window\._bootLocalAhead && window\.ProfilesIO/.test(appSrc), 'initApp : pas de miroir cloud→local si local en avance');
+  {
+    const iFn = appSrc.indexOf('async function resolveCloudUserDoc');
+    const iRet = appSrc.indexOf('return {', iFn);
+    const ret = appSrc.slice(iRet, appSrc.indexOf('};', iRet) + 2);
+    assert(/localAhead:\s*resolved\.localAhead/.test(ret), 'resolveCloudUserDoc transmet localAhead jusqu’à initApp (pas seulement resolveProfileCloudDoc)');
+  }
   const ds = fs.readFileSync(path.join(root, 'device-session.js'), 'utf8');
   assert((ds.match(/resetPersistIndex/g) || []).length >= 2, 'Secondaire : index réinitialisé sur données reçues');
+  assert(/graftExclusiveEntities/.test(ds), 'patch Secondaire conserve les ids locaux absents du cloud');
+  assert(/TabLock\.isReadOnly\(\)[\s\S]{0,400}setCloudConfirmedRev/.test(appSrc)
+    || /tabReadOnly[\s\S]{0,400}setCloudConfirmedRev/.test(appSrc),
+    'onglet lecture seule : ne pas avancer mc_cloud_rev');
 }
 
 async function main() {
@@ -577,6 +599,7 @@ async function main() {
   await testBootNeverOverwritesCloud();
   await testBootUnsyncedLocal();
   testBootKeepsRemoteCourseMove();
+  testGraftExclusiveEntities();
   testMovedCardNotDuplicated();
   testRestoreKeepsRevision();
   testTombstonePrune();
