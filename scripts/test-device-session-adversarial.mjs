@@ -326,6 +326,7 @@ async function pocSecondaryMirrorAllowEmpty() {
 
   const env = baseEnv(store, fsMock);
   env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(localRich));
   const { DS, PIO } = loadModules(env);
 
   await DS.start('uid1');
@@ -336,13 +337,46 @@ async function pocSecondaryMirrorAllowEmpty() {
   assert(PIO.writeLocalProfileData('default', oldShell, { allowEmpty: true }) === false, 'DS4: shell plus vieille refusée même allowEmpty');
   assert(PIO.readLocalProfileData('default').cours.length === 3, 'DS4: 3 cours conservés');
 
-  // Coquille plus RÉCENTE (reset primary) → miroir OK
-  const newShell = { ...shell(), meta: { updatedAt: Date.now() + 1000, revision: 3, profileGeneration: 1 } };
+  // Coquille plus RÉCENTE avec traces (vrai reset Principal) → miroir OK
+  const newShell = { ...shell(), meta: { updatedAt: Date.now() + 1000, revision: 3, profileGeneration: 1, deleted: { 'c:U0': Date.now(), 'c:U1': Date.now(), 'c:U2': Date.now() } } };
   fsMock.docs.set('utilisateurs/uid1/profiles/default', newShell);
   DS.watchUserData(env.docRef);
   await new Promise((r) => setTimeout(r, 40));
   const after = PIO.readLocalProfileData('default');
   assert((after.cours || []).length === 0, 'DS4: shell plus récente appliquée (reset primary)');
+  DS.stop();
+}
+
+async function pocPoisonEmptyDoesNotWipeExclusive() {
+  console.log('\n[DS13] watchUserData : coquille vide sans traces n’écrase pas les cours locaux');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const localRich = rich(3, 1);
+  localRich.meta.updatedAt = Date.now() - 10000;
+  store.setItem('backup_local_cours__default', JSON.stringify(localRich));
+  const t = Date.now();
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(localRich));
+  env.mergeRemoteProfileIntoLocal = function () { env._merged = true; };
+  const { DS, PIO } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  const poison = { ...shell(), meta: { updatedAt: Date.now() + 1000, revision: 9, profileGeneration: 1 } };
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', poison);
+  DS.watchUserData(env.docRef);
+  await new Promise((r) => setTimeout(r, 40));
+  assert(env._merged === true, 'DS13: fusion au lieu d’un miroir vide');
+  assert((env.D.cours || []).length === 3, 'DS13: 3 cours encore en mémoire');
+  assert((PIO.readLocalProfileData('default').cours || []).length === 3, 'DS13: 3 cours encore en localStorage');
   DS.stop();
 }
 
@@ -629,6 +663,119 @@ async function pocWatchIgnoresCacheAndKeepsExclusive() {
   DS2.stop();
 }
 
+async function pocWatchKeepsLocalAheadDeletion() {
+  console.log('\n[DS14] watchUserData : une suppression locale non sync n’est pas annulée par le cloud');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  const local = rich(3, 1);
+  local.cours = local.cours.filter((c) => c.uid !== 'U0');
+  local.meta.deleted = { 'c:U0': t };
+  local.meta.revision = 5;
+  local.meta.updatedAt = t;
+  store.setItem('backup_local_cours__default', JSON.stringify(local));
+  const cloud = rich(3, 1);
+  cloud.meta = { revision: 9, updatedAt: t + 1000, profileGeneration: 1 };
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(local));
+  const { DS, PIO } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  DS.watchUserData(env.docRef);
+  await new Promise((r) => setTimeout(r, 40));
+  assert(!(env.D.cours || []).some((c) => c.uid === 'U0'), 'DS14: U0 reste absent de la mémoire');
+  assert(!!(env.D.meta && env.D.meta.deleted && env.D.meta.deleted['c:U0']), 'DS14: trace locale conservée');
+  assert((env.D.cours || []).length === 2, 'DS14: les 2 autres cours restent');
+  assert(!(PIO.readLocalProfileData('default').cours || []).some((c) => c.uid === 'U0'), 'DS14: U0 absent du localStorage');
+  assert(PIO.getCloudConfirmedRev('default') == null, 'DS14: rév. non confirmée (traces locales hors cloud)');
+  DS.stop();
+}
+
+async function pocWatchKeepsNewerSharedEdit() {
+  console.log('\n[DS15] watchUserData : un titre local plus récent n’est pas écrasé');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  const local = rich(3, 1);
+  local.cours[0].titre = 'Titre local';
+  local.cours[0]._mt = t;
+  local.meta.revision = 5;
+  local.meta.updatedAt = t;
+  const cloud = rich(3, 1);
+  cloud.cours[0].titre = 'Titre cloud';
+  cloud.cours[0]._mt = t - 8000;
+  cloud.meta = { revision: 9, updatedAt: t + 1000, profileGeneration: 1 };
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(local));
+  const { DS } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  DS.watchUserData(env.docRef);
+  await new Promise((r) => setTimeout(r, 40));
+  assert(env.D.cours[0].titre === 'Titre local', 'DS15: titre local plus récent conservé');
+  DS.stop();
+}
+
+async function pocSecondaryPatchKeepsNewerSharedAndDoesNotConfirmKeepRev() {
+  console.log('\n[DS16] patch Secondaire : titre local plus récent gardé, rév. locale non confirmée');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  const cloud = rich(3, 1);
+  cloud.cours[0].titre = 'Titre cloud';
+  cloud.cours[0]._mt = t - 8000;
+  cloud.meta.revision = 40;
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', cloud);
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const env = baseEnv(store, fsMock);
+  env.docRef = fsMock.doc(env.db, 'utilisateurs', 'uid1', 'profiles', 'default');
+  env.D = JSON.parse(JSON.stringify(cloud));
+  env.D.cours[0].titre = 'Titre local';
+  env.D.cours[0]._mt = t;
+  env.D.meta.revision = 60;
+  store.setItem('backup_local_cours__default', JSON.stringify(env.D));
+  const { DS, PIO } = loadModules(env);
+  await DS.start('uid1');
+  await DS.switchToSecondary();
+  await DS.saveSecondaryPatch(function (data) { data.openTabs = ['printed']; });
+  assert(env.D.cours[0].titre === 'Titre local', 'DS16: titre local plus récent encore en mémoire');
+  assert((PIO.readLocalProfileData('default').cours || [])[0].titre === 'Titre local', 'DS16: titre local encore en localStorage');
+  assert(env.D.openTabs && env.D.openTabs[0] === 'printed', 'DS16: patch openTabs visible en mémoire');
+  const afterCloud = fsMock.docs.get('utilisateurs/uid1/profiles/default');
+  assert(afterCloud.openTabs && afterCloud.openTabs[0] === 'printed', 'DS16: patch écrit sur le cloud');
+  assert(afterCloud.cours[0].titre === 'Titre cloud', 'DS16: le patch n’envoie pas le titre local (rôle Secondaire)');
+  assert(Number(env.D.meta.revision) >= 60, 'DS16: révision locale ne recule pas');
+  assert(PIO.getCloudConfirmedRev('default') !== 60, 'DS16: rév. 60 locale jamais confirmée comme ack cloud');
+  DS.stop();
+}
+
 async function pocStaleHeartbeatDoesNotReclaim() {
   console.log('\n[DS9] heartbeat d’un Principal gelé n’écrase pas le claim d’un autre appareil');
   const fsMock = makeFirestore();
@@ -667,9 +814,13 @@ async function main() {
   await pocStaleHeartbeatDoesNotReclaim();
   await pocSecondaryNoRecreate();
   await pocSecondaryMirrorAllowEmpty();
+  await pocPoisonEmptyDoesNotWipeExclusive();
   await pocSecondaryPatchKeepsExclusive();
   await pocSecondaryPatchDoesNotResurrect();
   await pocWatchIgnoresCacheAndKeepsExclusive();
+  await pocWatchKeepsLocalAheadDeletion();
+  await pocWatchKeepsNewerSharedEdit();
+  await pocSecondaryPatchKeepsNewerSharedAndDoesNotConfirmKeepRev();
   await pocCreateRace();
   await pocClaimPrimaryFailClosed();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);

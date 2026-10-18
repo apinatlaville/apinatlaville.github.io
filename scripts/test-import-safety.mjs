@@ -217,6 +217,26 @@ async function testJsonMergeKeepsSrs() {
   assert(card.historique.length === 1 && card.repetitions === 2, 'progression SRS locale conservée');
 }
 
+async function testJsonMergeDoesNotResurrectTomb() {
+  console.log('\n· import JSON fusion : un cours tracé comme supprimé n’est pas ressuscité');
+  const store = makeStore();
+  const env = loadPIO(store, baseD());
+  const PIO = env.ProfilesIO;
+  env.D.meta.deleted = { 'c:AN-AAA': Date.now() };
+  env.D.cours = env.D.cours.filter((c) => c.uid !== 'AN-AAA');
+  const report = PIO.applyImport({
+    ok: true,
+    data: {
+      cours: [{ uid: 'AN-AAA', title: 'Ancien export', mat: 'ANGL' }],
+      matieres: env.D.matieres,
+      classeurs: env.D.classeurs || []
+    }
+  }, { sections: ['cours', 'structure'], mode: 'merge' });
+  assert(report.ok === true, 'import fusion accepté');
+  assert(!(env.D.cours || []).some((c) => c.uid === 'AN-AAA'), 'cours tombstoné absent après import');
+  assert(!!(env.D.meta && env.D.meta.deleted && env.D.meta.deleted['c:AN-AAA']), 'trace de suppression conservée');
+}
+
 async function testAutoBackupIsolation() {
   console.log('\n· copie automatique isolée par profil');
   const store = makeStore();
@@ -238,6 +258,7 @@ async function main() {
   await testAutoBackupUndo();
   await testJsonImportSaveFailureRollsBack();
   await testJsonMergeKeepsSrs();
+  await testJsonMergeDoesNotResurrectTomb();
   await testAutoBackupIsolation();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
   if (failures.length) console.error('Échecs:\n' + failures.map((f) => ' - ' + f).join('\n'));

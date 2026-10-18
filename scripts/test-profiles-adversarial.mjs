@@ -377,10 +377,49 @@ async function pocSeedOwnerRecover() {
   assert(blob && blob.cours && blob.cours.length === 2, 'PoC9: seed publié avec 2 cours');
 }
 
+async function pocSecondaryDoesNotRepublishEmptyCloud() {
+  console.log('\n[PoC10] Autre Principal vivant : coquille cloud non réécrite avec le local du Secondaire');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const local = rich(4, 1);
+  local.meta.updatedAt = Date.now();
+  const t = Date.now();
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', bytes: 10, generation: 1 }],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', shell());
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  store.setItem('mc_device_id', 'dev-me');
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', generation: 1 }]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify(local));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadPIO(env);
+  const r = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(!!r.localAhead && r.localAhead.cours.length === 4, 'PoC10: local riche transmis pour fusion (pas setDoc)');
+  assert(!r.recoveredFromLocal, 'PoC10: pas de recoveredFromLocal (pas d’écriture cloud)');
+  const cloud = fsMock.docs.get('utilisateurs/uid1/profiles/default');
+  assert(!cloud.cours || cloud.cours.length === 0, 'PoC10: coquille cloud intacte (Secondaire n’a pas republish)');
+}
+
 async function main() {
   console.log('=== Preuves adversatives ProfilesIO (perte de données) ===');
   await pocCreateClobber();
   await pocEmptyCloudVsRichLocal();
+  await pocSecondaryDoesNotRepublishEmptyCloud();
   await pocIntentionalDeletes();
   await pocZombieAfterRecreate();
   await pocWriteLocalAntiWipe();

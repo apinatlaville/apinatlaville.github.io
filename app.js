@@ -2365,20 +2365,27 @@ async function resolveCloudUserDoc(user) {
       // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
       console.warn('[Auth] resolveProfileCloudDoc échec — repli local profil:', e && e.message);
       let localData = null;
+      const pid = (window.ProfilesIO && window.ProfilesIO.getSessionProfileId
+        ? window.ProfilesIO.getSessionProfileId()
+        : (window.ProfilesIO && window.ProfilesIO.getActiveProfileId
+          ? window.ProfilesIO.getActiveProfileId()
+          : null))
+        || window._activeProfileId
+        || 'default';
       if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
-        const pid = window.ProfilesIO.getSessionProfileId
-          ? window.ProfilesIO.getSessionProfileId()
-          : window.ProfilesIO.getActiveProfileId();
         localData = window.ProfilesIO.readLocalProfileData(pid);
         if (localData && localData._account) localData = null;
       }
       if (localData) {
+        if (window.ProfilesIO && typeof window.ProfilesIO.pinSessionProfileId === 'function') {
+          window.ProfilesIO.pinSessionProfileId(pid);
+        }
         return {
           docRef: null,
           data: localData,
           migrated: false,
           storageKey: 'local-fallback',
-          profileId: window._activeProfileId || 'default',
+          profileId: pid,
           accountRef: null,
           localOnly: true
         };
@@ -3432,13 +3439,20 @@ window.resetPersistIndex = function () {
 window.mergeRemoteProfileIntoLocal = function (remote) {
   if (!remote || typeof remote !== 'object' || !window.D) return;
   const PIO = window.ProfilesIO;
-  if (window._persistIndex && PIO && typeof PIO.stampPersistChanges === 'function') {
-    window._persistIndex = PIO.stampPersistChanges(window.D, window._persistIndex, Date.now());
-  }
   if (!window.D.meta) window.D.meta = {};
   const deleted = (PIO && typeof PIO.mergeTombstones === 'function')
     ? PIO.mergeTombstones(window.D.meta.deleted, remote.meta && remote.meta.deleted)
     : null;
+  // Traces d’abord : stampPersistChanges ne doit pas poser _mt=now pour battre une suppression distante.
+  let removedEarly = 0;
+  if (deleted && PIO && typeof PIO.applyTombstones === 'function') {
+    removedEarly = PIO.applyTombstones(window.D, deleted) || 0;
+    if (Object.keys(deleted).length) window.D.meta.deleted = deleted;
+    else delete window.D.meta.deleted;
+  }
+  if (window._persistIndex && PIO && typeof PIO.stampPersistChanges === 'function') {
+    window._persistIndex = PIO.stampPersistChanges(window.D, window._persistIndex, Date.now());
+  }
   if (!Array.isArray(window.D.cours)) window.D.cours = [];
   if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if (!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
@@ -3470,7 +3484,7 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
     window.D.settings = Object.assign({}, remote.settings);
   }
   if (deleted) {
-    const removed = PIO.applyTombstones(window.D, deleted);
+    const removed = (PIO.applyTombstones(window.D, deleted) || 0) + removedEarly;
     if (Object.keys(deleted).length) window.D.meta.deleted = deleted;
     else delete window.D.meta.deleted;
     if (removed && typeof window.recordDataEvent === 'function') {
@@ -3752,21 +3766,34 @@ window.save = function (opts) {
  */
 window.flushCloudOnHide = function (reason) {
   if (window.isLocalMode || !window.cloudConnected || !window.docRef || !window.D) return false;
+  let tabLost = false;
   if (window.TabLock && window.TabLock.getState) {
     const tabState = window.TabLock.getState();
     if (tabState === 'locked') return false;
     if (tabState === 'lost') {
       if (reason !== 'tab-lost' || window._tabLostFlushDone) return false;
-      window._tabLostFlushDone = true;
-      window._tabLostFlushActive = true;
+      tabLost = true;
     }
   }
   if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
-      && !window.DeviceSession.canFullSave()) return false;
+      && !window.DeviceSession.canFullSave()) {
+    if (tabLost) window._tabLostFlushDone = true;
+    return false;
+  }
   const rev = Number(window.D.meta && window.D.meta.revision) || 0;
   const confirmed = Number(window._lastCloudConfirmedRevision);
-  if (window._lastCloudConfirmedRevision != null && confirmed >= rev) return false;
-  if (window._lastLocalSaveAt == null) return false;
+  if (window._lastCloudConfirmedRevision != null && confirmed >= rev) {
+    if (tabLost) window._tabLostFlushDone = true;
+    return false;
+  }
+  if (window._lastLocalSaveAt == null) {
+    if (tabLost) window._tabLostFlushDone = true;
+    return false;
+  }
+  if (tabLost) {
+    window._tabLostFlushDone = true;
+    window._tabLostFlushActive = true;
+  }
   window.recordDataEvent('CLOUD_FLUSH_ON_HIDE', { reason: reason || '', rev: rev, confirmed: confirmed });
   window._enqueueCloudFlush({ waitCloud: false }).catch(function (e) {
     console.warn('Envoi cloud (' + (reason || 'hide') + ') échoué :', e && e.message ? e.message : e);
@@ -3956,6 +3983,19 @@ window._saveCloudImpl = async function () {
     ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
     : false;
 
+  function stillMayWriteCloud() {
+    if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+        && !window.DeviceSession.canFullSave()) return false;
+    if (window._tabLostFlushActive) return true;
+    if (window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly()) {
+      return false;
+    }
+    return true;
+  }
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    return { cloud: false, skipped: 'not-primary' };
+  }
   if (window.TabLock && typeof window.TabLock.isReadOnly === 'function'
       && window.TabLock.isReadOnly() && !window._tabLostFlushActive) {
     return { cloud: false, skipped: 'tab-readonly' };
@@ -4007,15 +4047,25 @@ window._saveCloudImpl = async function () {
           // nouveau doc vide : OK
         }
         applyRemoteIfAhead(cur);
-        sentRevision = Number(window.D.meta && window.D.meta.revision) || 0;
-        tx.set(window.docRef, window._stripProfileForCloud());
+        if (!stillMayWriteCloud()) {
+          throw new Error('CLOUD_ABORTED_NOT_PRIMARY');
+        }
+        const payload = window._stripProfileForCloud();
+        sentRevision = Number(payload && payload.meta && payload.meta.revision)
+          || Number(window.D.meta && window.D.meta.revision) || 0;
+        tx.set(window.docRef, payload);
       });
     } else if (window.getDoc) {
       const snap = await window.getDoc(window.docRef);
       const cur = snap.exists() ? snap.data() : null;
       applyRemoteIfAhead(cur);
-      sentRevision = Number(window.D.meta && window.D.meta.revision) || 0;
-      await window.setDoc(window.docRef, window._stripProfileForCloud());
+      if (!stillMayWriteCloud()) {
+        throw new Error('CLOUD_ABORTED_NOT_PRIMARY');
+      }
+      const payload = window._stripProfileForCloud();
+      sentRevision = Number(payload && payload.meta && payload.meta.revision)
+        || Number(window.D.meta && window.D.meta.revision) || 0;
+      await window.setDoc(window.docRef, payload);
     } else {
       throw new Error('Refus d’écrire cloud : getDoc / transaction indisponible');
     }

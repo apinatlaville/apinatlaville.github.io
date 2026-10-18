@@ -520,6 +520,29 @@ function testGraftExclusiveEntities() {
   assert(added === 0 && !target2.cours.some((c) => c.uid === 'DEAD'), 'greffe : id tracé comme supprimé non ressuscité');
 }
 
+function testOverlayAndUnsyncedHelpers() {
+  console.log('\n· overlay / unsynced : _mt plus récent et traces locales');
+  const env = makeDevice({ isLocalMode: true });
+  const target = clone(baseProfile());
+  const source = clone(baseProfile());
+  source.cours[0].title = 'Plus récent';
+  source.cours[0]._mt = Date.now();
+  target.cours[0]._mt = Date.now() - 5000;
+  const n = env.PIO.overlayNewerEntities(target, source);
+  assert(n >= 1 && target.cours[0].title === 'Plus récent', 'overlay : titre plus récent recopié');
+  const local = clone(baseProfile());
+  local.cours = local.cours.filter((c) => c.uid !== 'PH-AAA');
+  local.meta.deleted = { 'c:PH-AAA': Date.now() };
+  const remote = clone(baseProfile());
+  assert(env.PIO.localHasUnsyncedContent(local, remote) === true, 'unsynced : trace locale en avance');
+  const localEdit = clone(baseProfile());
+  localEdit.cours[0]._mt = Date.now();
+  localEdit.cours[0].title = 'Local';
+  const remoteOld = clone(baseProfile());
+  remoteOld.cours[0]._mt = Date.now() - 1000;
+  assert(env.PIO.localHasUnsyncedContent(localEdit, remoteOld) === true, 'unsynced : _mt local plus récent');
+}
+
 function testMovedCardNotDuplicated() {
   console.log('\n· fusion : une carte déplacée exercices → devoirs n’est pas dupliquée');
   const env = makeDevice({ isLocalMode: true });
@@ -585,6 +608,22 @@ function testWiring() {
     const iRet = appSrc.indexOf('return {', iFn);
     const ret = appSrc.slice(iRet, appSrc.indexOf('};', iRet) + 2);
     assert(/localAhead:\s*resolved\.localAhead/.test(ret), 'resolveCloudUserDoc transmet localAhead jusqu’à initApp (pas seulement resolveProfileCloudDoc)');
+    assert(/storageKey: 'local-fallback'[\s\S]{0,180}profileId: pid/.test(appSrc),
+      'repli local : le profileId renvoyé est celui lu, pas default par défaut');
+  }
+  {
+    const iFlush = appSrc.indexOf('window.flushCloudOnHide = function');
+    const flush = appSrc.slice(iFlush, appSrc.indexOf('window._saveImpl = function', iFlush));
+    const iGate = flush.indexOf('canFullSave');
+    const iFlag = flush.indexOf('_tabLostFlushActive = true');
+    assert(iGate > 0 && iFlag > iGate, 'tab-lost : le flag d’écriture n’est posé qu’après le garde Principal');
+    const iCloud = appSrc.indexOf('function stillMayWriteCloud');
+    const still = appSrc.slice(iCloud, iCloud + 700);
+    const iDs = still.indexOf('canFullSave');
+    const iBypass = still.indexOf('_tabLostFlushActive) return true') >= 0
+      ? still.indexOf('_tabLostFlushActive) return true')
+      : still.indexOf('_tabLostFlushActive') ;
+    assert(iDs >= 0 && iBypass > iDs, 'stillMayWriteCloud : Secondaire jamais autorisé par le flag tab-lost');
   }
   const ds = fs.readFileSync(path.join(root, 'device-session.js'), 'utf8');
   assert((ds.match(/resetPersistIndex/g) || []).length >= 2, 'Secondaire : index réinitialisé sur données reçues');
@@ -613,6 +652,7 @@ async function main() {
   await testBootUnsyncedLocal();
   testBootKeepsRemoteCourseMove();
   testGraftExclusiveEntities();
+  testOverlayAndUnsyncedHelpers();
   testMovedCardNotDuplicated();
   testRestoreKeepsRevision();
   testTombstonePrune();

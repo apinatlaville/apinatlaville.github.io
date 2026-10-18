@@ -182,6 +182,11 @@ function testWiring() {
   assert(/await window\.TabLock\.start\(/.test(appSrc), 'initApp démarre le verrou');
   assert(/_saveCloudChain/.test(fs.readFileSync(path.join(root, 'tab-lock.js'), 'utf8')), 'Prendre la main attend aussi la chaîne cloud');
   assert(/skipped: 'tab-readonly'/.test(appSrc) || /skipped: \"tab-readonly\"/.test(appSrc), 'écriture cloud ignorée si onglet lecture seule');
+  assert(/skipped: 'not-primary'/.test(appSrc), 'écriture cloud ignorée si appareil non Principal');
+  const iStill = appSrc.indexOf('function stillMayWriteCloud');
+  const still = appSrc.slice(iStill, iStill + 650);
+  assert(still.indexOf('canFullSave') < still.indexOf('_tabLostFlushActive'),
+    'tab-lost ne contourne pas le garde Principal');
   const boot = fs.readFileSync(path.join(root, 'boot-loader.js'), 'utf8');
   assert(/'tab-lock\.js'/.test(boot), 'boot-loader charge tab-lock.js');
 }

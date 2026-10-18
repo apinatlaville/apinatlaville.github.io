@@ -525,6 +525,20 @@
     if (!state.started || window.isLocalMode || !state.userId) return;
     if (!state.joinResolved) return;
     if (_claimInFlight || _hbInFlight) return;
+
+    if (state.failClosedJoin) {
+      _hbInFlight = true;
+      return enqueuePresence(function () {
+        return readHubOnce().then(function (fresh) {
+          state.hub = fresh || emptyHub();
+          if (state.hub.primaryDeviceId !== getDeviceId()) return state.hub;
+          return mutateFreshHub(fresh, unclaimIfSelf, false);
+        }).catch(function (err) {
+          console.warn('DeviceSession fail-closed unclaim:', err);
+        }).then(function () { emit(); });
+      }).then(function () { _hbInFlight = false; }, function () { _hbInFlight = false; });
+    }
+
     // Ne pas concurrencer une sauvegarde profil (même WebChannel / long polling)
     if (window._cloudSaveInFlight) return;
 
@@ -778,20 +792,36 @@
     var prev = window.D;
     var PIO = window.ProfilesIO;
     var grafted = 0;
+    var overlayed = 0;
+    var keepRev = Number(prev && prev.meta && prev.meta.revision) || 0;
+    var writtenRev = Number(data && data.meta && data.meta.revision) || 0;
     if (prev && data && PIO && typeof PIO.graftExclusiveEntities === 'function') {
       grafted = PIO.graftExclusiveEntities(data, prev) || 0;
     }
-    if (data && data.meta && data.meta.deleted && PIO && typeof PIO.applyTombstones === 'function') {
-      PIO.applyTombstones(data, data.meta.deleted);
+    if (prev && data && PIO && typeof PIO.overlayNewerEntities === 'function') {
+      overlayed = PIO.overlayNewerEntities(data, prev) || 0;
+    }
+    var mergedDeleted = (PIO && typeof PIO.mergeTombstones === 'function')
+      ? PIO.mergeTombstones(prev && prev.meta && prev.meta.deleted, data && data.meta && data.meta.deleted)
+      : (data && data.meta && data.meta.deleted) || null;
+    var tombsApplied = 0;
+    if (mergedDeleted && PIO && typeof PIO.applyTombstones === 'function') {
+      tombsApplied = PIO.applyTombstones(data, mergedDeleted) || 0;
+      if (!data.meta) data.meta = {};
+      if (Object.keys(mergedDeleted).length) data.meta.deleted = mergedDeleted;
+      else delete data.meta.deleted;
     }
     window.D = data;
+    if (data && data.meta && keepRev > (Number(data.meta.revision) || 0)) {
+      data.meta.revision = keepRev;
+    }
     if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
-    // Des ids greffés ne sont pas sur le cloud : ne pas marquer cette rév. confirmée
-    // (sinon le prochain démarrage miroite et les jette).
-    if (!grafted) {
-      window._lastCloudConfirmedRevision = Number(data && data.meta && data.meta.revision) || 0;
+    // Confirmer uniquement la rév. vraiment écrite. Pas keepRev (jamais ack),
+    // et pas si des ids / traces / _mt locaux restent hors cloud.
+    if (!grafted && !tombsApplied && !overlayed) {
+      window._lastCloudConfirmedRevision = writtenRev;
       if (PIO && typeof PIO.setCloudConfirmedRev === 'function') {
-        PIO.setCloudConfirmedRev(pid, window._lastCloudConfirmedRevision);
+        PIO.setCloudConfirmedRev(pid, writtenRev);
       }
     }
     if (typeof window.captureCoursPlacementBase === 'function') {
@@ -922,11 +952,27 @@
         && PIO.isEffectivelyEmptyProfile(data);
       var exclusive = PIO && typeof PIO.localHasExclusiveEntities === 'function'
         && window.D && PIO.localHasExclusiveEntities(window.D, data);
+      var unsyncedLocal = PIO && typeof PIO.localHasUnsyncedContent === 'function'
+        && window.D && PIO.localHasUnsyncedContent(window.D, data);
 
       // Sauvegardes locales jamais parties : fusionner, ne pas écraser.
-      if (exclusive && !emptyRemote) {
+      // Une coquille vide sans traces n’est pas un reset : ne pas l’appliquer.
+      // Traces / _mt locaux en avance : pas de miroir brut (ça ressuscite / jette le titre).
+      if (exclusive || unsyncedLocal) {
         if (typeof window.mergeRemoteProfileIntoLocal === 'function') {
           window.mergeRemoteProfileIntoLocal(data);
+        } else if (PIO && window.D) {
+          if (typeof PIO.graftExclusiveEntities === 'function') PIO.graftExclusiveEntities(window.D, data);
+          if (typeof PIO.overlayNewerEntities === 'function') PIO.overlayNewerEntities(window.D, data);
+          var watchDeleted = typeof PIO.mergeTombstones === 'function'
+            ? PIO.mergeTombstones(window.D.meta && window.D.meta.deleted, data.meta && data.meta.deleted)
+            : null;
+          if (watchDeleted && typeof PIO.applyTombstones === 'function') {
+            PIO.applyTombstones(window.D, watchDeleted);
+            if (!window.D.meta) window.D.meta = {};
+            if (Object.keys(watchDeleted).length) window.D.meta.deleted = watchDeleted;
+            else delete window.D.meta.deleted;
+          }
         }
         if (PIO && typeof PIO.writeLocalProfileData === 'function') {
           PIO.writeLocalProfileData(pid, window.D, { allowEmpty: true });
