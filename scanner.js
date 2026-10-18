@@ -480,7 +480,10 @@ window.logDebug = function(msg, color = 'var(--txt)') {
   logs.innerHTML = `<div style="color:${color}; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><span style="color:var(--mut)">[${time}]</span> ${body}</div>` + logs.innerHTML;
 };
 
+window._debugScanGen = 0;
+
 window.startDebugScanner = function() {
+  const gen = ++window._debugScanGen;
   const logs = window.$('debug-logs');
   if(logs) logs.innerHTML = '';
   window.logDebug("Initialisation de la caméra...", "var(--gold)");
@@ -492,6 +495,8 @@ window.startDebugScanner = function() {
   }
 
   function start() {
+    // Arrêt (ou nouveau démarrage) demandé pendant l’attente : ne pas rallumer la caméra.
+    if (gen !== window._debugScanGen) return;
     if (typeof window.Html5Qrcode !== 'function') {
       window.logDebug("Module Html5Qrcode manquant.", "var(--red)");
       return;
@@ -523,6 +528,7 @@ window.startDebugScanner = function() {
 };
 
 window.stopDebugScanner = function() {
+  window._debugScanGen++;
   const inst = window.debugQrCode;
   if (inst) {
     const release = () => {

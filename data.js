@@ -968,13 +968,14 @@ window.renderCours = function() {
         }
       }
     } else if (qText && typeof Fuse !== 'undefined') {
-      // Index Fuse réutilisé tant que cours/matières n’ont pas changé (révision + tailles)
-      const fuseKey = (window.D.meta && window.D.meta.revision || 0) + ':' + baseList.length + ':' + (window.D.matieres || []).length;
-      let fuse = window._coursFuseCache && window._coursFuseCache.key === fuseKey && window._coursFuseCache.ref === baseList
+      // Index Fuse réutilisé tant que les champs cherchés (titre, desc, nom de matière) sont identiques.
+      // Clé sur le contenu, pas sur la révision : save() est asynchrone et rend juste après l’édition.
+      const matName = Object.create(null);
+      (window.D.matieres || []).forEach(m => { if (m && m.id != null && !(m.id in matName)) matName[m.id] = m.name; });
+      const fuseKey = baseList.map(c => (c.title || '') + '\u0001' + (c.desc || '') + '\u0001' + (matName[c.mat] || '')).join('\u0002');
+      let fuse = window._coursFuseCache && window._coursFuseCache.key === fuseKey
         ? window._coursFuseCache.fuse : null;
       if (!fuse) {
-        const matName = Object.create(null);
-        (window.D.matieres || []).forEach(m => { if (m && m.id != null && !(m.id in matName)) matName[m.id] = m.name; });
         const searchData = baseList.map(c => {
           return { ...c, matName: matName[c.mat] || '' };
         });
@@ -989,13 +990,12 @@ window.renderCours = function() {
           ignoreLocation: true,
           isCaseSensitive: false
         });
-        window._coursFuseCache = { key: fuseKey, ref: baseList, fuse: fuse };
+        window._coursFuseCache = { key: fuseKey, fuse: fuse };
       }
 
       const results = fuse.search(qText);
-      const liveByUid = Object.create(null);
-      baseList.forEach(c => { if (c && c.uid != null && !(c.uid in liveByUid)) liveByUid[c.uid] = c; });
-      baseList = results.map(r => (r.item && liveByUid[r.item.uid]) || r.item);
+      const live = baseList;
+      baseList = results.map(r => live[r.refIndex] || r.item);
     }
 
     const list = baseList.filter(c => {

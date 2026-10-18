@@ -494,7 +494,7 @@
     var fbSettled = false;
     function firebaseStillInitializing() {
       var p = window.firebaseReady;
-      if (!p) return window.safeLocalGet('active_mode') !== 'local';
+      if (!p) return false;
       if (p !== fbWatched) {
         fbWatched = p;
         fbSettled = false;

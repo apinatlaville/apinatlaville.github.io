@@ -262,31 +262,12 @@
     return hay.indexOf(q) >= 0;
   }
 
-  var FETCH_TIMEOUT_MS = 12000;
   var _genCtl = null;
 
+  /** fetch annulé quand un nouveau chargement remplace celui-ci (résultat déjà ignoré). */
   function fetchT(url, genSignal) {
-    if (typeof AbortController !== 'function') return fetch(url);
-    var ctl = new AbortController();
-    var timedOut = false;
-    var onGenAbort = function () { ctl.abort(); };
-    if (genSignal) {
-      if (genSignal.aborted) ctl.abort();
-      else genSignal.addEventListener('abort', onGenAbort);
-    }
-    var timer = setTimeout(function () { timedOut = true; ctl.abort(); }, FETCH_TIMEOUT_MS);
-    var cleanup = function () {
-      clearTimeout(timer);
-      if (genSignal) genSignal.removeEventListener('abort', onGenAbort);
-    };
-    return fetch(url, { signal: ctl.signal }).then(function (res) {
-      cleanup();
-      return res;
-    }, function (err) {
-      cleanup();
-      if (timedOut) throw new Error('Load failed (timeout)');
-      throw err;
-    });
+    if (!genSignal) return fetch(url);
+    return fetch(url, { signal: genSignal });
   }
 
   /* ---------- Guardian ---------- */
