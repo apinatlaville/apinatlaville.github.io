@@ -853,7 +853,7 @@ async function testWriteLocalRefusesEmptyOverNonEmpty() {
     matieres: [{ id: 'PHYS', name: 'Physique' }],
     classeurs: [], cours: [], exercices: [], devoirs: []
   };
-  assert(PIO.isEffectivelyEmptyProfile(shell) === true, 'shell empty');
+  assert(PIO.hasUserContent(shell) === false, 'shell empty (aucun cours/carte, matières perso ignorées)');
   assert(PIO.writeLocalProfileData('default', shell) === false, 'empty over rich refused');
   assert(PIO.readLocalProfileData('default').cours[0].uid === 'X1', 'rich preserved');
   env._allowEmptyProfileWrite = true;

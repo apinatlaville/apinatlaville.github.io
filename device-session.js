@@ -291,6 +291,9 @@
         }, reject);
       }, 4000);
       state.unsubHub = window.onSnapshot(ref, function (snap) {
+        // Hors ligne, le 1er snapshot vient du cache (souvent « doc absent ») :
+        // ne pas résoudre le join dessus, attendre le serveur ou le getDoc de repli.
+        if (!settled && snap && snap.metadata && snap.metadata.fromCache) return;
         onHubSnapshot(snap);
         if (settled) return;
         settled = true;
@@ -369,7 +372,8 @@
         });
       }).catch(function (err) {
         console.warn('DeviceSession presence poll:', err && err.message ? err.message : err);
-        return state.hub || emptyHub();
+        // Présence illisible : ne jamais supposer un hub vide (→ faux PRIMARY).
+        throw err;
       });
     }
 
@@ -443,6 +447,9 @@
       });
     }), 8000, 'DeviceSession.resolveJoin').catch(function (err) {
       console.warn('DeviceSession resolveJoin:', err);
+      if (typeof window.recordDataEvent === 'function') {
+        window.recordDataEvent('ROLE_FAILCLOSED', { reason: err && err.message ? err.message : String(err) });
+      }
       // Fail-closed : pas de faux PRIMARY qui LWW-écrase un vrai principal
       state.joinResolved = true;
       state.effectiveRole = CONFIG.ROLES.SECONDARY;

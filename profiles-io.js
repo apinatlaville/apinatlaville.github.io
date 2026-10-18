@@ -50,6 +50,11 @@
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
   }
+  function reportDataEvent(code, detail) {
+    if (typeof window.recordDataEvent === 'function') {
+      try { window.recordDataEvent(code, detail); } catch (e) { /* diagnostic seulement */ }
+    }
+  }
   function deepClone(o) {
     return JSON.parse(JSON.stringify(o));
   }
@@ -255,6 +260,182 @@
     return score;
   }
 
+  /** Contenu utilisateur réel (cours, cartes, devoirs, session) — indépendant des matières/classeurs. */
+  function hasUserContent(data) {
+    if (!data || typeof data !== 'object' || data._account === true) return false;
+    var cours = Array.isArray(data.cours) ? data.cours.length : 0;
+    var ex = Array.isArray(data.exercices) ? data.exercices.length : 0;
+    var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
+    return cours + ex + dv > 0 || !!data.sessionEnCoursV2;
+  }
+
+  // ─── Traces de suppression (meta.deleted) + horodatage par élément (_mt) ───
+  // Clé de trace : préfixe de famille + id. exercices et devoirs partagent « k: »
+  // (une carte peut passer d’un tableau à l’autre sans être supprimée).
+  var ENTITY_FAMILIES = [
+    { arr: 'cours', key: 'uid', prefix: 'c:' },
+    { arr: 'exercices', key: 'id', prefix: 'k:' },
+    { arr: 'devoirs', key: 'id', prefix: 'k:' },
+    { arr: 'chapitres', key: 'id', prefix: 'ch:' },
+    { arr: 'quickGroups', key: 'id', prefix: 'g:' },
+    { arr: 'matieres', key: 'id', prefix: 'm:' },
+    { arr: 'classeurs', key: 'id', prefix: 'cl:' }
+  ];
+  var SETTINGS_INDEX_KEY = 's:settings';
+  var TOMBSTONE_TTL_MS = 400 * 24 * 3600 * 1000;
+
+  function entityFingerprint(item) {
+    if (!item || typeof item !== 'object') return '';
+    if (!Object.prototype.hasOwnProperty.call(item, '_mt')) return JSON.stringify(item);
+    var o = {};
+    for (var k in item) {
+      if (k !== '_mt' && Object.prototype.hasOwnProperty.call(item, k)) o[k] = item[k];
+    }
+    return JSON.stringify(o);
+  }
+
+  function forEachEntity(data, fn) {
+    if (!data || typeof data !== 'object') return;
+    ENTITY_FAMILIES.forEach(function (fam) {
+      var arr = data[fam.arr];
+      if (!Array.isArray(arr)) return;
+      for (var i = 0; i < arr.length; i++) {
+        var item = arr[i];
+        if (!item || typeof item !== 'object') continue;
+        var id = item[fam.key];
+        if (id == null || id === '') continue;
+        fn(fam.prefix + String(id), item, fam, i, arr);
+      }
+    });
+  }
+
+  /** Empreintes de l’état persisté : { clé: JSON sans _mt }. */
+  function buildPersistIndex(data) {
+    var idx = Object.create(null);
+    forEachEntity(data, function (key, item) {
+      if (!(key in idx)) idx[key] = entityFingerprint(item);
+    });
+    if (data && data.settings && typeof data.settings === 'object') {
+      idx[SETTINGS_INDEX_KEY] = entityFingerprint(data.settings);
+    }
+    return idx;
+  }
+
+  function pruneTombstones(deleted, now) {
+    if (!deleted || typeof deleted !== 'object') return {};
+    var out = {};
+    Object.keys(deleted).forEach(function (k) {
+      var ts = Number(deleted[k]) || 0;
+      if (ts > 0 && now - ts < TOMBSTONE_TTL_MS) out[k] = ts;
+    });
+    return out;
+  }
+
+  /**
+   * Compare data à l’index de la dernière sauvegarde : pose _mt sur les éléments
+   * modifiés/créés, ajoute une trace pour les éléments disparus, retire la trace
+   * d’un élément réapparu. Sans index précédent : ne marque rien (1ʳᵉ passe).
+   * Retourne le nouvel index.
+   */
+  function stampPersistChanges(data, prevIndex, now) {
+    if (!data || typeof data !== 'object') return Object.create(null);
+    now = Number(now) || Date.now();
+    if (!data.meta || typeof data.meta !== 'object') data.meta = {};
+    var deleted = pruneTombstones(data.meta.deleted, now);
+    var next = Object.create(null);
+    forEachEntity(data, function (key, item) {
+      if (key in next) return;
+      var fp = entityFingerprint(item);
+      next[key] = fp;
+      if (!prevIndex) return;
+      var tomb = deleted[key];
+      if (tomb) {
+        delete deleted[key];
+        if (!(Number(item._mt) > tomb)) item._mt = now;
+        return;
+      }
+      if (!(key in prevIndex) || prevIndex[key] !== fp) item._mt = now;
+    });
+    if (data.settings && typeof data.settings === 'object') {
+      var sfp = entityFingerprint(data.settings);
+      next[SETTINGS_INDEX_KEY] = sfp;
+      if (prevIndex && prevIndex[SETTINGS_INDEX_KEY] !== sfp) data.settings._mt = now;
+    }
+    if (prevIndex) {
+      Object.keys(prevIndex).forEach(function (key) {
+        if (key === SETTINGS_INDEX_KEY || key in next) return;
+        if (!(Number(deleted[key]) >= now)) deleted[key] = now;
+      });
+    }
+    if (Object.keys(deleted).length) data.meta.deleted = deleted;
+    else delete data.meta.deleted;
+    return next;
+  }
+
+  /** Union des traces (date la plus récente par clé). */
+  function mergeTombstones(a, b) {
+    var out = {};
+    [a, b].forEach(function (src) {
+      if (!src || typeof src !== 'object') return;
+      Object.keys(src).forEach(function (k) {
+        var ts = Number(src[k]) || 0;
+        if (ts > 0 && !(out[k] >= ts)) out[k] = ts;
+      });
+    });
+    return pruneTombstones(out, Date.now());
+  }
+
+  /**
+   * Retire de data les éléments dont la trace de suppression est plus récente
+   * que leur dernière modification (_mt). Un élément modifié après la
+   * suppression est conservé et sa trace retirée (la modification la plus récente gagne).
+   * Retourne le nombre d’éléments retirés.
+   */
+  function applyTombstones(data, deleted) {
+    if (!data || typeof data !== 'object' || !deleted) return 0;
+    var removed = 0;
+    var revived = Object.create(null);
+    ENTITY_FAMILIES.forEach(function (fam) {
+      var arr = data[fam.arr];
+      if (!Array.isArray(arr) || !arr.length) return;
+      var keep = [];
+      for (var i = 0; i < arr.length; i++) {
+        var item = arr[i];
+        var id = item && typeof item === 'object' ? item[fam.key] : null;
+        if (id == null || id === '') { keep.push(item); continue; }
+        var key = fam.prefix + String(id);
+        var ts = Number(deleted[key]) || 0;
+        if (ts && !(Number(item._mt) > ts)) { removed++; continue; }
+        if (ts) revived[key] = true;
+        keep.push(item);
+      }
+      if (keep.length !== arr.length) {
+        arr.length = 0;
+        for (var j = 0; j < keep.length; j++) arr.push(keep[j]);
+      }
+    });
+    Object.keys(revived).forEach(function (k) { delete deleted[k]; });
+    return removed;
+  }
+
+  /**
+   * Vrai si chaque élément de previous absent de next est couvert par une trace
+   * de suppression dans next (suppressions explicites, pas un écrasement).
+   */
+  function removalsAreTombstoned(previous, next) {
+    var nextKeys = Object.create(null);
+    forEachEntity(next, function (key) { nextKeys[key] = true; });
+    var deleted = (next && next.meta && next.meta.deleted) || {};
+    var ok = true;
+    forEachEntity(previous, function (key, item, fam) {
+      if (!ok || nextKeys[key]) return;
+      if (fam.arr === 'matieres' && item._system) return;
+      if (fam.arr === 'classeurs' && item._system) return;
+      if (!(Number(deleted[key]) > 0)) ok = false;
+    });
+    return ok;
+  }
+
   function profileMetaUpdatedAt(data) {
     if (!data || !data.meta) return 0;
     var n = Number(data.meta.updatedAt) || 0;
@@ -437,13 +618,23 @@
     // Anti-wipe : coquille emptyData ne remplace pas un blob local non vide
     // allowEmpty (miroir secondary / reset) : seulement si le payload est plus
     // récent (updatedAt) ou d’une génération supérieure (delete+recreate).
+    // Un payload sans contenu (quelles que soient ses matières/classeurs) ne remplace
+    // jamais un profil qui a du contenu, sauf suppressions tracées dans meta.deleted.
     var allowEmpty = !!(opts.allowEmpty || window._allowEmptyProfileWrite);
-    if (isEffectivelyEmptyProfile(obj)) {
+    var incomingShell = isEffectivelyEmptyProfile(obj);
+    var incomingNoContent = !hasUserContent(obj);
+    if (incomingShell || incomingNoContent) {
       try {
         var existing = readLocalProfileData(profileId);
-        if (existing && !isEffectivelyEmptyProfile(existing)) {
+        var wipes = false;
+        if (existing && !removalsAreTombstoned(existing, obj)) {
+          if (incomingNoContent && hasUserContent(existing)) wipes = true;
+          else if (incomingShell && !isEffectivelyEmptyProfile(existing)) wipes = true;
+        }
+        if (wipes) {
           if (!allowEmpty) {
             console.error('[ProfilesIO] Refus writeLocal : écrasement vide d’un profil local non vide');
+            reportDataEvent('SAVE_REFUSED_SHELL', { profileId: profileId });
             return false;
           }
           var localTs = Number((existing.meta && existing.meta.updatedAt) || 0) || 0;
@@ -453,6 +644,7 @@
           var genBump = remoteGen > 0 && localGen > 0 && remoteGen > localGen;
           if (!genBump && !(remoteTs > localTs)) {
             console.error('[ProfilesIO] Refus writeLocal allowEmpty : coquille pas plus récente que le local riche');
+            reportDataEvent('SAVE_REFUSED_SHELL', { profileId: profileId, allowEmpty: true });
             return false;
           }
         }
@@ -461,10 +653,12 @@
         return false;
       }
     }
-    var payload = typeof data === 'string' ? data : JSON.stringify(data);
+    var payload = typeof data === 'string' ? data
+      : (typeof opts.payload === 'string' ? opts.payload : JSON.stringify(data));
     var ok = lsSet(localDataKey(profileId), payload);
     if (!ok) {
       console.error('[ProfilesIO] Échec localStorage pour', profileId);
+      reportDataEvent('LOCAL_WRITE_FAILED', { profileId: profileId, bytes: payload.length });
       return false;
     }
     // Miroir legacy UNIQUEMENT pour le profil default (évite de polluer le repli)
@@ -2820,6 +3014,14 @@
     isRepairableAccountDoc: isRepairableAccountDoc,
     needsAccountIndexRepair: needsAccountIndexRepair,
     isEffectivelyEmptyProfile: isEffectivelyEmptyProfile,
+    hasUserContent: hasUserContent,
+    profileContentScore: profileContentScore,
+    ENTITY_FAMILIES: ENTITY_FAMILIES,
+    buildPersistIndex: buildPersistIndex,
+    stampPersistChanges: stampPersistChanges,
+    mergeTombstones: mergeTombstones,
+    applyTombstones: applyTombstones,
+    removalsAreTombstoned: removalsAreTombstoned,
     mergeAccountIndexPayload: mergeAccountIndexPayload,
     stripUndefinedDeep: stripUndefinedDeep,
     getLastIndexWriteError: function () { return _lastIndexWriteError; },

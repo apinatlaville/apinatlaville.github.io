@@ -242,8 +242,18 @@ async function pocJoinFailClosed() {
     }
     return { exists: () => false, data: () => null };
   };
+  const realOnSnapshot = fsMock.onSnapshot.bind(fsMock);
+  // Présence illisible = lecture ET écoute refusées (comme Firestore réel).
+  fsMock.onSnapshot = (ref, okCb, errCb) => {
+    if (String(ref._path || '').includes('/presence/')) {
+      queueMicrotask(() => { if (errCb) errCb(new Error('permission-denied')); });
+      return () => {};
+    }
+    return realOnSnapshot(ref, okCb, errCb);
+  };
   const env = baseEnv(store, fsMock);
   env.getDoc = fsMock.getDoc;
+  env.onSnapshot = fsMock.onSnapshot;
   const { DS } = loadModules(env);
 
   await DS.start('uid1');
@@ -421,10 +431,45 @@ async function pocClaimPrimaryFailClosed() {
   DS.stop();
 }
 
+// ─── DS7: 1er snapshot présence depuis le cache (hors ligne) ≠ hub vide ───
+async function pocJoinIgnoresCacheSnapshot() {
+  console.log('\n[DS7] snapshot présence fromCache « absent » → pas de faux PRIMARY');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  seedAccount(store, fsMock);
+  const t = Date.now();
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  const realOnSnapshot = fsMock.onSnapshot.bind(fsMock);
+  fsMock.onSnapshot = (ref, okCb, errCb) => {
+    if (String(ref._path || '').includes('/presence/')) {
+      queueMicrotask(() => okCb({ metadata: { fromCache: true }, exists: () => false, data: () => null }));
+      return () => {};
+    }
+    return realOnSnapshot(ref, okCb, errCb);
+  };
+  const env = baseEnv(store, fsMock);
+  env.onSnapshot = fsMock.onSnapshot;
+  const { DS } = loadModules(env);
+  await DS.start('uid1');
+  const st = DS.getStatus();
+  assert(st.isSecondary === true, 'DS7: secondary (Principal distant lu sur le serveur)');
+  assert(DS.canFullSave() === false, 'DS7: pas de sauvegarde complète');
+  const hub = fsMock.docs.get('utilisateurs/uid1/presence/hub');
+  assert(hub && hub.primaryDeviceId === 'other-dev', 'DS7: Principal distant conservé');
+  DS.stop();
+}
+
 async function main() {
   console.log('=== Preuves adversatives DeviceSession ===');
   await pocJoinGate();
   await pocJoinFailClosed();
+  await pocJoinIgnoresCacheSnapshot();
   await pocSecondaryNoRecreate();
   await pocSecondaryMirrorAllowEmpty();
   await pocCreateRace();
