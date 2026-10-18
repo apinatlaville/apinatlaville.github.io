@@ -1058,6 +1058,14 @@
       // Cloud coquille / plus pauvre que le local riche → ne pas écraser le travail local
       var localForCompare = readLocalProfileData(profileId);
       if (localForCompare && !isProfilePayload(localForCompare)) localForCompare = null;
+      var cloudDeleted = cloudPayload && cloudPayload.meta && cloudPayload.meta.deleted;
+      if (localForCompare && cloudDeleted && typeof cloudDeleted === 'object') {
+        // Suppressions faites ailleurs : jamais « ressuscitées » par un republish local
+        var mergedDeleted = mergeTombstones(localForCompare.meta && localForCompare.meta.deleted, cloudDeleted);
+        if (!localForCompare.meta || typeof localForCompare.meta !== 'object') localForCompare.meta = {};
+        applyTombstones(localForCompare, mergedDeleted);
+        if (Object.keys(mergedDeleted).length) localForCompare.meta.deleted = mergedDeleted;
+      }
       if (localForCompare && !isEffectivelyEmptyProfile(localForCompare)) {
         var cloudEmpty = isEffectivelyEmptyProfile(cloudPayload);
         var localScore = profileContentScore(localForCompare);
@@ -1095,13 +1103,28 @@
         }
       }
 
+      // Sauvegardes locales jamais arrivées sur le cloud (révision et date plus récentes) :
+      // initApp fusionnera le local avec le cloud au lieu de l’écraser par le miroir.
+      var localAhead = null;
+      if (localForCompare && hasUserContent(localForCompare)) {
+        var lRev = Number(localForCompare.meta && localForCompare.meta.revision) || 0;
+        var cRev = Number(cloudPayload && cloudPayload.meta && cloudPayload.meta.revision) || 0;
+        var lGenA = Number(localForCompare.meta && localForCompare.meta.profileGeneration) || 0;
+        var cGenA = Number(cloudPayload && cloudPayload.meta && cloudPayload.meta.profileGeneration) || 0;
+        var sameGen = !lGenA || !cGenA || lGenA === cGenA;
+        if (sameGen && lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload)) {
+          localAhead = localForCompare;
+        }
+      }
+
       return {
         docRef: pref,
         accountRef: accountRef,
         data: cloudPayload,
         profileId: profileId,
         legacyRoot: false,
-        migrated: false
+        migrated: false,
+        localAhead: localAhead
       };
     }
 

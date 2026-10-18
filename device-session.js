@@ -725,6 +725,7 @@
 
   function applySecondaryPatchResult(data, pid) {
     window.D = data;
+    if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
     window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
     if (typeof window.captureCoursPlacementBase === 'function') {
       window.captureCoursPlacementBase(data.cours);
@@ -830,7 +831,14 @@
       if (state.effectiveRole !== CONFIG.ROLES.SECONDARY) return;
       var data = snap.data();
       if (!data || data._account === true || data._deleted) return;
+      var curMeta = window.D && window.D.meta;
+      if (curMeta && data.meta && curMeta.revision != null
+          && Number(curMeta.revision) === Number(data.meta.revision)
+          && Number(curMeta.updatedAt) === Number(data.meta.updatedAt)) {
+        return;
+      }
       window.D = data;
+      if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
       // Même baseline que le patch secondaire — sinon un claim Primary
       // ultérieur merge avec une révision périmée et peut écraser des edits.
       window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
@@ -841,11 +849,15 @@
         || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
         || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
         || 'default';
+      var mirrored = false;
       if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-        window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+        mirrored = !!window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
       } else if (typeof window.safeLocalSet === 'function') {
-        window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-      } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
+        mirrored = !!window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+      } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); mirrored = true; } catch (e) {}
+      if (!mirrored && typeof window.recordDataEvent === 'function') {
+        window.recordDataEvent('SECONDARY_MIRROR_FAILED', { profileId: pid });
+      }
       if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
       if (typeof window.renderCours === 'function') window.renderCours();
       if (typeof window.renderDashboard === 'function') window.renderDashboard();
