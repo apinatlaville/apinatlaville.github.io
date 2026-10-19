@@ -113,16 +113,31 @@ window.dlQR = function() {
   a.click();
 };
 
+window._printBarcodeCache = window._printBarcodeCache || new Map();
+
 window.renderPrintGrid = function() {
   const gridPending = window.$('printGridPending');
   const gridHistory = window.$('printGridHistory');
   if (!gridPending || !gridHistory || !window.D || !Array.isArray(window.D.cours)) return;
+
+  const prevCache = window._printBarcodeCache;
+  const nextCache = new Map();
+  const barcodeFor = (uid) => {
+    const key = String(uid);
+    let url = nextCache.get(key);
+    if (url === undefined) url = prevCache.get(key);
+    if (url === undefined || url === '') {
+      url = window.getBarcodeURL(uid);
+    }
+    if (url) nextCache.set(key, url);
+    return url;
+  };
   
   const drawCard = (c) => `
     <div class="pcard ${window.printSel.has(c.uid)?'sel':''}" onclick="window.toggleSel('${window.escapeJsStr(c.uid)}')">
       <div class="pc-check">${window.printSel.has(c.uid) ? window.iconHtml('check', 14, 'icon-sm') : window.iconHtml('square', 14, 'icon-sm')}</div>
       <div class="pc-qr">
-        <img src="${window.getBarcodeURL(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;">
+        <img src="${barcodeFor(c.uid)}" alt="barcode" style="width:90%; height:40px; object-fit:contain; margin-top:5px;">
       </div>
       <div class="pc-uid">${window.escHtml(c.uid)}</div>
       <div class="pc-title">${window.escHtml(c.title)}</div>
@@ -131,6 +146,7 @@ window.renderPrintGrid = function() {
 
   const pendingHtml = window.D.cours.filter(c => c.stat === 'pending' && !(c.role === 'unite' || c.isUnite)).map(drawCard).join('');
   const historyHtml = window.D.cours.filter(c => c.stat !== 'pending' && !(c.role === 'unite' || c.isUnite)).map(drawCard).join('');
+  window._printBarcodeCache = nextCache;
   
   gridPending.innerHTML = pendingHtml || '<div style="grid-column:1/-1; color:var(--mut); font-size:12px; text-align:center; padding:10px;">' + window.iconLabel('sparkles', 'Tout est imprimé !') + '</div>';
   gridHistory.innerHTML = historyHtml || '<div style="grid-column:1/-1; color:var(--mut); font-size:12px; text-align:center; padding:10px;">Aucun historique.</div>';
@@ -329,6 +345,15 @@ window.confirmPrintSuccess = function(success) {
 
 window._camLifecycle = Promise.resolve();
 
+function _safeStopClear(inst) {
+  if (!inst) return Promise.resolve();
+  var clear = function() { try { inst.clear(); } catch(e) {} };
+  var p;
+  try { p = inst.stop(); } catch(e) { p = null; }
+  if (!p || typeof p.then !== 'function') { clear(); return Promise.resolve(); }
+  return p.then(clear, clear);
+}
+
 window.openCam = function() {
   if(window.$('manualCamInput')) window.$('manualCamInput').value = '';
   if(window.$('ovCam')) window.$('ovCam').classList.remove('hidden');
@@ -367,11 +392,7 @@ window._openCamImpl = function() {
     if (!window.html5QrCode) return Promise.resolve();
     const inst = window.html5QrCode;
     window.html5QrCode = null;
-    return inst.stop().then(function() {
-      try { inst.clear(); } catch(e) {}
-    }).catch(function() {
-      try { inst.clear(); } catch(e) {}
-    });
+    return _safeStopClear(inst);
   }
 
   return stopExisting().then(function() {
@@ -441,11 +462,7 @@ window.stopCam = function() {
     if (!window.html5QrCode) return;
     const inst = window.html5QrCode;
     window.html5QrCode = null;
-    return inst.stop().then(() => {
-      try { inst.clear(); } catch(e) {}
-    }).catch(() => {
-      try { inst.clear(); } catch(e2) {}
-    });
+    return _safeStopClear(inst);
   });
 };
 
@@ -463,14 +480,23 @@ window.logDebug = function(msg, color = 'var(--txt)') {
   logs.innerHTML = `<div style="color:${color}; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:4px;"><span style="color:var(--mut)">[${time}]</span> ${body}</div>` + logs.innerHTML;
 };
 
+window._debugScanGen = 0;
+
 window.startDebugScanner = function() {
+  const gen = ++window._debugScanGen;
   const logs = window.$('debug-logs');
   if(logs) logs.innerHTML = '';
   window.logDebug("Initialisation de la caméra...", "var(--gold)");
 
   function run() {
-    if (window.debugQrCode) { try { window.debugQrCode.clear(); } catch(e){} }
+    var prev = window.debugQrCode;
+    window.debugQrCode = null;
+    return _safeStopClear(prev).then(start);
+  }
 
+  function start() {
+    // Arrêt (ou nouveau démarrage) demandé pendant l’attente : ne pas rallumer la caméra.
+    if (gen !== window._debugScanGen) return;
     if (typeof window.Html5Qrcode !== 'function') {
       window.logDebug("Module Html5Qrcode manquant.", "var(--red)");
       return;
@@ -502,14 +528,21 @@ window.startDebugScanner = function() {
 };
 
 window.stopDebugScanner = function() {
-  if (window.debugQrCode) {
-    window.debugQrCode.stop().then(() => {
-        window.debugQrCode.clear();
-        window.debugQrCode = null;
+  window._debugScanGen++;
+  const inst = window.debugQrCode;
+  if (inst) {
+    const release = () => {
+      try { inst.clear(); } catch(e) {}
+      if (window.debugQrCode === inst) window.debugQrCode = null;
+    };
+    let p;
+    try { p = inst.stop(); } catch(e) { p = null; }
+    if (!p || typeof p.then !== 'function') { release(); return; }
+    p.then(() => {
+        release();
         window.logDebug(window.iconLabel('square', 'Scanner arrêté.'), "var(--mut)");
-    }).catch(e => {
-        window.debugQrCode.clear();
-        window.debugQrCode = null;
+    }).catch(() => {
+        release();
     });
   }
 };

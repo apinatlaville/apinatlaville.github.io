@@ -253,6 +253,13 @@ async function pocWriteLocalAntiWipe() {
   assert(PIO.writeLocalProfileData('default', rich(2, 1)) === true, 'PoC5: écriture riche');
   assert(PIO.writeLocalProfileData('default', shell()) === false, 'PoC5: shell refusée');
   assert(PIO.readLocalProfileData('default').cours.length === 2, 'PoC5: 2 cours toujours là');
+  const chapitresOnly = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [], exercices: [], devoirs: [],
+    chapitres: [{ id: 'PH-CH1', title: 'Méca' }]
+  };
+  assert(PIO.writeLocalProfileData('default', chapitresOnly) === false, 'PoC5: chapitres seuls n’écrasent pas des cours');
+  assert(PIO.readLocalProfileData('default').cours.length === 2, 'PoC5: cours conservés face au programme');
   assert(PIO.writeLocalProfileData('default', shell(), { allowEmpty: true }) === false, 'PoC5: allowEmpty shell vieille refusée');
   const newer = { ...shell(), meta: { updatedAt: Date.now() + 5000, profileGeneration: 1 } };
   assert(PIO.writeLocalProfileData('default', newer, { allowEmpty: true }) === true, 'PoC5: allowEmpty shell récente OK');
@@ -377,10 +384,90 @@ async function pocSeedOwnerRecover() {
   assert(blob && blob.cours && blob.cours.length === 2, 'PoC9: seed publié avec 2 cours');
 }
 
+async function pocSecondaryDoesNotRepublishEmptyCloud() {
+  console.log('\n[PoC10] Autre Principal vivant : coquille cloud non réécrite avec le local du Secondaire');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const local = rich(4, 1);
+  local.meta.updatedAt = Date.now();
+  const t = Date.now();
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    activeProfileUpdatedAt: '2026-07-26T12:00:00.000Z',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', bytes: 10, generation: 1 }],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/profiles/default', shell());
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  store.setItem('mc_device_id', 'dev-me');
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'default',
+    profiles: [{ id: 'default', name: 'P', createdAt: 't', updatedAt: 't', generation: 1 }]
+  }));
+  store.setItem('active_profile', 'default');
+  store.setItem('backup_local_cours__default', JSON.stringify(local));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadPIO(env);
+  const r = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(!!r.localAhead && r.localAhead.cours.length === 4, 'PoC10: local riche transmis pour fusion (pas setDoc)');
+  assert(!r.recoveredFromLocal, 'PoC10: pas de recoveredFromLocal (pas d’écriture cloud)');
+  const cloud = fsMock.docs.get('utilisateurs/uid1/profiles/default');
+  assert(!cloud.cours || cloud.cours.length === 0, 'PoC10: coquille cloud intacte (Secondaire n’a pas republish)');
+}
+
+async function pocSeedOwnerDoesNotOverwriteOtherPrimary() {
+  console.log('\n[PoC11] Seed owner + Principal vivant : pas de setDoc du blob manquant');
+  const store = makeStore();
+  const fsMock = makeFirestore();
+  const t = Date.now();
+  const local = rich(2, 1);
+  fsMock.docs.set('utilisateurs/uid1', {
+    _account: true, schemaVersion: 1, activeProfile: 'labo',
+    profiles: [
+      { id: 'default', name: 'P', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 80, cloudBlobPending: true, generation: 1 }
+    ],
+    deletedProfiles: {}
+  });
+  fsMock.docs.set('utilisateurs/uid1/presence/hub', {
+    devices: { 'other-dev': { label: 'PC', role: 'primary', lastSeen: t } },
+    primaryDeviceId: 'other-dev',
+    primaryUpdatedAt: t,
+    primaryClaimedAt: t,
+    updatedAt: t
+  });
+  store.setItem('mc_device_id', 'dev-me');
+  store.setItem('mc_profiles_bound_uid', 'uid1');
+  store.setItem('mc_profile_seed_owner__labo', '1');
+  store.setItem('mc_profiles_meta', JSON.stringify({
+    _account: true, schemaVersion: 1, activeProfile: 'labo',
+    profiles: [
+      { id: 'default', name: 'P', createdAt: 't', updatedAt: 't' },
+      { id: 'labo', name: 'Labo', createdAt: 't', updatedAt: 't', bytes: 80, cloudBlobPending: true, generation: 1 }
+    ]
+  }));
+  store.setItem('active_profile', 'labo');
+  store.setItem('backup_local_cours__labo', JSON.stringify(local));
+  const env = baseEnv(store, fsMock);
+  const PIO = loadPIO(env);
+  const r = await PIO.resolveProfileCloudDoc(env.currentUser);
+  assert(r.cloudPending === true, 'PoC11: cloudPending (pas de republish seed)');
+  assert(!fsMock.docs.has('utilisateurs/uid1/profiles/labo'), 'PoC11: aucun blob labo écrit');
+}
+
 async function main() {
   console.log('=== Preuves adversatives ProfilesIO (perte de données) ===');
   await pocCreateClobber();
   await pocEmptyCloudVsRichLocal();
+  await pocSecondaryDoesNotRepublishEmptyCloud();
+  await pocSeedOwnerDoesNotOverwriteOtherPrimary();
   await pocIntentionalDeletes();
   await pocZombieAfterRecreate();
   await pocWriteLocalAntiWipe();

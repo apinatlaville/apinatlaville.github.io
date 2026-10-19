@@ -10,10 +10,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script>
   /* Bump cette valeur à chaque publication pour invalider le cache (?v=) sans vider les cookies */
-  window.__BOOT_CACHE_V = '20261014f';
+  window.__BOOT_CACHE_V = '20261018h';
   window.__bootCacheV = window.__BOOT_CACHE_V;
 </script>
-<link href="fonts-local.css" rel="stylesheet">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <script>
   (function () {
     var v = window.__BOOT_CACHE_V || '1';
@@ -23,6 +23,7 @@
     function addJs(src, attrs) {
       document.write('<script src="' + src + '?v=' + encodeURIComponent(v) + '"' + (attrs || '') + '><\/script>');
     }
+    addCss('fonts-local.css');
     addCss('icons.css');
     addCss('style.css');
     addCss('ui-shell.css');
@@ -100,7 +101,10 @@
       var tries = 0;
       (function wait() {
         if (window._startLocalModeImpl) return window._startLocalModeImpl();
-        if (++tries < 100) setTimeout(wait, 50);
+        if (++tries < 100) return setTimeout(wait, 50);
+        var msg = 'Le chargement n\u2019est pas terminé, recharge la page.';
+        if (typeof window.sysAlert === 'function') window.sysAlert(msg);
+        else alert(msg);
       })();
     };
     window.startLocalMode._isStub = true;
@@ -969,8 +973,8 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-  import { initializeFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, runTransaction, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-  import { getAuth, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+  import { initializeFirestore, connectFirestoreEmulator, doc, getDoc, setDoc, deleteDoc, onSnapshot, runTransaction, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+  import { getAuth, connectAuthEmulator, signInWithCredential, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD4pMz1ydaWgNWLX0C4HTauRE7eHkrcAfA",
@@ -984,6 +988,13 @@
 
   var skipFirebase = false;
   try { skipFirebase = localStorage.getItem('active_mode') === 'local'; } catch (e) { /* ignore */ }
+  // Tests uniquement : ?emulator=1 sur localhost → émulateurs Firebase locaux (jamais la vraie base).
+  var useEmulator = false;
+  try {
+    useEmulator = /(?:^|[?&])emulator=1(?:&|$)/.test(location.search.slice(1))
+      && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+  } catch (e) { /* ignore */ }
+  window.__FIREBASE_EMULATOR = useEmulator;
 
   if (firebaseConfig.apiKey && !skipFirebase) {
     if (window.bootMark) window.bootMark('firebase.init.start');
@@ -999,6 +1010,31 @@
         experimentalAutoDetectLongPolling: true
       });
       const auth = getAuth(app);
+      if (useEmulator) {
+        connectFirestoreEmulator(db, '127.0.0.1', 8080);
+        connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+        console.warn('[Firebase] Émulateurs locaux (tests) — aucune donnée réelle.');
+        window.emulatorSignIn = function (email) {
+          var mail = String(email || 'test@example.com');
+          var sub = 'emu-' + mail.replace(/[^a-z0-9]/gi, '').toLowerCase();
+          return window.handleCredentialResponse({
+            credential: JSON.stringify({ sub: sub, email: mail, email_verified: true, name: mail.split('@')[0] })
+          });
+        };
+        var emuBox = document.querySelector('#loginOverlay .login-actions');
+        if (emuBox && !document.getElementById('btnEmuLogin')) {
+          var emuBtn = document.createElement('button');
+          emuBtn.type = 'button';
+          emuBtn.id = 'btnEmuLogin';
+          emuBtn.className = 'login-btn-local';
+          emuBtn.textContent = 'Connexion émulateur (test)';
+          emuBtn.onclick = function () {
+            var m = /(?:^|[?&])emuUser=([^&]+)/.exec(location.search.slice(1));
+            window.emulatorSignIn(m ? decodeURIComponent(m[1]) : 'test@example.com');
+          };
+          emuBox.appendChild(emuBtn);
+        }
+      }
 
       window.db = db;
       window.doc = doc;

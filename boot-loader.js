@@ -16,6 +16,7 @@
     'ui-components.js': true,
     'cloud.js': true,
     'device-session.js': true,
+    'tab-lock.js': true,
     'data.js': true,
     'profiles-io.js': true,
     'app.js': true
@@ -44,10 +45,18 @@
     chimieLab: ['chimie-lab.js']
   };
 
-  var DEFERRED_AFTER_BOOT = [
-    'demo-data.js',
-    'anki-smoke.js'
-  ];
+  /* demo-data.js : chargé à la demande par window.ensureDemoData (app.js) avant chaque loadDemo* */
+  var DEFERRED_AFTER_BOOT = [];
+  var SMOKE_SCRIPT = 'anki-smoke.js';
+
+  function isSmokeUrl() {
+    var q = (window.location && window.location.search) || '';
+    return q.indexOf('smoke=1') >= 0;
+  }
+
+  function deferredAfterBootList() {
+    return isSmokeUrl() ? DEFERRED_AFTER_BOOT.concat([SMOKE_SCRIPT]) : DEFERRED_AFTER_BOOT;
+  }
 
   var SCANNER_LIBS = [
     'JsBarcode.all.min.js',
@@ -107,6 +116,22 @@
         });
       });
     }, Promise.resolve([]));
+  }
+
+  function preloadScripts(list) {
+    var head = document.head || document.getElementsByTagName('head')[0];
+    if (!head) return;
+    list.forEach(function (src) {
+      var name = src.split('/').pop();
+      if (_lazyLoaded[name] || _scriptPromises[name]) return;
+      try {
+        var l = document.createElement('link');
+        l.rel = 'preload';
+        l.as = 'script';
+        l.href = src + '?v=' + encodeURIComponent(cacheV());
+        head.appendChild(l);
+      } catch (e) { /* préchargement facultatif */ }
+    });
   }
 
   function loadParallel(list) {
@@ -245,8 +270,21 @@
     });
   }
 
+  if (typeof window.runAnkiSmokeTests !== 'function') {
+    var smokeStub = function () {
+      return loadScript(SMOKE_SCRIPT).then(function (r) {
+        reportFailed([r]);
+        if (r && r.ok && typeof window.runAnkiSmokeTests === 'function' && window.runAnkiSmokeTests !== smokeStub) {
+          return window.runAnkiSmokeTests();
+        }
+      });
+    };
+    window.runAnkiSmokeTests = smokeStub;
+  }
+
   function loadDeferredBackground() {
-    loadParallel(DEFERRED_AFTER_BOOT).then(reportFailed);
+    var deferred = deferredAfterBootList();
+    if (deferred.length) loadParallel(deferred).then(reportFailed);
     loadFormLibs();
     /* Précharge Anki UI en fond après le splash (FAB + dock) sans bloquer le boot */
     setTimeout(function () {
@@ -267,6 +305,12 @@
       });
     }
 
+    preloadScripts([
+      'cloud.js', 'data.js', 'nav-config.js', 'cours-wizard.js', 'programme.js',
+      'profiles-io.js',
+      'device-session.js', 'tab-lock.js', 'anki-algo.js', 'anki-algo-v2.js'
+    ]);
+
     return loadParallel(['ui-appearance.js', 'ui-components.js'])
       .then(function (rs) { track(rs); })
       .then(function () { return loadParallel(['cloud.js', 'data.js', 'nav-config.js', 'cours-wizard.js', 'programme.js']); })
@@ -274,7 +318,7 @@
       .then(function () { return loadScript('profiles-io.js'); })
       .then(function (r) { track([r]); })
       .then(function () {
-        return loadParallel(['device-session.js', 'anki-algo.js', 'anki-algo-v2.js']);
+        return loadParallel(['device-session.js', 'tab-lock.js', 'anki-algo.js', 'anki-algo-v2.js']);
       })
       .then(function (rs) { track(rs); })
       .then(loadAppModule)
@@ -322,6 +366,8 @@
             M.BOOT_TITLE || 'Erreur de démarrage'
           );
         }
+        if (typeof window.forceLoginScreen === 'function') window.forceLoginScreen();
+        else if (typeof window.unlockPage === 'function') window.unlockPage('loader error');
       });
   };
 })();

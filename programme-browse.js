@@ -344,17 +344,26 @@
     window.renderProgrammeBrowse();
   };
 
+  var _queryTimer = null;
+
   window.progSearchSetQuery = function (val) {
     _query = val || '';
-    window.renderProgrammeBrowse();
-    var input = $('progBcQuery');
-    if (input) {
-      input.focus();
-      try {
-        var len = input.value.length;
-        input.setSelectionRange(len, len);
-      } catch (e) { /* ignore */ }
-    }
+    if (_queryTimer) clearTimeout(_queryTimer);
+    _queryTimer = setTimeout(function () {
+      _queryTimer = null;
+      var prev = $('progBcQuery');
+      var active = document.activeElement;
+      var hadFocus = !active || active === document.body || active === prev;
+      window.renderProgrammeBrowse();
+      var input = $('progBcQuery');
+      if (input && hadFocus) {
+        input.focus();
+        try {
+          var len = input.value.length;
+          input.setSelectionRange(len, len);
+        } catch (e) { /* ignore */ }
+      }
+    }, 180);
   };
 
   window.progSearchToggleOrphans = function () {
@@ -388,6 +397,7 @@
   };
 
   window.renderProgrammeBrowse = function () {
+    if (_queryTimer) { clearTimeout(_queryTimer); _queryTimer = null; }
     var pane = $('paneProgrammeBrowse');
     if (!pane) return;
     if (typeof window.ensureChapitresArray === 'function') window.ensureChapitresArray();

@@ -34,7 +34,9 @@
     joinResolved: false,
     needsRoleChoice: false,
     controlStolen: false,
-    myClaimedAt: null
+    myClaimedAt: null,
+    failClosedJoin: false,
+    hubFromServer: false
   };
 
   var _writeChain = Promise.resolve();
@@ -162,6 +164,7 @@
   }
 
   function applyClaim(hub) {
+    if (state.failClosedJoin) return unclaimIfSelf(hub);
     var id = getDeviceId();
     var t = now();
     hub = touchSelf(hub, CONFIG.ROLES.PRIMARY);
@@ -183,6 +186,17 @@
     return touchSelf(hub, CONFIG.ROLES.SECONDARY);
   }
 
+  /** Si un claim PRIMARY de CET appareil a été écrit après le fail-closed, l’annuler. */
+  function unclaimIfSelf(hub) {
+    hub = touchSelf(hub, CONFIG.ROLES.SECONDARY);
+    if (hub.primaryDeviceId === getDeviceId()) {
+      hub.primaryDeviceId = null;
+      hub.primaryUpdatedAt = 0;
+      hub.primaryClaimedAt = 0;
+    }
+    return hub;
+  }
+
   function withFsTimeout(promise, ms, label) {
     var msSafe = Math.max(500, ms || 4000);
     return Promise.race([
@@ -196,6 +210,7 @@
   }
 
   function writeHub(hub) {
+    if (state.failClosedJoin) hub = unclaimIfSelf(cloneHub(hub));
     var ref = presenceRef();
     if (!ref || !window.setDoc) return Promise.resolve(hub);
     return withFsTimeout(window.setDoc(ref, hub), 4000, 'presence write').then(function () {
@@ -215,7 +230,12 @@
     // Ne pas avaler les erreurs : sinon resolveJoin croit le hub vide et
     // s’auto-proclame PRIMARY (LWW) alors que la présence est illisible.
     return withFsTimeout(window.getDoc(ref).then(function (snap) {
-      if (snap && snap.exists && snap.exists()) return snap.data() || emptyHub();
+      // Copie en cache (hors ligne) : peut être périmée → jamais base d’un choix de rôle.
+      if (snap && snap.metadata && snap.metadata.fromCache) throw new Error('presence read from cache');
+      if (snap && snap.exists && snap.exists()) {
+        state.hubFromServer = true;
+        return snap.data() || emptyHub();
+      }
       return emptyHub();
     }), 4000, 'presence read');
   }
@@ -291,6 +311,9 @@
         }, reject);
       }, 4000);
       state.unsubHub = window.onSnapshot(ref, function (snap) {
+        // Hors ligne, le 1er snapshot vient du cache (souvent « doc absent ») :
+        // ne pas résoudre le join dessus, attendre le serveur ou le getDoc de repli.
+        if (!settled && snap && snap.metadata && snap.metadata.fromCache) return;
         onHubSnapshot(snap);
         if (settled) return;
         settled = true;
@@ -369,11 +392,17 @@
         });
       }).catch(function (err) {
         console.warn('DeviceSession presence poll:', err && err.message ? err.message : err);
-        return state.hub || emptyHub();
+        // Présence illisible : ne jamais supposer un hub vide (→ faux PRIMARY).
+        throw err;
       });
     }
 
+    // Après le délai de 8 s, la chaîne interne peut encore se terminer : elle ne doit
+    // alors plus rien décider (sinon PRIMARY tardif après le fail-closed).
+    var failedClosed = false;
+    state.failClosedJoin = false;
     return withFsTimeout(loadHubForJoin().then(function () {
+      if (failedClosed || state.failClosedJoin) return;
       var remote = remotePrimaryAlive(state.hub);
       var others = otherLiving(state.hub);
       var pref = state.preferredRole;
@@ -438,22 +467,45 @@
           return state.hub;
         });
       }).then(function () {
+        if (failedClosed || state.failClosedJoin) return;
         state.joinResolved = true;
         emit();
       });
     }), 8000, 'DeviceSession.resolveJoin').catch(function (err) {
+      failedClosed = true;
+      state.failClosedJoin = true;
       console.warn('DeviceSession resolveJoin:', err);
+      if (typeof window.recordDataEvent === 'function') {
+        window.recordDataEvent('ROLE_FAILCLOSED', { reason: err && err.message ? err.message : String(err) });
+      }
       // Fail-closed : pas de faux PRIMARY qui LWW-écrase un vrai principal
       state.joinResolved = true;
       state.effectiveRole = CONFIG.ROLES.SECONDARY;
       state.needsRoleChoice = true;
       emit();
+      function sweepSelfClaim() {
+        return readHubOnce().then(function (fresh) {
+          state.hub = fresh || emptyHub();
+          if (state.hub.primaryDeviceId !== getDeviceId()) return state.hub;
+          return mutateFreshHub(fresh, unclaimIfSelf, false);
+        }).catch(function () { /* présence illisible : déjà Secondaire en local */ });
+      }
+      enqueuePresence(function () {
+        return sweepSelfClaim().then(function () {
+          return new Promise(function (r) { setTimeout(r, 400); }).then(sweepSelfClaim);
+        });
+      });
     });
   }
 
   function onHubSnapshot(snap) {
-    if (snap && snap.exists && snap.exists()) state.hub = snap.data() || emptyHub();
-    else state.hub = emptyHub();
+    // Copie cache (onglet gelé / hors ligne) : peut être « doc absent » ou un ancien hub.
+    // Ne jamais l’appliquer après le join — un heartbeat écrirait alors un hub vide.
+    if (snap && snap.metadata && snap.metadata.fromCache) return;
+    if (snap && snap.exists && snap.exists()) {
+      state.hubFromServer = true;
+      state.hub = snap.data() || emptyHub();
+    } else state.hub = emptyHub();
     if (!state.joinResolved) return;
 
     var id = getDeviceId();
@@ -473,6 +525,20 @@
     if (!state.started || window.isLocalMode || !state.userId) return;
     if (!state.joinResolved) return;
     if (_claimInFlight || _hbInFlight) return;
+
+    if (state.failClosedJoin) {
+      _hbInFlight = true;
+      return enqueuePresence(function () {
+        return readHubOnce().then(function (fresh) {
+          state.hub = fresh || emptyHub();
+          if (state.hub.primaryDeviceId !== getDeviceId()) return state.hub;
+          return mutateFreshHub(fresh, unclaimIfSelf, false);
+        }).catch(function (err) {
+          console.warn('DeviceSession fail-closed unclaim:', err);
+        }).then(function () { emit(); });
+      }).then(function () { _hbInFlight = false; }, function () { _hbInFlight = false; });
+    }
+
     // Ne pas concurrencer une sauvegarde profil (même WebChannel / long polling)
     if (window._cloudSaveInFlight) return;
 
@@ -481,13 +547,10 @@
     if (hidden && state.effectiveRole !== CONFIG.ROLES.PRIMARY) return;
 
     _hbInFlight = true;
-    enqueuePresence(function () {
-      // Cause des timeouts : readHubOnce + safeWritePresence (= 2e getDoc) + setDoc.
-      // Listener live → hub déjà frais, 1 setDoc. Sinon 1 getDoc + 1 setDoc.
-      var load = state.unsubHub
-        ? Promise.resolve(state.hub || emptyHub())
-        : readHubOnce();
-      return load.then(function (fresh) {
+    return enqueuePresence(function () {
+      // Toujours relire le serveur : un listener gelé / un snapshot fromCache
+      // laisserait écrire un hub périmé et revendiquer un faux Principal.
+      return readHubOnce().then(function (fresh) {
         state.hub = fresh || emptyHub();
         var id = getDeviceId();
         var hubPrimaryId = state.hub.primaryDeviceId;
@@ -502,7 +565,9 @@
           if (hubPrimaryId === id) {
             return write(function (hub) { return refreshPrimaryLease(hub); }, false);
           }
-          if (remote && remote !== id) {
+          // Un autre appareil est inscrit Principal (même si son lease a l’air vieux) :
+          // se rétrograder. Ne jamais réécrire le claim.
+          if (hubPrimaryId && hubPrimaryId !== id) {
             state.effectiveRole = CONFIG.ROLES.SECONDARY;
             state.controlStolen = true;
             return write(function (hub) { return applySecondaryPresence(hub); }, true);
@@ -539,9 +604,11 @@
   }
 
   function markOfflineBestEffort() {
-    if (!state.started || window.isLocalMode || !state.userId) return;
+    if (!state.started || !state.joinResolved || window.isLocalMode || !state.userId) return;
+    if (!state.hubFromServer) return;
     try {
       var hub = cloneHub(state.hub);
+      if (!hub.devices || !Object.keys(hub.devices).length) return;
       var id = getDeviceId();
       hub = touchSelf(hub, 'offline');
       if (hub.devices[id]) hub.devices[id].lastSeen = now() - CONFIG.TTL_MS - 1000;
@@ -576,6 +643,8 @@
     state.needsRoleChoice = false;
     state.controlStolen = false;
     state.myClaimedAt = null;
+    state.failClosedJoin = false;
+    state.hubFromServer = false;
     state.hub = emptyHub();
     _claimInFlight = false;
 
@@ -619,12 +688,15 @@
     state.joinResolved = false;
     state.needsRoleChoice = false;
     state.controlStolen = false;
+    state.failClosedJoin = false;
+    state.hubFromServer = false;
     _claimInFlight = false;
     _hbInFlight = false;
   }
 
   function claimPrimary() {
     _claimInFlight = true;
+    state.failClosedJoin = false;
     writePreferredRole(CONFIG.ROLES.PRIMARY);
     state.needsRoleChoice = false;
     state.controlStolen = false;
@@ -717,13 +789,49 @@
   }
 
   function applySecondaryPatchResult(data, pid) {
-    window.D = data;
-    window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
-    if (typeof window.captureCoursPlacementBase === 'function') {
-      window.captureCoursPlacementBase(data.cours);
+    var prev = window.D;
+    var PIO = window.ProfilesIO;
+    var grafted = 0;
+    var overlayed = 0;
+    var leftover = 0;
+    var keepRev = Number(prev && prev.meta && prev.meta.revision) || 0;
+    var writtenRev = Number(data && data.meta && data.meta.revision) || 0;
+    if (prev && data && PIO && typeof PIO.localHasUnsyncedContent === 'function'
+        && PIO.localHasUnsyncedContent(prev, data)) leftover = 1;
+    if (prev && data && PIO && typeof PIO.graftExclusiveEntities === 'function') {
+      grafted = PIO.graftExclusiveEntities(data, prev) || 0;
     }
-    if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-      window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+    if (prev && data && PIO && typeof PIO.overlayNewerEntities === 'function') {
+      overlayed = PIO.overlayNewerEntities(data, prev) || 0;
+    }
+    var mergedDeleted = (PIO && typeof PIO.mergeTombstones === 'function')
+      ? PIO.mergeTombstones(prev && prev.meta && prev.meta.deleted, data && data.meta && data.meta.deleted)
+      : (data && data.meta && data.meta.deleted) || null;
+    var tombsApplied = 0;
+    if (mergedDeleted && PIO && typeof PIO.applyTombstones === 'function') {
+      tombsApplied = PIO.applyTombstones(data, mergedDeleted) || 0;
+      if (!data.meta) data.meta = {};
+      if (Object.keys(mergedDeleted).length) data.meta.deleted = mergedDeleted;
+      else delete data.meta.deleted;
+    }
+    window.D = data;
+    if (data && data.meta && keepRev > (Number(data.meta.revision) || 0)) {
+      data.meta.revision = keepRev;
+    }
+    if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
+    // Confirmer uniquement la rév. vraiment écrite. Pas keepRev (jamais ack),
+    // et pas si des ids / traces / _mt locaux restent hors cloud.
+    if (!grafted && !tombsApplied && !overlayed && !leftover && keepRev <= writtenRev) {
+      window._lastCloudConfirmedRevision = writtenRev;
+      if (PIO && typeof PIO.setCloudConfirmedRev === 'function') {
+        PIO.setCloudConfirmedRev(pid, writtenRev);
+      }
+    }
+    if (typeof window.captureCoursPlacementBase === 'function') {
+      window.captureCoursPlacementBase(data && data.cours);
+    }
+    if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+      PIO.writeLocalProfileData(pid, data, { allowEmpty: true });
     } else if (typeof window.safeLocalSet === 'function') {
       window.safeLocalSet('backup_local_cours', JSON.stringify(data));
     } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
@@ -818,31 +926,102 @@
       state.unsubData = null;
     }
     if (!docRef || !window.onSnapshot || window.isLocalMode) return;
+    function refreshSecondaryUi() {
+      if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
+      if (typeof window.renderCours === 'function') window.renderCours();
+      if (typeof window.renderDashboard === 'function') window.renderDashboard();
+      if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
+    }
     state.unsubData = window.onSnapshot(docRef, function (snap) {
       if (!snap.exists()) return;
       if (state.effectiveRole !== CONFIG.ROLES.SECONDARY) return;
+      if (snap.metadata && snap.metadata.fromCache) return;
       var data = snap.data();
       if (!data || data._account === true || data._deleted) return;
-      window.D = data;
-      // Même baseline que le patch secondaire — sinon un claim Primary
-      // ultérieur merge avec une révision périmée et peut écraser des edits.
-      window._lastCloudConfirmedRevision = Number(data.meta && data.meta.revision) || 0;
-      if (typeof window.captureCoursPlacementBase === 'function') {
-        window.captureCoursPlacementBase(data.cours);
+      var curMeta = window.D && window.D.meta;
+      var remoteRev = Number(data.meta && data.meta.revision) || 0;
+      var localRev = Number(curMeta && curMeta.revision) || 0;
+      if (curMeta && data.meta && curMeta.revision != null
+          && localRev === remoteRev
+          && Number(curMeta.updatedAt) === Number(data.meta.updatedAt)) {
+        return;
       }
       var pid = window._activeProfileId
         || (window.ProfilesIO && window.ProfilesIO.getSessionProfileId && window.ProfilesIO.getSessionProfileId())
         || (window.ProfilesIO && window.ProfilesIO.getActiveProfileId && window.ProfilesIO.getActiveProfileId())
         || 'default';
-      if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-        window.ProfilesIO.writeLocalProfileData(pid, data, { allowEmpty: true });
+      var PIO = window.ProfilesIO;
+      var emptyRemote = PIO && typeof PIO.isEffectivelyEmptyProfile === 'function'
+        && PIO.isEffectivelyEmptyProfile(data);
+      var exclusive = PIO && typeof PIO.localHasExclusiveEntities === 'function'
+        && window.D && PIO.localHasExclusiveEntities(window.D, data);
+      var unsyncedLocal = PIO && typeof PIO.localHasUnsyncedContent === 'function'
+        && window.D && PIO.localHasUnsyncedContent(window.D, data);
+
+      // Sauvegardes locales jamais parties : fusionner, ne pas écraser.
+      // Une coquille vide sans traces n’est pas un reset : ne pas l’appliquer.
+      // Traces / _mt locaux en avance : pas de miroir brut (ça ressuscite / jette le titre).
+      if (exclusive || unsyncedLocal) {
+        if (typeof window.mergeRemoteProfileIntoLocal === 'function') {
+          window.mergeRemoteProfileIntoLocal(data);
+        } else if (PIO && window.D) {
+          if (typeof PIO.graftExclusiveEntities === 'function') PIO.graftExclusiveEntities(window.D, data);
+          if (typeof PIO.overlayNewerEntities === 'function') PIO.overlayNewerEntities(window.D, data);
+          var watchDeleted = typeof PIO.mergeTombstones === 'function'
+            ? PIO.mergeTombstones(window.D.meta && window.D.meta.deleted, data.meta && data.meta.deleted)
+            : null;
+          if (watchDeleted && typeof PIO.applyTombstones === 'function') {
+            PIO.applyTombstones(window.D, watchDeleted);
+            if (!window.D.meta) window.D.meta = {};
+            if (Object.keys(watchDeleted).length) window.D.meta.deleted = watchDeleted;
+            else delete window.D.meta.deleted;
+          }
+        }
+        if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+          PIO.writeLocalProfileData(pid, window.D, { allowEmpty: true });
+        }
+        refreshSecondaryUi();
+        return;
+      }
+
+      if (localRev > remoteRev) {
+        var trueEmptyReset = emptyRemote && PIO && typeof PIO.removalsAreTombstoned === 'function'
+          && window.D && PIO.removalsAreTombstoned(window.D, data)
+          && data.meta && data.meta.deleted && Object.keys(data.meta.deleted).length > 0;
+        if (!trueEmptyReset) {
+          if (typeof window.mergeRemoteProfileIntoLocal === 'function') {
+            window.mergeRemoteProfileIntoLocal(data);
+          }
+          if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+            PIO.writeLocalProfileData(pid, window.D, { allowEmpty: true });
+          }
+          refreshSecondaryUi();
+          return;
+        }
+      }
+
+      var mirrored = false;
+      if (PIO && typeof PIO.writeLocalProfileData === 'function') {
+        mirrored = !!PIO.writeLocalProfileData(pid, data, { allowEmpty: true });
       } else if (typeof window.safeLocalSet === 'function') {
-        window.safeLocalSet('backup_local_cours', JSON.stringify(data));
-      } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); } catch (e) {}
-      if (typeof window.renderDeviceSecondarySession === 'function') window.renderDeviceSecondarySession();
-      if (typeof window.renderCours === 'function') window.renderCours();
-      if (typeof window.renderDashboard === 'function') window.renderDashboard();
-      if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid();
+        mirrored = !!window.safeLocalSet('backup_local_cours', JSON.stringify(data));
+      } else try { localStorage.setItem('backup_local_cours', JSON.stringify(data)); mirrored = true; } catch (e) {}
+      if (!mirrored) {
+        if (typeof window.recordDataEvent === 'function') {
+          window.recordDataEvent('SECONDARY_MIRROR_FAILED', { profileId: pid });
+        }
+        return;
+      }
+      window.D = data;
+      if (typeof window.resetPersistIndex === 'function') window.resetPersistIndex();
+      window._lastCloudConfirmedRevision = remoteRev;
+      if (typeof window.captureCoursPlacementBase === 'function') {
+        window.captureCoursPlacementBase(data.cours);
+      }
+      if (PIO && typeof PIO.setCloudConfirmedRev === 'function') {
+        PIO.setCloudConfirmedRev(pid, remoteRev);
+      }
+      refreshSecondaryUi();
     }, function (err) { console.warn('DeviceSession data listen:', err); });
   }
 
@@ -859,7 +1038,8 @@
     saveSecondaryPatch: saveSecondaryPatch,
     watchUserData: watchUserData,
     isPrimary: function () { return getStatus().isPrimary; },
-    isSecondary: function () { return getStatus().isSecondary; }
+    isSecondary: function () { return getStatus().isSecondary; },
+    _heartbeat: heartbeat
   };
 
   /** Bloque création / édition / suppression hors patch secondaire autorisé. */

@@ -7,6 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
 import { fileURLToPath } from 'url';
+import { checkBootCacheVersion } from './_cache-version.mjs';
+import { sliceBlock, evalCardV2SafetyReport } from './_src-slice.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -44,6 +46,10 @@ assert(/watchUserData[\s\S]*_lastCloudConfirmedRevision/.test(dsSrc),
   'watchUserData met à jour _lastCloudConfirmedRevision');
 assert(/watchUserData[\s\S]*captureCoursPlacementBase/.test(dsSrc),
   'watchUserData capture baseline cl/inter');
+assert(/fromCache/.test(dsSrc) && /localHasExclusiveEntities/.test(dsSrc),
+  'watchUserData ignore le cache et fusionne les ids locaux exclusifs');
+assert(/hubFromServer/.test(dsSrc) && /joinResolved/.test(dsSrc),
+  'pagehide n’écrit un hub que s’il a été lu sur le serveur');
 
 console.log('\n=== Cockpit sans W- / includeNew ===\n');
 assert(/function cardBaseId/.test(ankiSrc), 'helper cardBaseId');
@@ -56,8 +62,9 @@ assert(!/chunksDevoirTonight\(x\.card/.test(algoV2Src),
   'buildSession ne découpe plus les devoirs');
 assert(/includeNew[\s\S]*isReservoir|isReservoir[\s\S]*includeNew/.test(algoV2Src),
   'buildSession V2 honore includeNew (réservoir)');
-assert(/ankiIncludeNew !== undefined \? settings\.ankiIncludeNew : 0/.test(ankiSrc),
-  'défaut includeNew = 0 (aligné UI)');
+assert(/const includeNew = 0;[\s\S]{0,4000}?\bincludeNew,/.test(ankiSrc)
+  || /ankiIncludeNew !== undefined \? settings\.ankiIncludeNew : 0/.test(ankiSrc),
+  'défaut includeNew = 0 (réservoir jamais auto-pioché par le cockpit)');
 assert(/paneAgenda|renderAgenda/.test(fs.readFileSync(path.join(root, 'agenda.js'), 'utf8')),
   'module agenda.js présent');
 assert(/agenda:\s*\{[^}]*pane:\s*'paneAgenda'/.test(fs.readFileSync(path.join(root, 'nav-config.js'), 'utf8')),
@@ -82,19 +89,26 @@ assert(/ankiV2SetQuickQueue[\s\S]*refuseSecondaryFullMutation[\s\S]*sessionIsLiv
   'ankiV2SetQuickQueue : secondaire avant conflit session');
 assert(/stats\.total = \(S\.stats\.total \|\| 0\) \+ 1/.test(ankiSrc),
   'fail requeue incrémente total (évite done>total)');
-assert(/persistSession\(\)\)\.then\(function \(\) \{\s*nextCard/.test(ankiSrc)
-  || /persistSession\(\)\)\.then\(function \(\) \{\n\s*nextCard/.test(ankiSrc),
-  'evalCardV2 attend persist avant nextCard');
-assert(/return Promise\.resolve\(typeof window\.save/.test(ankiSrc),
+const evalSafety = evalCardV2SafetyReport(ankiSrc);
+const persistBody = sliceBlock(ankiSrc, 'function persistSession()');
+assert(evalSafety.persistBeforeRender,
+  'evalCardV2 : chaque avance de file est suivie de persist, render seulement après la save ('
+  + evalSafety.advanceThenPersist + '/' + evalSafety.advanceCalls + ')');
+assert(/return Promise\.resolve\(window\.save\(/.test(persistBody)
+  || /return Promise\.resolve\(typeof window\.save/.test(persistBody),
   'persistSession retourne la Promise save');
-assert(/evalCardV2 save:[\s\S]*nextCard\(true\)/.test(ankiSrc),
-  'evalCardV2 : avance quand même si save échoue (anti double-notation)');
+assert(evalSafety.busyGuard && evalSafety.catchAdvances,
+  'evalCardV2 : verrou _evalBusy + avance quand même si save échoue (anti double-notation) ('
+  + evalSafety.safeCatches + '/' + evalSafety.catches + ' catch sûrs)');
 assert(/switchToSecondary:[\s\S]*getStatus\(\)/.test(dsSrc),
   'switchToSecondary catch : ne bloque pas l’UI');
-assert(/rEl\.onkeydown =/.test(ankiSrc), 'bindEnter : onkeydown (pas de stack listeners)');
+const bindEnterBody = sliceBlock(ankiSrc, 'function bindQuickFaceEnter(');
+assert((/el\.onkeydown = function/.test(bindEnterBody) && !/addEventListener\(\s*['"]keydown/.test(bindEnterBody))
+  || /rEl\.onkeydown =/.test(ankiSrc),
+  'bindEnter : onkeydown (pas de stack listeners)');
 assert(/coursWizardDeleteCreated[\s\S]*Promise\.resolve\(window\.save\(\)\)/.test(wizSrc),
   'wizard delete catch save errors');
-assert(/__BOOT_CACHE_V\s*=\s*'20260831d'/.test(indexSrc), 'cache 20260831d');
+assert(checkBootCacheVersion(root).ok, 'cache __BOOT_CACHE_V défini (8 chiffres + lettres) et lu par boot-loader');
 
 // ── Runtime : includeNew + exclusion W- ──
 console.log('\n=== Runtime includeNew / pas de W- ===\n');

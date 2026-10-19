@@ -692,6 +692,16 @@ async function testShellLocalDoesNotPublishWhilePending() {
   env.emptyData = emptyShell;
   const PIO = loadProfilesIO(env);
   assert(PIO.isEffectivelyEmptyProfile(emptyShell) === true, 'template shell is effectively empty');
+  assert(PIO.isEffectivelyEmptyProfile({
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [],
+    chapitres: [{ id: 'PH-CH1', title: 'Méca' }]
+  }) === false, 'chapitres seuls = profil non vide');
+  const programmeOnly = {
+    settings: {}, matieres: [], classeurs: [], cours: [], exercices: [], devoirs: [],
+    chapitres: [{ id: 'PH-CH1', title: 'Méca' }]
+  };
+  assert(PIO.hasUserContent(programmeOnly) === true, 'hasUserContent : chapitres comptent (pas une coquille de création)');
+  assert(PIO.hasCourseCardContent(programmeOnly) === false, 'hasCourseCardContent : chapitres seuls ≠ cours/cartes');
   const resolved = await PIO.resolveProfileCloudDoc(env.currentUser);
   assert(resolved.cloudPending === true, 'still cloudPending with shell local');
   assert(resolved.docRef == null, 'no writable docRef with shell local');
@@ -853,9 +863,31 @@ async function testWriteLocalRefusesEmptyOverNonEmpty() {
     matieres: [{ id: 'PHYS', name: 'Physique' }],
     classeurs: [], cours: [], exercices: [], devoirs: []
   };
-  assert(PIO.isEffectivelyEmptyProfile(shell) === true, 'shell empty');
+  assert(PIO.hasUserContent(shell) === false, 'shell empty (aucun cours/carte, matières perso ignorées)');
+  assert(PIO.hasCourseCardContent(shell) === false, 'hasCourseCardContent : matières seules = vide');
   assert(PIO.writeLocalProfileData('default', shell) === false, 'empty over rich refused');
   assert(PIO.readLocalProfileData('default').cours[0].uid === 'X1', 'rich preserved');
+  const chapitresOnly = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [], exercices: [], devoirs: [],
+    chapitres: [{ id: 'PH-CH1', title: 'Méca' }]
+  };
+  assert(PIO.hasUserContent(chapitresOnly) === true, 'programme seul a du contenu structurel');
+  assert(PIO.hasCourseCardContent(chapitresOnly) === false, 'programme seul n’a pas de cours/cartes');
+  assert(PIO.writeLocalProfileData('default', chapitresOnly) === false, 'chapitres seuls n’écrasent pas des cours');
+  assert(PIO.readLocalProfileData('default').cours[0].uid === 'X1', 'cours conservés face à un JSON programme');
+  const qgOnly = {
+    settings: {}, matieres: [], classeurs: [],
+    cours: [], exercices: [], devoirs: [],
+    quickGroups: [{ id: 'QG-AAAAAA', name: 'Dossier' }]
+  };
+  assert(PIO.writeLocalProfileData('default', qgOnly) === false, 'dossiers seuls n’écrasent pas des cours');
+  assert(PIO.readLocalProfileData('default').cours[0].uid === 'X1', 'cours conservés face à un JSON dossiers');
+  const chapitresWithTombs = Object.assign({}, chapitresOnly, {
+    meta: { deleted: { 'c:X1': Date.now() } }
+  });
+  assert(PIO.writeLocalProfileData('default', chapitresWithTombs) === true, 'chapitres seuls OK si les cours retirés sont tracés');
+  assert(PIO.writeLocalProfileData('default', rich) === true, 're-write rich after tombstoned programme');
   env._allowEmptyProfileWrite = true;
   // Sans updatedAt plus récent : toujours refusé (anti-wipe durci)
   assert(PIO.writeLocalProfileData('default', shell) === false, 'flag alone not enough if not newer');

@@ -1108,6 +1108,14 @@ window.switchTab = function(tab, overrideResetFilters = false) {
   const paneId = def ? def.pane : (typeof window.getTabPaneId === 'function' ? window.getTabPaneId(tab) : null);
   if (!paneId) return;
 
+  // Caméra libérée en quittant l’écran (batterie, voyant caméra, permission)
+  if (window.html5QrCode && typeof window.stopCam === 'function') window.stopCam();
+  if (window.debugQrCode && typeof window.stopDebugScanner === 'function') {
+    const dbgReader = window.$('debug-reader');
+    const targetPane = window.$(paneId);
+    if (!(dbgReader && targetPane && targetPane.contains(dbgReader))) window.stopDebugScanner();
+  }
+
   document.querySelectorAll('.tab').forEach(b => {
     b.classList.toggle('on', b.dataset.tab === tab);
   });
@@ -1742,6 +1750,41 @@ window.renderErrorLogs = function() {
   }).join('');
 };
 
+/** Codes stables des événements « données » (rapport diagnostic → IA). */
+window.DATA_EVENT_CODES = {
+  SAVE_REFUSED_SHELL: 'Écriture locale refusée : un profil sans contenu aurait remplacé un profil qui en a (profiles-io.js writeLocalProfileData).',
+  LOCAL_WRITE_FAILED: 'localStorage a refusé l’écriture (quota plein ?) (profiles-io.js writeLocalProfileData).',
+  SAVE_STAMP_FAILED: 'Horodatage _mt / traces de suppression impossible : sauvegarde annulée, rien n’est écrit (app.js _saveLocalImpl).',
+  ROLE_FAILCLOSED: 'Présence Principal/Secondaire illisible : appareil passé en Secondaire par sécurité (device-session.js resolveJoin).',
+  SECONDARY_MIRROR_FAILED: 'Secondaire : copie locale des données reçues impossible (device-session.js watchUserData).',
+  MERGE_APPLIED_DELETIONS: 'Fusion cloud : éléments retirés car supprimés sur un autre appareil (app.js mergeRemoteProfileIntoLocal).',
+  BOOT_LOCAL_AHEAD_MERGED: 'Démarrage : sauvegardes locales plus récentes que le cloud fusionnées puis renvoyées (app.js _mergeLocalAheadAtBoot).',
+  CLOUD_SAVE_FAILED: 'Écriture Firestore échouée ; données conservées en local, nouvel essai au prochain enregistrement (app.js _saveCloudImpl).',
+  CLOUD_FLUSH_ON_HIDE: 'Page masquée/fermée : envoi cloud forcé (app.js flushCloudOnHide).',
+  TAB_LOCKED: 'Profil déjà ouvert dans un autre onglet : cet onglet est en lecture seule (tab-lock).',
+  TAB_TAKEOVER: 'Cet onglet a pris la main sur le profil (tab-lock).',
+  IMPORT_BACKUP_CREATED: 'Copie automatique du profil créée avant un import destructif (profiles-io.js createAutoBackup).',
+  IMPORT_ROLLBACK: 'Import annulé et données restaurées après un échec (quick-share.js / profiles-io.js).',
+  EVAL_LOCKED: 'Notation ignorée : une autre notation (Rapide ou Synchrotron) était en cours (anki-app-v2.js _evalBusy).'
+};
+
+window.dataEventLog = window.dataEventLog || [];
+window.recordDataEvent = function (code, detail) {
+  const entry = {
+    t: new Date().toISOString(),
+    code: String(code || 'UNKNOWN'),
+    profile: window._activeProfileId || '',
+    rev: (window.D && window.D.meta && window.D.meta.revision) || 0,
+    detail: detail || null
+  };
+  window.dataEventLog.push(entry);
+  if (window.dataEventLog.length > 200) window.dataEventLog.splice(0, window.dataEventLog.length - 200);
+  if (typeof window.pushDiagLog === 'function') {
+    try { window.pushDiagLog('warn', entry.code, 'data', detail ? JSON.stringify(detail) : ''); } catch (e) { /* ignore */ }
+  }
+  return entry;
+};
+
 window.buildDiagExportText = function () {
   const lines = [];
   lines.push('=== Mes Cours — export diagnostic ===');
@@ -1749,6 +1792,39 @@ window.buildDiagExportText = function () {
   lines.push('Cache: ' + (window.__BOOT_CACHE_V || '?'));
   lines.push('UA: ' + (navigator.userAgent || ''));
   lines.push('Mode: ' + (localStorage.getItem('active_mode') || '?'));
+  try {
+    const meta = (window.D && window.D.meta) || {};
+    const ds = window.DeviceSession && typeof window.DeviceSession.getStatus === 'function'
+      ? window.DeviceSession.getStatus() : null;
+    lines.push('--- état données ---');
+    lines.push('Profil: ' + (window._activeProfileId || '?') + ' | cloudConnected=' + !!window.cloudConnected
+      + ' | localMode=' + !!window.isLocalMode + ' | persistDisabled=' + !!window._persistDisabled);
+    lines.push('Révision: ' + (meta.revision || 0) + ' | cloud confirmée=' + (window._lastCloudConfirmedRevision != null ? window._lastCloudConfirmedRevision : '?')
+      + ' | updatedAt=' + (meta.updatedAt ? new Date(meta.updatedAt).toISOString() : '?')
+      + ' | génération=' + (meta.profileGeneration || '?'));
+    lines.push('Rôle: ' + (ds ? (ds.effectiveRole + (ds.needsRoleChoice ? ' (choix requis)' : '') + ' joinResolved=' + ds.joinResolved) : '?')
+      + ' | onglet=' + (window.TabLock && window.TabLock.getState ? window.TabLock.getState() : '?'));
+    lines.push('Contenu: cours=' + ((window.D && window.D.cours) || []).length
+      + ' cartes=' + ((window.D && window.D.exercices) || []).length
+      + ' devoirs=' + ((window.D && window.D.devoirs) || []).length
+      + ' chapitres=' + ((window.D && window.D.chapitres) || []).length
+      + ' suppressions tracées=' + Object.keys(meta.deleted || {}).length);
+    lines.push('Dernière sauvegarde locale: ' + (window._lastLocalSaveAt ? new Date(window._lastLocalSaveAt).toISOString() : '—')
+      + ' | cloud en cours=' + !!window._cloudSaveInFlight);
+  } catch (e) {
+    lines.push('état données: (erreur lecture)');
+  }
+  const evs = window.dataEventLog || [];
+  lines.push('--- événements données (' + evs.length + ') ---');
+  evs.forEach(function (e) {
+    lines.push('[' + e.t + '] ' + e.code + ' | profil=' + e.profile + ' rev=' + e.rev
+      + (e.detail ? ' | ' + JSON.stringify(e.detail) : ''));
+  });
+  const seenCodes = {};
+  evs.forEach(function (e) { seenCodes[e.code] = true; });
+  Object.keys(seenCodes).forEach(function (c) {
+    if (window.DATA_EVENT_CODES[c]) lines.push('  ' + c + ' = ' + window.DATA_EVENT_CODES[c]);
+  });
   try {
     const groups = (window.D && window.D.quickGroups) || [];
     lines.push('quickGroups: ' + groups.length);
@@ -1987,7 +2063,15 @@ bindClick('btnDocTypeAdd', withD(() => {
   window.applySettings();
 }));
 
-bindInput('setUserName', withD((e) => { window.D.settings.userName = e.target.value.trim() || "Étudiant"; window.save(); window.applySettings(); }));
+// Frappe : enregistrement immédiat + salutation seule ; réglages complets à la validation
+// (applySettings à chaque touche reconstruisait l’UI et retirait l’espace en cours de frappe).
+bindInput('setUserName', withD((e) => {
+  window.D.settings.userName = e.target.value.trim() || "Étudiant";
+  window.save();
+  if (window.$('greeting')) window.$('greeting').textContent = `Bonjour, ${window.D.settings.userName}`;
+}));
+const userNameEl = window.$('setUserName');
+if (userNameEl) userNameEl.addEventListener('change', withD(() => { window.applySettings(); }));
 
 if (typeof window.bindSettingsThemePicker === 'function') window.bindSettingsThemePicker();
 
@@ -2134,11 +2218,20 @@ bindClick('btnKholleDraw', () => window.drawKholle());
 
 // 🚨 ÉCOUTEURS RESTAURÉS
 bindClick('btnHomeSearch', () => window.checkHomeCode(true));
-bindInput('mainSearchText', () => window.renderCours());
+// Recherche Base Doc : rendu groupé pendant la frappe (affichage seulement).
+let _coursSearchTimer = null;
+function scheduleCoursSearchRender(delay) {
+  if (_coursSearchTimer) clearTimeout(_coursSearchTimer);
+  _coursSearchTimer = setTimeout(function () {
+    _coursSearchTimer = null;
+    if (window.D && window.D.cours) window.renderCours();
+  }, delay);
+}
+bindInput('mainSearchText', () => scheduleCoursSearchRender(160));
 bindInput('mainSearchCode', (e) => {
   window.doAutoFmtScan(e.target);
   const raw = e.target.value.replace(/[^A-Z0-9-]/gi, '');
-  if (raw.length < 6 && window.D && window.D.cours) window.renderCours();
+  if (raw.length < 6 && window.D && window.D.cours) scheduleCoursSearchRender(120);
 });
 
 bindClick('btnCancelCours', () => window.closeModalCours());
@@ -2264,26 +2357,35 @@ async function resolveCloudUserDoc(user) {
         accountRef: resolved.accountRef,
         legacyRoot: !!resolved.legacyRoot,
         localOnly: !!resolved.localOnly,
-        cloudPending: !!resolved.cloudPending
+        cloudPending: !!resolved.cloudPending,
+        localAhead: resolved.localAhead || null,
+        recoveredFromLocal: !!resolved.recoveredFromLocal
       };
     } catch (e) {
       // Permission denied ou structure inattendue : repli LOCAL uniquement (jamais la racine index)
       console.warn('[Auth] resolveProfileCloudDoc échec — repli local profil:', e && e.message);
       let localData = null;
+      const pid = (window.ProfilesIO && window.ProfilesIO.getSessionProfileId
+        ? window.ProfilesIO.getSessionProfileId()
+        : (window.ProfilesIO && window.ProfilesIO.getActiveProfileId
+          ? window.ProfilesIO.getActiveProfileId()
+          : null))
+        || window._activeProfileId
+        || 'default';
       if (window.ProfilesIO && typeof window.ProfilesIO.readLocalProfileData === 'function') {
-        const pid = window.ProfilesIO.getSessionProfileId
-          ? window.ProfilesIO.getSessionProfileId()
-          : window.ProfilesIO.getActiveProfileId();
         localData = window.ProfilesIO.readLocalProfileData(pid);
         if (localData && localData._account) localData = null;
       }
       if (localData) {
+        if (window.ProfilesIO && typeof window.ProfilesIO.pinSessionProfileId === 'function') {
+          window.ProfilesIO.pinSessionProfileId(pid);
+        }
         return {
           docRef: null,
           data: localData,
           migrated: false,
           storageKey: 'local-fallback',
-          profileId: window._activeProfileId || 'default',
+          profileId: pid,
           accountRef: null,
           localOnly: true
         };
@@ -2483,14 +2585,29 @@ async function initApp(user) {
         } else if (cloud.data) {
           window.D = cloud.data;
           if (!cloud.cloudPending) window.cloudConnected = !cloud.localOnly;
-          window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
+          if (cloud.localAhead && !cloud.cloudPending && !cloud.localOnly) {
+            // Local en avance sur le cloud : pas de miroir (il écraserait les
+            // sauvegardes non synchronisées) — fusion après chargement.
+            // Ne pas marquer la rév. cloud comme confirmée : le blob fusionné
+            // n’est pas encore écrit (sinon flushCloudOnHide / Secondaire sautent).
+            window._bootLocalAhead = cloud.localAhead;
+          } else if (!cloud.localOnly && !cloud.recoveredFromLocal) {
+            window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
+          }
           if (typeof window.captureCoursPlacementBase === 'function') {
             window.captureCoursPlacementBase(window.D.cours);
           }
           // Miroir local pour conservation offline / bascule appareil
           // (sauf pendant cloudPending : cloud.data est déjà le local conservé)
-          if (!cloud.cloudPending && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
-            try { window.ProfilesIO.writeLocalProfileData(window._activeProfileId, window.D); } catch (mirrorErr) {
+          // Écrit seulement après TabLock.start : un 2e onglet ne doit pas écraser le local du 1er.
+          if (!cloud.cloudPending && !window._bootLocalAhead && !cloud.localOnly && !cloud.recoveredFromLocal && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function' && window._activeProfileId) {
+            try {
+              window._bootMirror = {
+                profileId: window._activeProfileId,
+                payload: JSON.stringify(window.D),
+                rev: window._lastCloudConfirmedRevision
+              };
+            } catch (mirrorErr) {
               console.warn('Miroir local profil impossible:', mirrorErr);
             }
           }
@@ -2572,6 +2689,32 @@ async function initApp(user) {
     );
     window._activeProfileId = window.ProfilesIO.getSessionProfileId();
   }
+  if (window.TabLock && typeof window.TabLock.start === 'function') {
+    try {
+      await window.TabLock.start(window._activeProfileId || 'default');
+    } catch (tabErr) {
+      console.warn('TabLock:', tabErr);
+    }
+  }
+  if (window._bootMirror) {
+    const mirror = window._bootMirror;
+    window._bootMirror = null;
+    const readOnlyTab = window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly();
+    if (!readOnlyTab && mirror.profileId === window._activeProfileId) {
+      try {
+        if (window.ProfilesIO.writeLocalProfileData(mirror.profileId, mirror.payload)
+            && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
+          window.ProfilesIO.setCloudConfirmedRev(mirror.profileId, mirror.rev);
+        }
+      } catch (mirrorErr) {
+        console.warn('Miroir local profil impossible:', mirrorErr);
+      }
+    }
+  }
+  if (window._bootLocalAhead) {
+    window._mergeLocalAheadAtBoot(window._bootLocalAhead);
+    window._bootLocalAhead = null;
+  }
   if(!window.D.cours) window.D.cours = [];
   if(!Array.isArray(window.D.chapitres)) window.D.chapitres = [];
   if (typeof window.ensureChapitreOrders === 'function') window.ensureChapitreOrders();
@@ -2583,9 +2726,7 @@ async function initApp(user) {
   }
   if (typeof window.dedupeAnkiCardArrays === 'function') {
     const removedDupes = window.dedupeAnkiCardArrays(window.D);
-    if (removedDupes > 0 && typeof window.save === 'function') {
-      try { window.save(); } catch (e) { /* best-effort */ }
-    }
+    if (removedDupes > 0) window._bootNeedSaveDedupe = true;
   }
   // Migration coursId (string) → coursIds (array) pour les anciennes cartes Anki
   const _allCardsMigr = window.AnkiAlgo ? window.AnkiAlgo.allCards(window.D) : (window.D.exercices || []).concat(window.D.devoirs || []);
@@ -2673,6 +2814,17 @@ async function initApp(user) {
     const cur = (window.D.settings.userName || '').trim();
     if (!cur || cur === 'Étudiant' || cur === 'Etudiant') {
       window.D.settings.userName = user.given_name;
+    }
+  }
+
+  // Après migrations / défauts : un index pris trop tôt horodaterait _mt=now
+  // sur toutes les cartes au premier enregistrement (poison LWW).
+  window.resetPersistIndex(); // après migrations : ne pas horodater le chargement
+  if (window._bootLocalAheadMerged) {
+    const readOnlyAfterMerge = window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly();
+    const pidMerge = window._activeProfileId || 'default';
+    if (!readOnlyAfterMerge && window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+      try { window.ProfilesIO.writeLocalProfileData(pidMerge, window.D); } catch (eMergeLocal) { /* RAM déjà fusionnée */ }
     }
   }
 
@@ -2768,6 +2920,16 @@ async function initApp(user) {
   }
 
   if (_canonicalMatieresChanged) await safeInitSave('canonicalMatieres');
+
+  if (window._bootNeedSaveDedupe) {
+    window._bootNeedSaveDedupe = false;
+    await safeInitSave('dedupe');
+  }
+
+  if (window._bootLocalAheadMerged) {
+    window._bootLocalAheadMerged = false;
+    await safeInitSave('localAhead');
+  }
 
   if (window.D.settings._needsAppearanceSave) {
     delete window.D.settings._needsAppearanceSave;
@@ -2974,11 +3136,15 @@ function _mergeQuickGroups(localArr, remoteArr) {
   remoteArr.forEach(function (g) {
     if (g && g.id) byId[g.id] = g;
   });
-  localArr.forEach(function (g) {
+  localArr.forEach(function (g, i) {
     if (!g || !g.id) return;
     var r = byId[g.id];
     if (!r) return;
     var shared = _mergeQuickGroupShared(g, r);
+    if (_mtOf(r) > _mtOf(g)) {
+      g = Object.assign({}, r);
+      localArr[i] = g;
+    }
     if (shared) g.shared = shared;
     if (!g.mat && r.mat) g.mat = r.mat;
     if (!g.chapitreId && r.chapitreId) g.chapitreId = r.chapitreId;
@@ -3061,6 +3227,85 @@ window.findAnkiMainDuplicate = function (fields, exceptId) {
   return null;
 };
 
+/** Champs de progression SRS : jamais perdus au profit d’une simple édition de texte. */
+const _CARD_PROGRESS_FIELDS = [
+  'historique', 'intervalle', 'ease', 'repetitions', 'dateProchaineRevision',
+  '_lastReviewDate', '_blocageActif', '_blocageRevCount', '_v2WindowOpen',
+  '_v2WindowClose', '_v2Phase', '_morceauxFaits'
+];
+
+function _mtOf(x) {
+  return (x && Number(x._mt)) || 0;
+}
+
+/**
+ * Carte présente des deux côtés : progression SRS de la plus avancée,
+ * contenu (texte, matière, réglages…) de la plus récemment modifiée (_mt).
+ */
+function _pickCard(local, remote) {
+  const progress = _cardRecency(local) >= _cardRecency(remote) ? local : remote;
+  const lm = _mtOf(local);
+  const rm = _mtOf(remote);
+  const content = (lm || rm) && lm !== rm ? (rm > lm ? remote : local) : progress;
+  if (content === progress) return content;
+  const out = Object.assign({}, content);
+  _CARD_PROGRESS_FIELDS.forEach(function (k) {
+    if (Object.prototype.hasOwnProperty.call(progress, k)) out[k] = progress[k];
+    else delete out[k];
+  });
+  out._mt = Math.max(lm, rm);
+  return out;
+}
+
+/** Remplace en place les éléments locaux dont la version distante est plus récente (_mt). */
+function _preferNewerEntities(localArr, remoteArr, key) {
+  if (!Array.isArray(localArr) || !Array.isArray(remoteArr) || !remoteArr.length) return;
+  const byKey = Object.create(null);
+  remoteArr.forEach(function (x) {
+    if (x && x[key] != null) byKey[x[key]] = x;
+  });
+  for (let i = 0; i < localArr.length; i++) {
+    const l = localArr[i];
+    if (!l || l[key] == null) continue;
+    const r = byKey[l[key]];
+    if (r && _mtOf(r) > _mtOf(l)) localArr[i] = r;
+  }
+}
+
+/**
+ * Cours : comme _preferNewerEntities, mais le rangement (cl/inter) suit la règle
+ * 3-voies de mergeRemoteCoursPatches — un déplacement local est gardé si la version
+ * distante plus récente n’a pas elle-même déplacé le doc — et le statut d’impression
+ * ne recule jamais.
+ */
+function _preferNewerCours(localArr, remoteArr) {
+  if (!Array.isArray(localArr) || !Array.isArray(remoteArr) || !remoteArr.length) return;
+  const base = window._coursPlacementBase || Object.create(null);
+  const statOrder = { pending: 0, printed: 1, active: 2 };
+  const byUid = Object.create(null);
+  remoteArr.forEach(function (x) {
+    if (x && x.uid != null) byUid[x.uid] = x;
+  });
+  function place(c) { return (c.cl || '') + '|' + String(c.inter || ''); }
+  for (let i = 0; i < localArr.length; i++) {
+    const l = localArr[i];
+    if (!l || l.uid == null) continue;
+    const r = byUid[l.uid];
+    if (!r || !(_mtOf(r) > _mtOf(l))) continue;
+    const out = Object.assign({}, r);
+    const b = base[l.uid];
+    if (b && place(l) !== place(r)) {
+      const bPlace = (b.cl || '') + '|' + String(b.inter || '');
+      if (place(l) !== bPlace && place(r) === bPlace) {
+        out.cl = l.cl;
+        out.inter = l.inter;
+      }
+    }
+    if ((statOrder[l.stat] || 0) > (statOrder[out.stat] || 0)) out.stat = l.stat;
+    localArr[i] = out;
+  }
+}
+
 function _mergeCardArrays(localArr, remoteArr) {
   if (!Array.isArray(localArr)) return Array.isArray(remoteArr) ? remoteArr.slice() : [];
   const byId = Object.create(null);
@@ -3074,7 +3319,7 @@ function _mergeCardArrays(localArr, remoteArr) {
       byId[c.id] = c;
       return;
     }
-    byId[c.id] = _cardRecency(c) >= _cardRecency(r) ? c : r;
+    byId[c.id] = _pickCard(c, r);
   });
   const seen = Object.create(null);
   const out = [];
@@ -3092,6 +3337,32 @@ function _mergeCardArrays(localArr, remoteArr) {
   localArr.length = 0;
   for (let i = 0; i < out.length; i++) localArr.push(out[i]);
   return localArr;
+}
+
+/** Une carte ne doit pas vivre à la fois dans exercices et devoirs (déplacement). */
+function _reconcileMovedCards() {
+  const ex = window.D && window.D.exercices;
+  const dv = window.D && window.D.devoirs;
+  if (!Array.isArray(ex) || !Array.isArray(dv) || !ex.length || !dv.length) return;
+  const exBy = Object.create(null);
+  for (let i = 0; i < ex.length; i++) {
+    const c = ex[i];
+    if (c && c.id) exBy[c.id] = c;
+  }
+  const dropEx = Object.create(null);
+  const dropDv = Object.create(null);
+  for (let i = 0; i < dv.length; i++) {
+    const c = dv[i];
+    if (!c || !c.id || !exBy[c.id]) continue;
+    if (_cardRecency(c) >= _cardRecency(exBy[c.id])) dropEx[c.id] = true;
+    else dropDv[c.id] = true;
+  }
+  if (Object.keys(dropEx).length) {
+    window.D.exercices = ex.filter(function (c) { return !c || !c.id || !dropEx[c.id]; });
+  }
+  if (Object.keys(dropDv).length) {
+    window.D.devoirs = dv.filter(function (c) { return !c || !c.id || !dropDv[c.id]; });
+  }
 }
 
 /**
@@ -3152,31 +3423,122 @@ window.dedupeAnkiCardArrays = function (D) {
   return dedupeById(D.exercices) + dedupeById(D.devoirs) + dedupeMainByContent(D.exercices);
 };
 
-/** Fusionne un blob cloud en avance dans window.D (union, pas last-write-wins). */
+/** Index de persistance = état actuel de window.D (après chargement ou remplacement distant). */
+window.resetPersistIndex = function () {
+  window._persistIndex = (window.D && window.ProfilesIO && typeof window.ProfilesIO.buildPersistIndex === 'function')
+    ? window.ProfilesIO.buildPersistIndex(window.D)
+    : null;
+};
+
+/**
+ * Fusionne un blob cloud dans window.D :
+ * 1. les modifications locales pas encore sauvegardées sont horodatées ;
+ * 2. union des éléments, version la plus récente (_mt) gagnante ;
+ * 3. traces de suppression (meta.deleted) appliquées des deux côtés.
+ */
 window.mergeRemoteProfileIntoLocal = function (remote) {
   if (!remote || typeof remote !== 'object' || !window.D) return;
+  const PIO = window.ProfilesIO;
+  if (!window.D.meta) window.D.meta = {};
+  const deleted = (PIO && typeof PIO.mergeTombstones === 'function')
+    ? PIO.mergeTombstones(window.D.meta.deleted, remote.meta && remote.meta.deleted)
+    : null;
+  // Traces d’abord : stampPersistChanges ne doit pas poser _mt=now pour battre une suppression distante.
+  let removedEarly = 0;
+  if (deleted && PIO && typeof PIO.applyTombstones === 'function') {
+    removedEarly = PIO.applyTombstones(window.D, deleted) || 0;
+    if (Object.keys(deleted).length) window.D.meta.deleted = deleted;
+    else delete window.D.meta.deleted;
+  }
+  if (window._persistIndex && PIO && typeof PIO.stampPersistChanges === 'function') {
+    window._persistIndex = PIO.stampPersistChanges(window.D, window._persistIndex, Date.now());
+  }
   if (!Array.isArray(window.D.cours)) window.D.cours = [];
   if (!Array.isArray(window.D.exercices)) window.D.exercices = [];
   if (!Array.isArray(window.D.devoirs)) window.D.devoirs = [];
   if (typeof window.mergeRemoteCoursPatches === 'function') {
     window.mergeRemoteCoursPatches(window.D.cours, remote.cours);
   }
+  _preferNewerCours(window.D.cours, remote.cours);
   _unionByKey(window.D.cours, remote.cours, 'uid');
   _mergeCardArrays(window.D.exercices, remote.exercices);
   _mergeCardArrays(window.D.devoirs, remote.devoirs);
+  _reconcileMovedCards();
+  if (!Array.isArray(window.D.chapitres)) window.D.chapitres = [];
+  _preferNewerEntities(window.D.chapitres, remote.chapitres, 'id');
+  _unionByKey(window.D.chapitres, remote.chapitres, 'id');
   if (typeof window.dedupeAnkiCardArrays === 'function') window.dedupeAnkiCardArrays(window.D);
   if (window.QuickShare && typeof window.QuickShare.dedupeAllQuickGroups === 'function') {
     try { window.QuickShare.dedupeAllQuickGroups(); } catch (e) { /* ignore */ }
   }
   if (!Array.isArray(window.D.matieres)) window.D.matieres = [];
   if (!Array.isArray(window.D.classeurs)) window.D.classeurs = [];
+  _preferNewerEntities(window.D.matieres, remote.matieres, 'id');
   _unionByKey(window.D.matieres, remote.matieres, 'id');
+  _preferNewerEntities(window.D.classeurs, remote.classeurs, 'id');
   _unionByKey(window.D.classeurs, remote.classeurs, 'id');
   if (!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
   _mergeQuickGroups(window.D.quickGroups, remote.quickGroups);
+  if (remote.settings && typeof remote.settings === 'object'
+      && _mtOf(remote.settings) > _mtOf(window.D.settings)) {
+    window.D.settings = Object.assign({}, remote.settings);
+  }
+  if (deleted) {
+    const removed = (PIO.applyTombstones(window.D, deleted) || 0) + removedEarly;
+    if (Object.keys(deleted).length) window.D.meta.deleted = deleted;
+    else delete window.D.meta.deleted;
+    if (removed && typeof window.recordDataEvent === 'function') {
+      window.recordDataEvent('MERGE_APPLIED_DELETIONS', { removed: removed });
+    }
+  }
   if (typeof window.ensureCanonicalMatieres === 'function') window.ensureCanonicalMatieres();
   if (!window.D.sessionEnCoursV2 && remote.sessionEnCoursV2) {
     window.D.sessionEnCoursV2 = remote.sessionEnCoursV2;
+  }
+  window.resetPersistIndex();
+};
+
+/**
+ * Boot : le cloud est chargé mais la copie locale contient des sauvegardes plus
+ * récentes jamais arrivées sur le cloud (onglet fermé, réseau coupé, repli local).
+ * On part du local et on y fusionne le cloud, puis on sauvegarde.
+ */
+window._mergeLocalAheadAtBoot = function (local) {
+  if (!local || typeof local !== 'object' || !window.D) return;
+  const cloudD = window.D;
+  const savedBase = window._coursPlacementBase;
+  try {
+    // Pas de baseline de rangement : un déplacement plus récent sur le cloud
+    // ne doit pas être vu comme « local a bougé, cloud est resté ».
+    window._coursPlacementBase = Object.create(null);
+    window.D = local;
+    window._persistIndex = null;
+    window.mergeRemoteProfileIntoLocal(cloudD);
+    if (!window.D.meta || typeof window.D.meta !== 'object') window.D.meta = {};
+    const lRev = Number(local.meta && local.meta.revision) || 0;
+    const cRev = Number(cloudD.meta && cloudD.meta.revision) || 0;
+    window.D.meta.revision = Math.max(lRev, cRev);
+    window.D.meta.updatedAt = Math.max(
+      Number(local.meta && local.meta.updatedAt) || 0,
+      Number(cloudD.meta && cloudD.meta.updatedAt) || 0,
+      Date.now()
+    );
+    window._bootLocalAheadMerged = true;
+    if (typeof window.recordDataEvent === 'function') {
+      window.recordDataEvent('BOOT_LOCAL_AHEAD_MERGED', {
+        localRev: lRev,
+        cloudRev: cRev
+      });
+    }
+  } catch (e) {
+    console.error('Fusion local en avance impossible — données cloud conservées:', e);
+    window.D = cloudD;
+    window.resetPersistIndex();
+  } finally {
+    window._coursPlacementBase = savedBase;
+    if (typeof window.captureCoursPlacementBase === 'function') {
+      window.captureCoursPlacementBase(window.D && window.D.cours);
+    }
   }
 };
 
@@ -3196,12 +3558,23 @@ window._applyCloudSnapshotGuards = function (cur, emptyOutgoing) {
 };
 
 window._repersistLocalProfile = function (sessionPid) {
-  const mergedPayload = JSON.stringify(window.D);
-  if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-    window.ProfilesIO.writeLocalProfileData(sessionPid, mergedPayload);
-  } else if (typeof window.safeLocalSet === 'function') {
-    window.safeLocalSet('backup_local_cours', mergedPayload);
+  if (window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly()) {
+    return false;
   }
+  const mergedPayload = JSON.stringify(window.D);
+  let ok = true;
+  if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
+    ok = !!window.ProfilesIO.writeLocalProfileData(sessionPid, window.D, { payload: mergedPayload });
+  } else if (typeof window.safeLocalSet === 'function') {
+    ok = !!window.safeLocalSet('backup_local_cours', mergedPayload);
+  }
+  if (!ok) {
+    console.warn('Copie locale après fusion cloud impossible (le cloud reste à jour).');
+    if (typeof window.recordAppError === 'function') {
+      window.recordAppError('Copie locale après fusion cloud impossible (profil ' + sessionPid + ')', 'app.js');
+    }
+  }
+  return ok;
 };
 
 window._stripProfileForCloud = function () {
@@ -3386,6 +3759,59 @@ window.save = function (opts) {
   return cloudJob;
 };
 
+/**
+ * Envoi cloud forcé quand la page passe en arrière-plan / se ferme / revient en
+ * ligne, si la dernière révision locale n’est pas confirmée sur le cloud.
+ * Les sauvegardes locales sont déjà immédiates ; ceci réduit le retard cloud.
+ */
+window.flushCloudOnHide = function (reason) {
+  if (window.isLocalMode || !window.cloudConnected || !window.docRef || !window.D) return false;
+  let tabLost = false;
+  if (window.TabLock && window.TabLock.getState) {
+    const tabState = window.TabLock.getState();
+    if (tabState === 'locked') return false;
+    if (tabState === 'lost') {
+      if (reason !== 'tab-lost' || window._tabLostFlushDone) return false;
+      tabLost = true;
+    }
+  }
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    if (tabLost) window._tabLostFlushDone = true;
+    return false;
+  }
+  const rev = Number(window.D.meta && window.D.meta.revision) || 0;
+  const confirmed = Number(window._lastCloudConfirmedRevision);
+  if (window._lastCloudConfirmedRevision != null && confirmed >= rev) {
+    if (tabLost) window._tabLostFlushDone = true;
+    return false;
+  }
+  if (window._lastLocalSaveAt == null) {
+    if (tabLost) window._tabLostFlushDone = true;
+    return false;
+  }
+  if (tabLost) {
+    window._tabLostFlushDone = true;
+    window._tabLostFlushActive = true;
+  }
+  window.recordDataEvent('CLOUD_FLUSH_ON_HIDE', { reason: reason || '', rev: rev, confirmed: confirmed });
+  window._enqueueCloudFlush({ waitCloud: false }).catch(function (e) {
+    console.warn('Envoi cloud (' + (reason || 'hide') + ') échoué :', e && e.message ? e.message : e);
+  }).finally(function () {
+    if (reason === 'tab-lost') window._tabLostFlushActive = false;
+  });
+  return true;
+};
+
+if (!window._cloudFlushLifecycleBound) {
+  window._cloudFlushLifecycleBound = true;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') window.flushCloudOnHide('visibility-hidden');
+  });
+  window.addEventListener('pagehide', function () { window.flushCloudOnHide('pagehide'); });
+  window.addEventListener('online', function () { window.flushCloudOnHide('online'); });
+}
+
 /** Compat : ancien nom = local puis flush cloud (await complet). */
 window._saveImpl = async function (opts, localGate) {
   var localResult = await window._saveLocalImpl(opts, localGate);
@@ -3451,6 +3877,20 @@ window._saveLocalImpl = async function (opts, localGate) {
     throw errSec;
   }
 
+  if (window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly()) {
+    console.warn('Save refusée : profil ouvert dans un autre onglet (lecture seule ici).');
+    const nowTab = Date.now();
+    if (!window._tabLockToastAt || nowTab - window._tabLockToastAt > 8000) {
+      window._tabLockToastAt = nowTab;
+      if (typeof window.showToast === 'function') {
+        window.showToast('Profil ouvert dans un autre onglet : rien n’est enregistré ici.', { type: 'warn' });
+      }
+    }
+    var errTab = new Error('TAB_READ_ONLY');
+    releaseLocal(false, errTab);
+    throw errTab;
+  }
+
   if (!window.D.meta) window.D.meta = {};
   const prevRevision = Number(window.D.meta.revision) || 0;
   window.D.meta.revision = prevRevision + 1;
@@ -3458,6 +3898,30 @@ window._saveLocalImpl = async function (opts, localGate) {
   if (window.DeviceSession && typeof window.DeviceSession.getDeviceId === 'function') {
     window.D.meta.updatedBy = window.DeviceSession.getDeviceId();
     window.D.meta.primaryDeviceId = window.DeviceSession.getDeviceId();
+  }
+
+  // Traces de suppression + _mt : diff avec l’état de la dernière sauvegarde réussie.
+  // Si le tampon échoue, on n’écrit rien (sinon une suppression partirait sans trace).
+  let nextPersistIndex = null;
+  if (window.ProfilesIO && typeof window.ProfilesIO.stampPersistChanges === 'function') {
+    try {
+      nextPersistIndex = window.ProfilesIO.stampPersistChanges(window.D, window._persistIndex || null, window.D.meta.updatedAt);
+    } catch (stampErr) {
+      window.D.meta.revision = prevRevision;
+      console.warn('Horodatage sauvegarde impossible:', stampErr);
+      window.recordDataEvent('SAVE_STAMP_FAILED', { message: stampErr && stampErr.message ? stampErr.message : String(stampErr) });
+      if (typeof window.recordAppError === 'function') {
+        window.recordAppError('Erreur sauvegarde: traces de suppression impossibles', 'app.js');
+      }
+      window.sysAlert(
+        (M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.") +
+          "<br><br>Code : <b>SAVE_STAMP_FAILED</b> (onglet Logs → Copier pour le rapport complet).",
+        "Erreur de sauvegarde"
+      );
+      var errStamp = new Error('SAVE_STAMP_FAILED');
+      releaseLocal(false, errStamp);
+      throw errStamp;
+    }
   }
 
   const payload = JSON.stringify(window.D);
@@ -3472,7 +3936,7 @@ window._saveLocalImpl = async function (opts, localGate) {
   // _allowEmptyProfileWrite autorise resetData
 
   if (window.ProfilesIO && typeof window.ProfilesIO.writeLocalProfileData === 'function') {
-    okLocal = !!window.ProfilesIO.writeLocalProfileData(sessionPid, payload);
+    okLocal = !!window.ProfilesIO.writeLocalProfileData(sessionPid, window.D, { payload: payload });
   } else {
     okLocal = typeof window.safeLocalSet === 'function'
       ? window.safeLocalSet('backup_local_cours', payload)
@@ -3484,11 +3948,20 @@ window._saveLocalImpl = async function (opts, localGate) {
       window.recordAppError('Erreur sauvegarde: localStorage indisponible ou refus anti-wipe', 'app.js');
     }
     console.error("Échec sauvegarde locale");
-    window.sysAlert(M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.", "Erreur de sauvegarde");
+    const lastEvt = window.dataEventLog && window.dataEventLog[window.dataEventLog.length - 1];
+    const failCode = lastEvt && (lastEvt.code === 'SAVE_REFUSED_SHELL' || lastEvt.code === 'LOCAL_WRITE_FAILED')
+      ? lastEvt.code : 'LOCAL_WRITE_FAILED';
+    window.sysAlert(
+      (M.SAVE_LOCAL_FAIL || "Impossible d'enregistrer tes données dans le navigateur.") +
+        "<br><br>Code : <b>" + failCode + "</b> (onglet Logs → Copier pour le rapport complet).",
+      "Erreur de sauvegarde"
+    );
     var errLocal = new Error('localStorage save failed');
     releaseLocal(false, errLocal);
     throw errLocal;
   }
+  if (nextPersistIndex) window._persistIndex = nextPersistIndex;
+  window._lastLocalSaveAt = Date.now();
 
   if (window.isLocalMode) {
     console.log("🌸 [Mode Local] Sauvegarde locale dans le navigateur réussie.");
@@ -3523,6 +3996,24 @@ window._saveCloudImpl = async function () {
     ? window.ProfilesIO.isEffectivelyEmptyProfile(window.D)
     : false;
 
+  function stillMayWriteCloud() {
+    if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+        && !window.DeviceSession.canFullSave()) return false;
+    if (window._tabLostFlushActive) return true;
+    if (window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly()) {
+      return false;
+    }
+    return true;
+  }
+  if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function'
+      && !window.DeviceSession.canFullSave()) {
+    return { cloud: false, skipped: 'not-primary' };
+  }
+  if (window.TabLock && typeof window.TabLock.isReadOnly === 'function'
+      && window.TabLock.isReadOnly() && !window._tabLostFlushActive) {
+    return { cloud: false, skipped: 'tab-readonly' };
+  }
+
   window._cloudSaveInFlight = true;
   try {
     // Garde-fou : docRef doit correspondre au profil de cette session
@@ -3551,14 +4042,16 @@ window._saveCloudImpl = async function () {
       if (!cur) return;
       const remoteRev = Number(cur.meta && cur.meta.revision) || 0;
       if (remoteRev > localBase) {
+        const keepRev = Number(window.D.meta && window.D.meta.revision) || 0;
         window.mergeRemoteProfileIntoLocal(cur);
-        window.D.meta.revision = remoteRev + 1;
+        window.D.meta.revision = Math.max(keepRev, remoteRev + 1);
         window.D.meta.updatedAt = Date.now();
         console.warn('☁️ Merge révision cloud (remote en avance):', localBase, '→', remoteRev);
         window._repersistLocalProfile(sessionPid);
       }
     }
 
+    let sentRevision = null;
     if (typeof window.runTransaction === 'function' && window.db) {
       await window.runTransaction(window.db, async function (tx) {
         const snap = await tx.get(window.docRef);
@@ -3567,25 +4060,45 @@ window._saveCloudImpl = async function () {
           // nouveau doc vide : OK
         }
         applyRemoteIfAhead(cur);
-        tx.set(window.docRef, window._stripProfileForCloud());
+        if (!stillMayWriteCloud()) {
+          throw new Error('CLOUD_ABORTED_NOT_PRIMARY');
+        }
+        const payload = window._stripProfileForCloud();
+        sentRevision = Number(payload && payload.meta && payload.meta.revision)
+          || Number(window.D.meta && window.D.meta.revision) || 0;
+        tx.set(window.docRef, payload);
       });
     } else if (window.getDoc) {
       const snap = await window.getDoc(window.docRef);
       const cur = snap.exists() ? snap.data() : null;
       applyRemoteIfAhead(cur);
-      await window.setDoc(window.docRef, window._stripProfileForCloud());
+      if (!stillMayWriteCloud()) {
+        throw new Error('CLOUD_ABORTED_NOT_PRIMARY');
+      }
+      const payload = window._stripProfileForCloud();
+      sentRevision = Number(payload && payload.meta && payload.meta.revision)
+        || Number(window.D.meta && window.D.meta.revision) || 0;
+      await window.setDoc(window.docRef, payload);
     } else {
       throw new Error('Refus d’écrire cloud : getDoc / transaction indisponible');
     }
 
-    try {
-      var cloudBytes = JSON.stringify(window._stripProfileForCloud()).length;
-      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie ! (~" +
-        Math.round(cloudBytes / 1024) + " Ko — 1 doc = tout le profil)");
-    } catch (sizeErr) {
-      console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie !");
+    console.log("☁️ [Mode Cloud] Sauvegarde Firestore réussie ! (révision " +
+      (Number(window.D.meta && window.D.meta.revision) || 0) + " — 1 doc = tout le profil)");
+    const confirmedNow = sentRevision != null
+      ? sentRevision
+      : (Number(window.D.meta && window.D.meta.revision) || 0);
+    const tabReadOnly = window.TabLock && typeof window.TabLock.isReadOnly === 'function'
+      && window.TabLock.isReadOnly() && !window._tabLostFlushActive;
+    if (!tabReadOnly) {
+      window._lastCloudConfirmedRevision = Math.max(
+        Number(window._lastCloudConfirmedRevision) || 0,
+        confirmedNow
+      );
+      if (window.ProfilesIO && typeof window.ProfilesIO.setCloudConfirmedRev === 'function') {
+        window.ProfilesIO.setCloudConfirmedRev(sessionPid, window._lastCloudConfirmedRevision);
+      }
     }
-    window._lastCloudConfirmedRevision = Number(window.D.meta && window.D.meta.revision) || 0;
     if (typeof window.captureCoursPlacementBase === 'function') {
       window.captureCoursPlacementBase(window.D && window.D.cours);
     }
@@ -3599,6 +4112,7 @@ window._saveCloudImpl = async function () {
     if (typeof window.recordAppError === 'function') {
       window.recordAppError('Erreur écriture cloud: ' + errMsg, 'app.js');
     }
+    window.recordDataEvent('CLOUD_SAVE_FAILED', { message: errMsg });
     console.error("Échec Cloud :", e);
     throw e;
   } finally {

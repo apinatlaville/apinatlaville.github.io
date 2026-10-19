@@ -61,6 +61,80 @@
     cockpitFilterCours: '',                // X: chapitreId (ou legacy coursUnite uid) · Y: groupId
   };
 
+  /**
+   * Mémo valable uniquement pendant un rendu synchrone (withRenderMemo) : les cartes ne
+   * changent pas entre deux appels du même rendu. Invalidé si la date ou window.D change.
+   */
+  let _renderMemo = null;
+  let _renderMemoDepth = 0;
+
+  function withRenderMemo(fn) {
+    _renderMemoDepth++;
+    if (_renderMemoDepth === 1) _renderMemo = null;
+    try {
+      return fn();
+    } finally {
+      _renderMemoDepth--;
+      if (_renderMemoDepth === 0) _renderMemo = null;
+    }
+  }
+
+  function activeRenderMemo() {
+    if (!_renderMemoDepth || !window.AnkiAlgoV2) return null;
+    const today = window.AnkiAlgoV2.todayISO();
+    if (!_renderMemo || _renderMemo.today !== today || _renderMemo.D !== window.D) {
+      _renderMemo = { today, D: window.D, cands: Object.create(null), sessions: [], prio: new WeakMap() };
+    }
+    return _renderMemo;
+  }
+
+  function memoCandidates(kind, exercices) {
+    const A = window.AnkiAlgoV2;
+    const compute = () => (kind === 'quick' ? A.getQuickCandidates(exercices) : A.getCandidates(exercices));
+    const memo = Array.isArray(exercices) ? activeRenderMemo() : null;
+    if (!memo) return compute();
+    const hit = memo.cands[kind];
+    if (hit && hit.src === exercices && hit.len === exercices.length) return hit.list.slice();
+    const list = compute();
+    if (!Array.isArray(list)) return list;
+    memo.cands[kind] = { src: exercices, len: exercices.length, list };
+    return list.slice();
+  }
+
+  function cloneSessionResult(res) {
+    if (!res || typeof res !== 'object') return res;
+    return Object.assign({}, res, {
+      cartes: Array.isArray(res.cartes) ? res.cartes.slice() : res.cartes,
+      reportees: Array.isArray(res.reportees) ? res.reportees.slice() : res.reportees
+    });
+  }
+
+  function memoBuildSession(pool, opts) {
+    const A = window.AnkiAlgoV2;
+    const memo = Array.isArray(pool) ? activeRenderMemo() : null;
+    if (!memo) return A.buildSession(pool, opts);
+    let key;
+    try {
+      key = JSON.stringify([opts, (window.D && window.D.settings) || null]);
+    } catch (e) {
+      return A.buildSession(pool, opts);
+    }
+    const hit = memo.sessions.find(s => s.key === key && s.pool.length === pool.length
+      && s.pool.every((c, i) => c === pool[i]));
+    if (hit) return cloneSessionResult(hit.res);
+    const res = A.buildSession(pool, opts);
+    memo.sessions.push({ key, pool: pool.slice(), res });
+    return cloneSessionResult(res);
+  }
+
+  /** Associe à un clone de carte le score (file + total) calculé dans le rendu courant. */
+  function notePrioInRender(clone, file, priority) {
+    const memo = activeRenderMemo();
+    if (!memo || (file !== 'main' && file !== 'quick')) return clone;
+    memo.prio.set(clone, { file, priority });
+    return clone;
+  }
+
   function cockpitShowXOnly() {
     return !!(window.D && window.D.settings && window.D.settings.ankiCockpitShowXOnly);
   }
@@ -222,19 +296,72 @@
     return false;
   }
 
+  /** counts[i] === cards.filter(c => cardMatchesChapterKey(c, chaps[i].id)).length, en une passe. */
+  function chapterTileCounts(chaps, cards) {
+    const counts = chaps.map(() => 0);
+    const byKey = new Map();
+    chaps.forEach((ch, idx) => {
+      if (!ch || !ch.id) return;
+      if (!byKey.has(ch.id)) byKey.set(ch.id, []);
+      byKey.get(ch.id).push(idx);
+    });
+    if (!byKey.size || !cards.length) return counts;
+    const perCard = [];
+    cards.forEach(c => {
+      const ids = cardCoursIdList(c);
+      if (!Array.isArray(ids)) {
+        chaps.forEach((ch, idx) => {
+          if (ch && ch.id && cardMatchesChapterKey(c, ch.id)) counts[idx]++;
+        });
+        return;
+      }
+      const hit = new Set();
+      const chapId = resolveCardChapitreId(c);
+      if (chapId && byKey.has(chapId)) byKey.get(chapId).forEach(i => hit.add(i));
+      ids.forEach(id => {
+        const l = byKey.get(id);
+        if (l) l.forEach(i => hit.add(i));
+      });
+      hit.forEach(i => { counts[i]++; });
+      perCard.push({ ids, hit });
+    });
+    if (!perCard.length || typeof window.resolveChapitreCoursUid !== 'function') return counts;
+    const byUid = new Map();
+    chaps.forEach((ch, idx) => {
+      if (!ch || !ch.id || counts[idx] >= cards.length) return;
+      const uid = window.resolveChapitreCoursUid(ch.id);
+      if (!uid) return;
+      if (!byUid.has(uid)) byUid.set(uid, []);
+      byUid.get(uid).push(idx);
+    });
+    if (!byUid.size) return counts;
+    perCard.forEach(p => {
+      p.ids.forEach(id => {
+        const l = byUid.get(id);
+        if (!l) return;
+        l.forEach(i => {
+          if (p.hit.has(i)) return;
+          p.hit.add(i);
+          counts[i]++;
+        });
+      });
+    });
+    return counts;
+  }
+
   function getCockpitPickBaseList() {
     const allCards = (window.D.exercices || []).filter(c => (c.statut === 'actif' || c.statut === 'attente' || c.statut === 'reservoir') && !isDevoirCard(c));
-    const candidatsX = window.AnkiAlgoV2.getCandidates(window.D.exercices)
-      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'main' }));
+    const candidatsX = memoCandidates('main', window.D.exercices)
+      .map(x => notePrioInRender({ ...x.card, _prio: x.score.total, _prioFile: 'main' }, 'main', x.score.total));
     const candidatsY = (window.AnkiAlgoV2.getQuickCandidates
-      ? window.AnkiAlgoV2.getQuickCandidates(window.D.exercices)
+      ? memoCandidates('quick', window.D.exercices)
       : [])
-      .map(x => ({ ...x.card, _prio: x.score.total, _prioFile: 'quick' }));
+      .map(x => notePrioInRender({ ...x.card, _prio: x.score.total, _prioFile: 'quick' }, 'quick', x.score.total));
     const cockpitSearch = (S.cockpitSearch || '').trim().toLowerCase();
     const isManualTab = S.cockpitMode === 'manual';
     let list = isManualTab ? allCards.map(c => {
       const sc = window.AnkiAlgoV2.scoreSession(c);
-      return { ...c, _prio: sc.total, _prioFile: sc.file || (isQuickCard(c) ? 'quick' : 'main') };
+      return notePrioInRender({ ...c, _prio: sc.total, _prioFile: sc.file || (isQuickCard(c) ? 'quick' : 'main') }, sc.file, sc.total);
     }) : candidatsX.concat(candidatsY);
 
     list = list.filter(cardMatchesPickKind);
@@ -252,11 +379,17 @@
       if (!isManualTab) {
         list = list.map(c => {
           const sc = window.AnkiAlgoV2.scoreSession(c);
-          return {
+          const out = {
             ...c,
             _prio: c._prio != null ? c._prio : sc.total,
             _prioFile: c._prioFile || sc.file
           };
+          const memo = activeRenderMemo();
+          const known = memo && memo.prio.get(c);
+          if (known && out._prio === known.priority && out._prioFile === known.file) {
+            notePrioInRender(out, known.file, known.priority);
+          }
+          return out;
         });
       }
     }
@@ -350,9 +483,9 @@
       countX = allCards.filter(c => !isQuickCard(c)).length;
       countY = allCards.filter(c => isQuickCard(c)).length;
     } else {
-      countX = (window.AnkiAlgoV2.getCandidates(window.D.exercices) || []).length;
+      countX = (memoCandidates('main', window.D.exercices) || []).length;
       countY = (window.AnkiAlgoV2.getQuickCandidates
-        ? window.AnkiAlgoV2.getQuickCandidates(window.D.exercices) : []).length;
+        ? memoCandidates('quick', window.D.exercices) : []).length;
     }
     if (!countX && !countY) {
       return `<div class="cours-bc-empty">${isManualTabEmptyHint()}</div>`;
@@ -423,9 +556,11 @@
     const unitUids = chapterUnitUidsForMat(matId);
     let tiles = '';
     if (typeof window.listChapitres === 'function') {
-      window.listChapitres({ mat: matId }).forEach(ch => {
+      const chaps = window.listChapitres({ mat: matId });
+      const counts = chapterTileCounts(chaps, matCards);
+      chaps.forEach((ch, idx) => {
         if (!ch || !ch.id) return;
-        const n = matCards.filter(c => cardMatchesChapterKey(c, ch.id)).length;
+        const n = counts[idx];
         if (!n) return;
         tiles += (
           `<button type="button" class="cours-bc-tile" style="--mat-color:${esc(m.color)}" onclick="window.ankiV2CockpitPickChapter('${jsPick(ch.id)}')">` +
@@ -571,6 +706,10 @@
   }
 
   function refreshCockpitPickSection() {
+    return withRenderMemo(refreshCockpitPickSectionNow);
+  }
+
+  function refreshCockpitPickSectionNow() {
     const section = $('ankiPickSection');
     if (!section) { renderActiveView(); return; }
     const isManualTab = S.cockpitMode === 'manual';
@@ -618,6 +757,10 @@
 
   /** Ajoute toutes les cartes Y- d’un dossier (groupe) à la session. */
   window.ankiV2SelectCockpitGroup = function (groupKey) {
+    return withRenderMemo(() => selectCockpitGroupNow(groupKey));
+  };
+
+  function selectCockpitGroupNow(groupKey) {
     const key = groupKey || COCKPIT_PICK_NONE;
     const matId = S.cockpitFilterMat;
     if (!matId) return;
@@ -652,7 +795,7 @@
     if (typeof window.showToast === 'function') {
       window.showToast(cards.length + ' carte' + (cards.length > 1 ? 's' : '') + ' du dossier ajoutée' + (cards.length > 1 ? 's' : '') + '.', { type: 'ok' });
     }
-  };
+  }
   function stopChronoInterval() {
     if (S.chronoInt) { clearInterval(S.chronoInt); S.chronoInt = null; }
   }
@@ -677,10 +820,15 @@
       btn.dataset.chronoIcon = wantIcon;
       btn.innerHTML = window.iconHtml(wantIcon, size);
     }
-    btn.title = S.chronoRunning
+    const title = S.chronoRunning
       ? "Pause chrono"
       : (S.chronoElapsed > 0 ? "Reprendre le chrono" : "Lancer le chrono");
-    btn.setAttribute("aria-label", btn.title);
+    if (btn.title !== title) btn.title = title;
+    if (btn.getAttribute("aria-label") !== btn.title) btn.setAttribute("aria-label", btn.title);
+  }
+  function paintChronoText(el, t, col) {
+    if (el.textContent !== t) el.textContent = t;
+    if (el.style.color !== col) el.style.color = col;
   }
   function paintChronoDisplays() {
     syncChronoElapsed();
@@ -688,19 +836,19 @@
     const col = chronoColor();
     ["ankiChrono", "syncDockChrono"].forEach(id => {
       const el = $(id);
-      if (el) { el.textContent = t; el.style.color = col; }
+      if (el) paintChronoText(el, t, col);
     });
     document.querySelectorAll(".sync-dock-mini-time").forEach(el => {
-      el.textContent = t;
-      el.style.color = col;
+      paintChronoText(el, t, col);
     });
     const hint = $("ankiChronoHint");
     if (hint) {
-      hint.textContent = S.showAnswer
+      const hintTxt = S.showAnswer
         ? 'Chrono arrêté · auto-évalue ci-dessous'
         : (S.chronoRunning
           ? "Chrono en cours"
           : (S.chronoElapsed > 0 ? "Chrono en pause — reprends ou remets à zéro" : "Lance le chrono quand tu es prêt(e)"));
+      if (hint.textContent !== hintTxt) hint.textContent = hintTxt;
     }
     const toggle = $("btnChronoToggle");
     if (toggle) {
@@ -1080,12 +1228,22 @@
       return bits.join(' · ');
     }
     const isQuick = window.AnkiAlgoV2.cardKind(c) === 'quick' || isQuickCard(c);
-    const sc = isQuick
-      ? window.AnkiAlgoV2.priorityScoreQuick(c, today)
-      : window.AnkiAlgoV2.priorityScore(c, today);
-    const phase = (sc.raw && sc.raw.phase) || window.AnkiAlgoV2.getPhase(c);
+    const memo = activeRenderMemo();
+    const known = memo && memo.today === today ? memo.prio.get(c) : null;
+    let priority;
+    let phase;
+    if (known && known.file === (isQuick ? 'quick' : 'main') && typeof known.priority === 'number') {
+      priority = known.priority;
+      phase = window.AnkiAlgoV2.getPhase(c);
+    } else {
+      const sc = isQuick
+        ? window.AnkiAlgoV2.priorityScoreQuick(c, today)
+        : window.AnkiAlgoV2.priorityScore(c, today);
+      priority = sc.priority;
+      phase = (sc.raw && sc.raw.phase) || window.AnkiAlgoV2.getPhase(c);
+    }
     const bits = [
-      (isQuick ? 'prioY ' : 'prioX ') + sc.priority.toFixed(0),
+      (isQuick ? 'prioY ' : 'prioX ') + priority.toFixed(0),
       phase
     ];
     if (!isQuick) bits.push(`★${window.AnkiAlgoV2.getImportance(c)}`);
@@ -1913,7 +2071,7 @@
       };
     }
 
-    const base = window.AnkiAlgoV2.buildSession(ankSessionPool(), {
+    const base = memoBuildSession(ankSessionPool(), {
       sessionMinutes: sessionMin,
       includeNew,
       selectedIds: null,
@@ -2051,6 +2209,10 @@
   };
 
   function renderActiveView() {
+    return withRenderMemo(renderActiveViewNow);
+  }
+
+  function renderActiveViewNow() {
     const c = $("ankiV2ViewContent");
     if (!c) return;
     const scrollY = S.view === "library" ? (window.scrollY || window.pageYOffset || 0) : 0;
@@ -2072,9 +2234,9 @@
     const exos = window.D.exercices || [];
     const actifs = exos.filter(c => c.statut === 'actif' && !isQuickCard(c) && !isDevoirCard(c)).length;
     const reservoir = countReservoirMain();
-    const candsX = window.AnkiAlgoV2.getCandidates(exos);
+    const candsX = memoCandidates('main', exos);
     const candsY = window.AnkiAlgoV2.getQuickCandidates
-      ? window.AnkiAlgoV2.getQuickCandidates(exos) : [];
+      ? memoCandidates('quick', exos) : [];
     const sessionMin = getSessionMinutesV2();
     const tile = typeof window.uiTile === 'function' ? window.uiTile : function (v, l, o) {
       const c = o && o.color ? ' style="color:' + o.color + ';"' : '';
@@ -2284,6 +2446,10 @@
   }
 
   function renderPickGridOnly() {
+    return withRenderMemo(renderPickGridOnlyNow);
+  }
+
+  function renderPickGridOnlyNow() {
     if (getCockpitPickNavLevel() < 3) {
       keepPageScroll(refreshCockpitPickSection);
       return;
@@ -2572,7 +2738,7 @@
 
   // ===== Sélection style Impression (grille pcard + ordre ↑↓) =====
   function togglePickAuto(id) {
-    const base = window.AnkiAlgoV2.buildSession(ankSessionPool(), {
+    const base = memoBuildSession(ankSessionPool(), {
       sessionMinutes: getSessionMinutesV2(),
       includeNew: 0,
       selectedIds: null,
@@ -2596,7 +2762,7 @@
   }
 
   window.ankiV2TogglePick = function (id) {
-    keepPageScroll(function () {
+    keepPageScroll(() => withRenderMemo(function () {
       if (S.cockpitMode === 'manual') {
         if (S.selectionIds.has(id)) {
           S.selectionIds.delete(id);
@@ -2612,10 +2778,14 @@
       }
       renderPickGridOnly();
       refreshQueueOnly();
-    });
+    }));
   };
 
   function refreshQueueOnly() {
+    return withRenderMemo(refreshQueueOnlyNow);
+  }
+
+  function refreshQueueOnlyNow() {
     const box = $("ankiQueueDrop");
     if (!box) return;
     const pageY = window.scrollY || window.pageYOffset || 0;
@@ -2650,26 +2820,32 @@
       S.excludedIds.clear();
     }
     S.manualOrder = null;
-    renderPickGridOnly();
-    refreshQueueOnly();
+    withRenderMemo(function () {
+      renderPickGridOnly();
+      refreshQueueOnly();
+    });
   };
   window.ankiV2ResetAutoAdjust = function () {
     S.pinnedIds.clear();
     S.excludedIds.clear();
     S.manualOrder = null;
-    renderPickGridOnly();
-    refreshQueueOnly();
+    withRenderMemo(function () {
+      renderPickGridOnly();
+      refreshQueueOnly();
+    });
   };
   window.ankiV2SelectAllPick = function () {
-    S.selectionIds.clear();
-    S.selectionOrder = [];
-    getCockpitDisplayList().forEach(c => {
-      S.selectionIds.add(c.id);
-      S.selectionOrder.push(c.id);
+    withRenderMemo(function () {
+      S.selectionIds.clear();
+      S.selectionOrder = [];
+      getCockpitDisplayList().forEach(c => {
+        S.selectionIds.add(c.id);
+        S.selectionOrder.push(c.id);
+      });
+      S.manualOrder = null;
+      renderPickGridOnly();
+      refreshQueueOnly();
     });
-    S.manualOrder = null;
-    renderPickGridOnly();
-    refreshQueueOnly();
   };
   window.ankiV2UpdateTemps = function (id, valMin, isDevoir) {
     if (typeof window.refuseSecondaryFullMutation === 'function'
@@ -2963,8 +3139,56 @@
     `;
   }
 
+  /** Champs lus par forecastSchedule (simulation) et renderCalCard (copies affichées). */
+  const FORECAST_FP_FIELDS = [
+    'id', 'statut', 'type', 'profil', 'mat', 'tempsCible', 'importance', 'priorite',
+    'intervalle', 'ease', 'repetitions', 'dateProchaineRevision', '_v2WindowOpen', '_v2WindowClose',
+    '_blocageActif', '_blocageRevCount', '_devoirChunkOf', 'titre'
+  ];
+  let _forecastMemo = null;
+
+  function fpVal(v) {
+    if (v === undefined) return 'u';
+    if (v === null) return 'N';
+    if (typeof v === 'number') return 'n' + String(v);
+    if (typeof v === 'boolean') return v ? 'T' : 'F';
+    if (typeof v === 'string') return 's' + v.length + ':' + v;
+    return 'j' + JSON.stringify(v);
+  }
+
+  function forecastMemoKey(pool, days, today) {
+    try {
+      const D = window.D || {};
+      const parts = [
+        fpVal(days), fpVal(today),
+        fpVal(D.meta && D.meta.revision),
+        'j' + JSON.stringify(D.settings || null)
+      ];
+      pool.forEach(c => {
+        if (!c || typeof c !== 'object') { parts.push('p' + fpVal(c)); return; }
+        parts.push('o');
+        FORECAST_FP_FIELDS.forEach(k => parts.push(fpVal(c[k])));
+        if (!c.titre) parts.push(fpVal(c.question));
+      });
+      return parts.join('|');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function forecastScheduleCached(pool, days) {
+    const today = window.AnkiAlgoV2.todayISO();
+    const key = forecastMemoKey(pool, days, today);
+    if (key !== null && _forecastMemo && _forecastMemo.D === window.D && _forecastMemo.key === key) {
+      return _forecastMemo.sch;
+    }
+    const sch = window.AnkiAlgoV2.forecastSchedule(pool, days);
+    _forecastMemo = key !== null ? { D: window.D, key, sch } : null;
+    return sch;
+  }
+
   function viewForecastByDays() {
-    const sch = window.AnkiAlgoV2.forecastSchedule(forecastPoolX(), S.forecastDays);
+    const sch = forecastScheduleCached(forecastPoolX(), S.forecastDays);
     const dates = Object.keys(sch).sort();
     const charges = dates.map(d => sch[d].reduce((s, c) => s + (c.tempsCible || 60), 0));
     const max = Math.max(1, ...charges);
@@ -3322,6 +3546,52 @@
         if (h.date && h.date.substring(0, 10) === today) todayEvals.push({ card: c, h });
       });
     });
+    return statsTodayFromEvals(todayEvals);
+  }
+
+  /** Même résultat que statsTodayBundle + statsWeekByDay + statsByMat + statsByStars, en un seul parcours de l’historique. */
+  function statsCollect(cards, today, week) {
+    const todayEvals = [];
+    const byDay = {};
+    week.forEach(d => { byDay[d] = { ok: 0, mid: 0, bad: 0, total: 0, sumQ: 0 }; });
+    const matStats = {};
+    const by = {};
+    for (let i = 1; i <= 5; i++) by[i] = { cards: 0, actif: 0, reservoir: 0, total: 0, ok: 0, bad: 0, easeSum: 0, easeN: 0 };
+    (cards || []).forEach(c => {
+      const k = c.mat || '?';
+      if (!matStats[k]) matStats[k] = { total: 0, ok: 0, bad: 0, easeSum: 0, easeN: 0, cards: 0 };
+      matStats[k].cards++;
+      matStats[k].easeSum += c.ease || 2.5;
+      matStats[k].easeN++;
+      const imp = window.AnkiAlgoV2.getImportance(c);
+      const bucket = by[imp] || by[3];
+      bucket.cards++;
+      if (c.statut === 'actif') bucket.actif++;
+      else bucket.reservoir++;
+      bucket.easeSum += c.ease || 2.5;
+      bucket.easeN++;
+      (c.historique || []).forEach(h => {
+        if (h.date && h.date.substring(0, 10) === today) todayEvals.push({ card: c, h });
+        const d = h.date && h.date.substring(0, 10);
+        if (byDay[d]) {
+          byDay[d].total++;
+          byDay[d].sumQ += (h.qScore || 0);
+          if ((h.qScore || 0) >= 8) byDay[d].ok++;
+          else if ((h.qScore || 0) >= 4) byDay[d].mid++;
+          else byDay[d].bad++;
+        }
+        matStats[k].total++;
+        if ((h.qScore || 0) >= 8) matStats[k].ok++;
+        if ((h.qScore || 0) < 4) matStats[k].bad++;
+        bucket.total++;
+        if ((h.qScore || 0) >= 8) bucket.ok++;
+        if ((h.qScore || 0) < 4) bucket.bad++;
+      });
+    });
+    return { today: statsTodayFromEvals(todayEvals), week: byDay, mat: matStats, stars: by };
+  }
+
+  function statsTodayFromEvals(todayEvals) {
     const nOk = todayEvals.filter(e => e.h.qScore >= 8).length;
     const nMid = todayEvals.filter(e => e.h.qScore >= 4 && e.h.qScore < 8).length;
     const nBad = todayEvals.filter(e => e.h.qScore < 4).length;
@@ -3558,14 +3828,16 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     const mains = exos.filter(c => isMainCard(c) || (!isQuickCard(c) && !isDevoirCard(c)));
     const quicks = exos.filter(c => isQuickCard(c));
     const week = Array.from({ length: 7 }, (_, i) => window.AnkiAlgoV2.addDays(today, -6 + i));
-    const bx = statsTodayBundle(mains, today);
-    const by = statsTodayBundle(quicks, today);
-    const weekX = statsWeekByDay(mains, week);
-    const weekY = statsWeekByDay(quicks, week);
-    const matX = statsByMat(mains);
-    const matY = statsByMat(quicks);
-    const starX = statsByStars(mains);
-    const starY = statsByStars(quicks);
+    const statsX = statsCollect(mains, today, week);
+    const statsY = statsCollect(quicks, today, week);
+    const bx = statsX.today;
+    const by = statsY.today;
+    const weekX = statsX.week;
+    const weekY = statsY.week;
+    const matX = statsX.mat;
+    const matY = statsY.mat;
+    const starX = statsX.stars;
+    const starY = statsY.stars;
     const lateX = statsOverdueBundle(mains, today);
     const lateY = statsOverdueBundle(quicks, today);
     const badgeX = window.cardTypeBadgeHtml ? window.cardTypeBadgeHtml('main') : 'X-';
@@ -6891,7 +7163,31 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
    * Met à jour SRS + historique, retire la carte de la file Synchrotron si présente.
    * @returns {{ ok: boolean, out?: object, card?: object, error?: string }}
    */
+  window.ankiV2EvalBusy = function () {
+    return !!S._evalBusy;
+  };
+
+  function holdEvalBusyUntilSaved(result) {
+    function release() { S._evalBusy = false; }
+    var p = (result && result.ok && typeof window.save === 'function')
+      ? Promise.resolve(window.save({ waitCloud: false }))
+      : Promise.resolve();
+    Promise.resolve(p).then(release, release);
+    return result;
+  }
+
   window.ankiV2ApplyStandaloneEval = function (cardOrId, qScore, opts) {
+    if (S._evalBusy) return { ok: false, error: 'EVAL_BUSY' };
+    S._evalBusy = true;
+    try {
+      return holdEvalBusyUntilSaved(applyStandaloneEvalNow(cardOrId, qScore, opts));
+    } catch (e) {
+      S._evalBusy = false;
+      throw e;
+    }
+  };
+
+  function applyStandaloneEvalNow(cardOrId, qScore, opts) {
     opts = opts || {};
     if (typeof window.refuseSecondaryFullMutation === 'function'
         && window.refuseSecondaryFullMutation('Appareil secondaire : les réponses se font sur le Principal.')) {
@@ -6910,7 +7206,7 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
 
     // Écraser une note précédente (Rapide undo / re-note) sans empiler 2 révisions
     if (opts.replacePrevious) {
-      window.ankiV2RevertStandaloneEval(id, { silent: true });
+      revertStandaloneEvalNow(id, { silent: true });
       const loc2 = ankLocate(id);
       if (!loc2) return { ok: false, error: 'NOT_FOUND' };
       card = loc2.list[loc2.idx];
@@ -6985,17 +7281,25 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
     }
 
     if (window.D.settings) window.D.settings.ankiLastSession = window.AnkiAlgoV2.todayISO();
-    if (typeof window.save === 'function') {
-      try { window.save(); } catch (e3) { /* local */ }
-    }
     return { ok: true, out: out, card: card, removedFromSession: removedFromSession };
-  };
+  }
 
   /**
    * Annule une notation standalone (Rapide) en restaurant l’état pré-note.
    * N’ajoute pas d’entrée « undo » dans l’historique : la prochaine note remplace vraiment.
    */
   window.ankiV2RevertStandaloneEval = function (cardId, opts) {
+    if (S._evalBusy) return { ok: false, error: 'EVAL_BUSY' };
+    S._evalBusy = true;
+    try {
+      return holdEvalBusyUntilSaved(revertStandaloneEvalNow(cardId, opts));
+    } catch (e) {
+      S._evalBusy = false;
+      throw e;
+    }
+  };
+
+  function revertStandaloneEvalNow(cardId, opts) {
     opts = opts || {};
     if (!cardId || !S._standaloneSnaps || !S._standaloneSnaps[cardId]) {
       return { ok: false, error: 'NO_SNAP' };
@@ -7026,11 +7330,8 @@ moyQ = ${b.moyQ.toFixed(1)} · prévu/réel = ${b.tempsPrevu && b.tempsReel ? (b
       S.dernierExerciceModifie = null;
     }
     window.AnkiAlgoV2.log('revert-rapide', { id: cardId, silent: !!opts.silent });
-    if (typeof window.save === 'function') {
-      try { window.save(); } catch (e3) { /* local */ }
-    }
     return { ok: true, card: restored };
-  };
+  }
 
   window.editExo = window.ankiV2EditExo;
   window.delExo = window.ankiV2DelExo;

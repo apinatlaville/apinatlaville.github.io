@@ -968,24 +968,34 @@ window.renderCours = function() {
         }
       }
     } else if (qText && typeof Fuse !== 'undefined') {
-      const searchData = baseList.map(c => {
-        const mo = window.D.matieres.find(x => x.id===c.mat) || {name:''};
-        return { ...c, matName: mo.name };
-      });
+      // Index Fuse réutilisé tant que les champs cherchés (titre, desc, nom de matière) sont identiques.
+      // Clé sur le contenu, pas sur la révision : save() est asynchrone et rend juste après l’édition.
+      const matName = Object.create(null);
+      (window.D.matieres || []).forEach(m => { if (m && m.id != null && !(m.id in matName)) matName[m.id] = m.name; });
+      const fuseKey = baseList.map(c => (c.title || '') + '\u0001' + (c.desc || '') + '\u0001' + (matName[c.mat] || '')).join('\u0002');
+      let fuse = window._coursFuseCache && window._coursFuseCache.key === fuseKey
+        ? window._coursFuseCache.fuse : null;
+      if (!fuse) {
+        const searchData = baseList.map(c => {
+          return { ...c, matName: matName[c.mat] || '' };
+        });
 
-      const fuse = new Fuse(searchData, {
-        keys: [
-          { name: 'title', weight: 3 },     
-          { name: 'matName', weight: 1 },   
-          { name: 'desc', weight: 1 }       
-        ],
-        threshold: 0.4, 
-        ignoreLocation: true,
-        isCaseSensitive: false
-      });
+        fuse = new Fuse(searchData, {
+          keys: [
+            { name: 'title', weight: 3 },
+            { name: 'matName', weight: 1 },
+            { name: 'desc', weight: 1 }
+          ],
+          threshold: 0.4,
+          ignoreLocation: true,
+          isCaseSensitive: false
+        });
+        window._coursFuseCache = { key: fuseKey, fuse: fuse };
+      }
 
       const results = fuse.search(qText);
-      baseList = results.map(r => r.item); 
+      const live = baseList;
+      baseList = results.map(r => live[r.refIndex] || r.item);
     }
 
     const list = baseList.filter(c => {

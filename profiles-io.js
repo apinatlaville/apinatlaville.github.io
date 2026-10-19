@@ -20,6 +20,8 @@
   var SNAP_INDEX_PREFIX = 'mc_profile_snaps__';
   var SNAP_DATA_PREFIX = 'backup_snap__';
   var MAX_SNAPSHOTS = 8;
+  var AUTO_BACKUP_PREFIX = 'mc_auto_backup__';
+  var CLOUD_REV_PREFIX = 'mc_cloud_rev__';
   var _lastIndexWriteError = null;
 
   /** Sections importables (cases à cocher) */
@@ -49,6 +51,11 @@
       : String(s == null ? '' : s)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+  }
+  function reportDataEvent(code, detail) {
+    if (typeof window.recordDataEvent === 'function') {
+      try { window.recordDataEvent(code, detail); } catch (e) { /* diagnostic seulement */ }
+    }
   }
   function deepClone(o) {
     return JSON.parse(JSON.stringify(o));
@@ -236,6 +243,8 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     if (cours + ex + dv > 0) return false;
     if (data.sessionEnCoursV2) return false;
+    if (Array.isArray(data.chapitres) && data.chapitres.length > 0) return false;
+    if (Array.isArray(data.quickGroups) && data.quickGroups.length > 0) return false;
     var tmpl = window.emptyData;
     if (tmpl && structureSignature(data) !== structureSignature(tmpl)) return false;
     return true;
@@ -249,10 +258,377 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     var score = cours * 100 + ex * 10 + dv * 10;
     if (data.sessionEnCoursV2) score += 5;
+    var ch = Array.isArray(data.chapitres) ? data.chapitres.length : 0;
+    var qg = Array.isArray(data.quickGroups) ? data.quickGroups.length : 0;
+    score += ch * 5 + qg * 5;
     var mats = (data.matieres || []).filter(function (m) { return m && !m._system; }).length;
     var cls = (data.classeurs || []).filter(function (c) { return c && !c._system; }).length;
     score += mats + cls;
     return score;
+  }
+
+  /** Contenu utilisateur réel (cours, cartes, devoirs, programme, dossiers, session). */
+  function hasUserContent(data) {
+    if (!data || typeof data !== 'object' || data._account === true) return false;
+    var cours = Array.isArray(data.cours) ? data.cours.length : 0;
+    var ex = Array.isArray(data.exercices) ? data.exercices.length : 0;
+    var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
+    var ch = Array.isArray(data.chapitres) ? data.chapitres.length : 0;
+    var qg = Array.isArray(data.quickGroups) ? data.quickGroups.length : 0;
+    return cours + ex + dv + ch + qg > 0 || !!data.sessionEnCoursV2;
+  }
+
+  /**
+   * Lot 1 : « contenu » = cours / cartes / session. Un JSON avec seulement
+   * des chapitres ou dossiers ne doit pas pouvoir écraser un profil qui a des cours.
+   */
+  function courseCardCount(data) {
+    if (!data || typeof data !== 'object' || data._account === true) return 0;
+    var cours = Array.isArray(data.cours) ? data.cours.length : 0;
+    var ex = Array.isArray(data.exercices) ? data.exercices.length : 0;
+    var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
+    return cours + ex + dv;
+  }
+
+  function hasCourseCardContent(data) {
+    return courseCardCount(data) > 0 || !!(data && data.sessionEnCoursV2);
+  }
+
+  // ─── Traces de suppression (meta.deleted) + horodatage par élément (_mt) ───
+  // Clé de trace : préfixe de famille + id. exercices et devoirs partagent « k: »
+  // (une carte peut passer d’un tableau à l’autre sans être supprimée).
+  var ENTITY_FAMILIES = [
+    { arr: 'cours', key: 'uid', prefix: 'c:' },
+    { arr: 'exercices', key: 'id', prefix: 'k:' },
+    { arr: 'devoirs', key: 'id', prefix: 'k:' },
+    { arr: 'chapitres', key: 'id', prefix: 'ch:' },
+    { arr: 'quickGroups', key: 'id', prefix: 'g:' },
+    { arr: 'matieres', key: 'id', prefix: 'm:' },
+    { arr: 'classeurs', key: 'id', prefix: 'cl:' }
+  ];
+  var SETTINGS_INDEX_KEY = 's:settings';
+  var TOMBSTONE_TTL_MS = 400 * 24 * 3600 * 1000;
+
+  /**
+   * Une révision SRS n’est pas une modification de contenu : elle ne pose pas _mt
+   * (la progression est fusionnée à part, par récence de révision — app.js _pickCard).
+   * Même liste que _CARD_PROGRESS_FIELDS dans app.js.
+   */
+  var CARD_PROGRESS_SKIP = {
+    _mt: 1, historique: 1, intervalle: 1, ease: 1, repetitions: 1, dateProchaineRevision: 1,
+    _lastReviewDate: 1, _blocageActif: 1, _blocageRevCount: 1, _v2WindowOpen: 1,
+    _v2WindowClose: 1, _v2Phase: 1, _morceauxFaits: 1
+  };
+  var SETTINGS_SKIP = { _mt: 1, ankiLastSession: 1 };
+  var MT_SKIP = { _mt: 1 };
+
+  function entityFingerprint(item, skip) {
+    if (!item || typeof item !== 'object') return '';
+    skip = skip || MT_SKIP;
+    var o = {};
+    for (var k in item) {
+      if (!skip[k] && Object.prototype.hasOwnProperty.call(item, k)) o[k] = item[k];
+    }
+    return JSON.stringify(o);
+  }
+
+  function familySkip(fam) {
+    return fam && (fam.arr === 'exercices' || fam.arr === 'devoirs') ? CARD_PROGRESS_SKIP : MT_SKIP;
+  }
+
+  function forEachEntity(data, fn) {
+    if (!data || typeof data !== 'object') return;
+    ENTITY_FAMILIES.forEach(function (fam) {
+      var arr = data[fam.arr];
+      if (!Array.isArray(arr)) return;
+      for (var i = 0; i < arr.length; i++) {
+        var item = arr[i];
+        if (!item || typeof item !== 'object') continue;
+        var id = item[fam.key];
+        if (id == null || id === '') continue;
+        fn(fam.prefix + String(id), item, fam, i, arr);
+      }
+    });
+  }
+
+  /**
+   * Le local a des cours/cartes absents du cloud (sauvegarde jamais synchronisée).
+   * Ne dépend pas de mc_cloud_rev — vide chez les utilisateurs déjà en production.
+   */
+  function exclusiveDeletedMap(local, remote) {
+    return mergeTombstones(local && local.meta && local.meta.deleted, remote && remote.meta && remote.meta.deleted);
+  }
+
+  function localHasExclusiveEntities(local, remote) {
+    if (!local || typeof local !== 'object') return false;
+    if (!remote || typeof remote !== 'object') return true;
+    var remoteKeys = Object.create(null);
+    forEachEntity(remote, function (key) {
+      if (key) remoteKeys[key] = true;
+    });
+    var deleted = exclusiveDeletedMap(local, remote);
+    var found = false;
+    forEachEntity(local, function (key) {
+      if (key && !remoteKeys[key] && !deleted[key]) found = true;
+    });
+    return found;
+  }
+
+  /**
+   * Copie dans target les cours/cartes de source dont l’id n’existe pas encore
+   * et n’a pas de trace de suppression. Retourne le nombre d’éléments ajoutés.
+   */
+  function graftExclusiveEntities(target, source) {
+    if (!target || typeof target !== 'object' || !source || typeof source !== 'object') return 0;
+    var targetKeys = Object.create(null);
+    forEachEntity(target, function (key) {
+      if (key) targetKeys[key] = true;
+    });
+    var deleted = exclusiveDeletedMap(source, target);
+    var added = 0;
+    ENTITY_FAMILIES.forEach(function (fam) {
+      var srcArr = source[fam.arr];
+      if (!Array.isArray(srcArr) || !srcArr.length) return;
+      if (!Array.isArray(target[fam.arr])) target[fam.arr] = [];
+      var dstArr = target[fam.arr];
+      for (var i = 0; i < srcArr.length; i++) {
+        var item = srcArr[i];
+        if (!item || typeof item !== 'object') continue;
+        var id = item[fam.key];
+        if (id == null || id === '') continue;
+        var key = fam.prefix + String(id);
+        if (targetKeys[key] || deleted[key]) continue;
+        dstArr.push(item);
+        targetKeys[key] = true;
+        added++;
+      }
+    });
+    return added;
+  }
+
+  /**
+   * Remplace dans target les éléments déjà présents dont source a un _mt plus récent.
+   * Ne crée pas d’ids (la greffe s’en charge). Retourne le nombre de remplacements.
+   */
+  function overlayNewerEntities(target, source) {
+    if (!target || typeof target !== 'object' || !source || typeof source !== 'object') return 0;
+    var indexes = Object.create(null);
+    ENTITY_FAMILIES.forEach(function (fam) {
+      var arr = target[fam.arr];
+      if (!Array.isArray(arr)) return;
+      var idx = Object.create(null);
+      for (var i = 0; i < arr.length; i++) {
+        var row = arr[i];
+        if (!row || typeof row !== 'object') continue;
+        var id = row[fam.key];
+        if (id == null || id === '') continue;
+        idx[String(id)] = i;
+      }
+      indexes[fam.arr] = idx;
+    });
+    var changed = 0;
+    forEachEntity(source, function (key, item, fam) {
+      var idx = indexes[fam.arr];
+      if (!idx) return;
+      var id = String(item[fam.key]);
+      if (!(id in idx)) return;
+      var dst = target[fam.arr][idx[id]];
+      if ((Number(item._mt) || 0) > (Number(dst && dst._mt) || 0)) {
+        target[fam.arr][idx[id]] = item;
+        changed++;
+      }
+    });
+    if (source.settings && typeof source.settings === 'object'
+        && target.settings && typeof target.settings === 'object'
+        && (Number(source.settings._mt) || 0) > (Number(target.settings._mt) || 0)) {
+      target.settings = source.settings;
+      changed++;
+    }
+    return changed;
+  }
+
+  function localHasAheadTombs(local, remote) {
+    var localDel = local && local.meta && local.meta.deleted;
+    if (!localDel || typeof localDel !== 'object') return false;
+    var remoteDel = (remote && remote.meta && remote.meta.deleted) || {};
+    var keys = Object.keys(localDel);
+    for (var i = 0; i < keys.length; i++) {
+      var lt = Number(localDel[keys[i]]) || 0;
+      var rt = Number(remoteDel[keys[i]]) || 0;
+      if (lt > 0 && lt > rt) return true;
+    }
+    return false;
+  }
+
+  function localHasNewerSharedEntities(local, remote) {
+    if (!local || !remote) return false;
+    var remoteItems = Object.create(null);
+    forEachEntity(remote, function (key, item) {
+      remoteItems[key] = item;
+    });
+    var found = false;
+    forEachEntity(local, function (key, item) {
+      var other = remoteItems[key];
+      if (!other) return;
+      if ((Number(item._mt) || 0) > (Number(other._mt) || 0)) found = true;
+    });
+    if (!found && local.settings && remote.settings
+        && (Number(local.settings._mt) || 0) > (Number(remote.settings._mt) || 0)) {
+      return true;
+    }
+    return found;
+  }
+
+  /** Local pas encore sur le cloud : ids exclusifs, traces en avance, ou _mt plus récent. */
+  function localHasUnsyncedContent(local, remote) {
+    return localHasExclusiveEntities(local, remote)
+      || localHasAheadTombs(local, remote)
+      || localHasNewerSharedEntities(local, remote);
+  }
+
+  /** Empreintes de l’état persisté : { clé: JSON sans _mt }. */
+  function buildPersistIndex(data) {
+    var idx = Object.create(null);
+    forEachEntity(data, function (key, item, fam) {
+      if (!(key in idx)) idx[key] = entityFingerprint(item, familySkip(fam));
+    });
+    if (data && data.settings && typeof data.settings === 'object') {
+      idx[SETTINGS_INDEX_KEY] = entityFingerprint(data.settings, SETTINGS_SKIP);
+    }
+    return idx;
+  }
+
+  function pruneTombstones(deleted, now) {
+    if (!deleted || typeof deleted !== 'object') return {};
+    var out = {};
+    Object.keys(deleted).forEach(function (k) {
+      var ts = Number(deleted[k]) || 0;
+      if (ts > 0 && now - ts < TOMBSTONE_TTL_MS) out[k] = ts;
+    });
+    return out;
+  }
+
+  /**
+   * Compare data à l’index de la dernière sauvegarde : pose _mt sur les éléments
+   * modifiés/créés, ajoute une trace pour les éléments disparus, retire la trace
+   * d’un élément réapparu. Sans index précédent : ne marque rien (1ʳᵉ passe).
+   * Retourne le nouvel index.
+   */
+  function stampPersistChanges(data, prevIndex, now) {
+    if (!data || typeof data !== 'object') return Object.create(null);
+    now = Number(now) || Date.now();
+    if (!data.meta || typeof data.meta !== 'object') data.meta = {};
+    var deleted = pruneTombstones(data.meta.deleted, now);
+    var next = Object.create(null);
+    forEachEntity(data, function (key, item, fam) {
+      if (key in next) return;
+      var fp = entityFingerprint(item, familySkip(fam));
+      next[key] = fp;
+      if (!prevIndex) return;
+      var tomb = deleted[key];
+      if (tomb) {
+        delete deleted[key];
+        if (!(Number(item._mt) > tomb)) item._mt = now;
+        return;
+      }
+      if (!(key in prevIndex) || prevIndex[key] !== fp) item._mt = now;
+    });
+    if (data.settings && typeof data.settings === 'object') {
+      var sfp = entityFingerprint(data.settings, SETTINGS_SKIP);
+      next[SETTINGS_INDEX_KEY] = sfp;
+      if (prevIndex && prevIndex[SETTINGS_INDEX_KEY] !== sfp) data.settings._mt = now;
+    }
+    if (prevIndex) {
+      Object.keys(prevIndex).forEach(function (key) {
+        if (key === SETTINGS_INDEX_KEY || key in next) return;
+        if (!(Number(deleted[key]) >= now)) deleted[key] = now;
+      });
+    }
+    if (Object.keys(deleted).length) data.meta.deleted = deleted;
+    else delete data.meta.deleted;
+    return next;
+  }
+
+  /** Ajoute à target les matières / classeurs / chapitres / dossiers présents seulement dans src. */
+  function unionStructureFrom(target, src) {
+    if (!target || !src) return;
+    [['matieres', 'id'], ['classeurs', 'id'], ['chapitres', 'id'], ['quickGroups', 'id']].forEach(function (p) {
+      var from = src[p[0]];
+      if (!Array.isArray(from) || !from.length) return;
+      if (!Array.isArray(target[p[0]])) target[p[0]] = [];
+      var have = Object.create(null);
+      target[p[0]].forEach(function (x) { if (x && x[p[1]] != null) have[x[p[1]]] = true; });
+      from.forEach(function (x) {
+        if (x && x[p[1]] != null && !have[x[p[1]]]) {
+          have[x[p[1]]] = true;
+          target[p[0]].push(x);
+        }
+      });
+    });
+  }
+
+  /** Union des traces (date la plus récente par clé). */
+  function mergeTombstones(a, b) {
+    var out = {};
+    [a, b].forEach(function (src) {
+      if (!src || typeof src !== 'object') return;
+      Object.keys(src).forEach(function (k) {
+        var ts = Number(src[k]) || 0;
+        if (ts > 0 && !(out[k] >= ts)) out[k] = ts;
+      });
+    });
+    return pruneTombstones(out, Date.now());
+  }
+
+  /**
+   * Retire de data les éléments dont la trace de suppression est plus récente
+   * que leur dernière modification (_mt). Un élément modifié après la
+   * suppression est conservé et sa trace retirée (la modification la plus récente gagne).
+   * Retourne le nombre d’éléments retirés.
+   */
+  function applyTombstones(data, deleted) {
+    if (!data || typeof data !== 'object' || !deleted) return 0;
+    var removed = 0;
+    var revived = Object.create(null);
+    ENTITY_FAMILIES.forEach(function (fam) {
+      var arr = data[fam.arr];
+      if (!Array.isArray(arr) || !arr.length) return;
+      var keep = [];
+      for (var i = 0; i < arr.length; i++) {
+        var item = arr[i];
+        var id = item && typeof item === 'object' ? item[fam.key] : null;
+        if (id == null || id === '') { keep.push(item); continue; }
+        var key = fam.prefix + String(id);
+        var ts = Number(deleted[key]) || 0;
+        if (ts && !(Number(item._mt) > ts)) { removed++; continue; }
+        if (ts) revived[key] = true;
+        keep.push(item);
+      }
+      if (keep.length !== arr.length) {
+        arr.length = 0;
+        for (var j = 0; j < keep.length; j++) arr.push(keep[j]);
+      }
+    });
+    Object.keys(revived).forEach(function (k) { delete deleted[k]; });
+    return removed;
+  }
+
+  /**
+   * Vrai si chaque élément de previous absent de next est couvert par une trace
+   * de suppression dans next (suppressions explicites, pas un écrasement).
+   */
+  function removalsAreTombstoned(previous, next) {
+    var nextKeys = Object.create(null);
+    forEachEntity(next, function (key) { nextKeys[key] = true; });
+    var deleted = (next && next.meta && next.meta.deleted) || {};
+    var ok = true;
+    forEachEntity(previous, function (key, item, fam) {
+      if (!ok || nextKeys[key]) return;
+      if (fam.arr === 'matieres' && item._system) return;
+      if (fam.arr === 'classeurs' && item._system) return;
+      if (!(Number(deleted[key]) > 0)) ok = false;
+    });
+    return ok;
   }
 
   function profileMetaUpdatedAt(data) {
@@ -289,7 +665,27 @@
       });
     } catch (e) { /* ignore */ }
     lsRemove(snapIndexKey(profileId));
+    lsRemove(AUTO_BACKUP_PREFIX + profileId);
+    lsRemove(CLOUD_REV_PREFIX + profileId);
     clearSeedOwner(profileId);
+  }
+
+  /** Dernière révision confirmée par Firestore pour ce profil (sur cet appareil). */
+  function getCloudConfirmedRev(profileId) {
+    if (!profileId) return null;
+    var raw = lsGet(CLOUD_REV_PREFIX + profileId);
+    if (raw == null || raw === '') return null;
+    var n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function setCloudConfirmedRev(profileId, rev) {
+    if (!profileId) return;
+    var n = Number(rev);
+    if (!Number.isFinite(n) || n < 0) return;
+    var prev = getCloudConfirmedRev(profileId);
+    if (prev != null && n < prev) return;
+    lsSet(CLOUD_REV_PREFIX + profileId, String(n));
   }
 
   /**
@@ -434,16 +830,25 @@
       console.error('[ProfilesIO] Refus d’écrire un index compte comme données de profil');
       return false;
     }
-    // Anti-wipe : coquille emptyData ne remplace pas un blob local non vide
-    // allowEmpty (miroir secondary / reset) : seulement si le payload est plus
-    // récent (updatedAt) ou d’une génération supérieure (delete+recreate).
+    // Anti-wipe Lot 1 : un profil sans cours ni carte n’écrase jamais un profil
+    // qui en contient, quelles que soient ses matières, classeurs, chapitres ou
+    // dossiers. Exceptions : traces meta.deleted, reset explicite (allowEmpty +
+    // updatedAt plus récent) ou génération supérieure.
     var allowEmpty = !!(opts.allowEmpty || window._allowEmptyProfileWrite);
-    if (isEffectivelyEmptyProfile(obj)) {
+    var incomingShell = isEffectivelyEmptyProfile(obj);
+    var incomingNoContent = !hasCourseCardContent(obj);
+    if (incomingShell || incomingNoContent) {
       try {
         var existing = readLocalProfileData(profileId);
-        if (existing && !isEffectivelyEmptyProfile(existing)) {
+        var wipes = false;
+        if (existing && !removalsAreTombstoned(existing, obj)) {
+          if (incomingNoContent && hasCourseCardContent(existing)) wipes = true;
+          else if (incomingShell && !isEffectivelyEmptyProfile(existing)) wipes = true;
+        }
+        if (wipes) {
           if (!allowEmpty) {
             console.error('[ProfilesIO] Refus writeLocal : écrasement vide d’un profil local non vide');
+            reportDataEvent('SAVE_REFUSED_SHELL', { profileId: profileId });
             return false;
           }
           var localTs = Number((existing.meta && existing.meta.updatedAt) || 0) || 0;
@@ -453,6 +858,7 @@
           var genBump = remoteGen > 0 && localGen > 0 && remoteGen > localGen;
           if (!genBump && !(remoteTs > localTs)) {
             console.error('[ProfilesIO] Refus writeLocal allowEmpty : coquille pas plus récente que le local riche');
+            reportDataEvent('SAVE_REFUSED_SHELL', { profileId: profileId, allowEmpty: true });
             return false;
           }
         }
@@ -461,10 +867,12 @@
         return false;
       }
     }
-    var payload = typeof data === 'string' ? data : JSON.stringify(data);
+    var payload = typeof data === 'string' ? data
+      : (typeof opts.payload === 'string' ? opts.payload : JSON.stringify(data));
     var ok = lsSet(localDataKey(profileId), payload);
     if (!ok) {
       console.error('[ProfilesIO] Échec localStorage pour', profileId);
+      reportDataEvent('LOCAL_WRITE_FAILED', { profileId: profileId, bytes: payload.length });
       return false;
     }
     // Miroir legacy UNIQUEMENT pour le profil default (évite de polluer le repli)
@@ -649,6 +1057,7 @@
       throw new Error('Sauvegarde corrompue.');
     }
     if (!isProfilePayload(data)) throw new Error('Sauvegarde invalide.');
+    if (profileId === getSessionProfileId()) prepareRestoredData(data);
     if (!writeLocalProfileData(profileId, data)) {
       throw new Error('Impossible d’écrire la restauration (quota navigateur).');
     }
@@ -661,6 +1070,70 @@
       }
       if (typeof window.applySettings === 'function') window.applySettings();
     }
+    return true;
+  }
+
+  /**
+   * Données restaurées (instantané / copie auto) : la révision ne recule jamais
+   * (sinon le cloud ne serait plus mis à jour) et la génération du profil courant
+   * est conservée. Les traces de suppression courantes sont gardées ; celles des
+   * éléments présents dans la copie sont levées à la sauvegarde (élément restauré).
+   */
+  function prepareRestoredData(data) {
+    var cur = (window.D && window.D.meta) || {};
+    if (!data.meta || typeof data.meta !== 'object') data.meta = {};
+    data.meta.revision = Math.max(Number(cur.revision) || 0, Number(data.meta.revision) || 0);
+    if (cur.profileGeneration != null) data.meta.profileGeneration = cur.profileGeneration;
+    var del = mergeTombstones(cur.deleted, data.meta.deleted);
+    if (Object.keys(del).length) data.meta.deleted = del;
+    else delete data.meta.deleted;
+    return data;
+  }
+
+  /**
+   * Copie automatique (un seul emplacement par profil, réécrit à chaque import
+   * destructif) — indépendante des sauvegardes manuelles.
+   */
+  function createAutoBackup(label) {
+    var profileId = getSessionProfileId();
+    if (!profileId || !window.D || !isProfilePayload(window.D)) return false;
+    var payload;
+    try {
+      payload = JSON.stringify({ label: String(label || 'Avant import').slice(0, 80), createdAt: nowIso(), data: window.D });
+    } catch (e) { return false; }
+    var ok = lsSet(AUTO_BACKUP_PREFIX + profileId, payload);
+    reportDataEvent(ok ? 'IMPORT_BACKUP_CREATED' : 'LOCAL_WRITE_FAILED', {
+      profileId: profileId, label: label || '', bytes: payload.length, autoBackup: true
+    });
+    if (!ok && typeof window.showToast === 'function') {
+      window.showToast('Copie de sécurité avant import impossible (stockage plein).', { type: 'warn' });
+    }
+    return ok;
+  }
+
+  function getAutoBackupInfo(profileId) {
+    profileId = profileId || getSessionProfileId();
+    var raw = lsGet(AUTO_BACKUP_PREFIX + profileId);
+    if (!raw) return null;
+    try {
+      var o = JSON.parse(raw);
+      if (!o || !o.data || !isProfilePayload(o.data)) return null;
+      return { label: o.label || 'Avant import', createdAt: o.createdAt || '', bytes: byteSizeOfString(raw) };
+    } catch (e) { return null; }
+  }
+
+  async function restoreAutoBackup() {
+    var profileId = getSessionProfileId();
+    var raw = lsGet(AUTO_BACKUP_PREFIX + profileId);
+    if (!raw) throw new Error('Aucune copie automatique pour ce profil.');
+    var o;
+    try { o = JSON.parse(raw); } catch (e) { throw new Error('Copie automatique corrompue.'); }
+    if (!o || !o.data || !isProfilePayload(o.data)) throw new Error('Copie automatique invalide.');
+    window.D = prepareRestoredData(o.data);
+    if (typeof window.save === 'function') await window.save({ waitCloud: false });
+    lsRemove(AUTO_BACKUP_PREFIX + profileId);
+    reportDataEvent('IMPORT_ROLLBACK', { profileId: profileId, source: 'auto-backup' });
+    if (typeof window.applySettings === 'function') window.applySettings();
     return true;
   }
 
@@ -680,6 +1153,67 @@
     return window.doc(window.db, 'utilisateurs', uid, 'profiles', profileId);
   }
 
+  function readLocalDeviceId() {
+    if (window.DeviceSession && typeof window.DeviceSession.getDeviceId === 'function') {
+      try { return window.DeviceSession.getDeviceId(); } catch (eId) { /* ignore */ }
+    }
+    try {
+      if (typeof window.safeLocalGet === 'function') return window.safeLocalGet('mc_device_id');
+      return localStorage.getItem('mc_device_id');
+    } catch (eLs) { return null; }
+  }
+
+  /** false si cet onglet/appareil n’a pas le droit d’écrire le blob profil. */
+  function mayWriteProfileCloudNow() {
+    if (window.TabLock && typeof window.TabLock.isReadOnly === 'function' && window.TabLock.isReadOnly()) {
+      return false;
+    }
+    if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function') {
+      var st = null;
+      try { st = window.DeviceSession.getStatus && window.DeviceSession.getStatus(); } catch (eSt) { st = null; }
+      if (st && st.enabled && !window.DeviceSession.canFullSave()) return false;
+    }
+    return true;
+  }
+
+  /** true si le hub a déjà un Principal vivant qui n’est pas cet appareil. */
+  async function otherLivePrimaryOwnsHub(uid) {
+    if (!uid || !window.getDoc || !window.doc || !window.db) return false;
+    try {
+      var hubRef = window.doc(window.db, 'utilisateurs', uid, 'presence', 'hub');
+      var hubSnap = await window.getDoc(hubRef);
+      if (!hubSnap || !hubSnap.exists()) return false;
+      if (hubSnap.metadata && hubSnap.metadata.fromCache) return false;
+      var hub = hubSnap.data() || {};
+      var primary = hub.primaryDeviceId;
+      if (!primary) return false;
+      var me = readLocalDeviceId();
+      if (!me || primary === me) return false;
+      var ttl = 180000;
+      var primaryUpdated = Number(hub.primaryUpdatedAt) || 0;
+      if (!primaryUpdated || (Date.now() - primaryUpdated) > ttl) return false;
+      var d = (hub.devices || {})[primary];
+      if (d && d.lastSeen && (Date.now() - Number(d.lastSeen)) > ttl) return false;
+      return true;
+    } catch (eHub) {
+      return false;
+    }
+  }
+
+  function requirePrimaryForProfileCloud(action) {
+    if (window.isLocalMode) return;
+    if (window.DeviceSession && typeof window.DeviceSession.canFullSave === 'function') {
+      var st = null;
+      try { st = window.DeviceSession.getStatus && window.DeviceSession.getStatus(); } catch (eSt) { st = null; }
+      if (st && st.enabled && !window.DeviceSession.canFullSave()) {
+        throw new Error(
+          'Appareil secondaire : ' + (action || 'cette action') +
+          ' désactivé (lecture seule). Passe en Principal.'
+        );
+      }
+    }
+  }
+
   /**
    * Résout le document de données du profil actif.
    * Migre l’ancien blob racine → profiles/default si besoin.
@@ -692,7 +1226,8 @@
 
     var uid = user.sub;
     // Empêche la fusion/upload des profils d’un autre compte Google sur cet appareil
-    bindRegistryToUid(uid);
+    var bindInfo = bindRegistryToUid(uid);
+    var firstBind = !!(bindInfo && bindInfo.firstBind);
     var accountRef = accountDocRef(uid);
     var accountSnap = await window.getDoc(accountRef);
     var accountData = accountSnap.exists() ? accountSnap.data() : null;
@@ -836,6 +1371,7 @@
 
     var pref = profileDocRef(uid, profileId);
     var snap = await window.getDoc(pref);
+    var snapFromCache = !!(snap && snap.metadata && snap.metadata.fromCache);
     var indexEntry = (accountData.profiles || []).find(function (p) { return p && p.id === profileId; }) || null;
     if (snap.exists()) {
       var cloudPayload = snap.data();
@@ -864,6 +1400,14 @@
       // Cloud coquille / plus pauvre que le local riche → ne pas écraser le travail local
       var localForCompare = readLocalProfileData(profileId);
       if (localForCompare && !isProfilePayload(localForCompare)) localForCompare = null;
+      var cloudDeleted = cloudPayload && cloudPayload.meta && cloudPayload.meta.deleted;
+      if (localForCompare && cloudDeleted && typeof cloudDeleted === 'object') {
+        // Suppressions faites ailleurs : jamais « ressuscitées » par un republish local
+        var mergedDeleted = mergeTombstones(localForCompare.meta && localForCompare.meta.deleted, cloudDeleted);
+        if (!localForCompare.meta || typeof localForCompare.meta !== 'object') localForCompare.meta = {};
+        applyTombstones(localForCompare, mergedDeleted);
+        if (Object.keys(mergedDeleted).length) localForCompare.meta.deleted = mergedDeleted;
+      }
       if (localForCompare && !isEffectivelyEmptyProfile(localForCompare)) {
         var cloudEmpty = isEffectivelyEmptyProfile(cloudPayload);
         var localScore = profileContentScore(localForCompare);
@@ -882,22 +1426,86 @@
           console.warn('[ProfilesIO] Local génération obsolète — purge', profileId, localGen, '≠', indexGen);
           purgeLocalBlobAndSnaps(profileId);
           localForCompare = null;
-        } else if (localForCompare && localRicher && (cloudEmpty || localNewerOrEqual)) {
-          // Republier le local riche (sauve le travail après poison empty / create collision)
-          if (window.setDoc) {
+        } else if (localForCompare && localRicher && !cloudEmpty && hasUserContent(cloudPayload) && localNewerOrEqual) {
+          // Cloud non vide : fusion élément par élément après chargement (verrous
+          // Principal / onglet respectés) au lieu d’écraser le cloud ici.
+          return {
+            docRef: pref,
+            accountRef: accountRef,
+            data: cloudPayload,
+            profileId: profileId,
+            legacyRoot: false,
+            migrated: false,
+            localAhead: localForCompare
+          };
+        } else if (localForCompare && localRicher && (cloudEmpty || !hasUserContent(cloudPayload))) {
+          // Coquille cache : ne pas la prendre pour un reset serveur, ne pas setDoc.
+          if (snapFromCache) {
+            return {
+              docRef: pref,
+              accountRef: accountRef,
+              data: localForCompare,
+              profileId: profileId,
+              legacyRoot: false,
+              migrated: false,
+              localAhead: localForCompare
+            };
+          }
+          // Republier seulement si cet appareil peut écrire (pas Secondaire / autre Principal).
+          unionStructureFrom(localForCompare, cloudPayload);
+          var canRepublish = mayWriteProfileCloudNow() && !(await otherLivePrimaryOwnsHub(uid));
+          if (canRepublish && window.setDoc) {
             try { await window.setDoc(pref, localForCompare); } catch (eRep) {
               console.warn('[ProfilesIO] Republish local riche échoué:', eRep);
             }
+            return {
+              docRef: pref,
+              accountRef: accountRef,
+              data: localForCompare,
+              profileId: profileId,
+              legacyRoot: false,
+              migrated: false,
+              recoveredFromLocal: true
+            };
           }
           return {
             docRef: pref,
             accountRef: accountRef,
-            data: localForCompare,
+            data: cloudPayload,
             profileId: profileId,
             legacyRoot: false,
             migrated: false,
-            recoveredFromLocal: true
+            localAhead: localForCompare
           };
+        }
+      }
+
+      // Sauvegardes locales jamais arrivées sur le cloud (révision et date plus récentes) :
+      // initApp fusionnera le local avec le cloud au lieu de l’écraser par le miroir.
+      var localAhead = null;
+      var unsyncedContent = localForCompare && localHasUnsyncedContent(localForCompare, cloudPayload);
+      if (localForCompare && (hasUserContent(localForCompare) || unsyncedContent)) {
+        var lRev = Number(localForCompare.meta && localForCompare.meta.revision) || 0;
+        var cRev = Number(cloudPayload && cloudPayload.meta && cloudPayload.meta.revision) || 0;
+        var lGenA = Number(localForCompare.meta && localForCompare.meta.profileGeneration) || 0;
+        var cGenA = Number(cloudPayload && cloudPayload.meta && cloudPayload.meta.profileGeneration) || 0;
+        var sameGen = !lGenA || !cGenA || lGenA === cGenA;
+        var confirmedRev = getCloudConfirmedRev(profileId);
+        var unsynced = confirmedRev != null && lRev > confirmedRev && lRev !== cRev;
+        var exclusiveLive = localHasExclusiveEntities(localForCompare, cloudPayload);
+        var aheadTombs = localHasAheadTombs(localForCompare, cloudPayload);
+        var newerShared = localHasNewerSharedEntities(localForCompare, cloudPayload);
+        // 1ʳᵉ liaison Google vers un compte déjà rempli : ne pas greffer les ids
+        // exclusifs du mode local (démo) ; traces / _mt / rév. en avance restent.
+        var allowExclusive = !(firstBind && hasUserContent(cloudPayload));
+        if (sameGen && (
+          (lRev > cRev && profileMetaUpdatedAt(localForCompare) > profileMetaUpdatedAt(cloudPayload))
+          || unsynced
+          || aheadTombs
+          || newerShared
+          || (exclusiveLive && allowExclusive)
+        )) {
+          localAhead = localForCompare;
         }
       }
 
@@ -907,7 +1515,8 @@
         data: cloudPayload,
         profileId: profileId,
         legacyRoot: false,
-        migrated: false
+        migrated: false,
+        localAhead: localAhead
       };
     }
 
@@ -948,15 +1557,28 @@
     if (inIndex && !deletedMap[profileId] && (seedPending || announcedBytes > 0)) {
       // Créateur : republie le seed (même coquille template)
       if (localD && isSeedOwner(profileId)) {
-        await publishLocalSeedAndClearPending();
+        var canPublishSeed = mayWriteProfileCloudNow() && !(await otherLivePrimaryOwnsHub(uid));
+        if (canPublishSeed) {
+          await publishLocalSeedAndClearPending();
+          return {
+            docRef: pref,
+            accountRef: accountRef,
+            data: localD,
+            profileId: profileId,
+            legacyRoot: false,
+            migrated: false,
+            cloudPending: false
+          };
+        }
         return {
-          docRef: pref,
+          docRef: null,
           accountRef: accountRef,
           data: localD,
           profileId: profileId,
           legacyRoot: false,
           migrated: false,
-          cloudPending: false
+          cloudPending: true,
+          localOnly: true
         };
       }
       // Non-owner : JAMAIS republier un local potentiellement périmé tant que le blob cloud
@@ -989,13 +1611,14 @@
     // Cloud absent, rien annoncé : seul le seed owner (ou un local riche en 1ʳᵉ sync) publie.
     // Jamais une coquille anonyme qui créerait un blob vide empoisonnant les autres appareils.
     if (inIndex && !deletedMap[profileId] && localD && window.setDoc) {
-      if (isSeedOwner(profileId)) {
+      var canPublishMissing = mayWriteProfileCloudNow() && !(await otherLivePrimaryOwnsHub(uid));
+      if (isSeedOwner(profileId) && canPublishMissing) {
         try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
-      } else if (!isEffectivelyEmptyProfile(localD)) {
+      } else if (!isEffectivelyEmptyProfile(localD) && canPublishMissing) {
         // Première sync d’un local riche sans index bytes : publier pour ne pas perdre le travail
         try { await window.setDoc(pref, localD); } catch (e) { /* ignore */ }
       }
-      // else : coquille non-owner → ne pas créer de blob vide
+      // else : coquille non-owner / Secondaire → ne pas créer de blob vide
     }
 
     var stillMissing = true;
@@ -1374,6 +1997,10 @@
       _lastIndexWriteError = 'cloud-disconnected';
       return false;
     }
+    if (!mayWriteProfileCloudNow() || (await otherLivePrimaryOwnsHub(user.sub))) {
+      _lastIndexWriteError = 'not-primary';
+      return false;
+    }
     opts = opts || {};
     _lastIndexWriteError = null;
 
@@ -1678,6 +2305,9 @@
 
     // Préserver meta / session si non demandés
     if (mode === 'replace') {
+      if (window.D.meta && typeof window.D.meta === 'object') {
+        target.meta = Object.assign({}, target.meta || {}, deepClone(window.D.meta));
+      }
       if (want.indexOf('settings') === -1 && window.D.settings) {
         target.settings = deepClone(window.D.settings);
       }
@@ -1717,7 +2347,11 @@
         }
         var id = String(item[idKey]);
         if (map[id]) {
-          Object.assign(map[id], deepClone(item));
+          var incoming = deepClone(item);
+          if (targetKey === 'exercices' || targetKey === 'devoirs') {
+            incoming = mergeImportedCardProgress(map[id], incoming);
+          }
+          Object.assign(map[id], incoming);
         } else {
           var clone = deepClone(item);
           target[targetKey].push(clone);
@@ -1850,6 +2484,7 @@
     }
 
     // Migrations / cohérence
+    var previousD = window.D;
     window.D = target;
     try {
       if (window.AnkiAlgo && typeof window.AnkiAlgo.migrateData === 'function') {
@@ -1864,8 +2499,66 @@
       report.warnings.push('reconcileOrphanCours : ' + (e.message || e));
     }
 
-    if (report.errors.length) report.ok = false;
+    // Fusion : un JSON plus ancien ne ressuscite pas un id déjà tracé comme supprimé
+    // (sauf si le fichier a un _mt plus récent que la trace — LWW).
+    if (mode === 'merge' && window.D && window.D.meta && window.D.meta.deleted) {
+      var importDeleted = mergeTombstones(window.D.meta.deleted, null);
+      applyTombstones(window.D, importDeleted);
+      if (Object.keys(importDeleted).length) window.D.meta.deleted = importDeleted;
+      else delete window.D.meta.deleted;
+    }
+
+    if (report.errors.length) {
+      report.ok = false;
+      window.D = previousD;
+    }
     return report;
+  }
+
+  /**
+   * Fusion d’une carte importée : le contenu du fichier gagne, la progression SRS
+   * la plus avancée (historique le plus long) est gardée.
+   */
+  function mergeImportedCardProgress(existing, incoming) {
+    if (!existing || !incoming) return incoming;
+    var existN = Array.isArray(existing.historique) ? existing.historique.length : 0;
+    var inN = Array.isArray(incoming.historique) ? incoming.historique.length : 0;
+    var keep = existN >= inN ? existing : incoming;
+    Object.keys(CARD_PROGRESS_SKIP).forEach(function (k) {
+      if (k === '_mt') return;
+      if (Object.prototype.hasOwnProperty.call(keep, k)) incoming[k] = keep[k];
+      else delete incoming[k];
+    });
+    return incoming;
+  }
+
+  /**
+   * Applique l’import puis sauvegarde. Si la sauvegarde échoue, window.D et
+   * l’index de persistance sont restaurés (comme l’import Partage).
+   */
+  function applyImportAndSave(normalized, opts) {
+    var snapshot = deepClone(window.D);
+    var persistIndex = window._persistIndex || null;
+    var report = applyImport(normalized, opts);
+    if (!report.ok) return Promise.resolve(report);
+    function restore(reason) {
+      window.D = snapshot;
+      window._persistIndex = persistIndex;
+      var pid = getSessionProfileId() || getActiveProfileId() || 'default';
+      try { writeLocalProfileData(pid, snapshot); } catch (eW) { /* mémoire déjà restaurée */ }
+      report.ok = false;
+      report.warnings = (report.warnings || []).concat(['Import annulé : ' + (reason || 'sauvegarde impossible')]);
+      if (typeof window.recordDataEvent === 'function') {
+        try { window.recordDataEvent('IMPORT_ROLLBACK', { reason: String(reason || ''), source: 'json-import' }); } catch (e) { /* ignore */ }
+      }
+      return report;
+    }
+    if (typeof window.save !== 'function') return Promise.resolve(report);
+    return Promise.resolve(window.save({ waitCloud: false })).then(function () {
+      return report;
+    }, function (e) {
+      return restore(e && e.message ? e.message : e);
+    });
   }
 
   function profileAllowsDemoReset(profileId) {
@@ -1910,6 +2603,7 @@
   }
 
   async function createProfile(name, opts) {
+    requirePrimaryForProfileCloud('création de profil');
     opts = opts || {};
     var meta = ensureLocalRegistry();
     var existing = {};
@@ -2057,6 +2751,7 @@
   }
 
   async function renameProfile(id, name) {
+    requirePrimaryForProfileCloud('renommage de profil');
     var meta = ensureLocalRegistry();
     var p = meta.profiles.find(function (x) { return x.id === id; });
     if (!p) throw new Error('Profil introuvable');
@@ -2080,6 +2775,7 @@
   }
 
   async function deleteProfile(id) {
+    requirePrimaryForProfileCloud('suppression de profil');
     var meta = ensureLocalRegistry();
     if (meta.profiles.length <= 1) throw new Error('Impossible de supprimer le dernier profil.');
     if (id === getSessionProfileId() || id === meta.activeProfile) {
@@ -2123,6 +2819,7 @@
   }
 
   async function archiveProfile(id) {
+    requirePrimaryForProfileCloud('archivage de profil');
     var meta = ensureLocalRegistry();
     var p = meta.profiles.find(function (x) { return x.id === id; });
     if (!p) throw new Error('Profil introuvable');
@@ -2233,7 +2930,8 @@
     setActiveProfileId(id);
     if (wasLocal) lsSet('active_mode', 'local');
     meta = ensureLocalRegistry();
-    var okIdx = await persistAccountIndexCloud(user, meta);
+    // Secondaire : bascule locale seulement — ne pas publier activeProfile sur l’index.
+    var okIdx = canFull ? await persistAccountIndexCloud(user, meta) : true;
     if (needsCloud && window.cloudConnected && !okIdx) {
       try {
         var roll = ensureLocalRegistry();
@@ -2333,6 +3031,49 @@
     chip.setAttribute('title', 'Profil actif : ' + name);
   }
 
+  function autoBackupRowHtml(profileId) {
+    var autoInfo = getAutoBackupInfo(profileId);
+    if (!autoInfo) return '';
+    return '<div class="pio-snap-row" data-auto-backup="1">' +
+        '<div class="pio-snap-info">' +
+          '<div class="pio-snap-label">Copie automatique — ' + esc(autoInfo.label) + '</div>' +
+          '<div class="pio-snap-meta">' + esc(formatSnapDate(autoInfo.createdAt)) +
+            ' · <b>' + esc(formatBytes(autoInfo.bytes)) + '</b></div>' +
+        '</div>' +
+        '<div class="pio-snap-actions">' +
+          '<button type="button" class="bs" id="pioUndoImport">Annuler le dernier import</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  /** Affiche / met à jour la ligne « copie automatique » sans re-rendre le bloc (garde le rapport d’import). */
+  function refreshAutoBackupRow() {
+    var list = document.querySelector('#pioSettingsRoot .pio-snap-list');
+    if (!list) return;
+    var old = list.querySelector('[data-auto-backup]');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var html = autoBackupRowHtml(getSessionProfileId());
+    if (html) list.insertAdjacentHTML('afterbegin', html);
+    wireUndoImport();
+  }
+
+  function wireUndoImport() {
+    var undoBtn = document.getElementById('pioUndoImport');
+    if (!undoBtn) return;
+    undoBtn.onclick = function () {
+      var goUndo = function () {
+        restoreAutoBackup().then(function () {
+          if (typeof window.showToast === 'function') window.showToast('Dernier import annulé : profil restauré.');
+          renderSettingsBlock();
+          if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        }).catch(function (e) { alert(e.message || e); });
+      };
+      if (typeof window.sysConfirm === 'function') {
+        window.sysConfirm('Annuler le dernier import ? Le profil actif revient à son état juste avant l’import (les modifications faites depuis sont perdues).', goUndo);
+      } else if (confirm('Annuler le dernier import ?')) goUndo();
+    };
+  }
+
   function renderSettingsBlock() {
     var root = document.getElementById('pioSettingsRoot');
     if (!root) return;
@@ -2359,6 +3100,7 @@
         '</div>';
     }).join('');
 
+    var autoRow = autoBackupRowHtml(active);
     var snaps = listSnapshots(active);
     var snapRows = snaps.length
       ? snaps.map(function (s) {
@@ -2445,7 +3187,7 @@
           '<input type="text" id="pioSnapLabel" class="pio-input" placeholder="Libellé (ex. Avant import notes)" maxlength="60">' +
           '<button type="button" class="bp" id="pioSnapCreate">Créer une sauvegarde</button>' +
         '</div>' +
-        '<div class="pio-snap-list">' + snapRows + '</div>' +
+        '<div class="pio-snap-list">' + autoRow + snapRows + '</div>' +
       '</div>' +
 
       archivedBlock +
@@ -2674,6 +3416,7 @@
           } else if (confirm('Restaurer ?')) go();
         };
       });
+      wireUndoImport();
       rootEl.querySelectorAll('[data-pio-del-snap]').forEach(function (btn) {
         btn.onclick = function () {
           var snapId = btn.getAttribute('data-pio-del-snap');
@@ -2762,10 +3505,29 @@
               });
               return;
             }
-            var report = applyImport(normalized, { sections: secs, mode: mode });
-            showImportReport(report);
-            if (report.ok) {
-              Promise.resolve(typeof window.save === 'function' ? window.save() : null).then(function () {
+            var runImport = function () {
+              try {
+                doImport();
+              } catch (eRun) {
+                showImportReport({ ok: false, errors: [eRun.message || String(eRun)], warnings: [], skipped: [], imported: {} });
+              }
+            };
+            if (!createAutoBackup('Avant import ' + (mode === 'replace' ? '(remplacer)' : '(fusion)') + ' — ' + file.name)) {
+              var noBackupMsg = 'La copie de sécurité n’a pas pu être faite (stockage du navigateur plein) : '
+                + '« Annuler le dernier import » ne sera pas disponible.<br><br>Importer quand même ?';
+              if (typeof window.sysConfirm === 'function') window.sysConfirm(noBackupMsg, runImport, 'Import sans copie de sécurité');
+              else if (window.confirm('Copie de sécurité impossible (stockage plein). Importer quand même ?')) runImport();
+              return;
+            }
+            runImport();
+          } catch (e) {
+            showImportReport({ ok: false, errors: [e.message || String(e)], warnings: [], skipped: [], imported: {} });
+          }
+
+          function doImport() {
+            applyImportAndSave(normalized, { sections: secs, mode: mode }).then(function (report) {
+              showImportReport(report);
+              if (report.ok) {
                 if (typeof window.showToast === 'function') window.showToast('Données importées et sauvegardées.');
                 if (typeof window.renderMatieres === 'function') window.renderMatieres();
                 if (typeof window.renderClasseurs === 'function') window.renderClasseurs();
@@ -2773,14 +3535,9 @@
                 if (typeof window.renderDashboard === 'function') window.renderDashboard();
                 if (typeof window.renderNotes === 'function') window.renderNotes();
                 if (typeof window.applySettings === 'function') window.applySettings();
-              }).catch(function (e) {
-                report.warnings = (report.warnings || []).concat(['Sauvegarde post-import : ' + (e.message || e)]);
-                report.ok = false;
-                showImportReport(report);
-              });
-            }
-          } catch (e) {
-            showImportReport({ ok: false, errors: [e.message || String(e)], warnings: [], skipped: [], imported: {} });
+                refreshAutoBackupRow();
+              }
+            });
           }
         };
         reader.onerror = function () {
@@ -2820,6 +3577,20 @@
     isRepairableAccountDoc: isRepairableAccountDoc,
     needsAccountIndexRepair: needsAccountIndexRepair,
     isEffectivelyEmptyProfile: isEffectivelyEmptyProfile,
+    hasUserContent: hasUserContent,
+    hasCourseCardContent: hasCourseCardContent,
+    courseCardCount: courseCardCount,
+    localHasExclusiveEntities: localHasExclusiveEntities,
+    localHasUnsyncedContent: localHasUnsyncedContent,
+    graftExclusiveEntities: graftExclusiveEntities,
+    overlayNewerEntities: overlayNewerEntities,
+    profileContentScore: profileContentScore,
+    ENTITY_FAMILIES: ENTITY_FAMILIES,
+    buildPersistIndex: buildPersistIndex,
+    stampPersistChanges: stampPersistChanges,
+    mergeTombstones: mergeTombstones,
+    applyTombstones: applyTombstones,
+    removalsAreTombstoned: removalsAreTombstoned,
     mergeAccountIndexPayload: mergeAccountIndexPayload,
     stripUndefinedDeep: stripUndefinedDeep,
     getLastIndexWriteError: function () { return _lastIndexWriteError; },
@@ -2833,6 +3604,8 @@
     parseImportText: parseImportText,
     normalizeImport: normalizeImport,
     applyImport: applyImport,
+    applyImportAndSave: applyImportAndSave,
+    _mergeImportedCardProgress: mergeImportedCardProgress,
     createProfile: createProfile,
     profileAllowsDemoReset: profileAllowsDemoReset,
     setProfileAllowDemoReset: setProfileAllowDemoReset,
@@ -2845,6 +3618,13 @@
     adoptActiveProfileFromCloud: adoptActiveProfileFromCloud,
     createSnapshot: createSnapshot,
     restoreSnapshot: restoreSnapshot,
+    _prepareRestoredData: prepareRestoredData,
+    getCloudConfirmedRev: getCloudConfirmedRev,
+    setCloudConfirmedRev: setCloudConfirmedRev,
+    createAutoBackup: createAutoBackup,
+    getAutoBackupInfo: getAutoBackupInfo,
+    restoreAutoBackup: restoreAutoBackup,
+    refreshAutoBackupRow: refreshAutoBackupRow,
     deleteSnapshot: deleteSnapshot,
     listSnapshots: listSnapshots,
     getProfileStorageInfo: getProfileStorageInfo,

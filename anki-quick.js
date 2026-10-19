@@ -188,13 +188,57 @@
         try { nShare = window.QuickShare.dedupeAllQuickGroups() || 0; } catch (e) { nShare = 0; }
       }
       window._qkDedupeDone = true;
+      if (_qkScope && (n > 0 || nShare > 0)) { _qkScope.idx = null; _qkScope.sorted = null; }
       if ((n > 0 || nShare > 0) && typeof window.save === 'function') {
         try { window.save(); } catch (e) { /* best-effort */ }
       }
     }
   }
 
+  let _qkScope = null;
+
+  function withQuickRenderScope(fn) {
+    if (_qkScope) return fn();
+    _qkScope = { idx: null, sorted: null };
+    try { return fn(); } finally { _qkScope = null; }
+  }
+
+  function quickIndex() {
+    if (!_qkScope) return null;
+    if (!_qkScope.idx) {
+      const all = scanQuickCards();
+      const byGroup = new Map();
+      const ungrouped = [];
+      for (let i = 0; i < all.length; i++) {
+        const c = all[i];
+        if (!c.groupId) ungrouped.push(c);
+        let arr = byGroup.get(c.groupId);
+        if (!arr) { arr = []; byGroup.set(c.groupId, arr); }
+        arr.push(c);
+      }
+      _qkScope.idx = { all: all, byGroup: byGroup, ungrouped: ungrouped };
+    }
+    return _qkScope.idx;
+  }
+
+  function quickCardsOfGroup(groupKey) {
+    const idx = quickIndex();
+    if (idx) {
+      return groupKey === UNGROUPED
+        ? idx.ungrouped.slice()
+        : (idx.byGroup.get(groupKey) || []).slice();
+    }
+    return groupKey === UNGROUPED
+      ? allQuickCards().filter(c => !c.groupId)
+      : allQuickCards().filter(c => c.groupId === groupKey);
+  }
+
   function allQuickCards() {
+    const idx = quickIndex();
+    return idx ? idx.all.slice() : scanQuickCards();
+  }
+
+  function scanQuickCards() {
     const list = (window.D.exercices || []).filter(isQuickCard);
     const seen = Object.create(null);
     const out = [];
@@ -210,9 +254,22 @@
 
   function sortedGroups() {
     ensure();
+    if (_qkScope) {
+      if (!_qkScope.sorted) _qkScope.sorted = sortGroupsNow();
+      return _qkScope.sorted.slice();
+    }
+    return withQuickRenderScope(sortGroupsNow);
+  }
+
+  function sortGroupsNow() {
+    const matCache = new Map();
+    const matOf = g => {
+      if (!matCache.has(g)) matCache.set(g, inferGroupMat(g));
+      return matCache.get(g);
+    };
     return (window.D.quickGroups || []).slice().sort((a, b) => {
-      const ma = inferGroupMat(a);
-      const mb = inferGroupMat(b);
+      const ma = matOf(a);
+      const mb = matOf(b);
       if (ma !== mb) {
         const order = matOrderIndex(ma) - matOrderIndex(mb);
         if (order !== 0) return order;
@@ -235,7 +292,9 @@
     if (!g) return '';
     if (g.mat) return g.mat;
     const counts = {};
-    allQuickCards().forEach(c => {
+    const idx = quickIndex();
+    const pool = idx ? (idx.byGroup.get(g.id) || []) : allQuickCards();
+    pool.forEach(c => {
       if (c.groupId !== g.id || !c.mat) return;
       counts[c.mat] = (counts[c.mat] || 0) + 1;
     });
@@ -323,9 +382,7 @@
   }
 
   function countGroupCards(groupKey) {
-    const cards = groupKey === UNGROUPED
-      ? allQuickCards().filter(c => !c.groupId)
-      : allQuickCards().filter(c => c.groupId === groupKey);
+    const cards = quickCardsOfGroup(groupKey);
     const split = splitActiveReservoir(cards);
     return { total: cards.length, active: split.active.length, reservoir: split.reservoir.length };
   }
@@ -842,7 +899,13 @@
     if (window.hydrateIcons) window.hydrateIcons(root);
   };
 
-  window.quickFilter = function () { renderQuickAriane(); };
+  window.quickFilter = function () {
+    if (Q._filterT) clearTimeout(Q._filterT);
+    Q._filterT = setTimeout(function () {
+      Q._filterT = null;
+      renderQuickAriane();
+    }, 180);
+  };
 
   window.quickArianeReset = function () {
     Q.nav.group = '';
@@ -1243,9 +1306,7 @@
   function getFiltered() {
     if (!Q.nav.group) return [];
     const q = ($("qkSearch") && $("qkSearch").value || '').toLowerCase().trim();
-    let list = allQuickCards();
-    if (Q.nav.group === UNGROUPED) list = list.filter(c => !c.groupId);
-    else list = list.filter(c => c.groupId === Q.nav.group);
+    let list = quickCardsOfGroup(Q.nav.group);
     if (q) {
       list = list.filter(c =>
         (c.question + ' ' + (c.reponse || '') + ' ' + (c.titre || '') + ' ' + c.id)
@@ -1477,9 +1538,7 @@
     const g = groupNavMeta(Q.nav.group);
     const list = getFiltered();
     const split = splitActiveReservoir(list);
-    const allInGroup = Q.nav.group === UNGROUPED
-      ? allQuickCards().filter(c => !c.groupId)
-      : allQuickCards().filter(c => c.groupId === Q.nav.group);
+    const allInGroup = quickCardsOfGroup(Q.nav.group);
     const gearBtn = (Q.nav.group && Q.nav.group !== UNGROUPED)
       ? `<button type="button" class="bs qk-group-settings" title="Paramètres du dossier" ` +
           `aria-label="Paramètres du dossier" onclick="window.quickEditGroup('${jsStr(Q.nav.group)}')">` +
@@ -1517,6 +1576,7 @@
   }
 
   function renderQuickAriane() {
+    if (Q._filterT) { clearTimeout(Q._filterT); Q._filterT = null; }
     const host = $("qkSections");
     if (!host) return;
 
@@ -1528,7 +1588,9 @@
       }
     }
 
-    const body = Q.nav.group ? renderQuickArianeGroupBody() : renderQuickArianeRoot();
+    const body = withQuickRenderScope(function () {
+      return Q.nav.group ? renderQuickArianeGroupBody() : renderQuickArianeRoot();
+    });
     host.innerHTML =
       '<div class="cours-bc-page quick-bc-page">' +
         renderQuickArianeBreadcrumb() +
@@ -1553,13 +1615,18 @@
   function renderGroupsModalSection(sec) {
     const mat = sec.mat;
     const matId = mat.id || '';
+    return withQuickRenderScope(function () { return renderGroupsModalSectionImpl(mat, matId); });
+  }
+
+  function renderGroupsModalSectionImpl(mat, matId) {
     const groups = groupsForMat(matId);
     const manage = Q.groupsModalMode === 'manage';
+    const allSorted = sortedGroups();
     const rows = groups.map(function (g) {
-      const globalIdx = sortedGroups().findIndex(x => x.id === g.id);
-      const canUp = globalIdx > 0 && inferGroupMat(sortedGroups()[globalIdx - 1]) === matId;
-      const canDown = globalIdx >= 0 && globalIdx < sortedGroups().length - 1
-        && inferGroupMat(sortedGroups()[globalIdx + 1]) === matId;
+      const globalIdx = allSorted.findIndex(x => x.id === g.id);
+      const canUp = globalIdx > 0 && inferGroupMat(allSorted[globalIdx - 1]) === matId;
+      const canDown = globalIdx >= 0 && globalIdx < allSorted.length - 1
+        && inferGroupMat(allSorted[globalIdx + 1]) === matId;
       if (manage) {
         return `
         <div class="qk-group-row" data-gid="${esc(g.id)}">
@@ -2400,6 +2467,17 @@
         res = { ok: false, error: String(e && e.message || e) };
       }
     }
+    const evalBusy = (res && res.error === 'EVAL_BUSY')
+      || (typeof window.ankiV2EvalBusy === 'function' && window.ankiV2EvalBusy());
+    if (evalBusy) {
+      if (typeof window.recordDataEvent === 'function') {
+        window.recordDataEvent('EVAL_LOCKED', { id: c.id, source: 'quick-drill' });
+      }
+      if (typeof window.showToast === 'function') {
+        window.showToast('Une notation Synchrotron est en cours : note pas encore enregistrée sur la carte.', { type: 'error' });
+      }
+      return;
+    }
     if ((!res || !res.ok) && !(res && res.error === 'SECONDARY_READ_ONLY')) {
       res = applyDrillSrsLocal(c, verdict, replacePrevious);
     }
@@ -2827,6 +2905,12 @@
   };
 
   window.quickDrillUndo = function () {
+    if (typeof window.ankiV2EvalBusy === 'function' && window.ankiV2EvalBusy()) {
+      if (typeof window.showToast === 'function') {
+        window.showToast('Une notation Synchrotron est en cours : réessaie dans un instant.', { type: 'error' });
+      }
+      return;
+    }
     DRILL._undoGen = (DRILL._undoGen || 0) + 1;
 
     const cur = drillLiveCard();

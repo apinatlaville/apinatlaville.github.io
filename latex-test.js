@@ -1652,7 +1652,22 @@
     fitLatexPreviewMath(wrap);
   }
 
+  var _syncRaf = 0;
+
+  function scheduleSyncFromEditor() {
+    if (typeof window.requestAnimationFrame !== 'function') { syncFromEditor(); return; }
+    if (_syncRaf) return;
+    _syncRaf = window.requestAnimationFrame(function () {
+      _syncRaf = 0;
+      syncFromEditor();
+    });
+  }
+
   function syncFromEditor() {
+    if (_syncRaf) {
+      if (typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(_syncRaf);
+      _syncRaf = 0;
+    }
     if (!_mf) return;
     var latex = getEditorLatex();
     var codeEl = document.getElementById('latexTestCode');
@@ -2059,7 +2074,7 @@
     configureMathField(_mf);
     _mf.setAttribute('smart-mode', 'true');
 
-    _mf.addEventListener('input', syncFromEditor);
+    _mf.addEventListener('input', scheduleSyncFromEditor);
     _mf.addEventListener('change', syncFromEditor);
     _mf.addEventListener('keydown', onMathSpaceKeydown, true);
 
@@ -2166,8 +2181,13 @@
 
     var searchEl = document.getElementById('latexTestSearch');
     if (searchEl) {
+      var searchTimer = null;
       searchEl.addEventListener('input', function () {
-        refreshPalette(searchEl.value);
+        if (searchTimer) clearTimeout(searchTimer);
+        searchTimer = setTimeout(function () {
+          searchTimer = null;
+          refreshPalette(searchEl.value);
+        }, 150);
       });
     }
 
