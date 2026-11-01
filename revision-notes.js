@@ -1,12 +1,22 @@
 /**
- * revision-notes.js — Onglet Révisions : post-its par matière,
- * listes « À réviser » / « À consolider ».
+ * revision-notes.js — Onglet Révisions (isolé).
+ * Tableau des matières → post-its colorés par groupe.
  */
 (function () {
   'use strict';
 
   var PREFIX_NOTE = 'RN-';
   var PREFIX_ITEM = 'RI-';
+  var activeMat = null;
+
+  var GROUPS = [
+    { id: 'urgent', label: 'À réviser absolument', short: 'Absolument' },
+    { id: 'revoir', label: 'À revoir', short: 'À revoir' },
+    { id: 'consolider', label: 'À consolider', short: 'Consolider' },
+    { id: 'voir', label: 'À voir', short: 'À voir' },
+    { id: 'autre', label: 'Autre', short: 'Autre' }
+  ];
+  var GROUP_IDS = GROUPS.map(function (g) { return g.id; });
 
   function esc(s) {
     return typeof window.escHtml === 'function'
@@ -49,11 +59,38 @@
     return ensureStore().find(function (n) { return n && n.id === id; }) || null;
   }
 
-  function listItems(note, kind) {
+  function noteGroup(note) {
+    var g = note && note.group;
+    if (g && GROUP_IDS.indexOf(g) !== -1) return g;
+    if (note && Array.isArray(note.consolidate) && note.consolidate.length
+        && !(Array.isArray(note.review) && note.review.length)) {
+      return 'consolider';
+    }
+    if (note && Array.isArray(note.review) && note.review.length) return 'revoir';
+    return 'autre';
+  }
+
+  function groupDef(id) {
+    return GROUPS.find(function (g) { return g.id === id; }) || GROUPS[GROUPS.length - 1];
+  }
+
+  function listItems(note) {
     if (!note) return [];
-    var key = kind === 'consolidate' ? 'consolidate' : 'review';
-    if (!Array.isArray(note[key])) note[key] = [];
-    return note[key];
+    if (!Array.isArray(note.review)) note.review = [];
+    if (!Array.isArray(note.consolidate)) note.consolidate = [];
+    return note.review.concat(note.consolidate);
+  }
+
+  function findItem(note, itemId) {
+    var lists = [note.review, note.consolidate];
+    for (var i = 0; i < lists.length; i++) {
+      var arr = lists[i];
+      if (!Array.isArray(arr)) continue;
+      for (var j = 0; j < arr.length; j++) {
+        if (arr[j] && arr[j].id === itemId) return { arr: arr, item: arr[j] };
+      }
+    }
+    return null;
   }
 
   function matieres() {
@@ -66,14 +103,26 @@
   }
 
   function matById(id) {
-    return ((window.D && window.D.matieres) || []).find(function (m) { return m && m.id === id; }) || null;
+    if (!id) return { id: '', name: 'Sans matière', color: '#8892a8' };
+    return matieres().find(function (m) { return m && m.id === id; })
+      || ((window.D && window.D.matieres) || []).find(function (m) { return m && m.id === id; })
+      || { id: id, name: id, color: '#8892a8' };
   }
 
-  function createNote(matId, title) {
+  function notesForMat(matId) {
+    return ensureStore().filter(function (n) {
+      if (!n || !n.id) return false;
+      if (!matId) return !n.mat;
+      return n.mat === matId;
+    });
+  }
+
+  function createNote(matId, title, group) {
     var note = {
       id: newId(PREFIX_NOTE),
       mat: matId || '',
       title: String(title || '').trim() || 'Sans titre',
+      group: GROUP_IDS.indexOf(group) !== -1 ? group : 'autre',
       review: [],
       consolidate: [],
       createdAt: Date.now()
@@ -82,36 +131,43 @@
     return note;
   }
 
-  function addItem(note, kind, text) {
-    var t = String(text || '').trim();
-    if (!note || !t) return null;
+  function addItem(note, text, maybeText) {
+    if (!note) return null;
+    if (!Array.isArray(note.review)) note.review = [];
+    if (!Array.isArray(note.consolidate)) note.consolidate = [];
+    var dest = 'review';
+    var t = text;
+    if ((text === 'review' || text === 'consolidate') && maybeText != null) {
+      dest = text;
+      t = maybeText;
+    }
+    t = String(t || '').trim();
+    if (!t) return null;
     var item = { id: newId(PREFIX_ITEM), text: t, done: false };
-    listItems(note, kind).push(item);
+    note[dest].push(item);
     return item;
   }
 
-  function renderItem(item, kind, editable) {
+  function renderItem(item, editable) {
     var done = item && item.done ? ' checked' : '';
     var dis = editable ? '' : ' disabled';
-    return '<li class="rev-item' + (item.done ? ' is-done' : '') + '" data-item="' + esc(item.id) + '" data-kind="' + kind + '">' +
+    return '<li class="rev-item' + (item.done ? ' is-done' : '') + '" data-item="' + esc(item.id) + '">' +
       '<label class="rev-check"><input type="checkbox" data-fc-skip' + done + dis + ' data-rev-act="toggle"></label>' +
       '<input class="rev-item-text" type="text" value="' + esc(item.text) + '"' + dis + ' data-rev-act="item-text" maxlength="240">' +
       (editable ? '<button type="button" class="rev-item-del" data-rev-act="del-item" title="Retirer" aria-label="Retirer">' + icon('x', 14) + '</button>' : '') +
       '</li>';
   }
 
-  function renderCol(note, kind, label, editable) {
-    var items = listItems(note, kind);
-    var open = items.filter(function (it) { return it && !it.done; }).length;
-    var html = '<div class="rev-col" data-kind="' + kind + '">';
-    html += '<h4 class="rev-col-title"><span class="rev-col-pip" aria-hidden="true"></span>' + esc(label);
-    html += ' <span class="rev-col-count">' + open + '</span></h4>';
-    html += '<ul class="rev-list">';
-    items.forEach(function (it) { if (it) html += renderItem(it, kind, editable); });
-    html += '</ul>';
-    if (editable) {
-      html += '<input class="rev-add-item" type="text" placeholder="+ Ajouter" maxlength="240" data-rev-act="add-item">';
-    }
+  function renderGroupPicker(note, editable) {
+    var cur = noteGroup(note);
+    var html = '<div class="rev-groups" role="group" aria-label="Groupe du post-it">';
+    GROUPS.forEach(function (g) {
+      var on = g.id === cur ? ' is-on' : '';
+      html += '<button type="button" class="rev-gdot' + on + '" data-rev-act="set-group" data-group="' + g.id + '"' +
+        (editable ? '' : ' disabled') + ' title="' + esc(g.label) + '" aria-label="' + esc(g.label) + '"' +
+        (g.id === cur ? ' aria-pressed="true"' : ' aria-pressed="false"') + '></button>';
+    });
+    html += '<span class="rev-group-label">' + esc(groupDef(cur).label) + '</span>';
     html += '</div>';
     return html;
   }
@@ -119,7 +175,9 @@
   function renderNote(note, editable) {
     if (!note || !note.id) return '';
     var title = note.title || 'Sans titre';
-    var html = '<article class="rev-note" data-id="' + esc(note.id) + '">';
+    var g = noteGroup(note);
+    var items = listItems(note);
+    var html = '<article class="rev-note" data-id="' + esc(note.id) + '" data-group="' + g + '">';
     html += '<span class="rev-tape" aria-hidden="true"></span>';
     html += '<header class="rev-note-hd">';
     html += '<input class="rev-title" type="text" value="' + esc(title) + '"' + (editable ? '' : ' disabled') + ' data-rev-act="title" maxlength="80" aria-label="Nom du post-it">';
@@ -127,19 +185,86 @@
       html += '<button type="button" class="rev-note-del" data-rev-act="del-note" title="Supprimer le post-it" aria-label="Supprimer">' + icon('x', 14) + '</button>';
     }
     html += '</header>';
-    html += '<div class="rev-cols">';
-    html += renderCol(note, 'review', 'À réviser', editable);
-    html += renderCol(note, 'consolidate', 'À consolider', editable);
-    html += '</div></article>';
+    html += renderGroupPicker(note, editable);
+    html += '<ul class="rev-list">';
+    items.forEach(function (it) { if (it) html += renderItem(it, editable); });
+    html += '</ul>';
+    if (editable) {
+      html += '<input class="rev-add-item" type="text" placeholder="+ Ajouter" maxlength="240" data-rev-act="add-item">';
+    }
+    html += '</article>';
     return html;
   }
 
-  function renderMatSection(mat, notes, editable) {
+  function renderMini(note, i) {
+    var g = noteGroup(note);
+    var rot = ((i % 5) - 2) * 3;
+    return '<span class="rev-mini" data-group="' + g + '" style="transform:rotate(' + rot + 'deg)" title="' +
+      esc((note.title || 'Sans titre') + ' — ' + groupDef(g).label) + '"></span>';
+  }
+
+  function renderBoardCell(mat, notes) {
     var color = (mat && mat.color) || '#5b8df7';
     var name = (mat && (mat.name || mat.label || mat.id)) || 'Sans matière';
     var id = (mat && mat.id) || '';
-    var html = '<section class="rev-mat" data-mat="' + esc(id) + '" style="--mat-color:' + esc(color) + '">';
-    html += '<div class="rev-mat-hd">';
+    var n = notes.length;
+    var html = '<button type="button" class="rev-cell' + (n ? '' : ' is-empty') + '" data-rev-act="open-mat" data-mat="' +
+      esc(id) + '" style="--mat-color:' + esc(color) + '">';
+    html += '<div class="rev-cell-hd">';
+    html += '<span class="rev-mat-pip" aria-hidden="true"></span>';
+    html += '<span class="rev-cell-name">' + esc(name) + '</span>';
+    html += '<span class="rev-mat-count">' + n + '</span>';
+    html += '</div>';
+    html += '<div class="rev-mosaic" aria-hidden="true">';
+    if (!n) {
+      html += '<span class="rev-mosaic-empty">Aucun post-it</span>';
+    } else {
+      notes.forEach(function (note, i) { html += renderMini(note, i); });
+    }
+    html += '</div></button>';
+    return html;
+  }
+
+  function renderLegend() {
+    var html = '<ul class="rev-legend">';
+    GROUPS.forEach(function (g) {
+      html += '<li data-group="' + g.id + '"><span class="rev-legend-swatch"></span>' + esc(g.label) + '</li>';
+    });
+    html += '</ul>';
+    return html;
+  }
+
+  function renderBoard(editable) {
+    var mats = matieres();
+    var all = ensureStore().filter(function (n) { return n && n.id; });
+    var used = Object.create(null);
+    var html = '<p class="rev-page-sub">Choisis une matière. Le tableau se remplit avec tes post-its.</p>';
+    html += renderLegend();
+    html += '<div class="rev-board">';
+    mats.forEach(function (m) {
+      var notes = all.filter(function (n) { return n.mat === m.id; });
+      notes.forEach(function (n) { used[n.id] = true; });
+      html += renderBoardCell(m, notes);
+    });
+    var orphan = all.filter(function (n) { return !used[n.id]; });
+    if (orphan.length) {
+      html += renderBoardCell({ id: '', name: 'Sans matière', color: '#8892a8' }, orphan);
+    }
+    html += '</div>';
+    if (!mats.length) {
+      html += '<p class="rev-empty-page">Crée d’abord une matière (onglet Matières) pour classer tes post-its.</p>';
+    }
+    return html;
+  }
+
+  function renderMatView(matId, editable) {
+    var mat = matById(matId);
+    var notes = notesForMat(matId);
+    var color = mat.color || '#5b8df7';
+    var name = mat.name || mat.label || mat.id || 'Sans matière';
+    var html = '<div class="rev-mat-view" data-mat="' + esc(matId || '') + '" style="--mat-color:' + esc(color) + '">';
+    html += '<div class="rev-mat-toolbar">';
+    html += '<button type="button" class="rev-back" data-rev-act="back-board">' + icon('arrow-left', 16) + ' Tableau</button>';
     html += '<span class="rev-mat-pip" aria-hidden="true"></span>';
     html += '<h3 class="rev-mat-name">' + esc(name) + '</h3>';
     html += '<span class="rev-mat-count">' + notes.length + '</span>';
@@ -147,16 +272,17 @@
       html += '<button type="button" class="rev-add" data-rev-act="add-note">' + icon('plus', 14) + ' Post-it</button>';
     }
     html += '</div>';
+    html += renderLegend();
     html += '<div class="rev-grid">';
     if (!notes.length) {
       html += '<div class="rev-empty">';
       html += '<div class="rev-empty-ghost" aria-hidden="true"></div>';
-      html += '<p>Aucun post-it — clique <b>Post-it</b>, donne un nom, liste ce qu’il faut réviser.</p>';
+      html += '<p>Aucun post-it ici. Clique <b>Post-it</b>, donne un nom, choisis un groupe de couleur.</p>';
       html += '</div>';
     } else {
       notes.forEach(function (n) { html += renderNote(n, editable); });
     }
-    html += '</div></section>';
+    html += '</div></div>';
     return html;
   }
 
@@ -165,30 +291,11 @@
     if (!root) return;
     ensureStore();
     var editable = canEdit();
-    var mats = matieres();
-    var all = ensureStore().filter(function (n) { return n && n.id; });
-    var used = Object.create(null);
     var html = '<div class="rev-wrap' + (editable ? '' : ' is-readonly') + '">';
     html += '<header class="rev-page-hd">';
     html += '<h2 class="rev-page-title">' + icon('sticky-note', 22) + ' Révisions</h2>';
-    html += '<p class="rev-page-sub">Post-its par matière. Nomme-les vite, puis coche ce qu’il faut réviser ou consolider.</p>';
     html += '</header>';
-
-    mats.forEach(function (m) {
-      var notes = all.filter(function (n) { return n.mat === m.id; });
-      notes.forEach(function (n) { used[n.id] = true; });
-      html += renderMatSection(m, notes, editable);
-    });
-
-    var orphan = all.filter(function (n) { return !used[n.id]; });
-    if (orphan.length) {
-      html += renderMatSection({ id: '', name: 'Sans matière', color: '#8892a8' }, orphan, editable);
-    }
-
-    if (!mats.length) {
-      html += '<p class="rev-empty">Crée d’abord une matière (onglet Matières) pour classer tes post-its.</p>';
-    }
-
+    html += activeMat === null ? renderBoard(editable) : renderMatView(activeMat, editable);
     html += '</div>';
     root.innerHTML = html;
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(root);
@@ -211,11 +318,9 @@
       var ctx = noteFromEvent(t);
       var li = t.closest('.rev-item');
       if (!ctx.note || !li) return;
-      var kind = li.getAttribute('data-kind');
-      var itemId = li.getAttribute('data-item');
-      var it = listItems(ctx.note, kind).find(function (x) { return x && x.id === itemId; });
-      if (!it) return;
-      it.done = !!t.checked;
+      var found = findItem(ctx.note, li.getAttribute('data-item'));
+      if (!found) return;
+      found.item.done = !!t.checked;
       persist();
       render();
     });
@@ -225,12 +330,24 @@
       if (!btn) return;
       var act = btn.getAttribute('data-rev-act');
       if (act === 'toggle' || act === 'title' || act === 'item-text' || act === 'add-item') return;
+
+      if (act === 'open-mat') {
+        activeMat = btn.getAttribute('data-mat') || '';
+        render();
+        return;
+      }
+      if (act === 'back-board') {
+        activeMat = null;
+        render();
+        return;
+      }
+
       if (!canEdit()) return;
 
       if (act === 'add-note') {
-        var sec = btn.closest('.rev-mat');
-        var matId = sec ? sec.getAttribute('data-mat') : '';
-        var note = createNote(matId, '');
+        var view = btn.closest('.rev-mat-view');
+        var matId = view ? view.getAttribute('data-mat') : (activeMat || '');
+        var note = createNote(matId, '', 'autre');
         persist();
         render();
         var inp = root.querySelector('.rev-note[data-id="' + note.id + '"] .rev-title');
@@ -240,6 +357,15 @@
 
       var ctx = noteFromEvent(btn);
       if (!ctx.note) return;
+
+      if (act === 'set-group') {
+        var g = btn.getAttribute('data-group');
+        if (GROUP_IDS.indexOf(g) === -1) return;
+        ctx.note.group = g;
+        persist();
+        render();
+        return;
+      }
 
       if (act === 'del-note') {
         var go = function () {
@@ -256,10 +382,9 @@
       if (act === 'del-item') {
         var liDel = btn.closest('.rev-item');
         if (!liDel) return;
-        var kDel = liDel.getAttribute('data-kind');
-        var idDel = liDel.getAttribute('data-item');
-        var arr = listItems(ctx.note, kDel);
-        ctx.note[kDel === 'consolidate' ? 'consolidate' : 'review'] = arr.filter(function (x) { return x && x.id !== idDel; });
+        var foundDel = findItem(ctx.note, liDel.getAttribute('data-item'));
+        if (!foundDel) return;
+        foundDel.arr.splice(foundDel.arr.indexOf(foundDel.item), 1);
         persist();
         render();
       }
@@ -273,13 +398,11 @@
         e.preventDefault();
         var ctx = noteFromEvent(t);
         if (!ctx.note) return;
-        var col = t.closest('.rev-col');
-        var kind = col ? col.getAttribute('data-kind') : 'review';
-        if (!addItem(ctx.note, kind, t.value)) return;
+        if (!addItem(ctx.note, t.value)) return;
         t.value = '';
         persist();
         render();
-        var again = root.querySelector('.rev-note[data-id="' + ctx.note.id + '"] .rev-col[data-kind="' + kind + '"] .rev-add-item');
+        var again = root.querySelector('.rev-note[data-id="' + ctx.note.id + '"] .rev-add-item');
         if (again) again.focus();
         return;
       }
@@ -306,20 +429,17 @@
       if (act === 'item-text') {
         var li = t.closest('.rev-item');
         if (!li) return;
-        var kind = li.getAttribute('data-kind');
-        var itemId = li.getAttribute('data-item');
-        var it = listItems(ctx.note, kind).find(function (x) { return x && x.id === itemId; });
-        if (!it) return;
+        var found = findItem(ctx.note, li.getAttribute('data-item'));
+        if (!found) return;
         var text = String(t.value || '').trim();
         if (!text) {
-          ctx.note[kind === 'consolidate' ? 'consolidate' : 'review'] =
-            listItems(ctx.note, kind).filter(function (x) { return x && x.id !== itemId; });
+          found.arr.splice(found.arr.indexOf(found.item), 1);
           persist();
           render();
           return;
         }
-        if (text === it.text) return;
-        it.text = text;
+        if (text === found.item.text) return;
+        found.item.text = text;
         persist();
       }
     });
@@ -327,6 +447,7 @@
 
   window.renderRevisions = function () {
     bind();
+    activeMat = null;
     render();
   };
 
@@ -335,6 +456,10 @@
     createNote: createNote,
     addItem: addItem,
     findNote: findNote,
-    newId: newId
+    noteGroup: noteGroup,
+    newId: newId,
+    GROUPS: GROUPS,
+    setActiveMat: function (id) { activeMat = id; },
+    getActiveMat: function () { return activeMat; }
   };
 })();
