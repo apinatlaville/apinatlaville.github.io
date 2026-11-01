@@ -47,6 +47,8 @@ assert(/id:\s*'revisions'/.test(pioSrc), 'section import/export revisions');
 assert(/id:\s*'notes'/.test(pioSrc), 'section notes/rangs conservée');
 assert(/window\.renderRevisions\s*=/.test(jsSrc), 'API renderRevisions');
 assert(/À réviser/.test(jsSrc) && /À consolider/.test(jsSrc), 'deux listes à réviser / à consolider');
+assert(/data-fc-skip/.test(jsSrc), 'cases à cocher hors toggles iOS (data-fc-skip)');
+assert(/class="bp rev-add"/.test(jsSrc) === false, 'bouton Post-it sans classe .bp pleine largeur');
 assert(/sticky-note/.test(read('icons.js')), 'icône sticky-note');
 assert(/rev-note/.test(cssSrc), 'styles post-it');
 assert(checkBootCacheVersion(root).ok, 'cache __BOOT_CACHE_V défini');

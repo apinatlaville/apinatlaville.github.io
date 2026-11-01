@@ -94,7 +94,7 @@
     var done = item && item.done ? ' checked' : '';
     var dis = editable ? '' : ' disabled';
     return '<li class="rev-item' + (item.done ? ' is-done' : '') + '" data-item="' + esc(item.id) + '" data-kind="' + kind + '">' +
-      '<label class="rev-check"><input type="checkbox"' + done + dis + ' data-rev-act="toggle"></label>' +
+      '<label class="rev-check"><input type="checkbox" data-fc-skip' + done + dis + ' data-rev-act="toggle"></label>' +
       '<input class="rev-item-text" type="text" value="' + esc(item.text) + '"' + dis + ' data-rev-act="item-text" maxlength="240">' +
       (editable ? '<button type="button" class="rev-item-del" data-rev-act="del-item" title="Retirer" aria-label="Retirer">' + icon('x', 14) + '</button>' : '') +
       '</li>';
@@ -104,12 +104,13 @@
     var items = listItems(note, kind);
     var open = items.filter(function (it) { return it && !it.done; }).length;
     var html = '<div class="rev-col" data-kind="' + kind + '">';
-    html += '<h4 class="rev-col-title">' + esc(label) + ' <span class="rev-col-count">' + open + '</span></h4>';
+    html += '<h4 class="rev-col-title"><span class="rev-col-pip" aria-hidden="true"></span>' + esc(label);
+    html += ' <span class="rev-col-count">' + open + '</span></h4>';
     html += '<ul class="rev-list">';
     items.forEach(function (it) { if (it) html += renderItem(it, kind, editable); });
     html += '</ul>';
     if (editable) {
-      html += '<input class="rev-add-item" type="text" placeholder="Ajouter…" maxlength="240" data-rev-act="add-item">';
+      html += '<input class="rev-add-item" type="text" placeholder="+ Ajouter" maxlength="240" data-rev-act="add-item">';
     }
     html += '</div>';
     return html;
@@ -119,10 +120,11 @@
     if (!note || !note.id) return '';
     var title = note.title || 'Sans titre';
     var html = '<article class="rev-note" data-id="' + esc(note.id) + '">';
+    html += '<span class="rev-tape" aria-hidden="true"></span>';
     html += '<header class="rev-note-hd">';
     html += '<input class="rev-title" type="text" value="' + esc(title) + '"' + (editable ? '' : ' disabled') + ' data-rev-act="title" maxlength="80" aria-label="Nom du post-it">';
     if (editable) {
-      html += '<button type="button" class="rev-note-del" data-rev-act="del-note" title="Supprimer le post-it" aria-label="Supprimer">' + icon('trash-2', 14) + '</button>';
+      html += '<button type="button" class="rev-note-del" data-rev-act="del-note" title="Supprimer le post-it" aria-label="Supprimer">' + icon('x', 14) + '</button>';
     }
     html += '</header>';
     html += '<div class="rev-cols">';
@@ -138,15 +140,19 @@
     var id = (mat && mat.id) || '';
     var html = '<section class="rev-mat" data-mat="' + esc(id) + '" style="--mat-color:' + esc(color) + '">';
     html += '<div class="rev-mat-hd">';
+    html += '<span class="rev-mat-pip" aria-hidden="true"></span>';
     html += '<h3 class="rev-mat-name">' + esc(name) + '</h3>';
     html += '<span class="rev-mat-count">' + notes.length + '</span>';
     if (editable) {
-      html += '<button type="button" class="bp rev-add" data-rev-act="add-note">+ Post-it</button>';
+      html += '<button type="button" class="rev-add" data-rev-act="add-note">' + icon('plus', 14) + ' Post-it</button>';
     }
     html += '</div>';
     html += '<div class="rev-grid">';
     if (!notes.length) {
-      html += '<p class="rev-empty">Aucun post-it. Donne-lui un nom rapide, puis liste ce qu’il faut réviser ou consolider.</p>';
+      html += '<div class="rev-empty">';
+      html += '<div class="rev-empty-ghost" aria-hidden="true"></div>';
+      html += '<p>Aucun post-it — clique <b>Post-it</b>, donne un nom, liste ce qu’il faut réviser.</p>';
+      html += '</div>';
     } else {
       notes.forEach(function (n) { html += renderNote(n, editable); });
     }
