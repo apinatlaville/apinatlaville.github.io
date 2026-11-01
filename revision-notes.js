@@ -55,6 +55,80 @@
     return Promise.resolve();
   }
 
+  function applyNoteEdits(note, edits) {
+    if (!note || !edits) return note;
+    if (edits.title != null) {
+      note.title = String(edits.title || '').trim() || 'Sans titre';
+    }
+    if (Array.isArray(edits.items)) {
+      edits.items.forEach(function (it) {
+        if (!it || !it.id) return;
+        var found = findItem(note, it.id);
+        if (!found) return;
+        var text = String(it.text || '').trim();
+        if (!text) found.arr.splice(found.arr.indexOf(found.item), 1);
+        else found.item.text = text;
+      });
+    }
+    if (edits.add) addItem(note, edits.add);
+    return note;
+  }
+
+  function setNoteGroup(note, g) {
+    if (!note || GROUP_IDS.indexOf(g) === -1) return false;
+    note.group = g;
+    return true;
+  }
+
+  function harvestNoteEl(el, commitAdd) {
+    if (!el) return null;
+    var note = findNote(el.getAttribute('data-id'));
+    if (!note) return null;
+    var titleEl = el.querySelector('.rev-title');
+    var items = [];
+    var lis = el.querySelectorAll('.rev-item');
+    for (var i = 0; i < lis.length; i++) {
+      var li = lis[i];
+      var inp = li.querySelector('.rev-item-text');
+      items.push({
+        id: li.getAttribute('data-item'),
+        text: inp ? inp.value : ''
+      });
+    }
+    var addEl = el.querySelector('.rev-add-item');
+    var add = '';
+    if (commitAdd && addEl) {
+      add = String(addEl.value || '').trim();
+      if (add) addEl.value = '';
+    }
+    applyNoteEdits(note, {
+      title: titleEl ? titleEl.value : null,
+      items: items,
+      add: add
+    });
+    return note;
+  }
+
+  function harvestOpenNotes(commitAdd) {
+    var root = document.getElementById('paneRevisions');
+    if (!root) return;
+    var notes = root.querySelectorAll('.rev-note');
+    for (var i = 0; i < notes.length; i++) harvestNoteEl(notes[i], commitAdd);
+  }
+
+  function applyGroupInPlace(el, g) {
+    if (!el || GROUP_IDS.indexOf(g) === -1) return;
+    el.setAttribute('data-group', g);
+    var dots = el.querySelectorAll('.rev-gdot');
+    for (var i = 0; i < dots.length; i++) {
+      var on = dots[i].getAttribute('data-group') === g;
+      dots[i].classList.toggle('is-on', on);
+      dots[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    var lab = el.querySelector('.rev-group-label');
+    if (lab) lab.textContent = groupDef(g).label;
+  }
+
   function findNote(id) {
     return ensureStore().find(function (n) { return n && n.id === id; }) || null;
   }
@@ -299,6 +373,7 @@
   function render() {
     var root = document.getElementById('paneRevisions');
     if (!root) return;
+    harvestOpenNotes(true);
     ensureStore();
     var editable = canEdit();
     var html = '<div class="rev-wrap' + (editable ? '' : ' is-readonly') + '">';
@@ -371,9 +446,10 @@
       if (act === 'set-group') {
         var g = btn.getAttribute('data-group');
         if (GROUP_IDS.indexOf(g) === -1) return;
-        ctx.note.group = g;
+        harvestNoteEl(ctx.el, false);
+        if (!setNoteGroup(ctx.note, g)) return;
+        applyGroupInPlace(ctx.el, g);
         persist();
-        render();
         return;
       }
 
@@ -428,6 +504,25 @@
       }
     });
 
+    root.addEventListener('input', function (e) {
+      var t = e.target;
+      if (!t || !canEdit()) return;
+      var act = t.getAttribute('data-rev-act');
+      var ctx = noteFromEvent(t);
+      if (!ctx.note) return;
+      if (act === 'title') {
+        ctx.note.title = String(t.value || '').trim() || 'Sans titre';
+        return;
+      }
+      if (act === 'item-text') {
+        var liLive = t.closest('.rev-item');
+        if (!liLive) return;
+        var foundLive = findItem(ctx.note, liLive.getAttribute('data-item'));
+        if (!foundLive) return;
+        foundLive.item.text = String(t.value || '');
+      }
+    });
+
     root.addEventListener('focusout', function (e) {
       var t = e.target;
       if (!t || !canEdit()) return;
@@ -473,6 +568,10 @@
     addItem: addItem,
     findNote: findNote,
     noteGroup: noteGroup,
+    applyNoteEdits: applyNoteEdits,
+    setNoteGroup: setNoteGroup,
+    harvestNoteEl: harvestNoteEl,
+    applyGroupInPlace: applyGroupInPlace,
     newId: newId,
     GROUPS: GROUPS,
     setActiveMat: function (id) { activeMat = id; },

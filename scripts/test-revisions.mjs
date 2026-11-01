@@ -102,6 +102,50 @@ assert(api.noteGroup(n1) === 'urgent', 'groupe À réviser absolument');
 assert(api.createNote('PHYS', '   ').title === 'Sans titre', 'titre vide → Sans titre');
 assert(api.getActiveMat() === null, 'entrée = tableau (pas une matière)');
 
+console.log('\n=== Texte conservé au changement de type ===\n');
+assert(typeof api.applyNoteEdits === 'function' && typeof api.setNoteGroup === 'function', 'API harvest / setNoteGroup');
+assert(/addEventListener\('input'/.test(jsSrc), 'sync live du texte (input)');
+assert(/applyGroupInPlace/.test(jsSrc), 'changement de type en place (pas de rebuild)');
+assert(!/act === 'set-group'[\s\S]{0,400}render\(\);/.test(jsSrc), 'set-group ne reconstruit pas le post-it');
+
+const nKeep = api.createNote('MATH', 'Mécanique');
+const itKeep = api.addItem(nKeep, 'review', 'Théorème énergie cinétique');
+api.applyNoteEdits(nKeep, {
+  title: 'Mécanique du point',
+  items: [{ id: itKeep.id, text: 'TEC + forces' }],
+  add: 'Moment cinétique'
+});
+assert(api.setNoteGroup(nKeep, 'urgent') === true, 'setNoteGroup accepte urgent');
+assert(nKeep.title === 'Mécanique du point', 'titre encore dans le modèle après le type');
+assert(nKeep.review.some((x) => x.text === 'TEC + forces'), 'item édité conservé');
+assert(nKeep.review.some((x) => x.text === 'Moment cinétique'), 'ligne + Ajouter conservée');
+assert(nKeep.group === 'urgent', 'groupe urgent appliqué sans perdre le texte');
+assert(nKeep.review.length === 2, 'deux lignes sur le post-it');
+
+const fakeAttrs = { 'data-id': nKeep.id, 'data-group': 'urgent' };
+const fakeDots = api.GROUPS.map((g) => {
+  const st = { on: g.id === 'urgent', pressed: g.id === 'urgent' ? 'true' : 'false', gid: g.id };
+  return {
+    classList: { toggle(name, on) { if (name === 'is-on') st.on = !!on; } },
+    getAttribute(n) { return n === 'data-group' ? st.gid : st.pressed; },
+    setAttribute(n, v) { if (n === 'aria-pressed') st.pressed = v; },
+    _st: st
+  };
+});
+const fakeLabel = { textContent: 'À réviser absolument' };
+const fakeEl = {
+  getAttribute(k) { return fakeAttrs[k]; },
+  setAttribute(k, v) { fakeAttrs[k] = v; },
+  querySelector(sel) { return sel === '.rev-group-label' ? fakeLabel : null; },
+  querySelectorAll(sel) { return sel === '.rev-gdot' ? fakeDots : []; }
+};
+api.applyGroupInPlace(fakeEl, 'voir');
+assert(fakeAttrs['data-group'] === 'voir', 'data-group mis à jour sans innerHTML');
+assert(fakeLabel.textContent === 'À voir', 'libellé de groupe mis à jour');
+assert(fakeDots.find((d) => d._st.gid === 'voir')._st.on === true, 'pastille À voir active');
+assert(fakeDots.filter((d) => d._st.on).length === 1, 'une seule pastille active');
+assert(nKeep.title === 'Mécanique du point' && nKeep.review.length === 2, 'DOM groupe : texte intact');
+
 console.log('\n=== Anti-wipe Lot 1 ===\n');
 const pioCode = pioSrc;
 const pioEnv = {
