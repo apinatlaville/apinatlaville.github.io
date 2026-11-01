@@ -34,6 +34,7 @@
     print: ['scanner.js'],
     programme: ['programme.js'],
     programmeBrowse: ['programme-browse.js'],
+    revisions: ['revision-notes.js'],
     latexTest: ['latex-test.js'],
     cardCreateX: ['card-create-x-lab.js'],
     cardCreateY: ['anki-quick.js', 'card-create-y-lab.js'],

@@ -18,6 +18,7 @@ window.APP_TAB_REGISTRY = {
   ankiCompare: { label: 'v1 vs V2',      nav: false, archived: true, archivedRedirect: 'ankiV2' },
   ankiVizV2:   { pane: 'paneAnkiVizV2',   label: 'Carte mentale', icon: 'map',            needsData: true,  onShow: 'ankiVizV2',    className: 'tab-viz' },
   programme:     { pane: 'paneProgramme', label: 'Programme', icon: 'book-open', needsData: true, onShow: 'programme' },
+  revisions:     { pane: 'paneRevisions', label: 'Révisions', icon: 'sticky-note', needsData: true, onShow: 'revisions' },
   print:       { pane: 'panePrint',       label: 'Impression',    icon: 'printer',        needsData: true,  onShow: 'print' },
   programmeBrowse: { pane: 'paneProgrammeBrowse', label: 'Fil d’Ariane', icon: 'search', needsData: true, onShow: 'programmeBrowse', className: 'tab-prog-search' },
   classeurs:   { pane: 'paneClasseurs',   label: 'Classeurs',     icon: 'folders',        needsData: true,  onShow: 'classeurs' },
@@ -51,7 +52,7 @@ window.APP_NAV_GROUPS = [
   },
   {
     label: 'Organisation',
-    tabs: ['print', 'classeurs', 'matieres', 'programme', 'programmeBrowse', 'orphelins']
+    tabs: ['print', 'classeurs', 'matieres', 'programme', 'programmeBrowse', 'revisions', 'orphelins']
   },
   {
     label: 'Système',

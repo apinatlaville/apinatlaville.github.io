@@ -29,6 +29,7 @@
     { id: 'structure', label: 'Matières & classeurs', hint: 'Organisation' },
     { id: 'cours', label: 'Cours / documents', hint: 'Tous les docs (IDs conservés)' },
     { id: 'notes', label: 'Notes & rangs', hint: 'Champs note/rang/effectif des DS & Khôlles' },
+    { id: 'revisions', label: 'Révisions', hint: 'Post-its à réviser / à consolider' },
     { id: 'synchrotron', label: 'Synchrotron', hint: 'Cartes, devoirs, dossiers Rapide, session en cours' },
     { id: 'settings', label: 'Réglages', hint: 'Thème, quotas, préférences' }
   ];
@@ -245,6 +246,7 @@
     if (data.sessionEnCoursV2) return false;
     if (Array.isArray(data.chapitres) && data.chapitres.length > 0) return false;
     if (Array.isArray(data.quickGroups) && data.quickGroups.length > 0) return false;
+    if (Array.isArray(data.revisionNotes) && data.revisionNotes.length > 0) return false;
     var tmpl = window.emptyData;
     if (tmpl && structureSignature(data) !== structureSignature(tmpl)) return false;
     return true;
@@ -260,7 +262,8 @@
     if (data.sessionEnCoursV2) score += 5;
     var ch = Array.isArray(data.chapitres) ? data.chapitres.length : 0;
     var qg = Array.isArray(data.quickGroups) ? data.quickGroups.length : 0;
-    score += ch * 5 + qg * 5;
+    var rn = Array.isArray(data.revisionNotes) ? data.revisionNotes.length : 0;
+    score += ch * 5 + qg * 5 + rn * 5;
     var mats = (data.matieres || []).filter(function (m) { return m && !m._system; }).length;
     var cls = (data.classeurs || []).filter(function (c) { return c && !c._system; }).length;
     score += mats + cls;
@@ -275,7 +278,8 @@
     var dv = Array.isArray(data.devoirs) ? data.devoirs.length : 0;
     var ch = Array.isArray(data.chapitres) ? data.chapitres.length : 0;
     var qg = Array.isArray(data.quickGroups) ? data.quickGroups.length : 0;
-    return cours + ex + dv + ch + qg > 0 || !!data.sessionEnCoursV2;
+    var rn = Array.isArray(data.revisionNotes) ? data.revisionNotes.length : 0;
+    return cours + ex + dv + ch + qg + rn > 0 || !!data.sessionEnCoursV2;
   }
 
   /**
@@ -303,6 +307,7 @@
     { arr: 'devoirs', key: 'id', prefix: 'k:' },
     { arr: 'chapitres', key: 'id', prefix: 'ch:' },
     { arr: 'quickGroups', key: 'id', prefix: 'g:' },
+    { arr: 'revisionNotes', key: 'id', prefix: 'rn:' },
     { arr: 'matieres', key: 'id', prefix: 'm:' },
     { arr: 'classeurs', key: 'id', prefix: 'cl:' }
   ];
@@ -2113,6 +2118,9 @@
           };
         });
     }
+    if (all || set.revisions) {
+      out.revisionNotes = deepClone(D.revisionNotes || []);
+    }
     if (all || set.synchrotron) {
       out.exercices = deepClone(D.exercices || []);
       out.devoirs = deepClone(D.devoirs || []);
@@ -2209,7 +2217,7 @@
     }
 
     // Validations légères
-    ['matieres', 'classeurs', 'cours', 'exercices', 'devoirs', '_notes'].forEach(function (k) {
+    ['matieres', 'classeurs', 'cours', 'exercices', 'devoirs', '_notes', 'revisionNotes'].forEach(function (k) {
       if (data[k] != null && !Array.isArray(data[k])) {
         report.errors.push('Champ « ' + k + ' » doit être un tableau.');
       }
@@ -2231,6 +2239,7 @@
     if (data._notes || (Array.isArray(data.cours) && data.cours.some(function (c) {
       return c && (c.type === 'DS' || c.type === 'KHOLLE') && (c.note || c.rang);
     }))) s.push('notes');
+    if (data.revisionNotes) s.push('revisions');
     if (data.exercices || data.devoirs || data.quickGroups || data.sessionEnCoursV2) s.push('synchrotron');
     if (data.settings) s.push('settings');
     return s.length ? s : SECTIONS.map(function (x) { return x.id; });
@@ -2282,7 +2291,7 @@
       ok: true,
       mode: mode,
       sections: want.slice(),
-      imported: { matieres: 0, classeurs: 0, cours: 0, notes: 0, exercices: 0, devoirs: 0, settings: 0 },
+      imported: { matieres: 0, classeurs: 0, cours: 0, notes: 0, exercices: 0, devoirs: 0, settings: 0, revisionNotes: 0 },
       skipped: [],
       errors: (normalized.report && normalized.report.errors || []).slice(),
       warnings: (normalized.report && normalized.report.warnings || []).slice()
@@ -2325,6 +2334,9 @@
         target.matieres = deepClone(window.D.matieres || []);
         target.classeurs = deepClone(window.D.classeurs || []);
         target.chapitres = deepClone(window.D.chapitres || []);
+      }
+      if (want.indexOf('revisions') === -1) {
+        target.revisionNotes = deepClone(window.D.revisionNotes || []);
       }
     }
 
@@ -2444,6 +2456,10 @@
           }
         });
       }
+    }
+
+    if (want.indexOf('revisions') !== -1) {
+      upsertList('revisionNotes', src.revisionNotes, 'id', 'revisionNotes');
     }
 
     if (want.indexOf('synchrotron') !== -1) {

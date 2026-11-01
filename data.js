@@ -29,7 +29,9 @@ window.emptyData = {
   exercices: [],
   devoirs: [],
   /** Groupes / catégories des cartes Rapide (Y-). Cartes : champ optionnel groupId. */
-  quickGroups: []
+  quickGroups: [],
+  /** Post-its de l’onglet Révisions (à réviser / à consolider), groupés par matière. */
+  revisionNotes: []
 };
 
 /** Catalogue fixe PC* — IDs stables pour partage / filtres (tout le monde les mêmes). */

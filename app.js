@@ -1063,6 +1063,7 @@ window.runTabShow = function(tab, overrideResetFilters) {
     case 'ankiVizV2': if (typeof window.renderAnkiVizV2 === 'function') window.renderAnkiVizV2(); break;
     case 'programme': if (typeof window.renderProgramme === 'function') window.renderProgramme(); break;
     case 'programmeBrowse': if (typeof window.renderProgrammeBrowse === 'function') window.renderProgrammeBrowse(); break;
+    case 'revisions': if (typeof window.renderRevisions === 'function') window.renderRevisions(); break;
     case 'print': if (typeof window.renderPrintGrid === 'function') window.renderPrintGrid(); break;
     case 'classeurs':
       window.isEditingCl = false;
@@ -1837,6 +1838,12 @@ window.buildDiagExportText = function () {
     });
   } catch (e) {
     lines.push('quickGroups: (erreur lecture)');
+  }
+  try {
+    const rnotes = (window.D && window.D.revisionNotes) || [];
+    lines.push('revisionNotes: ' + rnotes.length);
+  } catch (e) {
+    lines.push('revisionNotes: (erreur lecture)');
   }
   lines.push('--- logs (' + ((window.appDiagLog || []).length) + ') ---');
   (window.appDiagLog || []).forEach(function (e) {
@@ -2764,6 +2771,7 @@ async function initApp(user) {
   }
   if(!window.D.settings) window.D.settings = JSON.parse(JSON.stringify(window.emptyData.settings));
   if(!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
+  if(!Array.isArray(window.D.revisionNotes)) window.D.revisionNotes = [];
 
   if(window.D.settings.showInitWarn === undefined) window.D.settings.showInitWarn = true;
   if(window.D.settings.showHeaderClock === undefined) window.D.settings.showHeaderClock = false;
@@ -3479,6 +3487,9 @@ window.mergeRemoteProfileIntoLocal = function (remote) {
   _unionByKey(window.D.classeurs, remote.classeurs, 'id');
   if (!Array.isArray(window.D.quickGroups)) window.D.quickGroups = [];
   _mergeQuickGroups(window.D.quickGroups, remote.quickGroups);
+  if (!Array.isArray(window.D.revisionNotes)) window.D.revisionNotes = [];
+  _preferNewerEntities(window.D.revisionNotes, remote.revisionNotes, 'id');
+  _unionByKey(window.D.revisionNotes, remote.revisionNotes, 'id');
   if (remote.settings && typeof remote.settings === 'object'
       && _mtOf(remote.settings) > _mtOf(window.D.settings)) {
     window.D.settings = Object.assign({}, remote.settings);
