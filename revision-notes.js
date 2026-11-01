@@ -203,54 +203,65 @@
       esc((note.title || 'Sans titre') + ' — ' + groupDef(g).label) + '"></span>';
   }
 
-  function renderBoardCell(mat, notes) {
+  function notesByGroup(notes) {
+    var map = Object.create(null);
+    GROUPS.forEach(function (g) { map[g.id] = []; });
+    notes.forEach(function (n) {
+      var g = noteGroup(n);
+      (map[g] || (map.autre = map.autre || [])).push(n);
+    });
+    return map;
+  }
+
+  function renderTableRow(mat, notes) {
     var color = (mat && mat.color) || '#5b8df7';
     var name = (mat && (mat.name || mat.label || mat.id)) || 'Sans matière';
     var id = (mat && mat.id) || '';
-    var n = notes.length;
-    var html = '<button type="button" class="rev-cell' + (n ? '' : ' is-empty') + '" data-rev-act="open-mat" data-mat="' +
-      esc(id) + '" style="--mat-color:' + esc(color) + '">';
-    html += '<div class="rev-cell-hd">';
+    var byG = notesByGroup(notes);
+    var html = '<tr class="rev-row' + (notes.length ? '' : ' is-empty') + '" data-rev-act="open-mat" data-mat="' +
+      esc(id) + '" style="--mat-color:' + esc(color) + '" tabindex="0">';
+    html += '<th scope="row" class="rev-th-mat">';
     html += '<span class="rev-mat-pip" aria-hidden="true"></span>';
     html += '<span class="rev-cell-name">' + esc(name) + '</span>';
-    html += '<span class="rev-mat-count">' + n + '</span>';
-    html += '</div>';
-    html += '<div class="rev-mosaic" aria-hidden="true">';
-    if (!n) {
-      html += '<span class="rev-mosaic-empty">Aucun post-it</span>';
-    } else {
-      notes.forEach(function (note, i) { html += renderMini(note, i); });
-    }
-    html += '</div></button>';
-    return html;
-  }
-
-  function renderLegend() {
-    var html = '<ul class="rev-legend">';
+    html += '</th>';
     GROUPS.forEach(function (g) {
-      html += '<li data-group="' + g.id + '"><span class="rev-legend-swatch"></span>' + esc(g.label) + '</li>';
+      var list = byG[g.id] || [];
+      html += '<td class="rev-td" data-group="' + g.id + '">';
+      html += '<div class="rev-mosaic' + (list.length ? '' : ' is-empty') + '">';
+      if (!list.length) {
+        html += '<span class="rev-mosaic-empty">—</span>';
+      } else {
+        list.forEach(function (note, i) { html += renderMini(note, i); });
+      }
+      html += '</div></td>';
     });
-    html += '</ul>';
+    html += '<td class="rev-td-total">' + notes.length + '</td>';
+    html += '</tr>';
     return html;
   }
 
-  function renderBoard(editable) {
+  function renderBoard() {
     var mats = matieres();
     var all = ensureStore().filter(function (n) { return n && n.id; });
     var used = Object.create(null);
-    var html = '<p class="rev-page-sub">Choisis une matière. Le tableau se remplit avec tes post-its.</p>';
-    html += renderLegend();
-    html += '<div class="rev-board">';
+    var html = '<p class="rev-page-sub">Clique une ligne pour ouvrir la matière. Les cases se remplissent avec tes post-its.</p>';
+    html += '<div class="rev-table-wrap">';
+    html += '<table class="rev-table">';
+    html += '<thead><tr><th class="rev-th-mat">Matière</th>';
+    GROUPS.forEach(function (g) {
+      html += '<th data-group="' + g.id + '"><span class="rev-legend-swatch"></span>' + esc(g.short) + '</th>';
+    });
+    html += '<th class="rev-th-total">Total</th></tr></thead><tbody>';
     mats.forEach(function (m) {
       var notes = all.filter(function (n) { return n.mat === m.id; });
       notes.forEach(function (n) { used[n.id] = true; });
-      html += renderBoardCell(m, notes);
+      html += renderTableRow(m, notes);
     });
     var orphan = all.filter(function (n) { return !used[n.id]; });
     if (orphan.length) {
-      html += renderBoardCell({ id: '', name: 'Sans matière', color: '#8892a8' }, orphan);
+      html += renderTableRow({ id: '', name: 'Sans matière', color: '#8892a8' }, orphan);
     }
-    html += '</div>';
+    html += '</tbody></table></div>';
     if (!mats.length) {
       html += '<p class="rev-empty-page">Crée d’abord une matière (onglet Matières) pour classer tes post-its.</p>';
     }
@@ -272,7 +283,6 @@
       html += '<button type="button" class="rev-add" data-rev-act="add-note">' + icon('plus', 14) + ' Post-it</button>';
     }
     html += '</div>';
-    html += renderLegend();
     html += '<div class="rev-grid">';
     if (!notes.length) {
       html += '<div class="rev-empty">';
@@ -293,9 +303,9 @@
     var editable = canEdit();
     var html = '<div class="rev-wrap' + (editable ? '' : ' is-readonly') + '">';
     html += '<header class="rev-page-hd">';
-    html += '<h2 class="rev-page-title">' + icon('sticky-note', 22) + ' Révisions</h2>';
+    html += '<h2 class="rev-page-title">' + icon('sticky-note', 22) + ' Post-it</h2>';
     html += '</header>';
-    html += activeMat === null ? renderBoard(editable) : renderMatView(activeMat, editable);
+    html += activeMat === null ? renderBoard() : renderMatView(activeMat, editable);
     html += '</div>';
     root.innerHTML = html;
     if (typeof window.hydrateIcons === 'function') window.hydrateIcons(root);
@@ -392,6 +402,12 @@
 
     root.addEventListener('keydown', function (e) {
       var t = e.target;
+      if (t && t.classList && t.classList.contains('rev-row') && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        activeMat = t.getAttribute('data-mat') || '';
+        render();
+        return;
+      }
       if (!t || !canEdit()) return;
       var act = t.getAttribute('data-rev-act');
       if (e.key === 'Enter' && act === 'add-item') {

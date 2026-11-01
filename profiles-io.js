@@ -29,7 +29,7 @@
     { id: 'structure', label: 'Matières & classeurs', hint: 'Organisation' },
     { id: 'cours', label: 'Cours / documents', hint: 'Tous les docs (IDs conservés)' },
     { id: 'notes', label: 'Notes & rangs', hint: 'Champs note/rang/effectif des DS & Khôlles' },
-    { id: 'revisions', label: 'Révisions', hint: 'Post-its à réviser / à consolider' },
+    { id: 'revisions', label: 'Post-it', hint: 'Post-its à réviser / à consolider' },
     { id: 'synchrotron', label: 'Synchrotron', hint: 'Cartes, devoirs, dossiers Rapide, session en cours' },
     { id: 'settings', label: 'Réglages', hint: 'Thème, quotas, préférences' }
   ];

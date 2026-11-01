@@ -33,8 +33,9 @@ const jsSrc = read('revision-notes.js');
 const cssSrc = read('revision-notes.css');
 
 assert(/revisions:\s*\{[^}]*pane:\s*'paneRevisions'/.test(navSrc), 'nav-config enregistre revisions');
-assert(/label:\s*'Révisions'/.test(navSrc), 'libellé Révisions (pas Notes)');
-assert(/tabs:\s*\[[^\]]*['\"]revisions['\"]/.test(navSrc), 'Révisions dans un groupe nav');
+assert(/label:\s*'Post-it'/.test(navSrc), 'libellé Post-it (pas Notes)');
+assert(/label:\s*'Navigation'[\s\S]*?['\"]revisions['\"]/.test(navSrc), 'Post-it dans le groupe Navigation');
+assert(!/label:\s*'Organisation',\s*\n\s*tabs:\s*\[[^\]]*revisions/.test(navSrc), 'Post-it hors Organisation');
 assert(/id="paneRevisions"/.test(indexSrc), 'paneRevisions dans index.html');
 assert(/id="paneNotes"/.test(indexSrc), 'onglet Notes existant conservé');
 assert(/revision-notes\.css/.test(indexSrc), 'CSS chargé');
@@ -47,12 +48,12 @@ assert(/id:\s*'revisions'/.test(pioSrc), 'section import/export revisions');
 assert(/id:\s*'notes'/.test(pioSrc), 'section notes/rangs conservée');
 assert(/window\.renderRevisions\s*=/.test(jsSrc), 'API renderRevisions');
 assert(/À réviser absolument/.test(jsSrc) && /À revoir/.test(jsSrc) && /À consolider/.test(jsSrc) && /À voir/.test(jsSrc), 'groupes de couleur');
-assert(/rev-board/.test(jsSrc) && /open-mat/.test(jsSrc), 'tableau matières en entrée');
+assert(/rev-table/.test(jsSrc) && /open-mat/.test(jsSrc), 'tableau matières × groupes en entrée');
 assert(/back-board/.test(jsSrc), 'retour au tableau');
 assert(/data-fc-skip/.test(jsSrc), 'cases à cocher hors toggles iOS (data-fc-skip)');
 assert(/class="bp rev-add"/.test(jsSrc) === false, 'bouton Post-it sans classe .bp pleine largeur');
 assert(/sticky-note/.test(read('icons.js')), 'icône sticky-note');
-assert(/rev-note/.test(cssSrc) && /rev-board/.test(cssSrc), 'styles tableau + post-it');
+assert(/rev-note/.test(cssSrc) && /rev-table/.test(cssSrc), 'styles tableau + post-it');
 assert(/data-group="urgent"/.test(cssSrc) && /p-urgent/.test(cssSrc), 'couleurs de groupe');
 assert(checkBootCacheVersion(root).ok, 'cache __BOOT_CACHE_V défini');
 
