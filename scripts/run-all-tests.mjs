@@ -45,6 +45,7 @@ const RULES = {
   'test-import-safety': 'Imports sans perte : retour arrière de l’import Partage, copie auto « Annuler le dernier import »',
   'test-eval-lock': 'Notation Anki : un seul verrou partagé entre Rapide et Synchrotron (pas de double notation)',
   'test-revisions': 'Onglet Révisions : post-its par matière, listes à réviser / à consolider',
+  'test-latex-stretchy': 'LaTeX : \\left autour d’une fraction → \\bigl (Safari, pas de parenthèses géantes)',
 };
 
 function ruleFor(name) {
