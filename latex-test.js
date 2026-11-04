@@ -1169,10 +1169,10 @@
     return out;
   }
 
-  /** Compte \\frac / \\tfrac / \\cfrac (pas dfrac — déjà « tall »). */
+  /** Compte \\frac / \\dfrac / \\tfrac / \\cfrac. */
   function countFracs(body) {
     var n = 0;
-    var re = /\\(?:frac|tfrac|cfrac)\s*/g;
+    var re = /\\(?:dfrac|tfrac|cfrac|frac)\s*/g;
     while (re.exec(body) !== null) n++;
     return n;
   }
@@ -1195,17 +1195,22 @@
     return false;
   }
 
-  /** Une seule fraction simple : garder \\left…\\right sans rule. */
+  /**
+   * Une seule fraction / racine, pas de multiligne : glyphes \\bigl/\\bigr
+   * (Safari étire les SVG \\left autour d’un \\frac et décroche l’indice _V).
+   */
   function latexBodyHasSimpleFrac(body) {
     var s = String(body || '');
-    if (latexBodyNeedsStretchyMiddles(s)) return false;
+    if (/\\\\/.test(s) || /\\begin\s*\{/.test(s)) return false;
+    if (/\\(?:overset|underset)/.test(s)) return false;
+    if (countFracs(s) >= 2) return false;
     return countFracs(s) === 1 || /\\sqrt/.test(s);
   }
 
   /** Corps plat (texte, ∈, ∃, indices…) → \\bigl/\\bigr plutôt que Size4. */
   function latexBodyIsFlat(body) {
     var s = String(body || '');
-    if (latexBodyNeedsStretchyMiddles(s)) return false;
+    if (latexBodyNeedsStretchyMiddles(s) && !latexBodyHasSimpleFrac(s)) return false;
     if (latexBodyHasSimpleFrac(s)) return false;
     return true;
   }
@@ -1239,10 +1244,10 @@
   }
 
   /**
-   * MathLive 0.110 :
-   * - contenu haut : \\rule pour forcer l’assemblage Size4 (⎜)
-   * - fraction simple : \\left…\\right tel quel
-   * - corps plat : \\bigl…\\bigr (évite accolades/parenthèses géantes type {y∈E…})
+   * MathLive 0.110 / Safari :
+   * - contenu haut (matrices, 2+ fractions) : \\rule pour forcer Size4 (⎜)
+   * - fraction simple ou corps plat : \\bigl…\\bigr (glyphe fixe — pas de SVG
+   *   stretchy, donc pas de parenthèses géantes ni d’indice _V décroché)
    * (Ne modifie pas la valeur éditée / sauvegardée — uniquement latexToMarkup.)
    */
   function normalizeStretchyDelims(latex) {
@@ -1302,10 +1307,10 @@
             }
             var rawBody = s.slice(afterOpen, j);
             var body = normalizeStretchyDelims(rawBody);
-            if (latexBodyNeedsStretchyMiddles(rawBody)) {
-              out += '\\left' + openTok + body + '\\rule{0pt}{' + stretchyRuleHeight(rawBody) + '}\\right' + rightTok;
-            } else if (latexBodyIsFlat(rawBody)) {
+            if (latexBodyHasSimpleFrac(rawBody) || latexBodyIsFlat(rawBody)) {
               out += toBigDelim('left', openTok) + body + toBigDelim('right', rightTok);
+            } else if (latexBodyNeedsStretchyMiddles(rawBody)) {
+              out += '\\left' + openTok + body + '\\rule{0pt}{' + stretchyRuleHeight(rawBody) + '}\\right' + rightTok;
             } else {
               out += '\\left' + openTok + body + '\\right' + rightTok;
             }
