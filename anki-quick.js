@@ -2467,14 +2467,16 @@
         res = { ok: false, error: String(e && e.message || e) };
       }
     }
+    // Succès SRS : _evalBusy reste true jusqu’à save() — ce n’est PAS un refus.
+    // Ne bloquer que EVAL_BUSY, ou un échec/absence de moteur pendant un vrai verrou Synchrotron.
     const evalBusy = (res && res.error === 'EVAL_BUSY')
-      || (typeof window.ankiV2EvalBusy === 'function' && window.ankiV2EvalBusy());
+      || ((!res || !res.ok) && typeof window.ankiV2EvalBusy === 'function' && window.ankiV2EvalBusy());
     if (evalBusy) {
       if (typeof window.recordDataEvent === 'function') {
         window.recordDataEvent('EVAL_LOCKED', { id: c.id, source: 'quick-drill' });
       }
-      if (typeof window.showToast === 'function') {
-        window.showToast('Une notation Synchrotron est en cours : note pas encore enregistrée sur la carte.', { type: 'error' });
+      if (!DRILL.srsApplied[c.id] && typeof window.showToast === 'function') {
+        window.showToast('Une autre notation est déjà en cours : réessaie dans un instant.', { type: 'error' });
       }
       return;
     }
@@ -2907,7 +2909,7 @@
   window.quickDrillUndo = function () {
     if (typeof window.ankiV2EvalBusy === 'function' && window.ankiV2EvalBusy()) {
       if (typeof window.showToast === 'function') {
-        window.showToast('Une notation Synchrotron est en cours : réessaie dans un instant.', { type: 'error' });
+        window.showToast('Une autre notation est déjà en cours : réessaie dans un instant.', { type: 'error' });
       }
       return;
     }

@@ -43,8 +43,51 @@ const applyDrill = sliceBetween(quick, 'function applyDrillSrs(c, verdict)', 'fu
 const iBusy = applyDrill.indexOf("res.error === 'EVAL_BUSY'");
 const iFallback = applyDrill.indexOf('applyDrillSrsLocal(c, verdict, replacePrevious)');
 assert(iBusy > 0 && iFallback > iBusy, 'Rapide : pas de repli local qui contournerait le verrou');
+assert(/\(!res \|\| !res\.ok\) && typeof window\.ankiV2EvalBusy/.test(applyDrill),
+  'Rapide : un SRS ok n’est pas traité comme EVAL_LOCKED pendant save()');
+assert(!/notation Synchrotron est en cours : note pas encore enregistrée/.test(quick),
+  'toast Rapide ne parle plus de Synchrotron sur un faux verrou');
 assert(/window\.quickDrillUndo = function \(\) \{\s*if \(typeof window\.ankiV2EvalBusy === 'function' && window\.ankiV2EvalBusy\(\)\)/.test(quick),
   'Rapide : annulation bloquée pendant une notation Synchrotron');
+
+function drillSrsIsLocked(res, busy) {
+  if (res && res.error === 'EVAL_BUSY') return true;
+  if (res && res.ok) return false;
+  return !!busy;
+}
+assert(drillSrsIsLocked({ ok: true, card: { id: 'Y-NE9' } }, true) === false,
+  'succès Rapide + save en cours → enregistrer (pas EVAL_LOCKED)');
+assert(drillSrsIsLocked({ ok: false, error: 'EVAL_BUSY' }, true) === true,
+  'EVAL_BUSY réel → ignorer le double-clic');
+assert(drillSrsIsLocked(null, true) === true,
+  'moteur absent + Synchrotron busy → pas de repli local');
+assert(drillSrsIsLocked(null, false) === false,
+  'moteur absent + libre → repli local OK');
+
+console.log('\n· régression diagnostic 2026-11-04 (Y-NE9 notée 4×)');
+function simulateSession(logic) {
+  let busy = false;
+  const events = [];
+  const applied = {};
+  function mark(id) {
+    const res = busy ? { ok: false, error: 'EVAL_BUSY' } : { ok: true, card: { id: id } };
+    if (!busy && res.ok) busy = true;
+    const locked = logic === 'old'
+      ? ((res && res.error === 'EVAL_BUSY') || busy)
+      : drillSrsIsLocked(res, busy);
+    if (locked) { events.push('EVAL_LOCKED'); return; }
+    applied[id] = (applied[id] || 0) + 1;
+  }
+  mark('Y-NE9');
+  mark('Y-NE9');
+  return { events: events.length, grades: applied['Y-NE9'] || 0 };
+}
+const oldPath = simulateSession('old');
+assert(oldPath.events === 2 && oldPath.grades === 0,
+  'avant : 1er succès traité locked → 0 srsApplied, flush re-note');
+const newPath = simulateSession('new');
+assert(newPath.grades === 1 && newPath.events === 1,
+  'après : 1er succès enregistré ; 2e clic (save en cours) ignoré sans re-noter');
 
 console.log('\n· comportement (code réel des enveloppes)');
 const wrappers = sliceBetween(v2, 'window.ankiV2EvalBusy = function', 'function applyStandaloneEvalNow(')
