@@ -1169,10 +1169,10 @@
     return out;
   }
 
-  /** Compte \\frac / \\dfrac / \\tfrac / \\cfrac. */
+  /** Compte \\frac / \\tfrac / \\cfrac (pas dfrac — déjà « tall »). */
   function countFracs(body) {
     var n = 0;
-    var re = /\\(?:dfrac|tfrac|cfrac|frac)\s*/g;
+    var re = /\\(?:frac|tfrac|cfrac)\s*/g;
     while (re.exec(body) !== null) n++;
     return n;
   }
@@ -1195,24 +1195,32 @@
     return false;
   }
 
-  /**
-   * Une seule fraction / racine, pas de multiligne : glyphes \\bigl/\\bigr
-   * (Safari étire les SVG \\left autour d’un \\frac et décroche l’indice _V).
-   */
+  /** Une seule fraction simple : garder \\left…\\right sans rule (Chrome). */
   function latexBodyHasSimpleFrac(body) {
     var s = String(body || '');
-    if (/\\\\/.test(s) || /\\begin\s*\{/.test(s)) return false;
-    if (/\\(?:overset|underset)/.test(s)) return false;
-    if (countFracs(s) >= 2) return false;
+    if (latexBodyNeedsStretchyMiddles(s)) return false;
     return countFracs(s) === 1 || /\\sqrt/.test(s);
   }
 
   /** Corps plat (texte, ∈, ∃, indices…) → \\bigl/\\bigr plutôt que Size4. */
   function latexBodyIsFlat(body) {
     var s = String(body || '');
-    if (latexBodyNeedsStretchyMiddles(s) && !latexBodyHasSimpleFrac(s)) return false;
+    if (latexBodyNeedsStretchyMiddles(s)) return false;
     if (latexBodyHasSimpleFrac(s)) return false;
     return true;
+  }
+
+  /**
+   * Safari / iOS WebKit étirent les SVG \\left autour d’un \\frac
+   * (parenthèses géantes, indice _V en bas). Chrome / Firefox : non.
+   * Détection lecture seule — jamais écrite dans les cartes.
+   */
+  function isSafariStretchyFracBug() {
+    if (typeof navigator === 'undefined' || !navigator) return false;
+    var ua = String(navigator.userAgent || '');
+    var vendor = String(navigator.vendor || '');
+    if (/CriOS|FxiOS|EdgiOS|Chrome|Chromium|Android|Edg|OPR|Firefox|Silk/i.test(ua)) return false;
+    return /Safari/i.test(ua) || vendor.indexOf('Apple') !== -1;
   }
 
   function stretchyRuleHeight(body) {
@@ -1244,11 +1252,10 @@
   }
 
   /**
-   * MathLive 0.110 / Safari :
-   * - contenu haut (matrices, 2+ fractions) : \\rule pour forcer Size4 (⎜)
-   * - fraction simple ou corps plat : \\bigl…\\bigr (glyphe fixe — pas de SVG
-   *   stretchy, donc pas de parenthèses géantes ni d’indice _V décroché)
-   * (Ne modifie pas la valeur éditée / sauvegardée — uniquement latexToMarkup.)
+   * MathLive 0.110 — aperçu uniquement (latexToMarkup), jamais la valeur sauvée :
+   * - contenu haut : \\rule pour Size4 (⎜)
+   * - corps plat : \\bigl…\\bigr
+   * - fraction simple : \\left tel quel, sauf Safari → \\bigl (bug SVG)
    */
   function normalizeStretchyDelims(latex) {
     var s = String(latex || '');
@@ -1307,10 +1314,10 @@
             }
             var rawBody = s.slice(afterOpen, j);
             var body = normalizeStretchyDelims(rawBody);
-            if (latexBodyHasSimpleFrac(rawBody) || latexBodyIsFlat(rawBody)) {
-              out += toBigDelim('left', openTok) + body + toBigDelim('right', rightTok);
-            } else if (latexBodyNeedsStretchyMiddles(rawBody)) {
+            if (latexBodyNeedsStretchyMiddles(rawBody)) {
               out += '\\left' + openTok + body + '\\rule{0pt}{' + stretchyRuleHeight(rawBody) + '}\\right' + rightTok;
+            } else if (latexBodyIsFlat(rawBody) || (isSafariStretchyFracBug() && latexBodyHasSimpleFrac(rawBody))) {
+              out += toBigDelim('left', openTok) + body + toBigDelim('right', rightTok);
             } else {
               out += '\\left' + openTok + body + '\\right' + rightTok;
             }
@@ -2287,6 +2294,7 @@
   window.normalizeVectorLatex = normalizeVectorLatex;
   window.normalizeTallMatrixDelims = normalizeTallMatrixDelims;
   window.normalizeStretchyDelims = normalizeStretchyDelims;
+  window._isSafariStretchyFracBug = isSafariStretchyFracBug;
   window.normalizeDisplayLines = normalizeDisplayLines;
   window.latexBuildInline = latexBuildInline;
   window.formatCardFaceHtml = formatCardFaceHtml;
