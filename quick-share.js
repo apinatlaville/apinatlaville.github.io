@@ -338,8 +338,8 @@
   }
 
   /**
-   * Le dossier source (créateur) a déjà le contenu de la dernière version :
-   * on aligne installedVersion pour ne plus afficher « Update » / « non installé ».
+   * Aligne seulement installedVersion du dossier DÉJÀ lié à ce pack
+   * (source = toi). Ne crée pas de lien, ne touche pas aux cartes.
    */
   function healOwnerInstalls(list) {
     var n = 0;
@@ -352,20 +352,20 @@
       var g = (window.D.quickGroups || []).find(function (x) {
         return x && x.id === meta.sourceGroupId;
       });
-      if (!g) return;
-      if (g.shared && g.shared.packId && String(g.shared.packId) !== String(meta.packId)) return;
+      if (!g || !g.shared) return;
+      if (String(g.shared.packId) !== String(meta.packId)) return;
       var latest = Number(meta.latestVersion || 1);
-      var inst = Number(g.shared && g.shared.installedVersion || 0);
-      if (g.shared && String(g.shared.packId) === String(meta.packId) && inst >= latest) return;
+      var inst = Number(g.shared.installedVersion || 0);
+      if (inst >= latest) return;
       writeSharedLink(g, {
         packId: meta.packId,
         originPackId: meta.originPackId || meta.forkedFrom
-          || (g.shared && g.shared.originPackId) || meta.packId,
-        forkedFrom: meta.forkedFrom || (g.shared && g.shared.forkedFrom) || '',
+          || g.shared.originPackId || meta.packId,
+        forkedFrom: meta.forkedFrom || g.shared.forkedFrom || '',
         installedVersion: Math.max(inst, latest),
-        publishedVersion: latest,
-        imported: false,
-        localDirty: !!(g.shared && g.shared.localDirty)
+        publishedVersion: Math.max(Number(g.shared.publishedVersion || 0), latest),
+        imported: !!g.shared.imported,
+        localDirty: !!g.shared.localDirty
       });
       n++;
     });
@@ -980,7 +980,9 @@
         .then(function (n) {
           return window.QuickShare.listPacks().then(function (list) {
             var nHeal = healOwnerInstalls(list);
-            if (nHeal && typeof window.save === 'function') window.save();
+            if (nHeal && typeof window.save === 'function') {
+              Promise.resolve(window.save({ waitCloud: false })).catch(function () {});
+            }
             return n + nHeal;
           }).catch(function () { return n; });
         })
@@ -1101,6 +1103,8 @@
     wouldOverwriteOtherFolder: function (g, meta) {
       return shouldNotOverwritePack(g, meta);
     },
+
+    healOwnerInstalls: healOwnerInstalls,
 
     installedLinks: function () {
       return (window.D.quickGroups || []).filter(function (g) {
@@ -1837,8 +1841,8 @@
       ? window.QuickShare.findLocalGroupForPack(S.packId, verLatest, '', meta)
       : window.QuickShare.findLocalGroupByPack(S.packId);
     var latest = Number(meta.latestVersion || 1);
-    if (healOwnerInstalls([meta]) && typeof window.save === 'function') {
-      try { window.save(); } catch (e) { /* ignore */ }
+    /* Alignement mémoire seulement — pas de save() (anti perte au simple affichage). */
+    if (healOwnerInstalls([meta])) {
       local = window.QuickShare.findLocalGroupForPack
         ? window.QuickShare.findLocalGroupForPack(S.packId, verLatest, '', meta)
         : local;

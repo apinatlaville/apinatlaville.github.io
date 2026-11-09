@@ -238,6 +238,79 @@ function testCacheBumped() {
   assert(chk.ok, 'window.__BOOT_CACHE_V bien formé et lu par boot-loader');
 }
 
+function snapshotCards(D) {
+  return JSON.stringify({
+    exercices: D.exercices,
+    groups: (D.quickGroups || []).map((g) => ({
+      id: g.id, name: g.name, mat: g.mat,
+      sharedPack: g.shared && g.shared.packId,
+      installed: g.shared && g.shared.installedVersion
+    }))
+  });
+}
+
+function testLookupNeverMutatesCards() {
+  console.log('\n· consultation catalogue : zéro mutation des cartes / dossiers');
+  const env = envScreenshot();
+  const before = snapshotCards(env.D);
+  const fourierShared = JSON.stringify(env.D.quickGroups[0].shared);
+  const vecShared = JSON.stringify(env.D.quickGroups[1].shared);
+  const QS = loadQuickShare(env);
+  QS.findLocalGroupForPack('P-P5U85F38A', null, '', PACK_META);
+  QS.installedByPackIndex([PACK_META]);
+  QS.healOwnerInstalls([PACK_META]);
+  assert(snapshotCards(env.D) === before, 'exercices + ids dossiers identiques');
+  assert(JSON.stringify(env.D.quickGroups[0].shared) === fourierShared, 'lien Fourier (v1) intact');
+  assert(JSON.stringify(env.D.quickGroups[1].shared) === vecShared, 'lien Vectorielle (v3) intact');
+  assert(env.D.exercices.length === 2, 'aucune carte ajoutée ni supprimée');
+}
+
+async function testGhostPublishKeepsFourierCardsAndPack() {
+  console.log('\n· publication ghost : cartes Fourier et pack v1 intacts');
+  const env = envScreenshot();
+  env.D.quickGroups[1].shared = {
+    packId: 'P-P5U85F38A', installedVersion: 0, imported: false, localDirty: true
+  };
+  const fourierCards = [
+    card('Y-F01', 'QG-FOURIER', 1),
+    card('Y-F02', 'QG-FOURIER', 2),
+    card('Y-F03', 'QG-FOURIER', 3)
+  ];
+  env.D.exercices = fourierCards.concat([
+    card('Y-V01', 'QG-VEC', 10),
+    card('Y-V02', 'QG-VEC', 11)
+  ]);
+  const cardsBefore = JSON.stringify(env.D.exercices);
+  const fourierMeta = {
+    packId: 'P-P5U85F38A',
+    name: 'Analyse de Fourier',
+    latestVersion: 1,
+    cardCount: 20,
+    sourceGroupId: 'QG-FOURIER',
+    createdBy: { uid: 'local', name: 'Anel' },
+    lastPublishedBy: { uid: 'local', name: 'Anel' }
+  };
+  const v1cards = Array.from({ length: 20 }, (_, i) => ({
+    contentId: 'old' + i, question: 'fq' + i, reponse: 'fr' + i, profil: 'ANGLAIS', tempsCible: 30, importance: 3
+  }));
+  seedLocalPack(env, fourierMeta, { 1: { version: 1, cards: v1cards } });
+  const QS = loadQuickShare(env);
+  await QS.publishGroup('QG-VEC');
+  assert(JSON.stringify(env.D.exercices) === cardsBefore, 'aucune carte locale modifiée');
+  assert(env.D.exercices.filter((c) => c.groupId === 'QG-FOURIER').length === 3, '3 cartes Fourier toujours là');
+  const still = await QS.getMeta('P-P5U85F38A');
+  const ver1 = await QS.getVersion('P-P5U85F38A', 1);
+  assert(still && Number(still.latestVersion) === 1, 'pack Fourier toujours v1');
+  assert(ver1 && ver1.cards.length === 20, 'les 20 cartes du pack v1 sont toujours là');
+}
+
+function testDetailDoesNotSaveOnHeal() {
+  console.log('\n· ouvrir le détail d’un pack ne déclenche pas save()');
+  const src = fs.readFileSync(path.join(root, 'quick-share.js'), 'utf8');
+  assert(!/healOwnerInstalls\(\[meta\]\)[\s\S]{0,220}window\.save/.test(src),
+    'pas de save() après heal dans le rendu détail');
+}
+
 async function main() {
   console.log('=== Partage : install propriétaire / anti-écrasement ===');
   testRankingPrefersPublisherFolder();
@@ -245,6 +318,9 @@ async function main() {
   testSourceFolderWinsWithoutShared();
   await testGhostPublishCreatesNewPack();
   await testNameReuseBlockedWhenOtherSourceLives();
+  testLookupNeverMutatesCards();
+  await testGhostPublishKeepsFourierCardsAndPack();
+  testDetailDoesNotSaveOnHeal();
   testImportIdsAreLong();
   testCacheBumped();
   console.log(`\n=== ${passed} passed, ${failed} failed ===`);
