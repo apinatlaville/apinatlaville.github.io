@@ -249,6 +249,46 @@ function snapshotCards(D) {
   });
 }
 
+function testUnpublishedGroupsAndLocalExtrasSurvive() {
+  console.log('\n· dossiers non publiés + cartes locales extra : intacts après catalogue/heal');
+  const env = envScreenshot();
+  env.D.quickGroups.push({
+    id: 'QG-PRIVE',
+    name: 'Jamais publié',
+    mat: 'MATH',
+    shared: null
+  });
+  env.D.exercices.push(
+    card('Y-P01', 'QG-PRIVE', 50),
+    card('Y-P02', 'QG-PRIVE', 51),
+    card('Y-P03', 'QG-PRIVE', 52)
+  );
+  env.D.exercices.push({
+    id: 'Y-VLOCAL',
+    groupId: 'QG-VEC',
+    titre: 'carte locale jamais publiée',
+    question: 'locale q',
+    reponse: 'locale r',
+    profil: 'ANGLAIS',
+    tempsCible: 30,
+    importance: 3
+  });
+  env.D.quickGroups[1].shared.localDirty = true;
+  const before = snapshotCards(env.D);
+  const QS = loadQuickShare(env);
+  QS.findLocalGroupForPack('P-P5U85F38A', null, '', PACK_META);
+  QS.installedByPackIndex([PACK_META]);
+  QS.healOwnerInstalls([PACK_META]);
+  assert(snapshotCards(env.D) === before, 'profil cartes/dossiers identique');
+  assert(env.D.exercices.filter((c) => c.groupId === 'QG-PRIVE').length === 3,
+    '3 cartes du dossier jamais publié toujours là');
+  assert(env.D.exercices.some((c) => c.id === 'Y-VLOCAL' && c.question === 'locale q'),
+    'carte locale extra (non publiée) toujours dans Vectorielle');
+  assert(!env.D.quickGroups.find((g) => g.id === 'QG-PRIVE').shared,
+    'dossier privé toujours sans lien pack');
+  assert(env.D.quickGroups[1].shared.localDirty === true, 'flag « modifié localement » conservé');
+}
+
 function testLookupNeverMutatesCards() {
   console.log('\n· consultation catalogue : zéro mutation des cartes / dossiers');
   const env = envScreenshot();
@@ -318,6 +358,7 @@ async function main() {
   testSourceFolderWinsWithoutShared();
   await testGhostPublishCreatesNewPack();
   await testNameReuseBlockedWhenOtherSourceLives();
+  testUnpublishedGroupsAndLocalExtrasSurvive();
   testLookupNeverMutatesCards();
   await testGhostPublishKeepsFourierCardsAndPack();
   testDetailDoesNotSaveOnHeal();
