@@ -45,6 +45,7 @@ const RULES = {
   'test-import-safety': 'Imports sans perte : retour arrière de l’import Partage, copie auto « Annuler le dernier import »',
   'test-eval-lock': 'Notation Anki : un seul verrou partagé entre Rapide et Synchrotron (pas de double notation)',
   'test-revisions': 'Onglet Révisions : post-its par matière, listes à réviser / à consolider',
+  'test-quick-share-install': 'Partage : pack propriétaire pas « non installé » à cause d’un clone, pas d’écrasement avec moins de cartes',
 };
 
 function ruleFor(name) {

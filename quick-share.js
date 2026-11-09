@@ -262,22 +262,114 @@
   }
 
   /**
+   * Score pour choisir LE dossier local d’un pack.
+   * Un .find() prenait le premier (souvent un vieux clone à v1) alors qu’un
+   * autre dossier — la source, ou la version la plus haute — est déjà à jour.
+   */
+  function groupInstallScore(g, packId, sourceGroupId) {
+    if (!g) return -1;
+    var score = 0;
+    if (sourceGroupId && g.id === sourceGroupId) score += 100000;
+    var sh = g.shared || {};
+    var pid = String(packId || '');
+    if (pid && String(sh.packId || '') === pid) score += 10000;
+    else if (pid && groupLinkedToPackId(g, pid)) score += 1000;
+    else if (!(sourceGroupId && g.id === sourceGroupId)) return -1;
+    var inst = Number(sh.installedVersion || 0);
+    var pubv = Number(sh.publishedVersion || 0);
+    score += Math.max(inst, pubv) * 10;
+    if (!sh.imported) score += 5;
+    return score;
+  }
+
+  function pickBestLinkedGroup(packId, sourceGroupId) {
+    packId = String(packId || '').trim();
+    sourceGroupId = String(sourceGroupId || '').trim();
+    if (!packId && !sourceGroupId) return null;
+    var best = null;
+    var bestScore = -1;
+    (window.D.quickGroups || []).forEach(function (g) {
+      var s = groupInstallScore(g, packId, sourceGroupId);
+      if (s > bestScore) {
+        best = g;
+        bestScore = s;
+      }
+    });
+    return bestScore >= 0 ? best : null;
+  }
+
+  /**
    * Dossier local déjà lié à ce pack (filiation) ou au même contenu.
    * Ne crée JAMAIS un 2e dossier si un match solide existe.
+   * Prefère : sourceGroupId du pack, puis lien primaire + version la plus haute
+   * (pas le premier de la liste — un clone « Analyse de Fourier » v1 ne doit
+   * pas masquer « Analyse Vectorielle » v3).
    */
-  function findLocalGroupForPack(packId, versionDoc, preferMat) {
+  function findLocalGroupForPack(packId, versionDoc, preferMat, packMeta) {
     packId = String(packId || '').trim();
-    if (packId) {
-      var byLineage = (window.D.quickGroups || []).find(function (g) {
-        return groupLinkedToPackId(g, packId);
-      });
-      if (byLineage) return byLineage;
-    }
+    var sourceGroupId = (packMeta && packMeta.sourceGroupId)
+      || (versionDoc && versionDoc.sourceGroupId)
+      || '';
+    var best = pickBestLinkedGroup(packId, sourceGroupId);
+    if (best) return best;
     if (versionDoc) {
       var ov = bestContentOverlapGroup(versionDoc, preferMat);
       if (ov && ov.group) return ov.group;
     }
     return null;
+  }
+
+  /** Autre dossier local encore vivant = source catalogue de ce pack. */
+  function livingSourceGroup(meta, exceptId) {
+    var src = meta && String(meta.sourceGroupId || '').trim();
+    if (!src || src === exceptId) return null;
+    return (window.D.quickGroups || []).find(function (g) {
+      return g && g.id === src;
+    }) || null;
+  }
+
+  /**
+   * Publier depuis ce dossier écraserait le pack d’un AUTRE dossier encore là
+   * (ghost link / Portage). Dans ce cas on crée un nouveau pack.
+   */
+  function shouldNotOverwritePack(g, meta) {
+    if (!g || !meta) return false;
+    return !!livingSourceGroup(meta, g.id);
+  }
+
+  /**
+   * Le dossier source (créateur) a déjà le contenu de la dernière version :
+   * on aligne installedVersion pour ne plus afficher « Update » / « non installé ».
+   */
+  function healOwnerInstalls(list) {
+    var n = 0;
+    (list || []).forEach(function (meta) {
+      if (!meta || !meta.packId || !meta.sourceGroupId) return;
+      if (!isSamePublisher(meta)
+          && !(isLocalMode() && meta.createdBy && meta.createdBy.uid === 'local')) {
+        return;
+      }
+      var g = (window.D.quickGroups || []).find(function (x) {
+        return x && x.id === meta.sourceGroupId;
+      });
+      if (!g) return;
+      if (g.shared && g.shared.packId && String(g.shared.packId) !== String(meta.packId)) return;
+      var latest = Number(meta.latestVersion || 1);
+      var inst = Number(g.shared && g.shared.installedVersion || 0);
+      if (g.shared && String(g.shared.packId) === String(meta.packId) && inst >= latest) return;
+      writeSharedLink(g, {
+        packId: meta.packId,
+        originPackId: meta.originPackId || meta.forkedFrom
+          || (g.shared && g.shared.originPackId) || meta.packId,
+        forkedFrom: meta.forkedFrom || (g.shared && g.shared.forkedFrom) || '',
+        installedVersion: Math.max(inst, latest),
+        publishedVersion: latest,
+        imported: false,
+        localDirty: !!(g.shared && g.shared.localDirty)
+      });
+      n++;
+    });
+    return n;
   }
 
   function writeSharedLink(g, opts) {
@@ -604,7 +696,11 @@
       var byName = mine.filter(function (p) {
         return String(p.name || '').trim().toLowerCase() === name;
       });
-      if (byName.length === 1) return byName[0];
+      if (byName.length === 1) {
+        /* Un autre dossier vivant est encore la source → ne pas réécrire son pack. */
+        if (shouldNotOverwritePack({ id: groupId }, byName[0])) return null;
+        return byName[0];
+      }
     }
     return null;
   }
@@ -653,12 +749,25 @@
     var existingMeta = null;
     if (packId) {
       try { existingMeta = await window.QuickShare.getMeta(packId); } catch (e) { /* ignore */ }
+      /* Ghost link : un AUTRE dossier local est encore la source de ce pack
+         (ex. Fourier v1 vs Vectorielle). On ne pousse pas une version plus
+         petite / différente par-dessus — nouveau pack pour CE dossier. */
+      if (existingMeta && shouldNotOverwritePack(g, existingMeta)) {
+        return {
+          packId: genPackId(),
+          existingMeta: null,
+          forking: false,
+          forkedFrom: '',
+          originPackId: '',
+          detached: true
+        };
+      }
       /* Même packId que le dossier lié — créateur ou contributeur */
       return { packId: packId, existingMeta: existingMeta, forking: false };
     }
 
     var recovered = await findReusablePackMeta(g.id, g.name);
-    if (recovered && recovered.packId) {
+    if (recovered && recovered.packId && !shouldNotOverwritePack(g, recovered)) {
       return { packId: recovered.packId, existingMeta: recovered, forking: false };
     }
 
@@ -771,6 +880,10 @@
         if (g.shared && g.shared.packId) return;
         var meta = bySrc[g.id];
         if (!meta || !meta.packId) return;
+        var taken = (window.D.quickGroups || []).some(function (x) {
+          return x && x.id !== g.id && x.shared && String(x.shared.packId) === String(meta.packId);
+        });
+        if (taken) return;
         var ver = Number(meta.latestVersion || 1);
         writeSharedLink(g, {
           packId: meta.packId,
@@ -863,6 +976,13 @@
           return window.QuickShare.relinkLocalGroupsFromCatalog().then(function (nRelink) {
             return (nOrphan || 0) + (nRelink || 0);
           });
+        })
+        .then(function (n) {
+          return window.QuickShare.listPacks().then(function (list) {
+            var nHeal = healOwnerInstalls(list);
+            if (nHeal && typeof window.save === 'function') window.save();
+            return n + nHeal;
+          }).catch(function () { return n; });
         })
         .catch(function () { return 0; })
         .finally(function () {
@@ -962,7 +1082,10 @@
         localDirty: false,
         imported: false
       });
-      if (typeof window.save === 'function') window.save();
+      if (typeof window.save === 'function') {
+        try { await Promise.resolve(window.save()); } catch (e) { /* lien local déjà écrit */ }
+      }
+      result.detached = !!target.detached;
       return result;
     },
 
@@ -970,9 +1093,13 @@
       return findLocalGroupForPack(packId, null);
     },
 
-    /** Filiation + recouvrement contenu (versionDoc / matière optionnels). */
-    findLocalGroupForPack: function (packId, versionDoc, preferMat) {
-      return findLocalGroupForPack(packId, versionDoc, preferMat);
+    /** Filiation + recouvrement contenu (versionDoc / matière / meta optionnels). */
+    findLocalGroupForPack: function (packId, versionDoc, preferMat, packMeta) {
+      return findLocalGroupForPack(packId, versionDoc, preferMat, packMeta);
+    },
+
+    wouldOverwriteOtherFolder: function (g, meta) {
+      return shouldNotOverwritePack(g, meta);
     },
 
     installedLinks: function () {
@@ -981,14 +1108,36 @@
       });
     },
 
-    /** Index packId → groupe pour catalogue (tous les ids de filiation). */
-    installedByPackIndex: function () {
-      var index = Object.create(null);
+    /** Index packId → meilleur groupe local (source / version haute, pas le 1er). */
+    installedByPackIndex: function (packMetas) {
+      var sourceByPack = Object.create(null);
+      (packMetas || []).forEach(function (p) {
+        if (p && p.packId && p.sourceGroupId) sourceByPack[p.packId] = p.sourceGroupId;
+      });
+      var buckets = Object.create(null);
       (window.D.quickGroups || []).forEach(function (g) {
-        if (!g || !g.shared) return;
-        lineagePackIds(g.shared).forEach(function (id) {
-          if (!index[id]) index[id] = g;
+        if (!g) return;
+        var ids = g.shared ? lineagePackIds(g.shared) : [];
+        Object.keys(sourceByPack).forEach(function (pid) {
+          if (g.id === sourceByPack[pid] && ids.indexOf(pid) < 0) ids.push(pid);
         });
+        ids.forEach(function (id) {
+          if (!buckets[id]) buckets[id] = [];
+          buckets[id].push(g);
+        });
+      });
+      var index = Object.create(null);
+      Object.keys(buckets).forEach(function (id) {
+        var best = null;
+        var bestScore = -1;
+        buckets[id].forEach(function (g) {
+          var s = groupInstallScore(g, id, sourceByPack[id] || '');
+          if (s > bestScore) {
+            best = g;
+            bestScore = s;
+          }
+        });
+        if (best) index[id] = best;
       });
       return index;
     },
@@ -1026,15 +1175,21 @@
       if (!g || !g.shared || !g.shared.packId) return empty;
       var installed = Number(g.shared.installedVersion || 0);
       var latest = null;
+      var meta = null;
       try {
-        var meta = await window.QuickShare.getMeta(g.shared.packId);
+        meta = await window.QuickShare.getMeta(g.shared.packId);
         if (meta && meta.latestVersion != null) latest = Number(meta.latestVersion);
       } catch (e) { /* hors ligne / pas de catalogue */ }
+      var best = findLocalGroupForPack(g.shared.packId, null, '', meta);
+      var bestAtLatest = !!(best && best.shared
+        && String(best.shared.packId) === String(g.shared.packId)
+        && latest != null
+        && Number(best.shared.installedVersion || 0) >= latest);
       return {
         linked: true,
         imported: !!g.shared.imported,
         localDirty: !!g.shared.localDirty,
-        updateAvailable: latest != null && latest > installed,
+        updateAvailable: latest != null && latest > installed && !(bestAtLatest && best !== g),
         packId: g.shared.packId,
         installedVersion: installed,
         latestVersion: latest
@@ -1321,7 +1476,7 @@
 
       /* Garde-fou absolu : jamais un 2e dossier pour le même pack / même contenu */
       var preferMat = (prefs && prefs.mat) || (packMeta && packMeta.suggestedMat) || '';
-      var existing = findLocalGroupForPack(packMeta && packMeta.packId, versionDoc, preferMat);
+      var existing = findLocalGroupForPack(packMeta && packMeta.packId, versionDoc, preferMat, packMeta);
       if (existing) {
         var existingOwned = !!(existing.shared && existing.shared.packId && !existing.shared.imported);
         window.QuickShare.applyVersionToGroup(existing.id, versionDoc, {
@@ -1344,7 +1499,9 @@
       }
 
       var usedG = new Set((window.D.quickGroups || []).map(function (x) { return x.id; }));
-      var gid = genCode('QG-', 3, usedG);
+      var gid = (typeof window.quickGenGroupId === 'function')
+        ? window.quickGenGroupId()
+        : genCode('QG-', 6, usedG);
       var mat = (prefs.mat || '').trim();
       if (!mat) {
         throw new Error('Une matière est obligatoire pour créer un dossier Rapide.');
@@ -1520,7 +1677,7 @@
     }
     var links = window.QuickShare.installedLinks();
     var installed = window.QuickShare.installedByPackIndex
-      ? window.QuickShare.installedByPackIndex()
+      ? window.QuickShare.installedByPackIndex(list)
       : (function () {
           var o = {};
           links.forEach(function (g) { if (g.shared) o[g.shared.packId] = g; });
@@ -1605,7 +1762,11 @@
       var meta = metas[g.shared.packId];
       var latest = meta ? Number(meta.latestVersion || 0) : 0;
       var installed = Number(g.shared.installedVersion || 0);
-      var upd = latest > installed;
+      var best = findLocalGroupForPack(g.shared.packId, null, '', meta);
+      var bestInst = best && best.shared ? Number(best.shared.installedVersion || 0) : installed;
+      var packCurrent = !!(best && best.shared && String(best.shared.packId) === String(g.shared.packId)
+        && latest && bestInst >= latest);
+      var upd = latest > installed && !(packCurrent && best !== g);
       return (
         '<div class="partage-row partage-row-static">' +
           '<div class="partage-row-main">' +
@@ -1673,9 +1834,15 @@
     S.versions = versions;
     var verLatest = versions.length ? versions[0] : null;
     var local = window.QuickShare.findLocalGroupForPack
-      ? window.QuickShare.findLocalGroupForPack(S.packId, verLatest)
+      ? window.QuickShare.findLocalGroupForPack(S.packId, verLatest, '', meta)
       : window.QuickShare.findLocalGroupByPack(S.packId);
     var latest = Number(meta.latestVersion || 1);
+    if (healOwnerInstalls([meta]) && typeof window.save === 'function') {
+      try { window.save(); } catch (e) { /* ignore */ }
+      local = window.QuickShare.findLocalGroupForPack
+        ? window.QuickShare.findLocalGroupForPack(S.packId, verLatest, '', meta)
+        : local;
+    }
     var samePrimary = !!(local && local.shared && local.shared.packId === S.packId);
     var installed = local && samePrimary ? Number(local.shared.installedVersion || 0) : 0;
     var needsUpdate = samePrimary && latest > installed;
@@ -1857,9 +2024,9 @@
       S.detail = meta;
       var ver = await window.QuickShare.getVersion(packId, meta.latestVersion);
       if (!ver) return toast('Version introuvable.', 'error');
-      var local = window.QuickShare.findLocalGroupForPack
-        ? window.QuickShare.findLocalGroupForPack(packId, ver)
-        : window.QuickShare.findLocalGroupByPack(packId);
+    var local = window.QuickShare.findLocalGroupForPack
+      ? window.QuickShare.findLocalGroupForPack(packId, ver, '', meta)
+      : window.QuickShare.findLocalGroupByPack(packId);
       if (local) {
         await confirmAndApply(local.id, meta, ver);
         return;
@@ -1883,7 +2050,7 @@
     var ver = await window.QuickShare.getVersion(meta.packId, meta.latestVersion);
     if (!ver) return toast('Version introuvable.', 'error');
     var local = window.QuickShare.findLocalGroupForPack
-      ? window.QuickShare.findLocalGroupForPack(meta.packId, ver)
+      ? window.QuickShare.findLocalGroupForPack(meta.packId, ver, '', meta)
       : window.QuickShare.findLocalGroupByPack(meta.packId);
     if (!local) return;
     await confirmAndApply(local.id, meta, ver);
@@ -1897,7 +2064,7 @@
     var ver = await window.QuickShare.getVersion(meta.packId, v);
     if (!ver) return toast('Version introuvable.', 'error');
     var local = window.QuickShare.findLocalGroupForPack
-      ? window.QuickShare.findLocalGroupForPack(meta.packId, ver)
+      ? window.QuickShare.findLocalGroupForPack(meta.packId, ver, '', meta)
       : window.QuickShare.findLocalGroupByPack(meta.packId);
     if (!local) {
       openImportWizard(meta, ver);
@@ -2119,7 +2286,7 @@
       }
       if (!ver) throw new Error('Version introuvable.');
       var existed = !!(window.QuickShare.findLocalGroupForPack
-        && window.QuickShare.findLocalGroupForPack(ctx.meta.packId, ver));
+        && window.QuickShare.findLocalGroupForPack(ctx.meta.packId, ver, '', ctx.meta));
       var g = window.QuickShare.createGroupFromVersion(ctx.meta, ver, {
         name: (nameEl && nameEl.value) || ctx.meta.name,
         mat: mat,
@@ -2155,11 +2322,29 @@
       if (shared && shared.packId && !shared.localDirty) {
         return toast('Rien à publier : aucune modification locale depuis la dernière version.', 'ok');
       }
+      var nCards = cardsForGroup(groupId).length;
       var run = async function (opts) {
         var result = await window.QuickShare.publishGroup(groupId, opts || {});
-        toast('Publié : ' + result.meta.packId + ' · v' + result.version, 'ok');
+        var msg = result.detached
+          ? ('Nouveau pack (autre dossier déjà source) : ' + result.meta.packId + ' · v' + result.version)
+          : ('Publié : ' + result.meta.packId + ' · v' + result.version);
+        toast(msg, 'ok');
         if (typeof window.quickCloseEditGroup === 'function') window.quickCloseEditGroup();
         if (typeof window.renderFlashcards === 'function') window.renderFlashcards();
+      };
+      var confirmFewerThenRun = function (meta, opts) {
+        var prevN = Number(meta && meta.cardCount || 0);
+        var overwriteOther = !!(meta && window.QuickShare.wouldOverwriteOtherFolder(g, meta));
+        if (meta && prevN > nCards && !overwriteOther) {
+          var fewerMsg = 'Ce dossier a <b>' + nCards + '</b> cartes, le pack « ' +
+            esc(meta.name || meta.packId) + ' » en a <b>' + prevN + '</b>. ' +
+            'Publier remplace le catalogue par une version plus petite.<br><br>Continuer ?';
+          if (typeof window.sysConfirm === 'function') {
+            window.sysConfirm(fewerMsg, function () { run(opts || {}); }, 'Publier quand même');
+            return;
+          }
+        }
+        return run(opts || {});
       };
       if (shared && shared.packId) {
         var meta = null;
@@ -2174,12 +2359,14 @@
             'Ça met à jour le catalogue pour tout le monde (même pack, pas de doublon). ' +
             'Seul le créateur peut supprimer le pack du catalogue.';
           if (typeof window.sysConfirm === 'function') {
-            window.sysConfirm(collabMsg, function () { run({}); }, 'Publier la version');
+            window.sysConfirm(collabMsg, function () { confirmFewerThenRun(meta, {}); }, 'Publier la version');
           } else {
-            await run({});
+            await confirmFewerThenRun(meta, {});
           }
           return;
         }
+        await confirmFewerThenRun(meta, {});
+        return;
       }
       await run({});
     } catch (e) {
@@ -2195,10 +2382,18 @@
       var list = await window.QuickShare.listPacks();
       var byId = {};
       list.forEach(function (p) { byId[p.packId] = p; });
+      var seen = Object.create(null);
       var n = 0;
       links.forEach(function (g) {
-        var m = byId[g.shared.packId];
-        if (m && Number(m.latestVersion || 0) > Number(g.shared.installedVersion || 0)) n++;
+        var pid = g && g.shared && g.shared.packId;
+        if (!pid || seen[pid]) return;
+        seen[pid] = true;
+        var m = byId[pid];
+        if (!m) return;
+        var best = findLocalGroupForPack(pid, null, '', m);
+        var inst = best && best.shared ? Number(best.shared.installedVersion || 0)
+          : Number(g.shared.installedVersion || 0);
+        if (Number(m.latestVersion || 0) > inst) n++;
       });
       return n;
     } catch (e) {
