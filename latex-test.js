@@ -1195,7 +1195,7 @@
     return false;
   }
 
-  /** Une seule fraction simple : garder \\left…\\right sans rule. */
+  /** Une seule fraction simple : garder \\left…\\right sans rule (Chrome). */
   function latexBodyHasSimpleFrac(body) {
     var s = String(body || '');
     if (latexBodyNeedsStretchyMiddles(s)) return false;
@@ -1208,6 +1208,19 @@
     if (latexBodyNeedsStretchyMiddles(s)) return false;
     if (latexBodyHasSimpleFrac(s)) return false;
     return true;
+  }
+
+  /**
+   * Safari / iOS WebKit étirent les SVG \\left autour d’un \\frac
+   * (parenthèses géantes, indice _V en bas). Chrome / Firefox : non.
+   * Détection lecture seule — jamais écrite dans les cartes.
+   */
+  function isSafariStretchyFracBug() {
+    if (typeof navigator === 'undefined' || !navigator) return false;
+    var ua = String(navigator.userAgent || '');
+    var vendor = String(navigator.vendor || '');
+    if (/CriOS|FxiOS|EdgiOS|Chrome|Chromium|Android|Edg|OPR|Firefox|Silk/i.test(ua)) return false;
+    return /Safari/i.test(ua) || vendor.indexOf('Apple') !== -1;
   }
 
   function stretchyRuleHeight(body) {
@@ -1239,11 +1252,10 @@
   }
 
   /**
-   * MathLive 0.110 :
-   * - contenu haut : \\rule pour forcer l’assemblage Size4 (⎜)
-   * - fraction simple : \\left…\\right tel quel
-   * - corps plat : \\bigl…\\bigr (évite accolades/parenthèses géantes type {y∈E…})
-   * (Ne modifie pas la valeur éditée / sauvegardée — uniquement latexToMarkup.)
+   * MathLive 0.110 — aperçu uniquement (latexToMarkup), jamais la valeur sauvée :
+   * - contenu haut : \\rule pour Size4 (⎜)
+   * - corps plat : \\bigl…\\bigr
+   * - fraction simple : \\left tel quel, sauf Safari → \\bigl (bug SVG)
    */
   function normalizeStretchyDelims(latex) {
     var s = String(latex || '');
@@ -1304,7 +1316,7 @@
             var body = normalizeStretchyDelims(rawBody);
             if (latexBodyNeedsStretchyMiddles(rawBody)) {
               out += '\\left' + openTok + body + '\\rule{0pt}{' + stretchyRuleHeight(rawBody) + '}\\right' + rightTok;
-            } else if (latexBodyIsFlat(rawBody)) {
+            } else if (latexBodyIsFlat(rawBody) || (isSafariStretchyFracBug() && latexBodyHasSimpleFrac(rawBody))) {
               out += toBigDelim('left', openTok) + body + toBigDelim('right', rightTok);
             } else {
               out += '\\left' + openTok + body + '\\right' + rightTok;
@@ -2282,6 +2294,7 @@
   window.normalizeVectorLatex = normalizeVectorLatex;
   window.normalizeTallMatrixDelims = normalizeTallMatrixDelims;
   window.normalizeStretchyDelims = normalizeStretchyDelims;
+  window._isSafariStretchyFracBug = isSafariStretchyFracBug;
   window.normalizeDisplayLines = normalizeDisplayLines;
   window.latexBuildInline = latexBuildInline;
   window.formatCardFaceHtml = formatCardFaceHtml;
