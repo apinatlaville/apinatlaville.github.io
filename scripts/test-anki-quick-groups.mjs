@@ -78,6 +78,10 @@ assert(Array.isArray(sandbox.window.D.quickGroups), 'après migrate : quickGroup
 assert(sandbox.window.D.quickGroups.length === 1 && sandbox.window.D.quickGroups[0].id === 'QG-VOC',
   'migrate filtre groupes invalides');
 assert(sandbox.window.D.quickGroups[0].mat === 'ANGL', 'migrate conserve mat');
+sandbox.window.D.quickGroups.push({ id: 'QG-BID', name: 'Bidir', mat: 'ANGL', bidirectional: true });
+sandbox.window.AnkiAlgo.migrateData(sandbox.window.D);
+const kept = sandbox.window.D.quickGroups.find((g) => g.id === 'QG-BID');
+assert(kept && kept.bidirectional === true, 'migrate conserve bidirectional');
 
 console.log(`\n=== ${passed} passed, ${failed} failed ===`);
 process.exit(failed ? 1 : 0);

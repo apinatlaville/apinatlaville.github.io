@@ -1420,6 +1420,7 @@
           mat: g.mat ? String(g.mat) : '',
           chapitreId: g.chapitreId ? String(g.chapitreId) : ''
         };
+        if (g.bidirectional) out.bidirectional = true;
         // Lien pack partagé (catalogue) — ne pas perdre au migrate
         if (g.shared && typeof g.shared === 'object' && g.shared.packId) {
           out.shared = {

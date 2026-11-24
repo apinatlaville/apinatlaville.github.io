@@ -25,6 +25,7 @@ const RULES = {
   'test-anki-priority-files': 'Anki : files de priorité séparées X- (principal) / Y- (rapide), retards prioritaires',
   'test-anki-quick-create': 'Anki Rapide : création de cartes Y-, éditeur LaTeX, bundle quickLatex',
   'test-anki-quick-groups': 'Anki Rapide : dossiers/groupes, fil d’Ariane, démo quickGroups',
+  'test-anki-quick-bidir': 'Anki Rapide : Due ce soir Recto ↔ verso (2 faces) et SRS overdue/active (pas soon)',
   'test-audit-donnees-robustesse': 'Robustesse données : anti faux-Principal, includeNew/réservoir, gardes secondaire, save avant avance de session (anti double-notation)',
   'test-audit-fixes': 'Correctifs d’audit : rollback si setDoc échoue, merge patch secondaire, tri/impression null-safe',
   'test-audit-robustesse': 'Robustesse UI : formatCardFaceHtml anti-XSS, création de carte attend save, MathLive fail-safe',

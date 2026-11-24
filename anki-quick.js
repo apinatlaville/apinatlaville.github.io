@@ -995,8 +995,8 @@
           renderGroupColorDots('edit', Q.editGroupColor, { forEdit: true }) +
           '<label class="anki-check-row qk-group-bidir-row" for="qkEditGroupBidir">' +
             '<input type="checkbox" id="qkEditGroupBidir"' + (g.bidirectional ? ' checked' : '') + '>' +
-            '<span><b>Recto ↔ verso</b> — les cartes peuvent tomber dans les deux sens ' +
-            '(Due ce soir et Synchrotron), au hasard.</span>' +
+            '<span><b>Recto ↔ verso</b> — Due ce soir : les cartes apparaissent en recto et en verso. ' +
+            'Synchrotron : un sens au hasard.</span>' +
           '</label>' +
           (g.shared && g.shared.packId
             ? '<p class="anki-mut" style="font-size:12px;margin:8px 0 0;">Pack partagé <code>' + esc(g.shared.packId) +
@@ -1411,16 +1411,15 @@
     return `<nav class="cours-bc-bar" aria-label="Fil d’Ariane Rapide">${crumbs}</nav>`;
   }
 
-  /** Y- actives dues ce soir (algo Synchrotron), tous dossiers mélangés. */
+  /** Y- dues ce soir : overdue / active seulement (pas « bientôt » / pullForward). */
   function getSynchrotronYDueCards() {
     const A = window.AnkiAlgoV2;
     if (!A || typeof A.sortByQuickPriority !== 'function') return [];
-    const pull = !(A.getSettings && A.getSettings().pullForward === false);
     const ref = typeof A.todayISO === 'function' ? A.todayISO() : null;
     return A.sortByQuickPriority(window.D.exercices || [], ref)
       .map(function (x) { return x.card; })
       .filter(function (c) {
-        return !!(c && typeof A.isEligibleTonight === 'function' && A.isEligibleTonight(c, ref, pull));
+        return !!(c && typeof A.isEligibleTonight === 'function' && A.isEligibleTonight(c, ref, false));
       });
   }
 
@@ -1442,7 +1441,7 @@
             '</div>' +
             '<button type="button" class="bp ui-btn-sm qk-due-tonight" onclick="window.quickStartSynchrotronY()" ' +
               (dueN ? '' : 'disabled ') +
-              'title="Session algo : Y- overdue / actives / bientôt — tu choisis les matières">' +
+              'title="Y- overdue ou dues aujourd’hui — tu choisis les matières">' +
               window.iconLabel('moon', dueN ? ('Due ce soir · ' + dueN) : 'Rien de dû') +
             '</button>' +
           '</div>' +
@@ -2018,7 +2017,9 @@
     /** Due ce soir : filtre matières (setup). */
     matFilter: false,
     matBuckets: [],
-    selectedMats: null
+    selectedMats: null,
+    /** Due ce soir : chaque carte d’un dossier Recto ↔ verso = 2 faces. */
+    expandBidir: false
   };
 
   function groupAllowsBidirectional(g) {
@@ -2030,10 +2031,61 @@
     return groupAllowsBidirectional(groupInfo(c.groupId));
   }
 
+  function cardHasDrillVerso(c) {
+    return !!(c && String(c.reponse || '').trim());
+  }
+
+  function drillPresKey(c) {
+    if (c && c._drillKey) return c._drillKey;
+    return c && c.id != null ? String(c.id) : '';
+  }
+
+  function makeDrillPresentation(c, swapped) {
+    const e = Object.assign({}, c);
+    e._drillSwap = !!swapped;
+    e._drillKey = String(c.id) + (swapped ? '#v' : '#r');
+    return e;
+  }
+
+  function expandDuePresentations(cards) {
+    const out = [];
+    (cards || []).forEach(function (c) {
+      if (!c) return;
+      if (cardGroupBidirectional(c) && cardHasDrillVerso(c)) {
+        out.push(makeDrillPresentation(c, false));
+        out.push(makeDrillPresentation(c, true));
+      } else {
+        out.push(c);
+      }
+    });
+    return out;
+  }
+
+  function drillVerdictRank(v) {
+    if (v === 'bad') return 2;
+    if (v === 'mid') return 1;
+    if (v === 'ok') return 0;
+    return -1;
+  }
+
+  function worseDrillVerdict(a, b) {
+    if (drillVerdictRank(a) >= drillVerdictRank(b)) return a;
+    return b;
+  }
+
+  function queuePresentationsOf(id) {
+    if (!id) return [];
+    return (DRILL.queue || []).filter(function (c) { return c && c.id === id; });
+  }
+
   /** Exposé pour le Synchrotron (même règle dossier). */
   window.quickCardAllowsBidirectional = function (c) {
     return cardGroupBidirectional(c);
   };
+
+  window.quickDrillExpandBidir = expandDuePresentations;
+  window.quickDrillWorseVerdict = worseDrillVerdict;
+  window.quickGetSynchrotronYDueCards = getSynchrotronYDueCards;
 
   function drillCardMeta(c) {
     if (!c) return { groupName: 'Sans dossier', matLabel: '?', matColor: '#6a7088' };
@@ -2062,6 +2114,7 @@
   }
 
   function resolveDrillSwap(c) {
+    if (c && (c._drillSwap === true || c._drillSwap === false)) return !!c._drillSwap;
     if (DRILL.swap) return true;
     if (!cardGroupBidirectional(c) || !c || !c.id) return false;
     if (!DRILL.cardSwap) DRILL.cardSwap = {};
@@ -2297,6 +2350,7 @@
       DRILL.revealed = false;
       DRILL.typed = '';
       DRILL.check = null;
+      DRILL.expandBidir = !!opts.matFilter;
       initDrillMatFilter(cards, !!opts.matFilter);
       const ov = ensureDrillOverlay();
       ov.classList.remove('hidden');
@@ -2304,8 +2358,12 @@
     });
   }
 
-  function buildDrillQueue(subset) {
-    const src = subset && subset.length ? subset : DRILL.pool;
+  function buildDrillQueue(subset, queueOpts) {
+    queueOpts = queueOpts || {};
+    let src = subset && subset.length ? subset : DRILL.pool;
+    if (DRILL.expandBidir && !queueOpts.alreadyExpanded) {
+      src = expandDuePresentations(src);
+    }
     DRILL.queue = DRILL.random ? shuffleCards(src) : src.slice();
     DRILL.idx = 0;
     DRILL.results = {};
@@ -2340,8 +2398,12 @@
 
   function cloneDrillCard(c) {
     if (!c) return null;
-    try { return JSON.parse(JSON.stringify(c)); }
-    catch (e) { return Object.assign({}, c); }
+    let o;
+    try { o = JSON.parse(JSON.stringify(c)); }
+    catch (e) { o = Object.assign({}, c); }
+    delete o._drillKey;
+    delete o._drillSwap;
+    return o;
   }
 
   function findLiveExo(id) {
@@ -2354,10 +2416,18 @@
   function syncDrillCardRefs(id, live) {
     if (!id || !live) return;
     (DRILL.queue || []).forEach(function (c, i) {
-      if (c && c.id === id) DRILL.queue[i] = live;
+      if (!c || c.id !== id) return;
+      if (c._drillKey || c._drillSwap === true || c._drillSwap === false) {
+        const next = Object.assign({}, live);
+        if (c._drillKey) next._drillKey = c._drillKey;
+        if (c._drillSwap === true || c._drillSwap === false) next._drillSwap = c._drillSwap;
+        DRILL.queue[i] = next;
+      } else {
+        DRILL.queue[i] = live;
+      }
     });
     (DRILL.pool || []).forEach(function (c, i) {
-      if (c && c.id === id) DRILL.pool[i] = live;
+      if (c && c.id === id && !c._drillKey) DRILL.pool[i] = live;
     });
   }
 
@@ -2375,7 +2445,8 @@
     if (DRILL.phase === 'done') return DRILL.gradeStack.length > 0;
     if (DRILL.phase !== 'card') return false;
     const cur = drillLiveCard();
-    if (cur && (DRILL.results[cur.id] || DRILL.srsPending[cur.id] || DRILL.srsApplied[cur.id])) return true;
+    const pk = drillPresKey(cur);
+    if (cur && (DRILL.results[pk] || DRILL.srsPending[pk] || DRILL.srsApplied[cur.id])) return true;
     return DRILL.gradeStack.length > 0;
   }
 
@@ -2449,6 +2520,33 @@
     return { ok: true, card: live, out: out };
   }
 
+  function allPresentationsGraded(id) {
+    const pres = queuePresentationsOf(id);
+    if (!pres.length) return false;
+    return pres.every(function (p) { return !!DRILL.results[drillPresKey(p)]; });
+  }
+
+  function mergedVerdictForCard(id) {
+    const pres = queuePresentationsOf(id);
+    let merged = null;
+    pres.forEach(function (p) {
+      const v = DRILL.results[drillPresKey(p)];
+      if (!v) return;
+      merged = merged ? worseDrillVerdict(merged, v) : v;
+    });
+    return merged;
+  }
+
+  /** Une notation SRS par carte réelle, après toutes les faces (pire verdict). */
+  function maybeApplyMergedSrs(c, force) {
+    if (!c || !c.id) return;
+    if (!force && !allPresentationsGraded(c.id)) return;
+    const merged = mergedVerdictForCard(c.id);
+    if (!merged) return;
+    if (DRILL.srsApplied[c.id] === merged) return;
+    applyDrillSrs(c, merged);
+  }
+
   /** Enregistre la révision : répétitions / ease / intervalle / historique. */
   function applyDrillSrs(c, verdict) {
     if (!c || !c.id) return;
@@ -2487,7 +2585,7 @@
       if (replacePrevious) popGradeStackId(c.id);
       DRILL.srsApplied[c.id] = verdict;
       delete DRILL.srsPending[c.id];
-      DRILL.gradeStack.push({ id: c.id, idx: DRILL.idx, verdict: verdict });
+      DRILL.gradeStack.push({ id: c.id, idx: DRILL.idx, verdict: verdict, presKey: drillPresKey(c) });
       if (res.card) syncDrillCardRefs(c.id, res.card);
       else {
         const live = findLiveExo(c.id);
@@ -2498,7 +2596,7 @@
     }
   }
 
-  function revertDrillSrs(id) {
+  function revertDrillSrs(id, presKey) {
     if (!id) return false;
     let restored = false;
     const fn = window.ankiV2RevertStandaloneEval;
@@ -2527,34 +2625,33 @@
     if (DRILL._localSnaps) delete DRILL._localSnaps[id];
     delete DRILL.srsApplied[id];
     delete DRILL.srsPending[id];
-    delete DRILL.results[id];
+    if (presKey) {
+      delete DRILL.results[presKey];
+      delete DRILL.srsPending[presKey];
+    } else {
+      queuePresentationsOf(id).forEach(function (p) {
+        const k = drillPresKey(p);
+        delete DRILL.results[k];
+        delete DRILL.srsPending[k];
+      });
+      delete DRILL.results[id];
+    }
     popGradeStackId(id);
     return restored;
   }
 
   function flushPendingDrillSrs(c) {
     if (!c || !c.id) return;
-    if (DRILL.srsApplied[c.id]) return;
-    const pending = DRILL.srsPending[c.id] || DRILL.results[c.id];
-    if (!pending) return;
-    applyDrillSrs(c, pending);
+    maybeApplyMergedSrs(c, false);
   }
 
   /** Comme le Synchrotron : toute notation déjà faite (ou en attente) est persistée. */
   function flushAllDrillSrs() {
+    const seen = Object.create(null);
     (DRILL.queue || []).forEach(function (c) {
-      flushPendingDrillSrs(c);
-    });
-    Object.keys(DRILL.srsPending || {}).forEach(function (id) {
-      if (DRILL.srsApplied[id]) return;
-      const verdict = DRILL.srsPending[id];
-      if (!verdict) return;
-      let c = (DRILL.queue || []).find(function (x) { return x && x.id === id; });
-      if (!c && window.AnkiAlgoV2 && typeof window.AnkiAlgoV2.findCard === 'function') {
-        c = window.AnkiAlgoV2.findCard(window.D, id);
-      }
-      if (!c) c = ((window.D && window.D.exercices) || []).find(function (x) { return x && x.id === id; });
-      if (c) applyDrillSrs(c, verdict);
+      if (!c || !c.id || seen[c.id]) return;
+      seen[c.id] = true;
+      maybeApplyMergedSrs(c, true);
     });
   }
 
@@ -2605,6 +2702,54 @@
     return html;
   }
 
+  function countDueBidirIn(cards) {
+    let n = 0;
+    (cards || []).forEach(function (c) {
+      if (cardGroupBidirectional(c) && cardHasDrillVerso(c)) n += 1;
+    });
+    return n;
+  }
+
+  function renderDueBidirHint(cards) {
+    if (!DRILL.expandBidir) return '';
+    const n = countDueBidirIn(cards);
+    if (!n) return '';
+    return '<p class="qk-drill-hint">Les dossiers <b>Recto ↔ verso</b> : ' + n +
+      ' carte' + (n > 1 ? 's' : '') +
+      ' dans ce filtre seront vues dans les deux sens (recto et verso).</p>';
+  }
+
+  function drillDueSrsSummaryHtml() {
+    const A = window.AnkiAlgoV2;
+    const today = A && typeof A.todayISO === 'function' ? A.todayISO() : null;
+    const seen = Object.create(null);
+    let stay = 0;
+    let tomorrow = 0;
+    let later = 0;
+    let n = 0;
+    (DRILL.queue || []).forEach(function (c) {
+      if (!c || !c.id || seen[c.id]) return;
+      const graded = queuePresentationsOf(c.id).some(function (p) {
+        return !!DRILL.results[drillPresKey(p)];
+      });
+      if (!graded) return;
+      seen[c.id] = true;
+      n += 1;
+      const live = findLiveExo(c.id) || c;
+      const next = live.dateProchaineRevision;
+      if (!today || !next || next <= today) stay += 1;
+      else if (typeof A.daysBetween === 'function' && A.daysBetween(today, next) === 1) tomorrow += 1;
+      else later += 1;
+    });
+    if (!n) return '';
+    const bits = [];
+    if (tomorrow) bits.push(tomorrow + ' demain');
+    if (later) bits.push(later + ' plus tard');
+    if (stay) bits.push(stay + ' encore due' + (stay > 1 ? 's' : '') + ' aujourd’hui');
+    if (!bits.length) return '';
+    return '<p class="qk-drill-hint">SRS : ' + bits.join(' · ') + '.</p>';
+  }
+
   function renderDrill() {
     const root = document.getElementById('qkDrillRoot');
     const ov = document.getElementById('ovQuickDrill');
@@ -2625,7 +2770,7 @@
         `</p>
         ${renderSetupMatChips()}
         <p class="qk-drill-hint">Choisis combien en réviser maintenant — le reste reste dû pour plus tard.</p>
-        ${n ? renderSetupSizeChips(n) : '<p class="qk-drill-hint qk-drill-hint--warn">Aucune carte avec ce filtre.</p>'}
+        ${n ? renderSetupSizeChips(n) + renderDueBidirHint(filtered) : '<p class="qk-drill-hint qk-drill-hint--warn">Aucune carte avec ce filtre.</p>'}
         <div class="qk-drill-opts" role="group" aria-label="Options de révision">
           ${optChip(DRILL.random, 'shuffle', 'Aléatoire', "window.quickDrillToggle('random')")}
           ${optChip(DRILL.swap, 'arrow-left-right', DRILL.swap ? 'Verso → recto' : 'Recto → verso', "window.quickDrillToggle('swap')")}
@@ -2639,7 +2784,7 @@
     } else if (DRILL.phase === 'done') {
       const cts = drillCounts();
       const missed = DRILL.queue.filter(function (c) {
-        const v = DRILL.results[c.id];
+        const v = DRILL.results[drillPresKey(c)];
         return v === 'bad' || v === 'mid';
       });
       const partial = cts.done > 0 && cts.done < cts.total;
@@ -2649,6 +2794,7 @@
         <p class="qk-drill-hint">${cts.done
           ? 'Révisions enregistrées dans le Synchrotron (SRS + stats du jour).'
           : 'Aucune carte notée.'}</p>
+        ${drillDueSrsSummaryHtml()}
         <div class="qk-drill-score">
           <div class="qk-drill-score-ok"><b>${cts.ok}</b><span>bon${cts.ok > 1 ? 's' : ''}</span></div>
           <div class="qk-drill-score-mid"><b>${cts.mid}</b><span>étourderie${cts.mid > 1 ? 's' : ''}</span></div>
@@ -2682,7 +2828,7 @@
           <span class="qk-drill-mini-mid">${cts.mid} étourd.</span>
           <span class="qk-drill-mini-bad">${cts.bad} ratée${cts.bad > 1 ? 's' : ''}</span>
         </div>
-        <p class="qk-drill-hint">${faces.swapped ? 'Verso → recto (ex. EN → FR).' : 'Recto → verso (ex. FR → EN).'}${!DRILL.swap && cardGroupBidirectional(c) ? ' · dossier bidirectionnel' : ''}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
+        <p class="qk-drill-hint">${faces.swapped ? 'Verso → recto (ex. EN → FR).' : 'Recto → verso (ex. FR → EN).'}${c._drillKey || (!DRILL.swap && cardGroupBidirectional(c)) ? ' · dossier bidirectionnel' : ''}${DRILL.typeMode ? ' Majuscules, espaces et accents ignorés.' : ''}</p>
         <div class="qk-drill-card">
           <div class="qk-drill-face-lbl">${faces.swapped ? 'Verso (indice)' : 'Recto'}</div>
           <div class="qk-drill-prompt">${formatFace(faces.prompt) || '<em>Face vide</em>'}</div>
@@ -2799,13 +2945,14 @@
   window.quickDrillGiveUp = function () {
     const c = drillLiveCard();
     if (!c) return;
+    const pk = drillPresKey(c);
     const inp = document.getElementById('qkDrillInput');
     if (inp) DRILL.typed = inp.value;
     DRILL.revealed = true;
     DRILL.check = { ok: false, got: DRILL.typed };
-    DRILL.results[c.id] = 'bad';
+    DRILL.results[pk] = 'bad';
     // Différé : permet « C’était bon » avant d’écrire le SRS
-    DRILL.srsPending[c.id] = 'bad';
+    DRILL.srsPending[pk] = 'bad';
     renderDrill();
   };
 
@@ -2817,8 +2964,8 @@
     if (verdict === true) key = 'ok';
     else if (verdict === false) key = 'bad';
     if (key !== 'ok' && key !== 'mid' && key !== 'bad') key = 'bad';
-    DRILL.results[c.id] = key;
-    applyDrillSrs(c, key);
+    DRILL.results[drillPresKey(c)] = key;
+    maybeApplyMergedSrs(c);
     // Auto-éval : flash couleur seul (pas de « Juste » / réponse en grand — réservé au mode Écrire)
     DRILL.revealed = true;
     DRILL.check = { ok: key === 'ok', glowOnly: true, flash: key };
@@ -2829,12 +2976,15 @@
   function scheduleOkAdvance(card, ms) {
     const delay = ms != null ? ms : 2000;
     const gen = DRILL._undoGen || 0;
+    const idx = DRILL.idx;
+    const pk = drillPresKey(card);
     try {
       if (navigator.vibrate) navigator.vibrate(28);
     } catch (e) { /* ignore */ }
     setTimeout(function () {
       if ((DRILL._undoGen || 0) !== gen) return;
-      if (DRILL.phase === 'card' && drillLiveCard() === card && DRILL.check && (DRILL.check.glowOnly || DRILL.check.ok)) {
+      const live = drillLiveCard();
+      if (DRILL.phase === 'card' && DRILL.idx === idx && live && drillPresKey(live) === pk && DRILL.check && (DRILL.check.glowOnly || DRILL.check.ok)) {
         window.quickDrillAdvance();
       }
     }, delay);
@@ -2843,6 +2993,7 @@
   window.quickDrillCheck = function () {
     const c = drillLiveCard();
     if (!c) return;
+    const pk = drillPresKey(c);
     const faces = drillFaces(c);
     const inp = document.getElementById('qkDrillInput');
     const got = inp ? inp.value : DRILL.typed;
@@ -2851,16 +3002,16 @@
     const b = window.normalizeQuickDrillAnswer(faces.expected);
     const ok = !!b && a === b;
     DRILL.revealed = true;
-    DRILL.results[c.id] = ok ? 'ok' : 'bad';
+    DRILL.results[pk] = ok ? 'ok' : 'bad';
     if (ok) {
       // Mode Écrire : verdict « Juste » + réponse en grand + flash vert
       DRILL.check = { ok: true, got: got, flash: 'ok' };
-      applyDrillSrs(c, 'ok');
+      maybeApplyMergedSrs(c);
       renderDrill();
       scheduleOkAdvance(c);
     } else {
       DRILL.check = { ok: false, got: got, flash: 'bad' };
-      DRILL.srsPending[c.id] = 'bad';
+      DRILL.srsPending[pk] = 'bad';
       renderDrill();
     }
   };
@@ -2868,9 +3019,10 @@
   window.quickDrillOverrideOk = function () {
     const c = drillLiveCard();
     if (!c) return;
-    DRILL.results[c.id] = 'ok';
-    delete DRILL.srsPending[c.id];
-    applyDrillSrs(c, 'ok');
+    const pk = drillPresKey(c);
+    DRILL.results[pk] = 'ok';
+    delete DRILL.srsPending[pk];
+    maybeApplyMergedSrs(c);
     DRILL.check = { ok: true, got: DRILL.typed, flash: 'ok' };
     DRILL.revealed = true;
     renderDrill();
@@ -2890,12 +3042,12 @@
 
   window.quickDrillRetry = function (mode) {
     const missed = DRILL.queue.filter(function (c) {
-      const v = DRILL.results[c.id];
+      const v = DRILL.results[drillPresKey(c)];
       return v === 'bad' || v === 'mid';
     });
     if (mode === 'missed') {
       if (!missed.length) return;
-      buildDrillQueue(missed);
+      buildDrillQueue(missed, { alreadyExpanded: true });
     } else {
       const again = (DRILL.sessionCards && DRILL.sessionCards.length)
         ? DRILL.sessionCards
@@ -2916,11 +3068,12 @@
     DRILL._undoGen = (DRILL._undoGen || 0) + 1;
 
     const cur = drillLiveCard();
+    const pk = drillPresKey(cur);
 
     // Note en attente (ex. « Je ne sais pas » / réponse tapée ratée) — pas encore de SRS
-    if (DRILL.phase === 'card' && cur && DRILL.results[cur.id] && !DRILL.srsApplied[cur.id]) {
-      delete DRILL.results[cur.id];
-      delete DRILL.srsPending[cur.id];
+    if (DRILL.phase === 'card' && cur && DRILL.results[pk] && !DRILL.srsApplied[cur.id]) {
+      delete DRILL.results[pk];
+      delete DRILL.srsPending[pk];
       DRILL.revealed = false;
       DRILL.typed = '';
       DRILL.check = null;
@@ -2930,7 +3083,8 @@
 
     // Encore sur la carte venant d’être notée (SRS déjà écrit)
     if (DRILL.phase === 'card' && cur && DRILL.srsApplied[cur.id]) {
-      revertDrillSrs(cur.id);
+      revertDrillSrs(cur.id, pk);
+      maybeApplyMergedSrs(cur, true);
       DRILL.revealed = false;
       DRILL.typed = '';
       DRILL.check = null;
@@ -2942,7 +3096,7 @@
     // Revenir à la carte précédente / depuis le bilan
     if (!DRILL.gradeStack.length) return;
     const last = DRILL.gradeStack[DRILL.gradeStack.length - 1];
-    revertDrillSrs(last.id);
+    revertDrillSrs(last.id, last.presKey);
     DRILL.idx = Math.max(0, Math.min(last.idx, (DRILL.queue.length || 1) - 1));
     DRILL.phase = 'card';
     DRILL.revealed = false;
