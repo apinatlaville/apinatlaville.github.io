@@ -64,6 +64,11 @@ const installerTxt = read(installer);
 assert(installerTxt.includes('/Applications/Mes Cours.app'), 'installe dans /Applications');
 assert(!installerTxt.includes('rm -rf /'), 'pas de rm -rf dangereux');
 
+const readmeTxt = read(readme);
+assert(readmeTxt.includes('xattr -dr com.apple.quarantine'), 'LIRE-MOI : déblocage Gatekeeper (xattr)');
+assert(readmeTxt.includes('Ne mets pas à la corbeille'), 'LIRE-MOI : ne pas jeter l’app bloquée');
+assert(readmeTxt.includes('Ouvrir quand même'), 'LIRE-MOI : Réglages → Ouvrir quand même');
+
 function dryRun(apps, extraEnv = {}) {
   const fakeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mescours-apps-'));
   for (const name of apps) {
