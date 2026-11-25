@@ -1,0 +1,61 @@
+#!/bin/bash
+# Mes Cours — fenêtre dédiée du site, dans TON navigateur (même profil Google).
+set -euo pipefail
+
+URL="${MESCOURS_URL:-https://apinatlaville.github.io/}"
+APP_ROOT="${MESCOURS_APP_ROOT:-/Applications}"
+HOME_APPS="${HOME:-/tmp}/Applications"
+DRY="${MESCOURS_DRY_RUN:-}"
+
+find_app() {
+  local name="$1"
+  if [ -d "${APP_ROOT}/${name}.app" ]; then
+    printf '%s\n' "${APP_ROOT}/${name}.app"
+    return 0
+  fi
+  if [ -d "${HOME_APPS}/${name}.app" ]; then
+    printf '%s\n' "${HOME_APPS}/${name}.app"
+    return 0
+  fi
+  return 1
+}
+
+run_open() {
+  if [ -n "$DRY" ]; then
+    printf 'open'
+    local a
+    for a in "$@"; do
+      printf ' %s' "$a"
+    done
+    printf '\n'
+    return 0
+  fi
+  command open "$@"
+}
+
+# Chromium : --app = fenêtre site sans barre d’onglets, cookies du profil par défaut
+# → même connexion Google que dans Chrome / Brave / Edge.
+CHROMIUM_APPS=(
+  "Google Chrome"
+  "Google Chrome Beta"
+  "Google Chrome Canary"
+  "Brave Browser"
+  "Microsoft Edge"
+  "Vivaldi"
+  "Chromium"
+  "Arc"
+)
+
+for name in "${CHROMIUM_APPS[@]}"; do
+  if find_app "$name" >/dev/null; then
+    run_open -na "$name" --args --app="$URL"
+    exit 0
+  fi
+done
+
+if find_app "Safari" >/dev/null; then
+  run_open -a Safari "$URL"
+  exit 0
+fi
+
+run_open "$URL"
